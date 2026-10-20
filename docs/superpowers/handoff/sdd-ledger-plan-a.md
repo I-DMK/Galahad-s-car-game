@@ -89,3 +89,6 @@ Task 12: minor (deferred): assertion turbo===false à t+4,9 fragile ; collectSta
 Task 12: complete (commits 19a0582..68d4679, review clean)
 Task 13: minor (deferred): point de tête des étincelles superflu ; test volcan n'asserte que count > 0 ; effets non vidés au rebuildCar
 Task 13: complete (commits 1069f64..b60fc12, review clean)
+Task 14: e2e 5/5 en 54 s ; captures course.png / arrivee.png vues par le contrôleur : OK
+Task 14: minor (deferred): touchEnd hors du finally ; seules les erreurs console collectées ; boucle de 5 s peut dépasser 90 s ; test captures rejoue la course de 300 m
+Task 14: complete (commits a83babf..ad74f6b, review clean)
