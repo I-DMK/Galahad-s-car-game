@@ -24,7 +24,7 @@
 - `track/`, `cars/` n'importent ni `matter-js` ni le DOM (test de dépendance, tâche 2).
 - `type Config = { readonly [K in keyof typeof CONFIG]: number }` pour que les tests puissent passer un `cfg` modifié.
 - Vitest : `defineConfig` importé de `vitest/config`, `test.globals: true`, `types: ["vite/client", "vitest/globals"]`, **`test.testTimeout: 180_000`** (les simulations Matter.js durent de 30 s à quelques minutes : ~2 ms par pas sur un monde de 8 400 corps statiques).
-- Base Vite = `process.env.VITE_BASE ?? '/'` ; en CI `VITE_BASE=/I-DMK/`. Déploiement sur push de `ccr-5b6fabc4-n96ofo` (branche par défaut du dépôt). Adresse : `https://i-dmk.github.io/I-DMK/`.
+- Base Vite = `process.env.VITE_BASE ?? '/'` ; en CI `VITE_BASE=/Galahad-s-car-game/`. Déploiement sur push de `ccr-5b6fabc4-n96ofo` (branche par défaut du dépôt). Adresse : `https://i-dmk.github.io/Galahad-s-car-game/`.
 - Paramètres d'URL : `?seed=` (défaut 1), `?len=` (mètres, défaut calculé), `?debug=1` (compteur fps + `window.__game`).
 - Tout texte utilisateur en français, mots courts, chiffres en gros. Aucun bouton pendant la course.
 - Commits en français, préfixés `feat:`, `test:`, `chore:`, `docs:`. Pas d'identifiant de modèle dans les commits.
@@ -153,11 +153,11 @@ export type Config = { readonly [K in keyof typeof CONFIG]: number };
 
 `vite.config.ts` : `import { defineConfig } from 'vitest/config'` ; `base: process.env.VITE_BASE ?? '/'` ; `test: { globals: true, environment: 'node', include: ['tests/**/*.test.ts'], testTimeout: 180_000 }`. `tsconfig.json` : `strict`, `target ES2022`, `module ESNext`, `moduleResolution bundler`, `types: ["vite/client", "vitest/globals"]`, `include: ["src", "tests", "e2e"]`. `index.html` : viewport `width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no` ; `<canvas id="game">` ; `<div id="hud">` ; styles `html,body{margin:0;height:100%;overflow:hidden;background:#000;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none}`, `canvas{display:block;width:100vw;height:100vh}`, `#hud{position:fixed;inset:0;pointer-events:none}`. `src/main.ts` : écrit pour l'instant « Course Lunaire » sur le canvas (remplacé en tâche 9b).
 
-- [ ] **Step 4 : Test de fumée `tests/smoke.test.ts`** : `CONFIG.PIXELS_PER_METER === 40`, `GRAVITY === 4.9`, `STAR_EXCLUSION_BEFORE_LAVA === 63`, `AIR_DRAG === 0`, `START_LENGTH ≥ 5 × 1,5 × CAR_LENGTH + 10`. Run : `npm test` PASS, `npm run typecheck` 0 erreur, `VITE_BASE=/I-DMK/ npm run build` → `dist/index.html` référence `/I-DMK/assets/`.
+- [ ] **Step 4 : Test de fumée `tests/smoke.test.ts`** : `CONFIG.PIXELS_PER_METER === 40`, `GRAVITY === 4.9`, `STAR_EXCLUSION_BEFORE_LAVA === 63`, `AIR_DRAG === 0`, `START_LENGTH ≥ 5 × 1,5 × CAR_LENGTH + 10`. Run : `npm test` PASS, `npm run typecheck` 0 erreur, `VITE_BASE=/Galahad-s-car-game/ npm run build` → `dist/index.html` référence `/I-DMK/assets/`.
 
 - [ ] **Step 5 : `.github/workflows/deploy.yml`**
 
-Déclencheurs : `push` sur `ccr-5b6fabc4-n96ofo`, `workflow_dispatch`. `permissions: contents: read, pages: write, id-token: write`. `concurrency: group: pages, cancel-in-progress: true`. Job `build` : `actions/checkout@v4`, `actions/setup-node@v4` (node 22, cache npm), `npm ci`, `npm run typecheck`, `npm test`, `npm run build` (`VITE_BASE: /I-DMK/`), `actions/configure-pages@v5` avec `enablement: true`, `actions/upload-pages-artifact@v3` (`path: dist`). Job `deploy` : `needs: build`, `environment: github-pages`, `actions/deploy-pages@v4`. Attendu : le premier run peut échouer en 403 sur `configure-pages` tant que le papa n'a pas fait Settings → Pages → Source « GitHub Actions » ; le dire dans le message final de la tâche.
+Déclencheurs : `push` sur `ccr-5b6fabc4-n96ofo`, `workflow_dispatch`. `permissions: contents: read, pages: write, id-token: write`. `concurrency: group: pages, cancel-in-progress: true`. Job `build` : `actions/checkout@v4`, `actions/setup-node@v4` (node 22, cache npm), `npm ci`, `npm run typecheck`, `npm test`, `npm run build` (`VITE_BASE: /Galahad-s-car-game/`), `actions/configure-pages@v5` avec `enablement: true`, `actions/upload-pages-artifact@v3` (`path: dist`). Job `deploy` : `needs: build`, `environment: github-pages`, `actions/deploy-pages@v4`. Attendu : le premier run peut échouer en 403 sur `configure-pages` tant que le papa n'a pas fait Settings → Pages → Source « GitHub Actions » ; le dire dans le message final de la tâche.
 
 - [ ] **Step 6 : Commit et push** `chore: squelette Vite/TypeScript, tests, CI et déploiement GitHub Pages` ; `git push -u origin ccr-5b6fabc4-n96ofo` ; vérifier le run via l'API GitHub.
 
@@ -392,7 +392,7 @@ Boucle de test (sera remplacée par `stepRace` en 9b ; ici boucle locale) : `app
 - [ ] **Step 1 : Tests** : `advanceAccumulator(0, 30, 1/60, 4)` → `steps 4, acc 0` ; `(0, 1/60, 1/60, 4)` → `steps 1` ; `(0.01, 0.005, 1/60, 4)` → `steps 0, acc 0.015` ; `simulate.test.ts` : seed 1, doigt posé 5 s → `progressAt(5) − progressAt(0) > 20 m`, `time ≈ 5` ; doigt levé 5 s → < 0,5 m.
 - [ ] **Step 2 : FAIL** → **Step 3 : Implémenter** → **Step 4 : PASS**, `typecheck`, `build`.
 - [ ] **Step 5 : Vérification visuelle** : `npm run dev -- --host --port 4173 --strictPort` puis script Playwright ponctuel (1280×800, DPR 2, `?seed=1&debug=1`) : capture `e2e/screenshots/etape1.png` après 3 s de doigt posé via CDP `Input.dispatchTouchEvent`. Regarder : voiture bleue à bandes rouges ≈ 125 px, sol gris, ciel, Terre, chrono lisible.
-- [ ] **Step 6 : Commit et push** `feat: pas de course, boucle de jeu et HUD — étape 1 jouable` ; vérifier le déploiement ; donner au papa `https://i-dmk.github.io/I-DMK/?debug=1` pour lire le fps sur la tablette.
+- [ ] **Step 6 : Commit et push** `feat: pas de course, boucle de jeu et HUD — étape 1 jouable` ; vérifier le déploiement ; donner au papa `https://i-dmk.github.io/Galahad-s-car-game/?debug=1` pour lire le fps sur la tablette.
 
 ---
 

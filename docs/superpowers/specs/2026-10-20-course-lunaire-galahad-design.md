@@ -53,7 +53,7 @@ Hypothèses retenues sans question posée :
 - Déploiement : **GitHub Pages via GitHub Actions** (le connecteur Vercel de
   la session n'est pas utilisable : « utilisateur introuvable »). Le workflow
   se déclenche sur push de la branche de travail et publie `dist/`. Le `base`
-  Vite vaut `/I-DMK/` (nom du dépôt), piloté par la variable d'environnement
+  Vite vaut `/Galahad-s-car-game/` (nom du dépôt, renommé Galahad-s-car-game et rendu public le 2026-10-20), piloté par la variable d'environnement
   `VITE_BASE` pour pouvoir changer d'hébergeur sans toucher au code. Le
   squelette CI + déploiement est en place dès l'étape 1, la PWA à l'étape 5.
 - Une étape manuelle pour le papa, une seule fois : dans GitHub, Settings →
@@ -468,9 +468,9 @@ musique) dans `config.ts` :
 
 - Branche `ccr-5b6fabc4-n96ofo`, commits par étape.
 - `.github/workflows/deploy.yml` : sur push de cette branche, `npm ci`, tests
-  Vitest, `npm run build` avec `VITE_BASE=/I-DMK/`, publication de `dist/` sur
+  Vitest, `npm run build` avec `VITE_BASE=/Galahad-s-car-game/`, publication de `dist/` sur
   GitHub Pages via `actions/configure-pages` (avec `enablement: true`) et
-  `actions/deploy-pages`. Adresse attendue : `https://i-dmk.github.io/I-DMK/`.
+  `actions/deploy-pages`. Adresse attendue : `https://i-dmk.github.io/Galahad-s-car-game/`.
 - PWA (étape 5) : `manifest.webmanifest` (nom, icône SVG, `display:
   fullscreen`, `orientation: landscape`, `start_url` relatif au `base`),
   service worker avec la politique de mise à jour de §10.
