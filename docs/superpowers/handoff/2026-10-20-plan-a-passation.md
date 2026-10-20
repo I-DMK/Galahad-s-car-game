@@ -30,8 +30,8 @@ sans le contexte de celle-ci.
 | 9b pas de course + boucle + HUD | complete — capture `e2e/screenshots/etape1.png` OK |
 | 10a points sûrs/respawn (pur) | complete |
 | 10b respawn dans stepRace + simulations | complete (1 tour) |
-| 11 ligne d'arrivée, chrono, écran ARRIVÉE | **prochaine** |
-| 12 étoiles + turbo | à faire |
+| 11 ligne d'arrivée, chrono, écran ARRIVÉE | complete (127–134 s doigt posé, 0 respawn) |
+| 12 étoiles + turbo | **prochaine** |
 | 13 effets | à faire |
 | 14 Playwright tablette | à faire |
 | 15 relecture de branche + remise | à faire |
@@ -57,4 +57,4 @@ sans le contexte de celle-ci.
 
 ## Prochaine action précise
 
-Tâche 11 : dans `src/sim/simulate.ts` (`stepRace`), détecter `progress ≥ track.xFinish` → `finishedAt`, événement `finish`, frein `applyBrake(FINISH_BRAKE)` ; `game.ts` → état `finished`, chrono figé, `hud.showFinished` après `FINISH_COAST_SECONDS` ; `tests/finish.test.ts` (seeds 0..4, `finishedAt < 240`, arrêt avant le mur) ; retirer le filtre « avant xFinish » de `tests/respawn-sim.test.ts` (plus de respawn 'stuck' au mur).
+Tâche 12 : `src/cars/turbo.ts`, `src/cars/stars.ts` (purs), `src/physics/stars.ts` (capteurs), `stepRace` : `applyDrive(car, throttle, turboFactor)`, ramassage via `sensorsTouching` label 'star', réapparition 5 s, événement `star`, `CarView.turbo`, `Scene.stars[].active` ; tests `turbo.test.ts` + `stars-sim.test.ts` (seed 1 doigt posé : ≥ 1 étoile avant 60 s, maxSpeed > 1,2 × V_MAX, zéro respawn).

@@ -80,3 +80,6 @@ Task 10b: minor (deferred): assertion maxStuck ≤ 2,1 infalsifiable (copie du t
 Task 10b: complete (commits 38dee01..3a4c6f3, review clean)
 Note: Pages activé par le papa (Source = GitHub Actions) ; run 13 (attempt 2) vert → https://i-dmk.github.io/Galahad-s-car-game/
 Décision papa : finir le plan A dans cette session ; passation écrite dans docs/superpowers/handoff/ et mise à jour à chaque fin de tâche ; relectures ≤ 30 lignes
+Task 11: mesures : finishedAt 127–134 s (seeds 0..4), arrêt ~22 m après la ligne, 0 respawn
+Task 11: minor (deferred): progressAt décalé d'un pas (tCross = finishedAt + DT, passe à la borne ±DT) ; start() ne remet pas finishTime/finishShown ; Game.time non figé (seul le HUD l'est, conforme)
+Task 11: complete (commits 96fea85..db878fc, review clean)
