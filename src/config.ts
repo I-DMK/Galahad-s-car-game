@@ -23,7 +23,7 @@ export const CONFIG = {
   WHEEL_SPINUP: 0.006,          // rad/pas par pas, calibré en 7a (0,005 → 3,9 m/s² ; 0,007 → 5,2 ; 0,01 → 6,3)
   ENGINE_BRAKE: 0.995,          // facteur par pas sur omega, doigt levé
   FINISH_BRAKE: 0.98,           // facteur par pas après l'arrivée
-  AIR_LEVEL_K: 0.004, AIR_LEVEL_D: 0.08,   // rad/pas² par rad, et par rad/pas ; vérifiés en 7a sur la voiture complète : 40° → 1,5° en 90 pas, sans dépassement
+  AIR_LEVEL_K: 0.004, AIR_LEVEL_D: 0.08,   // rad/pas² par rad, et par rad/pas ; vérifiés en 7a sur la voiture complète, suspension au repos : 40° → 2,9° en 90 pas (32 / 21 / 13 / 8 / 4,8 / 2,9° tous les 15 pas), sans dépassement ; 40° inchangé sans air-level
   TRACK_POINT_SPACING: 0.2,
   RACE_TARGET_SECONDS: 150,
   TRACK_MIN_LENGTH: 300, TRACK_MAX_LENGTH: 6000,

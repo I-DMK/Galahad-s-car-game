@@ -1,5 +1,5 @@
 import Matter from 'matter-js';
-import { CONFIG } from '../src/config';
+import { CONFIG, type Config } from '../src/config';
 import { normalizeAngle } from '../src/cars/angle';
 import {
   applyAirLevel, applyBrake, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar,
@@ -10,7 +10,7 @@ import { CAT, createWorld, stepWorld, type World } from '../src/physics/world';
 import { generateTrack } from '../src/track/generate';
 import { heightAt, slopeAt } from '../src/track/query';
 
-const { Body, Composite } = Matter;
+const { Body, Composite, Vector } = Matter;
 
 const DEG = Math.PI / 180;
 const STEPS_PER_SECOND = 60;
@@ -81,8 +81,20 @@ test('construction : 3 parties sans frottement de l’air, masses 60/40/40, grou
     expect(c.stiffness).toBe(CONFIG.SUSPENSION_STIFFNESS);
     expect(c.damping).toBe(CONFIG.SUSPENSION_DAMPING);
   }
-  // Deux contraintes par roue.
-  for (const w of car.wheels) expect(car.constraints.filter((c) => c.bodyB === w)).toHaveLength(2);
+  // Deux contraintes par roue, ancrées sur l'axe du châssis à ±SUSPENSION_ANCHOR_SPREAD de l'axe de roue.
+  const [axleX, drop, spread] = [toPx(CONFIG.WHEEL_BASE / 2), toPx(CONFIG.WHEEL_DROP), toPx(CONFIG.SUSPENSION_ANCHOR_SPREAD)];
+  car.wheels.forEach((w, i) => {
+    const mine = car.constraints.filter((c) => c.bodyB === w);
+    expect(mine).toHaveLength(2);
+    const side = i === 0 ? -1 : 1;
+    expect(mine.map((c) => c.pointA.x).sort((a, b) => a - b))
+      .toEqual([side * axleX - spread, side * axleX + spread].sort((a, b) => a - b));
+    for (const c of mine) {
+      expect(c.pointA.y).toBe(0);
+      expect(c.pointB).toEqual({ x: 0, y: 0 });
+      expect(c.length).toBeCloseTo(Math.hypot(spread, drop), 12);
+    }
+  });
   const all = Composite.allBodies(world.engine.world);
   for (const p of car.parts) expect(all).toContain(p);
   expect(Composite.allConstraints(world.engine.world)).toHaveLength(4);
@@ -167,24 +179,47 @@ test('applyBrake(FINISH_BRAKE) : de 14 m/s à < 1 m/s en moins de 6 s', () => {
   expect(vxMps(car)).toBeGreaterThanOrEqual(0);
 });
 
-test('air-level sur la voiture complète : lâchée à 40° → < 10° après 90 pas, sans dépasser −15°', () => {
-  const world = createWorld(FLAT, CONFIG);
+/**
+ * Voiture complète en l'air (sol et mur retirés, 30 m de haut), châssis à 40° et roues à
+ * leur position de repos dans le repère du châssis : la suspension part au repos et ne
+ * redresse donc rien d'elle-même. Rend l'angle (°) tous les 15 pas et le minimum atteint.
+ */
+function airDrop(cfg: Config): { angles: number[]; minAngle: number; car: CarBody } {
+  const world = createWorld(FLAT, cfg);
   Composite.remove(world.engine.world, [...world.ground, world.wall]);
-  const car = createCar(world, 'galahad', 0, 10, CONFIG);
-  placeCar(car, 10, () => 30, 40 * DEG, CONFIG);
+  const car = createCar(world, 'galahad', 0, 10, cfg);
+  placeCar(car, 10, () => 30, 40 * DEG, cfg);
+  car.wheels.forEach((w, i) => {
+    const local = { x: (i === 0 ? -1 : 1) * toPx(cfg.WHEEL_BASE / 2), y: toPx(cfg.WHEEL_DROP) };
+    Body.setPosition(w, Vector.add(car.chassis.position, Vector.rotate(local, car.chassis.angle)));
+  });
+  for (const c of car.constraints) {
+    const a = Vector.add(car.chassis.position, Vector.rotate(c.pointA, car.chassis.angle));
+    expect(Vector.magnitude(Vector.sub(c.bodyB!.position, a))).toBeCloseTo(c.length, 6);
+  }
   expect(carAngle(car)).toBeCloseTo(40 * DEG, 9);
+  const angles: number[] = [];
   let minAngle = Infinity;
-  for (let i = 0; i < 90; i++) {
+  for (let i = 1; i <= 90; i++) {
     const onGround = wheelsOnGround(world.engine, car);
     expect(onGround).toEqual([false, false]);
-    applyAirLevel(car, onGround, CONFIG);
+    applyAirLevel(car, onGround, cfg);
     stepWorld(world);
-    clampVelocities(car, CONFIG);
-    minAngle = Math.min(minAngle, carAngle(car));
+    clampVelocities(car, cfg);
+    minAngle = Math.min(minAngle, carAngle(car) / DEG);
+    if (i % 15 === 0) angles.push(carAngle(car) / DEG);
   }
-  expect(Math.abs(carAngle(car))).toBeLessThan(10 * DEG);
-  expect(minAngle).toBeGreaterThan(-15 * DEG);
   expect(posM(car.chassis).y).toBeGreaterThan(20); // toujours en l'air, rien touché
+  return { angles, minAngle, car };
+}
+
+test('air-level sur la voiture complète : lâchée à 40° → < 10° après 90 pas, sans dépasser −15°', () => {
+  const { angles, minAngle } = airDrop(CONFIG);
+  expect(Math.abs(angles[angles.length - 1])).toBeLessThan(10);
+  expect(minAngle).toBeGreaterThan(-15);
+  // Témoin : sans air-level, rien ne redresse la voiture (le test ne peut pas passer à vide).
+  const control = airDrop({ ...CONFIG, AIR_LEVEL_K: 0, AIR_LEVEL_D: 0 });
+  expect(control.angles[control.angles.length - 1]).toBeGreaterThan(30);
 });
 
 test('air-level inactif dès qu’une roue touche le sol', () => {
