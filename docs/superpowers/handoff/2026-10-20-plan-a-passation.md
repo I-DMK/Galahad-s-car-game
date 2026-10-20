@@ -34,7 +34,7 @@ sans le contexte de celle-ci.
 | 12 étoiles + turbo | complete (35 étoiles/course, turbo quasi permanent → équilibrage à l'étape 6) |
 | 13 effets | complete |
 | 14 Playwright tablette | **prochaine** |
-| 15 relecture de branche + remise | à faire |
+| 15 relecture de branche + remise | complete (verdict : prêt pour la tablette ; vague de correction e43a3b9) |
 
 ## Décisions prises hors plan (à connaître avant de toucher la physique)
 
@@ -57,4 +57,8 @@ sans le contexte de celle-ci.
 
 ## Prochaine action précise
 
-Tâche 13 : `src/render/effects.ts` (classe Effects : étincelles, poussière, bulles de lave, fumée ; plafond 300 particules), branchée dans `renderer.ts` et `game.ts` (événements 'respawn' → étincelles, 'landing' → poussière) ; `tests/effects.test.ts`. Puis 14 (Playwright) et 15 (relecture finale).
+**Plan A terminé.** Jeu en ligne : https://i-dmk.github.io/Galahad-s-car-game/ (ajouter `?debug=1` pour le fps).
+
+1. Test réel avec Galahad sur la tablette (Chrome, paysage) : confort du doigt, sauts de volcans, lisibilité, fps (`?debug=1` ; si < 40 : fenêtre glissante de corps de sol ±150 m), durée (`?len=`).
+2. Étape 6 (calibration, session manuelle, via `src/config.ts` et `src/track/stars.ts`) : espacement des étoiles (12–20 m aujourd'hui → turbo quasi permanent, course 110 s au lieu de 150) ou `TURBO_SECONDS` ; taille de la voiture (`VISIBLE_HEIGHT_M`) ; marge air-level (`AIR_LEVEL_K` 0.006 / `D` 0.1 suggérés).
+3. Plan B (étapes 4–5 du spec) : brainstorming → plan → relectures standard + adversariale → exécution par sous-agents. Nouvelle session recommandée ; ce document et `sdd-ledger-plan-a.md` suffisent pour reprendre.
