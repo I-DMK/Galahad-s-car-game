@@ -1,21 +1,26 @@
 // Pas de course : relie la physique (matter-js) à l'état de course. Sans DOM : utilisable sous node
-// (tests, simulations), et par la boucle de jeu (`src/game.ts`). Les tâches 10b/11/12 étendent `stepRace`
-// (réapparitions, arrivée, étoiles).
+// (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b) ; les
+// tâches 11/12 étendent `stepRace` (arrivée, étoiles).
 import Matter from 'matter-js';
 import type { Config } from '../config';
+import {
+  applyRespawnToState, chooseRespawnTarget, updateRespawnTimers, type RespawnReason,
+} from '../cars/respawn';
+import { isSafePointCandidate } from '../cars/safepoint';
 import { newCarState, type CarState, type SafePoint } from '../cars/state';
 import {
   applyAirLevel, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
-  updateGroundContact, type CarBody, type GroundContact,
+  setCarInvulnerable, updateGroundContact, type CarBody, type GroundContact,
 } from '../physics/car';
 import { physToWorld, toM } from '../physics/units';
-import { createWorld, stepWorld, type World } from '../physics/world';
+import { createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
-import { heightAt } from '../track/query';
+import { heightAt, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 
 export type SimEvent =
-  | { type: 'respawn'; t: number; reason: string; target: SafePoint }
+  /** `x` : position du châssis (m) au moment de la décision, avant téléportation vers `target`. */
+  | { type: 'respawn'; t: number; reason: RespawnReason; x: number; target: SafePoint }
   | { type: 'landing'; t: number; x: number; strength: number }
   | { type: 'star'; t: number; id: number }
   | { type: 'finish'; t: number };
@@ -33,6 +38,10 @@ export interface RaceSim {
   events: SimEvent[];
   /** Instant (s) où plus aucune roue ne touche le sol, null si au moins une roue touche. */
   airborneSince: number | null;
+  /** Collisions entre voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
+  invulnerable: boolean;
+  /** Châssis des autres voitures (vide au plan A) : l'invulnérabilité dure tant qu'un d'eux chevauche. */
+  others: Matter.Body[];
   cfg: Config;
 }
 
@@ -55,7 +64,10 @@ export function createRaceSim(track: Track, cfg: Config): RaceSim {
   const start: SafePoint = { x: x0, y: heightAt(track, x0), angle: 0 };
   const state = newCarState(CAR_ID, CAR_NAME, colorHex(cfg.GALAHAD_COLOR), colorHex(cfg.GALAHAD_ACCENT), start);
   state.progress = physToWorld(car.chassis.position).x;
-  return { track, world, car, state, contact: newContact(), time: 0, events: [], airborneSince: null, cfg };
+  return {
+    track, world, car, state, contact: newContact(), time: 0, events: [], airborneSince: null,
+    invulnerable: false, others: [], cfg,
+  };
 }
 
 /** Un pas fixe de PHYSICS_DT. */
@@ -79,7 +91,62 @@ export function stepRace(sim: RaceSim, throttle: boolean): void {
   stepWorld(world);
   clampVelocities(car, cfg);
   sim.state.progress = physToWorld(car.chassis.position).x;
+  releaseInvulnerability(sim);
+  observeAndRespawn(sim, throttle, onGround);
   sim.time += cfg.PHYSICS_DT;
+}
+
+/**
+ * Lève l'invulnérabilité à partir de `invulnerableUntil` si aucun autre châssis ne chevauche la
+ * voiture, et de toute façon à `invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)`.
+ */
+function releaseInvulnerability(sim: RaceSim): void {
+  if (!sim.invulnerable) return;
+  const { state, cfg, time: t } = sim;
+  if (t < state.invulnerableUntil) return;
+  const free = Matter.Query.collides(sim.car.chassis, sim.others).length === 0;
+  if (free || t >= state.invulnerableUntil + (cfg.RESPAWN_INVULN_MAX - cfg.RESPAWN_INVULN)) {
+    setCarInvulnerable(sim.car, false);
+    sim.invulnerable = false;
+  }
+}
+
+/**
+ * Après le pas physique (t = instant du pas) : mémorise un point sûr si la position s'y prête,
+ * met à jour les chronomètres de réapparition et, si l'un d'eux se déclenche, repose la voiture
+ * aussitôt (entre deux pas physiques), invulnérable, et émet l'événement 'respawn'.
+ */
+function observeAndRespawn(sim: RaceSim, throttle: boolean, onGround: [boolean, boolean]): void {
+  const { car, cfg, state, track, world, time: t } = sim;
+  const x = state.progress;
+  const angle = carAngle(car);
+  const candidate = {
+    x, t, bothWheelsOnGround: onGround[0] && onGround[1], carAngle: angle, groundSlope: slopeAt(track, x),
+  };
+  if (isSafePointCandidate(candidate, state, track, cfg)) {
+    state.safePoint = { x, y: heightAt(track, x), angle: slopeAt(track, x) };
+    state.lastSafePointAt = t;
+  }
+  const reason = updateRespawnTimers(state, {
+    t,
+    angle,
+    throttle,
+    progress: x,
+    y: physToWorld(car.chassis.position).y,
+    groundY: heightAt(track, x),
+    speedMps: carSpeedMps(car),
+    onLava: sensorsTouching(world.engine, car.parts).some((b) => b.label === 'lava'),
+  }, cfg);
+  if (reason === null) return;
+  const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg);
+  placeCar(car, point.x, (xx) => heightAt(track, xx), point.angle, cfg);
+  setCarInvulnerable(car, true);
+  sim.invulnerable = true;
+  // applyRespawnToState garde la cible par référence (nouveau point sûr) : copie dédiée.
+  applyRespawnToState(state, { ...point }, lavaX, consecutive, t, cfg);
+  sim.contact.groundedUntil = [-1, -1];
+  sim.airborneSince = null;
+  sim.events.push({ type: 'respawn', t, reason, x, target: { ...point } });
 }
 
 /**
@@ -95,6 +162,7 @@ export function rebuildCar(sim: RaceSim): void {
   sim.car = car;
   sim.contact = newContact();
   sim.airborneSince = null;
+  sim.invulnerable = false;
   state.progress = physToWorld(car.chassis.position).x;
 }
 
@@ -128,7 +196,11 @@ export function sceneOf(sim: RaceSim): Scene {
 export interface SimulateResult {
   respawns: SimEvent[];
   finishedAt: number | null;
-  /** Plus long blocage (s). TODO tâche 10b : mesurer (gaz, < STUCK_DISTANCE en STUCK_SECONDS). */
+  /**
+   * Plus long blocage (s) : durée maximale, doigt posé, sans avancer de STUCK_DISTANCE depuis une
+   * référence qui avance par crans (même cliquet que le chronomètre de blocage) ; remis à zéro par
+   * le doigt levé et par chaque réapparition.
+   */
   maxStuckSeconds: number;
   /** Vitesse maximale du châssis (m/s). */
   maxSpeed: number;
@@ -151,19 +223,37 @@ export function simulateRace(
   const starsTaken: SimEvent[] = [];
   let finishedAt: number | null = null;
   let maxSpeed = 0;
+  let stuckRef = sim.state.progress;
+  let stuckStart: number | null = null;
+  let maxStuckSeconds = 0;
   for (let i = 0; i < steps; i++) {
-    stepRace(sim, opts.throttle(sim.time));
+    const t = sim.time;
+    const throttle = opts.throttle(t);
+    stepRace(sim, throttle);
+    let respawned = false;
     for (const e of sim.events) {
-      if (e.type === 'respawn') respawns.push(e);
+      if (e.type === 'respawn') { respawns.push(e); respawned = true; }
       else if (e.type === 'star') starsTaken.push(e);
       else if (e.type === 'finish' && finishedAt === null) finishedAt = e.t;
     }
-    samples.push(sim.state.progress);
+    const p = sim.state.progress;
+    if (respawned) {
+      if (stuckStart !== null) maxStuckSeconds = Math.max(maxStuckSeconds, t - stuckStart);
+      stuckRef = p;
+      stuckStart = null;
+    } else if (!throttle || p - stuckRef >= cfg.STUCK_DISTANCE) {
+      stuckRef = p;
+      stuckStart = null;
+    } else {
+      stuckStart ??= t;
+      maxStuckSeconds = Math.max(maxStuckSeconds, t - stuckStart);
+    }
+    samples.push(p);
     maxSpeed = Math.max(maxSpeed, carSpeedMps(sim.car));
   }
   const progressAt = (t: number): number => {
     const i = Math.round(t / cfg.PHYSICS_DT);
     return samples[Math.min(samples.length - 1, Math.max(0, i))];
   };
-  return { respawns, finishedAt, maxStuckSeconds: 0, maxSpeed, starsTaken, time: sim.time, progressAt };
+  return { respawns, finishedAt, maxStuckSeconds, maxSpeed, starsTaken, time: sim.time, progressAt };
 }
