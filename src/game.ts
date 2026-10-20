@@ -5,8 +5,9 @@ import { advanceAccumulator } from './loop/accumulator';
 import { carSpeedMps } from './physics/car';
 import { physToWorld } from './physics/units';
 import { Camera } from './render/camera';
+import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
-import { createRaceSim, rebuildCar, sceneOf, stepRace, type RaceSim } from './sim/simulate';
+import { createRaceSim, rebuildCar, sceneOf, stepRace, type RaceSim, type SimEvent } from './sim/simulate';
 import { generateTrack } from './track/generate';
 import { heightAt } from './track/query';
 import { Hud } from './ui/hud';
@@ -21,6 +22,7 @@ export class Game {
   private readonly sim: RaceSim;
   private readonly renderer: Renderer;
   private readonly camera: Camera;
+  private readonly effects: Effects;
   private readonly hud: Hud;
   private readonly throttle: Throttle;
   private _state: GameState = 'racing';
@@ -40,6 +42,7 @@ export class Game {
     this.sim = createRaceSim(track, this.cfg);
     this.renderer = new Renderer(canvas, this.cfg);
     this.camera = new Camera(this.cfg);
+    this.effects = new Effects(this.cfg);
     this.hud = new Hud(hudRoot);
     this.throttle = new Throttle(window);
     if (opts.debug) (window as unknown as { __game: Game }).__game = this;
@@ -86,9 +89,12 @@ export class Game {
     const { steps, acc } = advanceAccumulator(this.acc, elapsed, this.cfg.PHYSICS_DT, this.cfg.MAX_STEPS_PER_FRAME);
     this.acc = acc;
     const pressed = this.throttle.pressed;
+    // `sim.events` ne contient que le dernier pas : on les recueille à chaque pas.
+    const events: SimEvent[] = [];
     for (let i = 0; i < steps; i++) {
       try {
         stepRace(this.sim, pressed);
+        events.push(...this.sim.events);
         if (this.finishTime === null && this.sim.events.some((e) => e.type === 'finish')) {
           this._state = 'finished';
           this.finishTime = this.sim.state.finishedAt;
@@ -109,7 +115,12 @@ export class Game {
     const { sim } = this;
     const c = physToWorld(sim.car.chassis.position);
     this.camera.update(c.x, Math.max(c.y, heightAt(sim.track, c.x) + 3), carSpeedMps(sim.car), elapsed);
-    this.renderer.draw(sceneOf(sim), this.camera);
+    for (const e of events) {
+      if (e.type === 'respawn') this.effects.spawnSparks(e.target.x, e.target.y + 0.5);
+      else if (e.type === 'landing') this.effects.spawnDust(e.x, heightAt(sim.track, e.x), e.strength);
+    }
+    this.effects.update(elapsed, sim.track, this.camera.x, this.renderer.visibleHalfWidthM(this.camera));
+    this.renderer.draw(sceneOf(sim), this.camera, this.effects);
     this.hud.setTime(this.finishTime ?? sim.time);
     // Après l'arrivée, la voiture roule encore FINISH_COAST_SECONDS en freinant, puis le calque s'affiche.
     if (this.finishTime !== null && !this.finishShown && sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {

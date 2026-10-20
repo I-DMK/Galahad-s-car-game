@@ -6,6 +6,7 @@ import type { Track } from '../track/types';
 import { computeBackingSize, type BackingSize, type Camera } from './camera';
 import { prerenderSky } from './background';
 import { drawCar } from './car';
+import type { Effects } from './effects';
 import { drawStar, drawTrack } from './track';
 
 /** Voiture à dessiner, en coordonnées du monde. `angle` : angle du monde (positif = nez en haut). */
@@ -55,7 +56,13 @@ export class Renderer {
     this.sky = prerenderSky(v.w, v.h);
   }
 
-  draw(scene: Scene, camera: Camera): void {
+  /** Demi-largeur visible (m) du tampon courant, pour l'émission des effets. */
+  visibleHalfWidthM(camera: Camera): number {
+    return camera.visibleHalfWidthM(this.view.w, this.view.h);
+  }
+
+  /** `effects` : particules dessinées après la piste, avant les voitures. */
+  draw(scene: Scene, camera: Camera, effects?: Effects): void {
     const { ctx, view } = this;
     const ppm = camera.pxPerMeter(view.h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -75,6 +82,7 @@ export class Renderer {
     drawTrack(ctx, scene.track, camera, view, scene.t);
 
     const toScreen = (p: { x: number; y: number }) => camera.worldToScreen(p, view.w, view.h);
+    effects?.draw(ctx, toScreen, ppm);
     const half = camera.visibleHalfWidthM(view.w, view.h) + 1;
     for (const s of scene.stars) {
       if (!s.active || Math.abs(s.x - camera.x) > half) continue;

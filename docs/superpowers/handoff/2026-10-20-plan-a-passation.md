@@ -32,8 +32,8 @@ sans le contexte de celle-ci.
 | 10b respawn dans stepRace + simulations | complete (1 tour) |
 | 11 ligne d'arrivée, chrono, écran ARRIVÉE | complete (127–134 s doigt posé, 0 respawn) |
 | 12 étoiles + turbo | complete (35 étoiles/course, turbo quasi permanent → équilibrage à l'étape 6) |
-| 13 effets | **prochaine** |
-| 14 Playwright tablette | à faire |
+| 13 effets | complete |
+| 14 Playwright tablette | **prochaine** |
 | 15 relecture de branche + remise | à faire |
 
 ## Décisions prises hors plan (à connaître avant de toucher la physique)
