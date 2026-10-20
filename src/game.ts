@@ -112,6 +112,21 @@ export class Game {
       }
     }
 
+    try {
+      this.present(now, elapsed, events);
+    } catch (err) {
+      // Caméra, effets, rendu ou HUD : sans ce garde-fou, l'exception tuerait la boucle en silence.
+      console.error('le rendu a échoué', err);
+      this._state = 'error';
+      this.hud.showError('Oups ! Recharge la page');
+      this.stop();
+      return;
+    }
+    this.rafId = requestAnimationFrame(this.frame);
+  };
+
+  /** Caméra, effets, rendu et HUD d'une image, après les pas de course. */
+  private present(now: number, elapsed: number, events: SimEvent[]): void {
     const { sim } = this;
     const c = physToWorld(sim.car.chassis.position);
     this.camera.update(c.x, Math.max(c.y, heightAt(sim.track, c.x) + 3), carSpeedMps(sim.car), elapsed);
@@ -138,6 +153,5 @@ export class Game {
         this.fpsSince = now;
       }
     }
-    this.rafId = requestAnimationFrame(this.frame);
-  };
+  }
 }

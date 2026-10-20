@@ -154,6 +154,31 @@ test('vitesse max : plein gaz 10 s → [0,9 ; 1,02] × V_MAX', () => {
   for (const w of car.wheels) expect(w.angularVelocity).toBeGreaterThan(omegaMax);
 });
 
+test('après un turbo, doigt toujours posé : la vitesse redescend à V_MAX (± 5 %)', () => {
+  // Garde-fou (relecture de branche) : le plafond de rotation des roues suffit à ramener le châssis
+  // à V_MAX par le frottement roue–sol (mesuré : 20,3 → 14,0 m/s en ≈ 1,5 s). Le ≈ 20,9 m/s
+  // soutenu observé en course vient des étoiles qui relancent le turbo, pas d'un défaut de plafond.
+  const { world, car } = flatCar();
+  const run = (factor: number, steps: number, onStep?: (i: number) => void) => {
+    for (let i = 1; i <= steps; i++) {
+      applyDrive(car, true, factor, CONFIG);
+      stepWorld(world);
+      clampVelocities(car, CONFIG);
+      onStep?.(i);
+    }
+  };
+  run(CONFIG.TURBO_FACTOR, 5 * STEPS_PER_SECOND);
+  expect(carSpeedMps(car)).toBeGreaterThan(1.2 * CONFIG.V_MAX);
+  let lastSecondMax = 0;
+  run(1, 5 * STEPS_PER_SECOND, (i) => {
+    for (const w of car.wheels) expect(w.angularVelocity).toBeGreaterThanOrEqual(0);
+    if (i > 4 * STEPS_PER_SECOND) lastSecondMax = Math.max(lastSecondMax, carSpeedMps(car));
+  });
+  expect(carSpeedMps(car)).toBeLessThanOrEqual(1.05 * CONFIG.V_MAX);
+  expect(lastSecondMax).toBeLessThanOrEqual(1.05 * CONFIG.V_MAX);
+  expect(vxMps(car)).toBeGreaterThan(0.9 * CONFIG.V_MAX); // elle roule toujours
+});
+
 test('doigt levé : de 14 m/s, ralentit sans jamais reculer, encore > 8 m/s après 2 s', () => {
   const { world, car } = flatCar();
   launch(car, 14);
