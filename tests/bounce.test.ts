@@ -128,16 +128,16 @@ test('updateGroundContact : contact brut ou écart < GROUND_CONTACT_GAP, puis GR
  */
 test('plein gaz sur le plat : roues au sol (contact de jeu), châssis stable', () => {
   const s = measureBounce(1);
-  console.log(`[bounce] facteur 1 : ${fmt(s)}`);
-  expect(s.anyShare).toBeGreaterThanOrEqual(0.9);
-  expect(s.bothShare).toBeGreaterThanOrEqual(0.8);
-  expect(s.excursion).toBeLessThanOrEqual(0.1);
-  expect(s.angleMax).toBeLessThanOrEqual(3 * DEG);
+  const where = `facteur 1 : ${fmt(s)}`;
+  expect(s.anyShare, where).toBeGreaterThanOrEqual(0.9);
+  expect(s.bothShare, where).toBeGreaterThanOrEqual(0.8);
+  expect(s.excursion, where).toBeLessThanOrEqual(0.1);
+  expect(s.angleMax, where).toBeLessThanOrEqual(3 * DEG);
 });
 
 test('turbo sur le plat : au moins une roue au sol (contact de jeu), châssis peu agité', () => {
   const s = measureBounce(CONFIG.TURBO_FACTOR);
-  console.log(`[bounce] turbo : ${fmt(s)}`);
-  expect(s.anyShare).toBeGreaterThanOrEqual(0.75);
-  expect(s.excursion).toBeLessThanOrEqual(0.25);
+  const where = `turbo : ${fmt(s)}`;
+  expect(s.anyShare, where).toBeGreaterThanOrEqual(0.75);
+  expect(s.excursion, where).toBeLessThanOrEqual(0.25);
 });

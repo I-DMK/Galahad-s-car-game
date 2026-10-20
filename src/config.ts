@@ -16,7 +16,7 @@ export const CONFIG = {
   ELAN_MARGIN: 1.2,
   ELAN_SAFE_FRACTION: 0.75,     // le plat d'élan est dimensionné pour qu'il suffise de 75 % de sa longueur
   CAR_LENGTH: 2.2, CAR_HEIGHT: 0.7, WHEEL_BASE: 1.5, WHEEL_RADIUS: 0.45, WHEEL_DROP: 0.25,
-  WHEEL_SIDES: 48,              // roues en 48-gone (Bodies.polygon) : Bodies.circle plafonne les côtés à min(maxSides, r px) = 18 ici ; à V_MAX le 48-gone divise par 2,5 l'excursion du châssis (0,105 → 0,042 m, mesuré en 7c)
+  WHEEL_SIDES: 48,              // roues en 48-gone (Bodies.polygon) : Bodies.circle plafonne les côtés à min(maxSides, r px) = 18 ici ; excursion du châssis à V_MAX 0,105 m avec 18 côtés → 0,067 m dans la configuration livrée (48 côtés, 3e ressort, WHEEL_SPINUP 0,0054 ; mesuré en 7c)
   CHASSIS_MASS: 60, WHEEL_MASS: 40,
   SUSPENSION_STIFFNESS: 0.3, SUSPENSION_DAMPING: 0.1, SUSPENSION_ANCHOR_SPREAD: 0.3,
   SUSPENSION_TOP_OFFSET: 0.6,   // m au-dessus du toit : 3e ancrage de chaque roue (7c), rend unique la position de la roue (sans lui, position miroir au-dessus de l'axe)
