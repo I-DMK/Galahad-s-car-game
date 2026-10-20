@@ -56,9 +56,7 @@ function firstTimeAt(progressAt: (t: number) => number, x: number, maxSeconds: n
 }
 
 describe('doigt toujours posé', () => {
-  // Sans ligne d'arrivée (tâche 11), la voiture finit contre le mur de fin et y est réapparue
-  // ('stuck') toutes les 2 s : on ne compte que les réapparitions avant xFinish. La tâche 11
-  // (frein après l'arrivée) doit rendre la liste entière vide.
+  // Réapparitions comptées avant xFinish seulement (mur de fin) : la tâche 11 doit rendre la liste entière vide.
   test.each(SEEDS)('seed %i : aucune réapparition avant l’arrivée, jamais bloqué, ligne d’arrivée atteinte', (seed) => {
     const track = trackFor(seed);
     const r = simulateRace(track, { throttle: () => true, maxSeconds: 240, cfg: CONFIG });
@@ -69,28 +67,46 @@ describe('doigt toujours posé', () => {
   });
 });
 
-// EN ATTENTE D'ARBITRAGE (10b) : mesuré seeds 0, 1, 2 (identiques), doigt posé depuis l'arrêt sur le
-// flanc amont : à rebord − 0,8 m la voiture bascule dans le cratère, y reste coincée au-dessus de la
-// lave et y tombe à 3,03 s ('lava') ; rebord − 0,28 → 'stuck' 2,03 s ; − 0,68 → 'lava' 0,82 s ;
-// − 1,08 → 'lava' 2,33 s ; − 1,48 et au-delà (fond de vallée compris) : la voiture franchit le
-// cratère au pas (gravité 4,9 m/s²) et repart, sans réapparition.
-test.skip('voiture arrêtée sur le flanc amont du premier volcan, doigt posé : réapparition en ≤ 2,1 s avant le volcan', () => {
-  const { track, v } = firstVolcano();
-  const descentRun = v.lipY / Math.tan(CONFIG.MAX_SLOPE);
-  const xRim = v.xLava - v.lavaWidth / 2;
-  const x = xRim - 0.8;
-  expect(x).toBeGreaterThan(v.xLip + descentRun + 0.5);
-  expect(slopeAt(track, x)).toBeCloseTo(CONFIG.MAX_SLOPE, 6);
-  const sim = createRaceSim(track, CONFIG);
-  placeCar(sim.car, x, h(track), slopeAt(track, x), CONFIG);
-  const t0 = sim.time;
-  const e = stepUntilRespawn(sim, true, Math.ceil(3 / DT));
-  expect(e).toBeDefined();
-  expect(e!.t - t0).toBeLessThanOrEqual(2.1);
-  expect(e!.target.x).toBeLessThan(v.xLava);
-  expect(sim.state.safePoint.x).toBeLessThan(v.xLava);
-  expect(chassisX(sim)).toBeCloseTo(e!.target.x, 6);
-  expect(sim.state.progress).toBeCloseTo(e!.target.x, 6);
+/** Seeds des scénarios ciblés : le premier seed de 0..4 ayant un volcan, et le seed 1. */
+const VOLCANO_SEEDS = [...new Set([SEEDS.find((s) => trackFor(s).volcanoes.length > 0)!, 1])];
+
+describe.each(VOLCANO_SEEDS)('seed %i, premier volcan, voiture à l’arrêt puis doigt posé', (seed) => {
+  const track = trackFor(seed);
+  const v = track.volcanoes[0];
+
+  test('flanc amont (rebord − 0,8 m, 27°) : réapparition (lave ou bloqué) en ≤ 2,1 s, ramenée avant la lave', () => {
+    const x = v.xLava - v.lavaWidth / 2 - 0.8;
+    expect(x).toBeGreaterThan(v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5);
+    expect(slopeAt(track, x)).toBeCloseTo(CONFIG.MAX_SLOPE, 6);
+    const sim = createRaceSim(track, CONFIG);
+    placeCar(sim.car, x, h(track), slopeAt(track, x), CONFIG);
+    const t0 = sim.time;
+    const e = stepUntilRespawn(sim, true, Math.ceil(3 / DT));
+    expect(e).toBeDefined();
+    expect(['lava', 'stuck']).toContain(e!.reason);
+    expect(e!.t - t0).toBeLessThanOrEqual(2.1);
+    expect(sim.state.progress).toBeLessThan(v.xLava);
+    expect(chassisX(sim)).toBeCloseTo(e!.target.x, 6);
+  });
+
+  test('rampe depuis la vallée : chute dans la lave en ≤ 10 s, jamais jusqu’à la réception', () => {
+    const x = v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5;
+    expect(slopeAt(track, x)).toBeCloseTo(0, 6);
+    const sim = createRaceSim(track, CONFIG);
+    placeCar(sim.car, x, h(track), 0, CONFIG);
+    const t0 = sim.time;
+    let maxX = -Infinity;
+    let e: RespawnEvent | undefined;
+    for (let i = 0; i < Math.ceil(10 / DT) && !e; i++) {
+      stepRace(sim, true);
+      e = sim.events.find((ev): ev is RespawnEvent => ev.type === 'respawn');
+      if (!e) maxX = Math.max(maxX, chassisX(sim));
+    }
+    expect(e, `maxX=${maxX.toFixed(2)} xReception=${v.xReception.toFixed(2)}`).toBeDefined();
+    expect(e!.reason).toBe('lava');
+    expect(e!.t - t0).toBeLessThanOrEqual(10);
+    expect(maxX).toBeLessThan(v.xReception);
+  });
 });
 
 test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible passe le volcan (xReception + 3)', () => {

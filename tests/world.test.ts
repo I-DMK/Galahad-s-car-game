@@ -108,7 +108,7 @@ test('tunneling : des roues lancées vers le bas à VERTICAL_SPEED_CAP ne traver
   expect([...bad].map((k) => wheelXs(track)[k])).toEqual([]);
 });
 
-test('lave : un cercle posé dans le cratère touche le capteur, pas sur le plat de réception', () => {
+test('lave : un cercle posé au fond du cratère ou 0,3 m sous le rebord touche le capteur, pas sur le plat de réception', () => {
   let seed = 0;
   while (seed < 10 && generateTrack(seed, 1680, CONFIG).volcanoes.length === 0) seed++;
   const track = generateTrack(seed, 1680, CONFIG);
@@ -128,6 +128,13 @@ test('lave : un cercle posé dans le cratère touche le capteur, pas sur le plat
   expect(sensorsTouching(world.engine, [onReception])).toEqual([]);
   // La roue du cratère repose sur le fond : le capteur ne la soutient pas.
   expect(posM(inCrater).y).toBeCloseTo(v.rimY - CONFIG.CRATER_DEPTH + R, 1);
+
+  // Le capteur remplit tout le cratère jusqu'au niveau du rebord : une roue centrée 0,3 m sous le
+  // rebord (sans toucher le fond) est déjà dans la lave.
+  const nearRim = addWheel(world, v.xLava + 0.5, v.rimY - 0.3);
+  stepWorld(world);
+  expect(posM(nearRim).y).toBeGreaterThan(v.rimY - CONFIG.CRATER_DEPTH + R + 0.1);
+  expect(sensorsTouching(world.engine, [nearRim]).map((b) => b.label)).toEqual(['lava']);
 });
 
 test('mur : un corps lancé vers xWall est arrêté avant xWall + 1', () => {

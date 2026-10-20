@@ -9,7 +9,10 @@ import type { BackingSize, Camera } from './camera';
 const MARGIN_M = 5;
 const CRATER_BLOCK_M = 37;
 const POST_EVERY_M = 10;
-const LAVA_THICKNESS_M = 0.3;
+/** Surface de la lave sous le niveau du rebord (m) : le cratère paraît plein, comme le capteur. */
+const LAVA_BELOW_RIM_M = 0.15;
+/** Hauteur (m) sous la surface où flottent les bulles. */
+const BUBBLE_DEPTH_M = 0.3;
 
 type Ctx = CanvasRenderingContext2D;
 interface Pt { x: number; y: number }
@@ -33,7 +36,7 @@ export function drawTrack(ctx: Ctx, track: Track, camera: Camera, view: BackingS
     if (v.xReception < xMin || v.xLip > xMax) continue;
     const cone = surface.filter((p) => p.x >= v.xLip && p.x <= v.xReception);
     if (cone.length >= 2) fillDown(ctx, cone.map((p) => S(p.x, p.y)), view.h, '#5a4a4a');
-    drawLava(ctx, v.xLava - v.lavaWidth / 2, v.xLava + v.lavaWidth / 2, heightAt(track, v.xLava), t, ppm, S);
+    drawLava(ctx, v.xLava - v.lavaWidth / 2, v.xLava + v.lavaWidth / 2, heightAt(track, v.xLava), v.rimY - LAVA_BELOW_RIM_M, t, ppm, S);
   }
 
   // Liseré clair sur la surface.
@@ -128,8 +131,11 @@ function drawCraters(ctx: Ctx, track: Track, xMin: number, xMax: number, ppm: nu
   }
 }
 
-function drawLava(ctx: Ctx, xA: number, xB: number, floorY: number, t: number, ppm: number, S: (x: number, y: number) => Pt): void {
-  const tl = S(xA, floorY + LAVA_THICKNESS_M);
+/** Lave du fond du cratère (floorY) jusqu'à la surface topY (m), bulles près de la surface. */
+function drawLava(
+  ctx: Ctx, xA: number, xB: number, floorY: number, topY: number, t: number, ppm: number, S: (x: number, y: number) => Pt,
+): void {
+  const tl = S(xA, topY);
   const br = S(xB, floorY);
   const glow = 0.5 + 0.5 * Math.sin(t * 2);
   const g = ctx.createLinearGradient(0, tl.y, 0, br.y);
@@ -140,7 +146,7 @@ function drawLava(ctx: Ctx, xA: number, xB: number, floorY: number, t: number, p
   ctx.fillStyle = '#ffb000';
   for (let i = 0; i < 4; i++) {
     const bx = xA + ((i + 0.5) / 4) * (xB - xA);
-    const by = floorY + LAVA_THICKNESS_M * (0.75 + 0.35 * Math.sin(t * 3 + i));
+    const by = topY - BUBBLE_DEPTH_M * (0.25 - 0.35 * Math.sin(t * 3 + i));
     const p = S(bx, by);
     ctx.beginPath();
     ctx.arc(p.x, p.y, (0.08 + 0.03 * i) * ppm, 0, Math.PI * 2);
