@@ -29,14 +29,19 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE: /I-DMK/
-      - uses: actions/configure-pages@v5
+      # Publication GitHub Pages seulement si la variable de dépôt DEPLOY_PAGES vaut "true"
+      # (Pages exige un dépôt public ; en attendant, la CI reste verte sans publier).
+      - if: ${{ vars.DEPLOY_PAGES == 'true' }}
+        uses: actions/configure-pages@v5
         with:
           enablement: true
-      - uses: actions/upload-pages-artifact@v3
+      - if: ${{ vars.DEPLOY_PAGES == 'true' }}
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
+    if: ${{ vars.DEPLOY_PAGES == 'true' }}
     needs: build
     runs-on: ubuntu-latest
     environment:
