@@ -1,6 +1,6 @@
 // Pas de course : relie la physique (matter-js) à l'état de course. Sans DOM : utilisable sous node
-// (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b) ; les
-// tâches 11/12 étendent `stepRace` (arrivée, étoiles).
+// (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b),
+// ligne d'arrivée (11) ; la tâche 12 étend `stepRace` (étoiles).
 import Matter from 'matter-js';
 import type { Config } from '../config';
 import {
@@ -9,7 +9,7 @@ import {
 import { isSafePointCandidate } from '../cars/safepoint';
 import { newCarState, type CarState, type SafePoint } from '../cars/state';
 import {
-  applyAirLevel, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
+  applyAirLevel, applyBrake, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
   setCarInvulnerable, updateGroundContact, type CarBody, type GroundContact,
 } from '../physics/car';
 import { physToWorld, toM } from '../physics/units';
@@ -70,12 +70,18 @@ export function createRaceSim(track: Track, cfg: Config): RaceSim {
   };
 }
 
-/** Un pas fixe de PHYSICS_DT. */
+/**
+ * Un pas fixe de PHYSICS_DT. Après l'arrivée (`state.finishedAt` défini), `throttle` est ignoré :
+ * les roues sont freinées à chaque pas (FINISH_BRAKE) et la voiture ne réapparaît plus jamais
+ * (elle s'arrête sur le plat avant le mur de fin).
+ */
 export function stepRace(sim: RaceSim, throttle: boolean): void {
   const { car, cfg, world } = sim;
   const h = (x: number) => heightAt(sim.track, x);
   sim.events = [];
-  applyDrive(car, throttle, 1, cfg);
+  const finished = sim.state.finishedAt !== null;
+  if (finished) applyBrake(car, cfg.FINISH_BRAKE);
+  else applyDrive(car, throttle, 1, cfg);
   const onGround = updateGroundContact(world.engine, car, sim.contact, sim.time, h, cfg);
   const grounded = onGround[0] || onGround[1];
   if (!grounded) {
@@ -91,8 +97,12 @@ export function stepRace(sim: RaceSim, throttle: boolean): void {
   stepWorld(world);
   clampVelocities(car, cfg);
   sim.state.progress = physToWorld(car.chassis.position).x;
+  if (!finished && sim.state.progress >= sim.track.xFinish) {
+    sim.state.finishedAt = sim.time;
+    sim.events.push({ type: 'finish', t: sim.time });
+  }
   releaseInvulnerability(sim);
-  observeAndRespawn(sim, throttle, onGround);
+  if (sim.state.finishedAt === null) observeAndRespawn(sim, throttle, onGround);
   sim.time += cfg.PHYSICS_DT;
 }
 
@@ -199,7 +209,7 @@ export interface SimulateResult {
   /**
    * Plus long blocage (s) : durée maximale, doigt posé, sans avancer de STUCK_DISTANCE depuis une
    * référence qui avance par crans (même cliquet que le chronomètre de blocage) ; remis à zéro par
-   * le doigt levé et par chaque réapparition.
+   * le doigt levé et par chaque réapparition, plus compté après l'arrivée (la voiture freine).
    */
   maxStuckSeconds: number;
   /** Vitesse maximale du châssis (m/s). */
@@ -207,8 +217,12 @@ export interface SimulateResult {
   starsTaken: SimEvent[];
   /** Temps de course final (s). */
   time: number;
+  /** Nombre d'événements 'finish' reçus (1 attendu une fois la ligne franchie). */
+  finishes: number;
   /** Progression (x du châssis, m) à l'instant t (pas le plus proche, borné à la course). */
   progressAt: (t: number) => number;
+  /** Vitesse du châssis (m/s) à l'instant t (pas le plus proche, borné à la course). */
+  speedAt: (t: number) => number;
 }
 
 /** Course sans affichage, `throttle(t)` décide du doigt à chaque pas, pendant au plus `maxSeconds`. */
@@ -219,9 +233,10 @@ export function simulateRace(
   const sim = createRaceSim(track, cfg);
   const steps = Math.round(opts.maxSeconds / cfg.PHYSICS_DT);
   const samples: number[] = [sim.state.progress];
+  const speeds: number[] = [carSpeedMps(sim.car)];
   const respawns: SimEvent[] = [];
   const starsTaken: SimEvent[] = [];
-  let finishedAt: number | null = null;
+  let finishes = 0;
   let maxSpeed = 0;
   let stuckRef = sim.state.progress;
   let stuckStart: number | null = null;
@@ -234,26 +249,31 @@ export function simulateRace(
     for (const e of sim.events) {
       if (e.type === 'respawn') { respawns.push(e); respawned = true; }
       else if (e.type === 'star') starsTaken.push(e);
-      else if (e.type === 'finish' && finishedAt === null) finishedAt = e.t;
+      else if (e.type === 'finish') finishes++;
     }
     const p = sim.state.progress;
     if (respawned) {
       if (stuckStart !== null) maxStuckSeconds = Math.max(maxStuckSeconds, t - stuckStart);
       stuckRef = p;
       stuckStart = null;
-    } else if (!throttle || p - stuckRef >= cfg.STUCK_DISTANCE) {
+    } else if (!throttle || sim.state.finishedAt !== null || p - stuckRef >= cfg.STUCK_DISTANCE) {
       stuckRef = p;
       stuckStart = null;
     } else {
       stuckStart ??= t;
       maxStuckSeconds = Math.max(maxStuckSeconds, t - stuckStart);
     }
+    const v = carSpeedMps(sim.car);
     samples.push(p);
-    maxSpeed = Math.max(maxSpeed, carSpeedMps(sim.car));
+    speeds.push(v);
+    maxSpeed = Math.max(maxSpeed, v);
   }
-  const progressAt = (t: number): number => {
+  const at = (values: number[]) => (t: number): number => {
     const i = Math.round(t / cfg.PHYSICS_DT);
-    return samples[Math.min(samples.length - 1, Math.max(0, i))];
+    return values[Math.min(values.length - 1, Math.max(0, i))];
   };
-  return { respawns, finishedAt, maxStuckSeconds, maxSpeed, starsTaken, time: sim.time, progressAt };
+  return {
+    respawns, finishedAt: sim.state.finishedAt, finishes, maxStuckSeconds, maxSpeed, starsTaken,
+    time: sim.time, progressAt: at(samples), speedAt: at(speeds),
+  };
 }

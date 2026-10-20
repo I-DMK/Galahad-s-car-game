@@ -49,19 +49,12 @@ const chassisX = (sim: RaceSim) => physToWorld(sim.car.chassis.position).x;
 const describeRespawns = (rs: SimEvent[]) =>
   rs.map((e) => (e.type === 'respawn' ? `${e.reason}@t=${e.t.toFixed(2)} x=${e.x.toFixed(1)}→${e.target.x.toFixed(1)}` : e.type));
 
-/** Premier instant (pas de PHYSICS_DT) où la progression atteint x, Infinity sinon. */
-function firstTimeAt(progressAt: (t: number) => number, x: number, maxSeconds: number): number {
-  for (let i = 0; i * DT <= maxSeconds; i++) if (progressAt(i * DT) >= x) return i * DT;
-  return Infinity;
-}
-
 describe('doigt toujours posé', () => {
-  // Réapparitions comptées avant xFinish seulement (mur de fin) : la tâche 11 doit rendre la liste entière vide.
-  test.each(SEEDS)('seed %i : aucune réapparition avant l’arrivée, jamais bloqué, ligne d’arrivée atteinte', (seed) => {
+  test.each(SEEDS)('seed %i : aucune réapparition, jamais bloqué, ligne d’arrivée atteinte', (seed) => {
     const track = trackFor(seed);
     const r = simulateRace(track, { throttle: () => true, maxSeconds: 240, cfg: CONFIG });
-    const tFinish = firstTimeAt(r.progressAt, track.xFinish, 240);
-    expect(describeRespawns(r.respawns.filter((e) => e.t < tFinish))).toEqual([]);
+    expect(describeRespawns(r.respawns)).toEqual([]);
+    expect(r.respawns.length).toBe(0);
     expect(r.maxStuckSeconds).toBeLessThanOrEqual(2.1);
     expect(r.progressAt(240)).toBeGreaterThanOrEqual(track.xFinish);
   });

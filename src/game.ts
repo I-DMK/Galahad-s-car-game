@@ -27,6 +27,9 @@ export class Game {
   private acc = 0;
   private last = 0;
   private errors = 0;
+  /** Temps de course (s) à l'arrivée : chrono figé dessus ; null avant l'arrivée. */
+  private finishTime: number | null = null;
+  private finishShown = false;
   private running = false;
   private rafId = 0;
   private fpsFrames = 0;
@@ -86,6 +89,10 @@ export class Game {
     for (let i = 0; i < steps; i++) {
       try {
         stepRace(this.sim, pressed);
+        if (this.finishTime === null && this.sim.events.some((e) => e.type === 'finish')) {
+          this._state = 'finished';
+          this.finishTime = this.sim.state.finishedAt;
+        }
       } catch (err) {
         console.error('stepRace a échoué', err);
         if (++this.errors >= MAX_ERRORS) {
@@ -103,7 +110,13 @@ export class Game {
     const c = physToWorld(sim.car.chassis.position);
     this.camera.update(c.x, Math.max(c.y, heightAt(sim.track, c.x) + 3), carSpeedMps(sim.car), elapsed);
     this.renderer.draw(sceneOf(sim), this.camera);
-    this.hud.setTime(sim.time);
+    this.hud.setTime(this.finishTime ?? sim.time);
+    // Après l'arrivée, la voiture roule encore FINISH_COAST_SECONDS en freinant, puis le calque s'affiche.
+    if (this.finishTime !== null && !this.finishShown && sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {
+      this.finishShown = true;
+      // L'adresse garde ?seed, ?len et ?debug : recharger relance la même piste.
+      this.hud.showFinished(this.finishTime, () => location.reload());
+    }
 
     if (this.opts.debug) {
       this.fpsFrames++;
