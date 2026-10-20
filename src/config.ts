@@ -19,11 +19,11 @@ export const CONFIG = {
   CHASSIS_MASS: 60, WHEEL_MASS: 40,
   SUSPENSION_STIFFNESS: 0.3, SUSPENSION_DAMPING: 0.1, SUSPENSION_ANCHOR_SPREAD: 0.3,
   WHEEL_FRICTION: 1.0, CHASSIS_FRICTION: 0.3, RESTITUTION: 0.05, AIR_DRAG: 0,
-  DRIVE_ACCEL: 4,               // m/s² : REMPLACÉ par la valeur mesurée en tâche 7a
-  WHEEL_SPINUP: 0.01,           // rad/pas par pas (0,02 mesuré ≈ 7 m/s², trop)
+  DRIVE_ACCEL: 4.3,             // m/s² : mesuré en 7a (plein gaz sur plat, v(2 s) / 2 = 4,33 ; 4,25–4,49 selon x de départ)
+  WHEEL_SPINUP: 0.006,          // rad/pas par pas, calibré en 7a (0,005 → 3,9 m/s² ; 0,007 → 5,2 ; 0,01 → 6,3)
   ENGINE_BRAKE: 0.995,          // facteur par pas sur omega, doigt levé
   FINISH_BRAKE: 0.98,           // facteur par pas après l'arrivée
-  AIR_LEVEL_K: 0.004, AIR_LEVEL_D: 0.08,   // rad/pas² par rad, et par rad/pas ; réglés par le test 7a
+  AIR_LEVEL_K: 0.004, AIR_LEVEL_D: 0.08,   // rad/pas² par rad, et par rad/pas ; vérifiés en 7a sur la voiture complète : 40° → 1,5° en 90 pas, sans dépassement
   TRACK_POINT_SPACING: 0.2,
   RACE_TARGET_SECONDS: 150,
   TRACK_MIN_LENGTH: 300, TRACK_MAX_LENGTH: 6000,
