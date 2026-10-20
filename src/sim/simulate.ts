@@ -1,17 +1,20 @@
 // Pas de course : relie la physique (matter-js) à l'état de course. Sans DOM : utilisable sous node
 // (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b),
-// ligne d'arrivée (11) ; la tâche 12 étend `stepRace` (étoiles).
+// ligne d'arrivée (11), étoiles et turbo (12).
 import Matter from 'matter-js';
 import type { Config } from '../config';
 import {
   applyRespawnToState, chooseRespawnTarget, updateRespawnTimers, type RespawnReason,
 } from '../cars/respawn';
 import { isSafePointCandidate } from '../cars/safepoint';
+import { isStarActive, newStarStates, takeStar, type StarState } from '../cars/stars';
 import { newCarState, type CarState, type SafePoint } from '../cars/state';
+import { activateTurbo, turboFactor } from '../cars/turbo';
 import {
   applyAirLevel, applyBrake, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
   setCarInvulnerable, updateGroundContact, type CarBody, type GroundContact,
 } from '../physics/car';
+import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
 import { createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
@@ -42,6 +45,10 @@ export interface RaceSim {
   invulnerable: boolean;
   /** Châssis des autres voitures (vide au plan A) : l'invulnérabilité dure tant qu'un d'eux chevauche. */
   others: Matter.Body[];
+  /** État des étoiles, dans l'ordre de `track.stars`. */
+  stars: StarState[];
+  /** Capteurs des étoiles, même ordre que `stars`. */
+  starBodies: Matter.Body[];
   cfg: Config;
 }
 
@@ -64,16 +71,19 @@ export function createRaceSim(track: Track, cfg: Config): RaceSim {
   const start: SafePoint = { x: x0, y: heightAt(track, x0), angle: 0 };
   const state = newCarState(CAR_ID, CAR_NAME, colorHex(cfg.GALAHAD_COLOR), colorHex(cfg.GALAHAD_ACCENT), start);
   state.progress = physToWorld(car.chassis.position).x;
+  const stars = newStarStates(track.stars);
+  const starBodies = createStarBodies(world, track.stars, cfg);
   return {
     track, world, car, state, contact: newContact(), time: 0, events: [], airborneSince: null,
-    invulnerable: false, others: [], cfg,
+    invulnerable: false, others: [], stars, starBodies, cfg,
   };
 }
 
 /**
  * Un pas fixe de PHYSICS_DT. Après l'arrivée (`state.finishedAt` défini), `throttle` est ignoré :
  * les roues sont freinées à chaque pas (FINISH_BRAKE) et la voiture ne réapparaît plus jamais
- * (elle s'arrête sur le plat avant le mur de fin).
+ * (elle s'arrête sur le plat avant le mur de fin). Une étoile active touchée après le pas physique
+ * est prise (réapparition STAR_RESPAWN_SECONDS plus tard) et lance TURBO_SECONDS de turbo.
  */
 export function stepRace(sim: RaceSim, throttle: boolean): void {
   const { car, cfg, world } = sim;
@@ -81,7 +91,7 @@ export function stepRace(sim: RaceSim, throttle: boolean): void {
   sim.events = [];
   const finished = sim.state.finishedAt !== null;
   if (finished) applyBrake(car, cfg.FINISH_BRAKE);
-  else applyDrive(car, throttle, 1, cfg);
+  else applyDrive(car, throttle, turboFactor(sim.state, sim.time, cfg), cfg);
   const onGround = updateGroundContact(world.engine, car, sim.contact, sim.time, h, cfg);
   const grounded = onGround[0] || onGround[1];
   if (!grounded) {
@@ -97,6 +107,7 @@ export function stepRace(sim: RaceSim, throttle: boolean): void {
   stepWorld(world);
   clampVelocities(car, cfg);
   sim.state.progress = physToWorld(car.chassis.position).x;
+  collectStars(sim);
   if (!finished && sim.state.progress >= sim.track.xFinish) {
     sim.state.finishedAt = sim.time;
     sim.events.push({ type: 'finish', t: sim.time });
@@ -104,6 +115,21 @@ export function stepRace(sim: RaceSim, throttle: boolean): void {
   releaseInvulnerability(sim);
   if (sim.state.finishedAt === null) observeAndRespawn(sim, throttle, onGround);
   sim.time += cfg.PHYSICS_DT;
+}
+
+/** Prend les étoiles actives touchées par la voiture ce pas-ci, puis aligne les capteurs sur leur état. */
+function collectStars(sim: RaceSim): void {
+  const { cfg, time: t } = sim;
+  for (const sensor of sensorsTouching(sim.world.engine, sim.car.parts)) {
+    if (sensor.label !== 'star') continue;
+    const i = sim.starBodies.indexOf(sensor);
+    const star = sim.stars[i];
+    if (!star || !isStarActive(star, t, cfg)) continue;
+    takeStar(star, t);
+    activateTurbo(sim.state, t, cfg);
+    sim.events.push({ type: 'star', t, id: star.id });
+  }
+  syncStarBodies(sim.starBodies, sim.stars, t, cfg);
 }
 
 /**
@@ -189,7 +215,7 @@ export function carView(sim: RaceSim): CarView {
     color: state.color,
     accent: state.accent,
     name: state.name,
-    turbo: false,
+    turbo: turboFactor(state, sim.time, sim.cfg) > 1,
   };
 }
 
@@ -197,8 +223,7 @@ export function sceneOf(sim: RaceSim): Scene {
   return {
     track: sim.track,
     cars: [carView(sim)],
-    // Collecte des étoiles : tâche 12.
-    stars: sim.track.stars.map((s) => ({ x: s.x, y: s.y, active: true })),
+    stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActive(sim.stars[i], sim.time, sim.cfg) })),
     t: sim.time,
   };
 }
