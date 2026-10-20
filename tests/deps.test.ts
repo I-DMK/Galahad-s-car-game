@@ -1,0 +1,22 @@
+// Garde de dépendances : la logique pure (piste, voitures, boucle) ne doit toucher
+// ni matter-js, ni le DOM. Les sources sont lues via Vite (?raw) ; un dossier absent
+// ne correspond à aucun fichier et est donc simplement ignoré.
+const FORBIDDEN = ["from 'matter-js'", 'from "matter-js"', 'document.', 'window.'];
+
+const sources = import.meta.glob('../src/{track,cars,loop}/**/*.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+test('track, cars et loop restent purs (ni matter-js, ni document, ni window)', () => {
+  const offenders: string[] = [];
+  for (const [file, src] of Object.entries(sources)) {
+    for (const bad of FORBIDDEN) if (src.includes(bad)) offenders.push(`${file}: ${bad}`);
+  }
+  expect(offenders).toEqual([]);
+});
+
+test('la garde voit bien les fichiers de src/track', () => {
+  expect(Object.keys(sources).some((f) => f.endsWith('/track/rng.ts'))).toBe(true);
+});
