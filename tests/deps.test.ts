@@ -20,3 +20,17 @@ test('track, cars et loop restent purs (ni matter-js, ni document, ni window)', 
 test('la garde voit bien les fichiers de src/track', () => {
   expect(Object.keys(sources).some((f) => f.endsWith('/track/rng.ts'))).toBe(true);
 });
+
+const renderSources = import.meta.glob('../src/render/**/*.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+test('render ne touche pas matter-js (il reçoit des coordonnées du monde)', () => {
+  expect(Object.keys(renderSources).some((f) => f.endsWith('/render/renderer.ts'))).toBe(true);
+  const offenders = Object.entries(renderSources)
+    .filter(([, src]) => src.includes("from 'matter-js'") || src.includes('from "matter-js"'))
+    .map(([f]) => f);
+  expect(offenders).toEqual([]);
+});
