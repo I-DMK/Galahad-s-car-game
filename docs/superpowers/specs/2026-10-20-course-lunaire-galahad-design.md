@@ -36,8 +36,9 @@ Hypothèses retenues sans question posée :
 - Pas de carburant qui se vide, pas de vies, pas de compte, pas de réseau
   nécessaire après le premier chargement.
 - Difficulté réglée pour un enfant de 5 ans ; les adversaires restent proches.
-- Les étoiles ne sont ramassables que par Galahad (les robots passent au
-  travers). C'est plus simple, et ça garantit qu'il en voit.
+- Les étoiles sont ramassables par tout le monde et réapparaissent au même
+  endroit quelques secondes après avoir été prises, comme les boîtes d'objets
+  de Mario Kart (choix de Galahad).
 
 ## 2. Choix techniques
 
@@ -77,6 +78,7 @@ en pixels. Valeurs de départ (à calibrer à l'étape 6) :
 | `CAR_LENGTH` | 2,2 m | longueur du châssis |
 | `WHEEL_RADIUS` | 0,45 m | rayon des roues (≥ 2 × l'espacement des points de piste) |
 | `TRACK_POINT_SPACING` | 0,2 m | espacement des points du relief |
+| `STAR_RESPAWN_SECONDS` | 5 s | réapparition d'une étoile prise |
 | `RACE_TARGET_SECONDS` | 150 s | durée visée → longueur = `V_CRUISE` × 150 s ≈ 1 680 m |
 | `PHYSICS_DT` | 1/60 s | pas fixe |
 | `MAX_STEPS_PER_FRAME` | 4 | ralenti plutôt que saut dans le temps |
@@ -180,7 +182,10 @@ Pour chaque volcan : `xElanStart` (début du plat d'élan), `xLava`,
 Sur les plats et au bas des montées, à hauteur de roue. Exclusion **par
 distance**, pas par tranche : aucune étoile à moins de `3 s × V_MAX ×
 TURBO_FACTOR` (≈ 63 m) avant une lave, ni sur le plat final ni après la ligne.
-Une étoile ramassée réapparaît 10 s plus tard. Seul Galahad peut les ramasser.
+Toute voiture peut ramasser une étoile ; elle disparaît avec un petit éclat
+et **réapparaît au même endroit 5 s plus tard** (`STAR_RESPAWN_SECONDS`),
+comme une boîte d'objets de Mario Kart. Une voiture derrière trouve donc
+presque toujours l'étoile de nouveau en place.
 
 ### Volcans
 
@@ -268,10 +273,12 @@ derrière, espacés de 1,5 × `CAR_LENGTH`. À PARTEZ, le robot de rang n démar
 avec un délai de 0,3 s × n. Le HUD de position reste vide pendant la première
 seconde.
 
-### Étoile / turbo (Galahad seulement)
+### Étoile / turbo (toutes les voitures)
 
-Turbo 3 s : `V_MAX` et couple × `TURBO_FACTOR`, flammes, bruit de fusée. Un
-nouveau turbo remet le compteur à 3 s.
+Turbo 3 s : `V_MAX` et couple × `TURBO_FACTOR`, flammes, bruit de fusée (si
+la voiture est visible). Un nouveau turbo remet le compteur à 3 s. Pour les
+robots, le turbo se combine à l'élastique (voir §7) : un copain déjà loin
+devant ne s'envole pas grâce aux étoiles.
 
 ### Arrivée
 
@@ -300,6 +307,10 @@ par progression ; égalité tranchée par l'index de voiture.
     caméra, donc hors écran) : facteur descend progressivement jusqu'à 0,6.
   - Robot derrière de plus de `X` : facteur monte jusqu'à 1,3 (sans flammes).
   - Dans la fenêtre : facteur = caractère.
+  - Turbo d'un robot : le facteur final = facteur élastique × `TURBO_FACTOR`,
+    **plafonné à 1,3 au total** ; un robot hors écran devant Galahad garde
+    les flammes mais ne dépasse jamais le facteur 1,0 (les étoiles ne cassent
+    pas l'élastique).
   - Variation limitée à 0,15 par seconde : jamais d'arrêt net visible.
   - Neutre (1,0) les 5 premières secondes et dans les zones d'élan.
 - Les robots respawnent exactement comme Galahad (mêmes règles, mêmes
@@ -416,7 +427,10 @@ musique) dans `config.ts` :
   de départ ; angle mémorisé.
 - Respawn : deux respawns consécutifs au même point → réception après le volcan.
 - Élastique : facteur dans [0,6 ; 1,3], monotone en fonction de l'écart,
-  variation ≤ 0,15/s, neutre les 5 premières secondes et dans les zones d'élan.
+  variation ≤ 0,15/s, neutre les 5 premières secondes et dans les zones d'élan,
+  turbo robot plafonné à 1,3 au total et à 1,0 pour un robot loin devant.
+- Étoiles : réapparition 5 s après ramassage au même endroit, ramassable par
+  n'importe quelle voiture.
 - Pilotes : 4 tirés sans doublon, Galahad jamais parmi eux, couleurs uniques,
   même graine → mêmes pilotes.
 - Classement : arrivés par temps puis progression ; tie-break par index ;
@@ -492,5 +506,4 @@ version déployée.
 ## 14. Hors périmètre (pour plus tard)
 
 Autres voitures, autres décors, mode deux joueurs, sauvegarde des meilleurs
-temps, choix du nombre d'adversaires, fantôme de la meilleure course, étoiles
-ramassables par les robots.
+temps, choix du nombre d'adversaires, fantôme de la meilleure course.
