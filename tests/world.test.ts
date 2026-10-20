@@ -45,21 +45,46 @@ test('gravité : un corps lâché tombe de 2,45 m en 60 pas (± 10 %)', () => {
   expect(fall).toBeLessThan(2.45 * 1.1);
 });
 
-test('sol sans trou : des roues lâchées tous les 5 m reposent sur le sol (seed 1, 1680 m)', () => {
-  const track = generateTrack(1, 1680, CONFIG);
-  const world = createWorld(track, CONFIG);
-  expect(world.track).toBe(track);
-  expect(world.ground.length).toBe(track.points.length - 1);
-  const wheels = wheelXs(track).map((x) => addWheel(world, x, heightAt(track, x) + 3));
-  for (let i = 0; i < 300; i++) stepWorld(world);
-  const bad: string[] = [];
-  for (const w of wheels) {
-    const p = posM(w);
-    const gap = p.y - (heightAt(track, p.x) + R);
-    if (!(Math.abs(gap) <= 0.05)) bad.push(`x=${p.x.toFixed(2)} écart=${gap.toFixed(3)}`);
+/**
+ * Distance normale (m) du centre p au segment de sol le plus proche, signée :
+ * négative si le centre est sous le sol. Sur une pente θ, une roue posée a son
+ * centre à R de la surface selon la normale (R / cos θ à la verticale).
+ */
+function signedGroundDistance(track: Track, p: { x: number; y: number }): number {
+  const pts = track.points;
+  const s = CONFIG.TRACK_POINT_SPACING;
+  const i0 = Math.max(0, Math.floor((p.x - 2) / s));
+  const i1 = Math.min(pts.length - 1, Math.ceil((p.x + 2) / s));
+  let best = Infinity;
+  for (let i = i0; i < i1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const t = Math.min(1, Math.max(0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+    best = Math.min(best, Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)));
   }
-  expect(bad).toEqual([]);
-});
+  return p.y >= heightAt(track, p.x) ? best : -best;
+}
+
+test.each([0, 1, 2, 3, 4])(
+  'sol sans trou : des roues lâchées tous les 5 m reposent sur le sol (seed %i, 1680 m)',
+  (seed) => {
+    const track = generateTrack(seed, 1680, CONFIG);
+    const world = createWorld(track, CONFIG);
+    expect(world.track).toBe(track);
+    expect(world.ground.length).toBe(track.points.length - 1);
+    const wheels = wheelXs(track).map((x) => addWheel(world, x, heightAt(track, x) + 3));
+    for (let i = 0; i < 300; i++) stepWorld(world);
+    const bad: string[] = [];
+    for (const w of wheels) {
+      const p = posM(w);
+      const gap = signedGroundDistance(track, p) - R;
+      if (!(Math.abs(gap) <= 0.05)) bad.push(`x=${p.x.toFixed(2)} écart=${gap.toFixed(3)}`);
+    }
+    expect(bad).toEqual([]);
+  },
+);
 
 test('tunneling : des roues lancées vers le bas à VERTICAL_SPEED_CAP ne traversent pas le sol', () => {
   const track = generateTrack(1, 1680, CONFIG);
@@ -80,7 +105,6 @@ test('tunneling : des roues lancées vers le bas à VERTICAL_SPEED_CAP ne traver
     stepWorld(world);
     check();
   }
-  check();
   expect([...bad].map((k) => wheelXs(track)[k])).toEqual([]);
 });
 
