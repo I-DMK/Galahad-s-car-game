@@ -2,10 +2,10 @@ import Matter from 'matter-js';
 import { normalizeAngle } from '../cars/angle';
 import type { Config } from '../config';
 import { heightAt as trackHeightAt } from '../track/query';
-import { mpsToPxPerStep, speedMps, toPx, worldToPhys } from './units';
+import { mpsToPxPerStep, physToWorld, speedMps, toPx, worldToPhys } from './units';
 import { CAT, type World } from './world';
 
-const { Bodies, Body, Composite, Constraint } = Matter;
+const { Bodies, Body, Composite, Constraint, Vector } = Matter;
 
 const STEP_MS = 1000 / 60;
 const SIDES = [-1, 1] as const;
@@ -35,7 +35,7 @@ const MASK_NORMAL = CAT.GROUND | CAT.CAR | CAT.SENSOR;
 const MASK_INVULNERABLE = CAT.GROUND | CAT.SENSOR;
 
 /**
- * Voiture : châssis + deux roues suspendues chacune par deux ressorts. Construite à
+ * Voiture : châssis + deux roues suspendues chacune par trois ressorts. Construite à
  * l'origine puis posée sur la piste à x (angle 0) par `placeCar`.
  */
 export function createCar(world: World, id: string, index: number, x: number, cfg: Config): CarBody {
@@ -56,9 +56,13 @@ export function createCar(world: World, id: string, index: number, x: number, cf
   const axleX = toPx(cfg.WHEEL_BASE / 2);
   const axleY = toPx(cfg.WHEEL_DROP); // Matter : y vers le bas, donc sous le centre
   const spread = toPx(cfg.SUSPENSION_ANCHOR_SPREAD);
+  const topY = toPx(cfg.CAR_HEIGHT / 2 + cfg.SUSPENSION_TOP_OFFSET); // ancrage haut, au-dessus du châssis
   const constraints: Matter.Constraint[] = [];
   const wheels = SIDES.map((side) => {
-    const wheel = Bodies.circle(side * axleX, axleY, r, {
+    // Bodies.polygon plutôt que Bodies.circle : celui-ci prend ceil(max(10, min(maxSides, r px)))
+    // côtés, soit 18 pour r = 18 px quel que soit maxSides (ce n'est qu'un plafond), et la roue
+    // sautille de sommet en sommet (cf. WHEEL_SIDES).
+    const wheel = Bodies.polygon(side * axleX, axleY, cfg.WHEEL_SIDES, r, {
       label: 'wheel',
       mass: cfg.WHEEL_MASS,
       inertia: (INERTIA_SCALE * cfg.WHEEL_MASS * r * r) / 2,
@@ -67,6 +71,8 @@ export function createCar(world: World, id: string, index: number, x: number, cf
       restitution: cfg.RESTITUTION,
       collisionFilter: filter(),
     });
+    // Comme Bodies.circle (absent des types de définition, d'où l'affectation après coup).
+    wheel.circleRadius = r;
     for (const s of SIDES) {
       constraints.push(
         Constraint.create({
@@ -80,6 +86,21 @@ export function createCar(world: World, id: string, index: number, x: number, cf
         }),
       );
     }
+    // Troisième ressort, depuis un point au-dessus du châssis : avec les deux seuls ancrages
+    // alignés sur l'axe, la roue avait une position miroir stable au-dessus de l'axe (roue et
+    // châssis ne se heurtent pas) où elle restait coincée après un atterrissage brutal (7c :
+    // 91 rampes-saut sur 148). Trois ancrages non alignés : position d'équilibre unique.
+    constraints.push(
+      Constraint.create({
+        bodyA: chassis,
+        pointA: { x: side * axleX, y: -topY },
+        bodyB: wheel,
+        pointB: { x: 0, y: 0 },
+        stiffness: cfg.SUSPENSION_STIFFNESS,
+        damping: cfg.SUSPENSION_DAMPING,
+        length: topY + axleY,
+      }),
+    );
     return wheel;
   }) as [Matter.Body, Matter.Body];
   const parts = [chassis, ...wheels];
@@ -147,6 +168,43 @@ export function wheelsOnGround(engine: Matter.Engine, car: CarBody): [boolean, b
     });
   }
   return on;
+}
+
+/** Seuil (m) sous l'axe du châssis en deçà duquel une roue est jugée « remontée ». */
+const WHEEL_BELOW_MIN = 0.05;
+
+/** Chaque centre de roue est-il sous l'axe du châssis (y local > 0,05 m, repère Matter y vers le bas) ? */
+export function wheelsBelowChassis(car: CarBody): boolean {
+  return car.wheels.every((w) => {
+    const local = Vector.rotate(Vector.sub(w.position, car.chassis.position), -car.chassis.angle);
+    return local.y > toPx(WHEEL_BELOW_MIN);
+  });
+}
+
+/** Contact au sol anti-rebond : instant (s) jusqu'auquel chaque roue [arrière, avant] compte comme au sol. */
+export interface GroundContact {
+  groundedUntil: [number, number];
+}
+
+/**
+ * Contact au sol pour le jeu, à appeler une fois par pas après stepWorld (t en secondes). Une roue
+ * est au sol si, ce pas-ci, elle a un contact brut (`wheelsOnGround`) ou si l'écart vertical entre
+ * le bas de la roue et le sol (centre − heightAt(x) − WHEEL_RADIUS) est < GROUND_CONTACT_GAP ; elle
+ * le reste ensuite GROUND_DEBOUNCE_SECONDS. À grande vitesse la roue polygonale décolle de sommet en
+ * sommet (contact brut ≈ 1 pas sur 4 à V_MAX), d'où l'écart et la fenêtre. L'écart est vertical :
+ * sur une pente θ une roue posée lit R(1/cos θ − 1) (0,055 m à 27°), le contact brut prend le relais.
+ */
+export function updateGroundContact(
+  engine: Matter.Engine, car: CarBody, contact: GroundContact, t: number,
+  heightAt: (x: number) => number, cfg: Config,
+): [boolean, boolean] {
+  const raw = wheelsOnGround(engine, car);
+  car.wheels.forEach((wheel, i) => {
+    const p = physToWorld(wheel.position);
+    const gap = p.y - heightAt(p.x) - cfg.WHEEL_RADIUS;
+    if (raw[i] || gap < cfg.GROUND_CONTACT_GAP) contact.groundedUntil[i] = t + cfg.GROUND_DEBOUNCE_SECONDS;
+  });
+  return [t < contact.groundedUntil[0], t < contact.groundedUntil[1]];
 }
 
 /**

@@ -16,14 +16,18 @@ export const CONFIG = {
   ELAN_MARGIN: 1.2,
   ELAN_SAFE_FRACTION: 0.75,     // le plat d'élan est dimensionné pour qu'il suffise de 75 % de sa longueur
   CAR_LENGTH: 2.2, CAR_HEIGHT: 0.7, WHEEL_BASE: 1.5, WHEEL_RADIUS: 0.45, WHEEL_DROP: 0.25,
+  WHEEL_SIDES: 48,              // roues en 48-gone (Bodies.polygon) : Bodies.circle plafonne les côtés à min(maxSides, r px) = 18 ici ; à V_MAX le 48-gone divise par 2,5 l'excursion du châssis (0,105 → 0,042 m, mesuré en 7c)
   CHASSIS_MASS: 60, WHEEL_MASS: 40,
   SUSPENSION_STIFFNESS: 0.3, SUSPENSION_DAMPING: 0.1, SUSPENSION_ANCHOR_SPREAD: 0.3,
+  SUSPENSION_TOP_OFFSET: 0.6,   // m au-dessus du toit : 3e ancrage de chaque roue (7c), rend unique la position de la roue (sans lui, position miroir au-dessus de l'axe)
   WHEEL_FRICTION: 1.0, CHASSIS_FRICTION: 0.3, RESTITUTION: 0.05, AIR_DRAG: 0,
   DRIVE_ACCEL: 4.3,             // m/s² : mesuré en 7a (plein gaz sur plat, v(2 s) / 2 = 4,33 ; 4,25–4,49 selon x de départ)
-  WHEEL_SPINUP: 0.006,          // rad/pas par pas, calibré en 7a (0,005 → 3,9 m/s² ; 0,007 → 5,2 ; 0,01 → 6,3)
+  WHEEL_SPINUP: 0.0054,         // rad/pas par pas, recalibré en 7c (48 côtés, 3e ressort) : 4,34 m/s² sur 0–2 s (x de départ 10 à 200 m) ; sans 3e ressort 0,005 → 4,0 ; 0,0054 → 4,29 ; 0,0056 → 4,47 ; 0,006 → 4,93 (7a, 18 côtés : 0,006 → 4,33)
   ENGINE_BRAKE: 0.995,          // facteur par pas sur omega, doigt levé
   FINISH_BRAKE: 0.98,           // facteur par pas après l'arrivée
-  AIR_LEVEL_K: 0.004, AIR_LEVEL_D: 0.08,   // rad/pas² par rad, et par rad/pas ; vérifiés en 7a sur la voiture complète, suspension au repos : 40° → 2,9° en 90 pas (32 / 21 / 13 / 8 / 4,8 / 2,9° tous les 15 pas), sans dépassement ; 40° inchangé sans air-level
+  GROUND_DEBOUNCE_SECONDS: 0.1, // une roue reste « au sol » 0,1 s après son dernier contact (brut ou écart < GROUND_CONTACT_GAP) ; mesuré en 7c plein gaz sur le plat : contact brut 28 % des pas (une roue) et 4 % (deux), contact de jeu 98 % et 93 % ; turbo 18 % → 85 % (une roue)
+  GROUND_CONTACT_GAP: 0.03,     // m : roue « au sol » si le bas de la roue est à moins de 3 cm du sol (écart vertical), même sans contact Matter ce pas-ci (7c)
+  AIR_LEVEL_K: 0.004, AIR_LEVEL_D: 0.08,   // rad/pas² par rad, et par rad/pas ; vérifiés en 7a sur la voiture complète, suspension au repos : 40° → 2,9° en 90 pas (32 / 21 / 13 / 8 / 4,8 / 2,9° tous les 15 pas), sans dépassement ; 40° inchangé sans air-level ; 7c (3e ressort) : 33 / 25 / 19 / 14 / 10 / 7,8°
   TRACK_POINT_SPACING: 0.2,
   RACE_TARGET_SECONDS: 150,
   TRACK_MIN_LENGTH: 300, TRACK_MAX_LENGTH: 6000,

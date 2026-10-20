@@ -3,7 +3,7 @@ import { CONFIG, type Config } from '../src/config';
 import { normalizeAngle } from '../src/cars/angle';
 import {
   applyAirLevel, applyBrake, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar,
-  placeCar, setCarInvulnerable, wheelsOnGround, type CarBody,
+  placeCar, setCarInvulnerable, wheelsBelowChassis, wheelsOnGround, type CarBody,
 } from '../src/physics/car';
 import { mpsToPxPerStep, physToWorld, speedMps, toPx } from '../src/physics/units';
 import { CAT, createWorld, stepWorld, type World } from '../src/physics/world';
@@ -53,7 +53,7 @@ test('normalizeAngle ramène dans (−π, π]', () => {
   expect(normalizeAngle(-7 * Math.PI + 0.25)).toBeCloseTo(-Math.PI + 0.25, 12);
 });
 
-test('construction : 3 parties sans frottement de l’air, masses 60/40/40, groupe négatif, 4 contraintes', () => {
+test('construction : 3 parties sans frottement de l’air, masses 60/40/40, groupe négatif, 6 contraintes', () => {
   const { world, car } = flatCar();
   expect(car.id).toBe('galahad');
   expect(car.index).toBe(0);
@@ -74,30 +74,34 @@ test('construction : 3 parties sans frottement de l’air, masses 60/40/40, grou
   const [L, H, Rpx] = [toPx(CONFIG.CAR_LENGTH), toPx(CONFIG.CAR_HEIGHT), toPx(R)];
   expect(car.chassis.inertia).toBeGreaterThanOrEqual((CONFIG.CHASSIS_MASS * (L * L + H * H)) / 12);
   for (const w of car.wheels) expect(w.inertia).toBeGreaterThanOrEqual((CONFIG.WHEEL_MASS * Rpx * Rpx) / 2);
-  expect(car.constraints).toHaveLength(4);
+  expect(car.constraints).toHaveLength(6);
   for (const c of car.constraints) {
     expect(c.bodyA).toBe(car.chassis);
     expect(car.wheels).toContain(c.bodyB);
     expect(c.stiffness).toBe(CONFIG.SUSPENSION_STIFFNESS);
     expect(c.damping).toBe(CONFIG.SUSPENSION_DAMPING);
   }
-  // Deux contraintes par roue, ancrées sur l'axe du châssis à ±SUSPENSION_ANCHOR_SPREAD de l'axe de roue.
+  // Trois contraintes par roue : deux ancrées sur l'axe du châssis à ±SUSPENSION_ANCHOR_SPREAD de
+  // l'axe de roue, une au-dessus du toit (SUSPENSION_TOP_OFFSET) : position de la roue unique.
   const [axleX, drop, spread] = [toPx(CONFIG.WHEEL_BASE / 2), toPx(CONFIG.WHEEL_DROP), toPx(CONFIG.SUSPENSION_ANCHOR_SPREAD)];
+  const topY = toPx(CONFIG.CAR_HEIGHT / 2 + CONFIG.SUSPENSION_TOP_OFFSET);
   car.wheels.forEach((w, i) => {
     const mine = car.constraints.filter((c) => c.bodyB === w);
-    expect(mine).toHaveLength(2);
+    expect(mine).toHaveLength(3);
     const side = i === 0 ? -1 : 1;
-    expect(mine.map((c) => c.pointA.x).sort((a, b) => a - b))
+    const axis = mine.filter((c) => c.pointA.y === 0);
+    expect(axis.map((c) => c.pointA.x).sort((a, b) => a - b))
       .toEqual([side * axleX - spread, side * axleX + spread].sort((a, b) => a - b));
-    for (const c of mine) {
-      expect(c.pointA.y).toBe(0);
-      expect(c.pointB).toEqual({ x: 0, y: 0 });
-      expect(c.length).toBeCloseTo(Math.hypot(spread, drop), 12);
-    }
+    for (const c of axis) expect(c.length).toBeCloseTo(Math.hypot(spread, drop), 12);
+    const top = mine.filter((c) => c.pointA.y !== 0);
+    expect(top).toHaveLength(1);
+    expect(top[0].pointA).toEqual({ x: side * axleX, y: -topY });
+    expect(top[0].length).toBeCloseTo(topY + drop, 12);
+    for (const c of mine) expect(c.pointB).toEqual({ x: 0, y: 0 });
   });
   const all = Composite.allBodies(world.engine.world);
   for (const p of car.parts) expect(all).toContain(p);
-  expect(Composite.allConstraints(world.engine.world)).toHaveLength(4);
+  expect(Composite.allConstraints(world.engine.world)).toHaveLength(6);
   // Une deuxième voiture a son propre groupe.
   const other = createCar(world, 'b', 1, 20, CONFIG);
   for (const p of other.parts) expect(p.collisionFilter.group).toBe(-2);
@@ -110,6 +114,7 @@ test('construction : 3 parties sans frottement de l’air, masses 60/40/40, grou
   expect(w1.x).toBeCloseTo(10 + CONFIG.WHEEL_BASE / 2, 6);
   expect(w0.y).toBeCloseTo(R, 6);
   expect(carAngle(car)).toBeCloseTo(0, 12);
+  expect(wheelsBelowChassis(car)).toBe(true);
 });
 
 test('repos : 120 pas sans gaz → immobile, à plat, roues posées', () => {
@@ -220,6 +225,27 @@ test('air-level sur la voiture complète : lâchée à 40° → < 10° après 90
   // Témoin : sans air-level, rien ne redresse la voiture (le test ne peut pas passer à vide).
   const control = airDrop({ ...CONFIG, AIR_LEVEL_K: 0, AIR_LEVEL_D: 0 });
   expect(control.angles[control.angles.length - 1]).toBeGreaterThan(30);
+});
+
+test('lancée à V_MAX × TURBO_FACTOR, 10° vers le haut, 2 m au-dessus du plat : après 3 s, roues sous le châssis, voiture droite', () => {
+  // Avant le 3e ressort (7c), la roue avant traversait l'axe du châssis à l'atterrissage (pas 116)
+  // et restait coincée dans sa position miroir au-dessus (voiture sur le ventre, roues en l'air).
+  const { world, car } = flatCar();
+  const a = 10 * DEG;
+  const v = CONFIG.V_MAX * CONFIG.TURBO_FACTOR;
+  placeCar(car, 10, (x) => heightAt(FLAT, x) + 2 + (x - 10) * Math.tan(a), a, CONFIG);
+  for (const p of car.parts) Body.setVelocity(p, { x: mpsToPxPerStep(v * Math.cos(a)), y: -mpsToPxPerStep(v * Math.sin(a)) });
+  for (const w of car.wheels) Body.setAngularVelocity(w, mpsToPxPerStep(v) / toPx(R));
+  expect(wheelsBelowChassis(car)).toBe(true);
+  for (let i = 1; i <= 3 * STEPS_PER_SECOND; i++) {
+    applyDrive(car, true, CONFIG.TURBO_FACTOR, CONFIG);
+    applyAirLevel(car, wheelsOnGround(world.engine, car), CONFIG);
+    stepWorld(world);
+    clampVelocities(car, CONFIG);
+  }
+  expect(wheelsBelowChassis(car)).toBe(true);
+  expect(Math.abs(carAngle(car))).toBeLessThan(15 * DEG);
+  expect(posM(car.chassis).x).toBeGreaterThan(10 + 3 * CONFIG.V_MAX); // elle roule toujours
 });
 
 test('air-level inactif dès qu’une roue touche le sol', () => {

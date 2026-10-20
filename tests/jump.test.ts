@@ -1,7 +1,8 @@
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import {
-  applyAirLevel, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar, wheelsOnGround,
+  applyAirLevel, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar, wheelsBelowChassis,
+  wheelsOnGround,
   type CarBody,
 } from '../src/physics/car';
 import { mpsToPxPerStep, physToWorld, toPx } from '../src/physics/units';
@@ -122,13 +123,15 @@ interface VolcanoRun {
   touchX: number;
   landX: number;
   landSeconds: number;
+  /** Fin du scénario : chaque roue sous l'axe du châssis (pas coincée dans la position miroir). */
+  wheelsBelow: boolean;
 }
 
 /** Plein gaz depuis l'arrêt en x0, jusqu'à l'atterrissage, la lave ou 12 s. */
 function volcanoRun(world: World, v: Volcano, x0: number, factor: number): VolcanoRun {
   const car = freshCar(world, x0);
   const jump = new JumpTracker(v.xLip);
-  const run: VolcanoRun = { lava: false, lipSpeed: NaN, maxX: -Infinity, flightSeconds: NaN, touchX: NaN, landX: NaN, landSeconds: NaN };
+  const run: VolcanoRun = { lava: false, lipSpeed: NaN, maxX: -Infinity, flightSeconds: NaN, touchX: NaN, landX: NaN, landSeconds: NaN, wheelsBelow: false };
   for (let i = 1; i <= VOLCANO_STEPS; i++) {
     const s = step(world, car, factor);
     run.maxX = Math.max(run.maxX, s.x);
@@ -143,6 +146,7 @@ function volcanoRun(world: World, v: Volcano, x0: number, factor: number): Volca
       break;
     }
   }
+  run.wheelsBelow = wheelsBelowChassis(car);
   return run;
 }
 
@@ -158,6 +162,8 @@ interface SautRun {
   maxAngleAfter: number;
   /** Nombre de pas observés après le contact (AFTER_LANDING_STEPS si la fenêtre est complète). */
   stepsAfter: number;
+  /** Fin du scénario : chaque roue sous l'axe du châssis. */
+  wheelsBelow: boolean;
 }
 
 /** Plein gaz (facteur) depuis x0, à l'arrêt ou lancée à v0 ; suit le saut de la rampe-saut commençant en xRamp. */
@@ -165,7 +171,7 @@ function sautRun(world: World, xRamp: number, x0: number, factor: number, v0: nu
   const car = freshCar(world, x0);
   if (v0 > 0) launch(world, car, x0, v0);
   const jump = new JumpTracker(xRamp + SAUT_LIP_DX);
-  const run: SautRun = { rampSpeed: NaN, flightSeconds: NaN, touchDx: NaN, touchAngle: NaN, landAngle: NaN, maxAngleAfter: 0, stepsAfter: 0 };
+  const run: SautRun = { rampSpeed: NaN, flightSeconds: NaN, touchDx: NaN, touchAngle: NaN, landAngle: NaN, maxAngleAfter: 0, stepsAfter: 0, wheelsBelow: false };
   const maxSteps = 15 * STEPS_PER_SECOND;
   for (let i = 1; i <= maxSteps; i++) {
     const s = step(world, car, factor);
@@ -183,6 +189,7 @@ function sautRun(world: World, xRamp: number, x0: number, factor: number, v0: nu
     run.stepsAfter = i - jump.touchStep;
     if (run.stepsAfter >= AFTER_LANDING_STEPS) break;
   }
+  run.wheelsBelow = wheelsBelowChassis(car);
   return run;
 }
 
@@ -207,6 +214,7 @@ test.each(SEEDS)('seed %i : chaque volcan est franchi sans lave (élan complet, 
       expect(r.lava, where).toBe(false);
       expect(r.landX, where).toBeGreaterThanOrEqual(v.xReception);
       expect(r.landX, where).toBeLessThanOrEqual(v.xEnd);
+      expect(r.wheelsBelow, where).toBe(true);
     }
   }
 });
@@ -237,6 +245,7 @@ test.each(SEEDS)('seed %i : chaque rampe-saut, abordée à V_MAX puis à V_MAX �
         expect(r.stepsAfter, where).toBe(AFTER_LANDING_STEPS);
         expect(Math.abs(r.touchAngle), where).toBeLessThan(45 * DEG);
         expect(r.maxAngleAfter, where).toBeLessThanOrEqual(CONFIG.FLIP_ANGLE);
+        expect(r.wheelsBelow, where).toBe(true);
       }
     }
   }
