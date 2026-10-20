@@ -1,5 +1,6 @@
 import type { Config } from '../config';
 import { mulberry32, pickWeighted } from './rng';
+import { placeStars } from './stars';
 import { bosses, doubleBosse, plat, rampeSaut, rampeVolcan, type SliceProfile } from './slices';
 import type { Slice, SliceType, Track, TrackPoint, Volcano } from './types';
 
@@ -98,8 +99,10 @@ export function generateTrack(
   append(plat(rng, cfg, cfg.AFTER_FINISH));
   const xWall = xNow();
 
-  return {
+  const track: Track = {
     seed, targetLength, length: xWall, points, exemptPointIndices, slices, volcanoes, stars: [],
     xStart: cfg.START_LENGTH - 5, xFinish, xWall,
   };
+  track.stars = placeStars(track, rng, cfg);
+  return track;
 }

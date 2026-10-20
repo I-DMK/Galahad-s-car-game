@@ -125,10 +125,9 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
     }
   });
 
-  test('stars vide jusqu à la tâche 5 ; exemptPointIndices triés et sans doublon', () => {
+  test('exemptPointIndices triés et sans doublon', () => {
     for (const [seed, len] of CASES) {
       const t = track(seed, len);
-      expect(t.stars).toEqual([]);
       const sorted = [...t.exemptPointIndices].sort((a, b) => a - b);
       expect(t.exemptPointIndices).toEqual(sorted);
       expect(new Set(t.exemptPointIndices).size).toBe(sorted.length);
