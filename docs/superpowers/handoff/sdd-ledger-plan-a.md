@@ -83,3 +83,7 @@ Décision papa : finir le plan A dans cette session ; passation écrite dans doc
 Task 11: mesures : finishedAt 127–134 s (seeds 0..4), arrêt ~22 m après la ligne, 0 respawn
 Task 11: minor (deferred): progressAt décalé d'un pas (tCross = finishedAt + DT, passe à la borne ±DT) ; start() ne remet pas finishTime/finishShown ; Game.time non figé (seul le HUD l'est, conforme)
 Task 11: complete (commits 96fea85..db878fc, review clean)
+Task 12: équilibrage à voir en calibration (étape 6) : 27–36 étoiles par course (espacement 12–20 m), turbo quasi permanent, course 110–115 s au lieu de 127–134 ; levier : espacement des étoiles dans placeStars (ex. 40–60 m) ou TURBO_SECONDS
+Task 12: mesures : seed 1 doigt posé 35 étoiles (1re à 6 s), maxSpeed 21 m/s, arrivée 110 s, 0 respawn ; seeds 0..4 : 0 respawn, 110–114 s
+Task 12: minor (deferred): assertion turbo===false à t+4,9 fragile ; collectStars actif après l'arrivée ; _cfg inutilisé dans syncStarBodies
+Task 12: complete (commits 19a0582..68d4679, review clean)

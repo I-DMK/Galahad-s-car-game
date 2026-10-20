@@ -31,8 +31,8 @@ sans le contexte de celle-ci.
 | 10a points sûrs/respawn (pur) | complete |
 | 10b respawn dans stepRace + simulations | complete (1 tour) |
 | 11 ligne d'arrivée, chrono, écran ARRIVÉE | complete (127–134 s doigt posé, 0 respawn) |
-| 12 étoiles + turbo | **prochaine** |
-| 13 effets | à faire |
+| 12 étoiles + turbo | complete (35 étoiles/course, turbo quasi permanent → équilibrage à l'étape 6) |
+| 13 effets | **prochaine** |
 | 14 Playwright tablette | à faire |
 | 15 relecture de branche + remise | à faire |
 
@@ -57,4 +57,4 @@ sans le contexte de celle-ci.
 
 ## Prochaine action précise
 
-Tâche 12 : `src/cars/turbo.ts`, `src/cars/stars.ts` (purs), `src/physics/stars.ts` (capteurs), `stepRace` : `applyDrive(car, throttle, turboFactor)`, ramassage via `sensorsTouching` label 'star', réapparition 5 s, événement `star`, `CarView.turbo`, `Scene.stars[].active` ; tests `turbo.test.ts` + `stars-sim.test.ts` (seed 1 doigt posé : ≥ 1 étoile avant 60 s, maxSpeed > 1,2 × V_MAX, zéro respawn).
+Tâche 13 : `src/render/effects.ts` (classe Effects : étincelles, poussière, bulles de lave, fumée ; plafond 300 particules), branchée dans `renderer.ts` et `game.ts` (événements 'respawn' → étincelles, 'landing' → poussière) ; `tests/effects.test.ts`. Puis 14 (Playwright) et 15 (relecture finale).
