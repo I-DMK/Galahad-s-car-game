@@ -8,5 +8,6 @@ export default defineConfig({
     include: ['tests/slow/**/*.test.ts'],
     exclude: [...configDefaults.exclude, 'tests/slow/race-objective.test.ts'],
     testTimeout: 1_800_000,
+    silent: false,
   },
 });

@@ -4,6 +4,7 @@
 // La boucle reproduit la partie physique de `stepRace` (sans réapparition ni étoiles) :
 // applyDrive → contact au sol débouncé → applyAirLevel → stepWorld → clampVelocities.
 import Matter from 'matter-js';
+import { forbiddenZone } from '../../src/cars/safepoint';
 import { CONFIG, type Config } from '../../src/config';
 import {
   applyAirLevel, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
@@ -11,6 +12,7 @@ import {
 } from '../../src/physics/car';
 import { mpsToPxPerStep, physToWorld, toPx } from '../../src/physics/units';
 import { createWorld, sensorsTouching, stepWorld, type World } from '../../src/physics/world';
+import type { SimEvent } from '../../src/sim/simulate';
 import { generateTrack } from '../../src/track/generate';
 import { heightAt, slopeAt, volcanoAhead } from '../../src/track/query';
 import { mulberry32 } from '../../src/track/rng';
@@ -23,11 +25,20 @@ export const STEPS_PER_SECOND = 60;
 export const DEG = Math.PI / 180;
 /**
  * Vitesse au sommet (m/s, norme de la vitesse du châssis au premier pas où x ≥ xLip) en deçà de
- * laquelle la voiture tombe dans la lave, à LAVA_MARGIN 0,8 et capteur +0,3 m : mesurée entre 9,76
- * (lave) et 10,03 (passe) au tour de relecture de la tâche 1, bissectée par `tests/slow/dosage.test.ts`
- * (qui l'imprime). Le cas 2 exige une marge de 1 m/s au-dessus pour toute voiture lancée.
+ * laquelle la voiture tombe dans la lave, à LAVA_MARGIN 0,8 et capteur +0,3 m. Seuil mesuré entre
+ * 9,4 et 10,0 m/s selon le volcan (coup de la roue arrière sur l'arête du sommet, qui décide de la
+ * trajectoire ; tour de correction 1 de la tâche 4), bissection dans `tests/slow/dosage.test.ts` ;
+ * la marge +1 m/s du cas 2 se mesure contre le haut de la bande, soit V_JUMP.
  */
-export const LIP_SPEED_THRESHOLD = 10.0;
+export const LIP_SPEED_THRESHOLD: number = CONFIG.V_JUMP;
+/** |angle du châssis| maximal à l'atterrissage (cas 2 à 5, cratère). */
+export const LANDING_MAX_ANGLE = 45 * DEG;
+/**
+ * Cas 6 (addendum §1.7) : borne basse de l'arrivée doigt posé. L'addendum disait 120 s ; mesuré
+ * 118 à 127 s sur les graines 0 à 4 (registre, tâches 1 à 3) ; amendé [tâche 4] à 110 s.
+ */
+export const FINISH_MIN_SECONDS = 110;
+export const FINISH_MAX_SECONDS = 170;
 /** Vol : au moins 0,3 s sans aucun contact avec le sol (roues ni châssis). */
 export const FLIGHT_STEPS = 0.3 * STEPS_PER_SECOND;
 /** « Deux roues au sol » = chaque roue a touché le sol dans les 0,1 dernière seconde (rebonds à V_MAX). */
@@ -162,15 +173,24 @@ export class JumpTracker {
 }
 
 export interface RunOptions {
-  /** Doigt posé à l'instant t (s depuis le départ du run). */
-  throttle: (t: number) => boolean;
+  /** Doigt posé à l'instant t (s depuis le départ du run), x = châssis au début du pas (m). */
+  throttle: (t: number, x: number) => boolean;
   /** Turbo (TURBO_FACTOR pendant TURBO_SECONDS) lancé au premier pas où x ≥ turboAt. */
   turboAt?: number;
+  /** Turbo pendant tout le run (facteur TURBO_FACTOR), comme une suite d'étoiles sans trou. */
+  turboPermanent?: boolean;
   /**
-   * Choc simulé : à chaque pas tant que x < `x`, la vitesse horizontale de chaque partie est
-   * plafonnée à `v` m/s (Body.setVelocity), et la rotation des roues au roulement à `v`.
+   * Choc simulé : à chaque pas tant que x < `x`, le vecteur vitesse de chaque partie est ramené à la
+   * norme `v` m/s (Body.setVelocity, direction conservée). La rotation des roues n'est pas touchée :
+   * un choc ne coupe pas le moteur, les roues patinent et la voiture repart au frottement (mesure du
+   * cas 4 avec roues aussi bridées : 10,26 m/s au sommet, passe le volcan mais sous la marge +1 m/s).
+   * `wheels: true` bride aussi la rotation des roues au roulement à `v` (sonde de bissection : sans
+   * cela, la roue arrière à plein régime pousse encore sur l'arête après la lecture au sommet et la
+   * vitesse réelle de décollage dépasse chaotiquement la vitesse lue, jusqu'à +0,3 m/s).
    */
-  speedCapUntil?: { x: number; v: number };
+  speedCapUntil?: { x: number; v: number; wheels?: boolean };
+  /** Volcan visé (xRampStart, xLip, xReception) ; par défaut le premier dont la lave est devant x0. */
+  volcano?: Volcano;
   maxSeconds: number;
   /** Configuration de la voiture (celle de la piste du monde) ; CONFIG par défaut. */
   cfg?: Config;
@@ -191,6 +211,8 @@ export interface RunResult {
   maxStuck: number;
   /** Vitesse (m/s) au premier pas où le châssis passe xLip du volcan visé, null si jamais atteint. */
   lipSpeed: number | null;
+  /** Vitesse (m/s) au premier pas où le châssis passe xRampStart (pied de la rampe), null sinon. */
+  rampSpeed: number | null;
   /** Durée du run (s). */
   seconds: number;
 }
@@ -203,35 +225,42 @@ export interface RunResult {
  */
 export function runFrom(world: World, x0: number, opts: RunOptions): RunResult {
   const cfg = opts.cfg ?? CONFIG;
-  const v = volcanoAhead(world.track, x0);
+  const v = opts.volcano ?? volcanoAhead(world.track, x0);
   const car = freshCar(world, x0, cfg);
   const contact = newContact();
   const jump = v ? new JumpTracker(v.xLip) : null;
   const run: RunResult = {
-    lava: false, landX: null, landAngle: NaN, flipped: false, wheelsBelow: false, maxStuck: 0, lipSpeed: null, seconds: 0,
+    lava: false, landX: null, landAngle: NaN, flipped: false, wheelsBelow: false, maxStuck: 0, lipSpeed: null,
+    rampSpeed: null, seconds: 0,
   };
   const dt = cfg.PHYSICS_DT;
   const maxSteps = Math.round(opts.maxSeconds / dt);
   const capV = opts.speedCapUntil ? mpsToPxPerStep(opts.speedCapUntil.v) : 0;
-  const capOmega = opts.speedCapUntil ? capV / toPx(cfg.WHEEL_RADIUS) : 0;
-  let turboUntil = -Infinity;
+  const capOmega = capV / toPx(cfg.WHEEL_RADIUS);
+  let turboUntil = opts.turboPermanent ? Infinity : -Infinity;
   let turboArmed = opts.turboAt !== undefined;
   let stuckRef = x0;
   let stuckStart: number | null = null;
   let landedAt: number | null = null;
+  let x = x0;
   for (let i = 1; i <= maxSteps; i++) {
     const t = (i - 1) * dt;
-    const throttle = opts.throttle(t);
+    const throttle = opts.throttle(t, x);
     const factor = t < turboUntil ? cfg.TURBO_FACTOR : 1;
     const s = step(world, car, throttle, factor, contact, t, cfg);
+    x = s.x;
     run.seconds = i * dt;
     if (opts.speedCapUntil && s.x < opts.speedCapUntil.x) {
       for (const p of car.parts) {
-        if (p.velocity.x > capV) Body.setVelocity(p, { x: capV, y: p.velocity.y });
+        const n = Math.hypot(p.velocity.x, p.velocity.y);
+        if (n > capV) Body.setVelocity(p, { x: (p.velocity.x * capV) / n, y: (p.velocity.y * capV) / n });
       }
-      for (const w of car.wheels) if (w.angularVelocity > capOmega) Body.setAngularVelocity(w, capOmega);
+      if (opts.speedCapUntil.wheels) {
+        for (const w of car.wheels) if (w.angularVelocity > capOmega) Body.setAngularVelocity(w, capOmega);
+      }
     }
     if (turboArmed && s.x >= opts.turboAt!) { turboUntil = t + cfg.TURBO_SECONDS; turboArmed = false; }
+    if (v && run.rampSpeed === null && s.x >= v.xRampStart) run.rampSpeed = carSpeedMps(car);
     if (v && run.lipSpeed === null && s.x >= v.xLip) run.lipSpeed = carSpeedMps(car);
     const angle = carAngle(car);
     if (Math.abs(angle) > cfg.FLIP_ANGLE) run.flipped = true;
@@ -271,15 +300,19 @@ export function liftedPattern(seed: number, p: number): (t: number) => boolean {
   };
 }
 
-/** Pire point sûr autorisé par la zone interdite : xLancement + SAFE_LANCEMENT_MARGIN (addendum §1.6). */
-export const worstSafePoint = (v: Volcano, cfg: Config = CONFIG): number => v.xLancement + cfg.SAFE_LANCEMENT_MARGIN;
+/** Pire point sûr : 1 cm avant la zone interdite [xLancement + SAFE_LANCEMENT_MARGIN, xReception[ (addendum §1.6). */
+export const worstSafePoint = (v: Volcano, cfg: Config = CONFIG): number => forbiddenZone(v, cfg)[0] - 0.01;
 
-export const f1 = (n: number | null): string => (n === null ? 'null' : n.toFixed(1));
-export const f2 = (n: number | null): string => (n === null ? 'null' : n.toFixed(2));
+/** Réapparitions d'une course simulée, lisibles dans un message d'assertion. */
+export const describeRespawns = (rs: SimEvent[]): string[] =>
+  rs.map((e) => (e.type === 'respawn' ? `${e.reason}@t=${e.t.toFixed(1)} x=${e.x.toFixed(1)}→${e.target.x.toFixed(1)}` : e.type));
+
+export const f1 = (n: number | null): string => (n === null ? 'null' : Number.isFinite(n) ? n.toFixed(1) : '—');
+export const f2 = (n: number | null): string => (n === null ? 'null' : Number.isFinite(n) ? n.toFixed(2) : '—');
 
 /** Résumé d'un run pour les messages d'assertion. */
 export function describeRun(seed: number, v: Volcano, name: string, r: RunResult): string {
-  return `seed ${seed}, volcan en x = ${f1(v.xLancement)}, ${name} : sommet ${f2(r.lipSpeed)} m/s, `
+  return `seed ${seed}, volcan en x = ${f1(v.xLancement)}, ${name} : pied de rampe ${f2(r.rampSpeed)}, sommet ${f2(r.lipSpeed)} m/s, `
     + `lave ${r.lava}, atterrissage ${f1(r.landX)} à ${f1(r.landAngle / DEG)}°, retournée ${r.flipped}, `
     + `blocage ${f2(r.maxStuck)} s, ${f1(r.seconds)} s (lave ${f1(v.xLava)}, réception [${f1(v.xReception)} ; ${f1(v.xEnd)}])`;
 }

@@ -8,5 +8,7 @@ export default defineConfig({
     // Suites lentes dans tests/slow/ : npm run test:slow et test:slow:race (vitest.slow*.config.ts).
     include: ['tests/*.test.ts'],
     testTimeout: 180_000,
+    // Vitest 5 masque les console.log des tests verts : les mesures imprimées doivent rester visibles.
+    silent: false,
   },
 });
