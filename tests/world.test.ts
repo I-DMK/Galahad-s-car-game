@@ -138,9 +138,14 @@ test('lave : un cercle posé au fond du cratère ou 0,3 m sous le rebord touche 
 });
 
 test('lave : le capteur monte à rimY + LAVA_SENSOR_ABOVE_RIM et descend au plancher', () => {
-  let seed = 0;
-  while (seed < 10 && generateTrack(seed, 1680, CONFIG).volcanoes.length === 0) seed++;
-  const track = generateTrack(seed, 1680, CONFIG);
+  let track: Track | undefined;
+  for (let seed = 0; seed < 10 && !track; seed++) {
+    const t = generateTrack(seed, 1680, CONFIG);
+    if (t.volcanoes.length > 0) track = t;
+  }
+  expect(track).toBeDefined();
+  if (!track) return;
+  expect(track.volcanoes.length).toBeGreaterThan(0);
   const world = createWorld(track, CONFIG);
   const ppm = CONFIG.PIXELS_PER_METER;
   track.volcanoes.forEach((v, k) => {

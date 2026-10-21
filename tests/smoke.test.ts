@@ -1,4 +1,5 @@
 import { CONFIG } from '../src/config';
+import { runUpDistance } from '../src/track/ballistics';
 
 describe('CONFIG', () => {
   it('expose les constantes de base', () => {
@@ -10,7 +11,8 @@ describe('CONFIG', () => {
 
   it('volcan v2 : plat de lancement, élan de 6 m, lave reculée, capteur rehaussé', () => {
     expect(CONFIG.L_ELAN).toBe(6);
-    expect(CONFIG.D_LANCE).toBeCloseTo((14 * 14) / (2 * 4.3) * 1.2, 9);
+    // D_LANCE est un littéral dans config.ts : cette assertion attrape une dérive de V_MAX / DRIVE_ACCEL.
+    expect(CONFIG.D_LANCE).toBeCloseTo(runUpDistance(CONFIG.V_MAX, CONFIG.DRIVE_ACCEL) * 1.2, 9);
     expect(CONFIG.D_LANCE).toBeCloseTo(27.35, 1);
     expect(CONFIG.LANCEMENT_LENGTH).toBeCloseTo(CONFIG.D_LANCE + 5, 9);
     expect(CONFIG.LAVA_MARGIN).toBe(0.8);

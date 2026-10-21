@@ -6,7 +6,7 @@ export const CONFIG = {
   GRAVITY: 4.9,                 // m/s²
   V_MAX: 14,                    // m/s
   V_CRUISE: 0.8 * 14,
-  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22° et LAVA_MARGIN 0,8, le bord aval de la lave se franchit dès ≈ 9,4 m/s au centre, 9,8 m/s roue arrière)
+  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22°, LAVA_MARGIN 0,8 et capteur à +0,3 m, seuil réel mesuré ≈ 9,9–10,0 m/s : 9,76 → lave, 10,03 → passe)
   TURBO_FACTOR: 1.5,
   TURBO_SECONDS: 3,
   STAR_RESPAWN_SECONDS: 5,
@@ -14,7 +14,7 @@ export const CONFIG = {
   RAMP_ANGLE: 22 * DEG,
   RAMP_LENGTH: 6,               // m le long de la pente → sommet à 2,25 m
   MAX_SLOPE: 27 * DEG,
-  LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre)
+  LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre) ; voiture lancée la plus lente mesurée 11,47 m/s au sommet → marge ≈ 1,5 m/s
   L_ELAN: 6,                    // m : plat d'élan entre le plat de lancement et la rampe, seul levier de difficulté (addendum §1.6)
   D_LANCE,
   LANCEMENT_LENGTH: D_LANCE + 5,   // m : plat de lancement devant chaque plat d'élan (addendum §1.4)

@@ -170,12 +170,19 @@ describe('rampe-volcan : géométrie du profil', () => {
     expect(p.heights.slice(0, kLast).every((h) => h === 0)).toBe(true);
     expect(at(v.dxElanStart)).toBe(0);
     expect(at(v.dxElanStart + g.lElan / 2)).toBe(0);
-    // la rampe monte dès le pas suivant
-    expect(p.heights[kLast + 1]).toBeGreaterThan(0);
+    // la rampe monte dès l'échantillon suivant (heights[i] = f((i + 1) × S))
+    expect(p.heights[kLast]).toBeGreaterThan(0);
+    expect(p.heights[kLast]).toBeCloseTo(((kLast + 1) * S - (g.lLancement + g.lElan)) * Math.tan(PINNED.RAMP_ANGLE), 9);
   });
 
   test('sommet de rampe à lipY, fond de lave à RIM − CRATER_DEPTH', () => {
-    expect(Math.max(...p.heights)).toBeCloseTo(g.lipY, 1);
+    // dxLip est hors grille : l'échantillon le plus proche est à moins de S/2 du sommet, sur la rampe
+    // (pente tan RAMP_ANGLE) ou la descente (pente tan MAX_SLOPE).
+    const kLip = Math.round(v.dxLip / S);
+    const tol = (Math.tan(PINNED.MAX_SLOPE) * S) / 2 + EPS;
+    expect(Math.abs(p.heights[kLip - 1] - g.lipY)).toBeLessThanOrEqual(tol);
+    expect(Math.max(...p.heights)).toBeLessThanOrEqual(g.lipY + EPS);
+    expect(Math.max(...p.heights)).toBeGreaterThanOrEqual(g.lipY - tol);
     expect(at(v.dxLava)).toBeCloseTo(PINNED.RIM_HEIGHT - PINNED.CRATER_DEPTH, 9);
   });
 

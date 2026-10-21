@@ -1,4 +1,5 @@
 import Matter from 'matter-js';
+import { forbiddenZone } from '../src/cars/safepoint';
 import { CONFIG } from '../src/config';
 import {
   applyAirLevel, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar, wheelsBelowChassis,
@@ -200,13 +201,16 @@ const f1 = (n: number) => n.toFixed(1);
  * lancement, doigt posé, passe chaque volcan et atterrit sur le plat de réception ; avec le turbo, il
  * atterrit avant la fin de la tranche. Les scénarios « arrêt dans l'élan » arrivent en tâche 4.
  */
-test.each(SEEDS)('seed %i : chaque volcan est franchi sans lave depuis l\'arrêt au début du plat de lancement (doigt posé, puis turbo permanent)', (seed) => {
+test.each(SEEDS)('seed %i : chaque volcan est franchi sans lave depuis l\'arrêt au début du plat de lancement, au pire point sûr, et avec turbo permanent', (seed) => {
   const world = worldFor(seed);
   const { volcanoes } = world.track;
   expect(volcanoes.length).toBeGreaterThan(0);
   for (const v of volcanoes) {
+    // « pire point sûr » : le point sûr le plus avancé que tolère la zone de transition de la tâche 1
+    // (xLancement + 25 % du plat de lancement) ; la tâche 4 réécrit ces scénarios.
     const scenarios = [
       { name: 'doigt posé', x0: v.xLancement, factor: 1 },
+      { name: 'pire point sûr', x0: forbiddenZone(v, CONFIG)[0] - 0.01, factor: 1 },
       { name: 'turbo permanent', x0: v.xLancement, factor: CONFIG.TURBO_FACTOR },
     ];
     for (const { name, x0, factor } of scenarios) {

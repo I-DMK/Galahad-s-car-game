@@ -16,14 +16,15 @@ function walk(rng: () => number, from: number, to: number, out: number[]): void 
 }
 
 /**
- * Place les étoiles : candidats tous les 12–20 m sur les plats (hors départ) et les plats de réception,
- * plus 1 m avant chaque rampe-saut ; exclusion devant les laves et sur le plat d'arrivée.
+ * Place les étoiles : candidats tous les 12–20 m sur les plats (hors départ) et les plats de réception ;
+ * exclusion devant les laves et sur le plat d'arrivée. Plus d'étoile « 1 m avant une rampe-saut »
+ * (addendum §1.5 : non admissible ; prise avec un turbo juste avant une rampe-saut qui précède un
+ * volcan, elle envoyait la voiture rebondir sur le plat d'élan puis dans la lave).
  */
 export function placeStars(track: Track, rng: () => number, cfg: Config): Star[] {
   const candidates: number[] = [];
   track.slices.forEach((sl, i) => {
     if (sl.type === 'plat' && i > 0) walk(rng, sl.xStart, sl.xEnd, candidates);
-    else if (sl.type === 'rampe-saut') candidates.push(sl.xStart - 1);
   });
   for (const v of track.volcanoes) walk(rng, v.xReception, v.xEnd, candidates);
 
