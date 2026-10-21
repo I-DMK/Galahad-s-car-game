@@ -233,6 +233,24 @@ tours** de calibration supplémentaires ; ensuite le papa tranche la valeur.
 - Métrique ajoutée à la course simulée : chutes dans la lave par voiture
   (les chocs dans le plat de lancement deviennent une cause de chute) ; limite
   du spec : ≤ 3 respawns par robot et par course.
+- [tâche 5b] **Voitures fantômes près des volcans** (décision du papa,
+  2026-10-21) : les voitures se traversent tant que le châssis est dans
+  `[xLancement, xReception + WHEEL_BASE/2 + WHEEL_RADIUS]` d'un volcan (la
+  voiture entière a passé la réception) ; une voiture qui sort de la zone en
+  chevauchant une autre reste fantôme jusqu'à séparation ; un respawn
+  recalcule l'état fantôme à la cible (l'invulnérabilité plafonnée du spec §6
+  gouverne hors zone). Chocs réels partout ailleurs. Motif mesuré : à
+  5 voitures, 8 à 9 des 11 chutes (graines 0 à 23) venaient d'un choc près
+  d'un volcan, dont une de Galahad doigt posé ; après : 2 chutes « propres ».
+- [tâche 5b] **Saut fiabilisé** (décision du papa) : des chutes doigt posé
+  sans aucun choc existent à 10,98 et 11,44 m/s au sommet, selon la phase de
+  la suspension (roue arrière qui sautille sur la rampe). Une tâche de
+  calibration (5c du plan) les mesure sur de nombreuses phases et propose un
+  correctif ciblé que le papa choisit ; ensuite, Galahad doigt posé ne tombe
+  jamais (invariant à 5 voitures, graines 0 à 23).
+- [tâche 5b] **Robots polis** (décision du papa) : un copain lève le pied
+  derrière une voiture presque arrêtée juste devant lui, sauf près d'un
+  volcan (tâche 6).
 - Tests de course à 5 voitures, deux niveaux :
   - **CI** (`npm test`, exécuté par `deploy.yml`) : invariants sur 2 graines,
     doigt posé : ≤ 3 respawns par robot, aucune voiture bloquée > 2 s, pas

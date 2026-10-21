@@ -204,6 +204,20 @@ export function stepRace(sim, galahadThrottle: boolean): void;
 - [ ] **Step 1 : Tests** : `simulate` : non-régression du plan A : avec le défaut (`robots: false`), graine 1 doigt posé 20 s, `progressAt(t)` échantillonné chaque seconde égale (±0,01 m) une trace figée **avant** la refonte (capturée en Step 1 et collée dans le test) ; grille : 5 voitures espacées de 3,3 m, Galahad devant, aucune paire active entre voitures au pas 0 ; `respawn` : `shiftTarget` sur un plat recule de 3,3 m par occupant, s'arrête à 4, saute une pente, refuse la zone interdite, garde la cible si rien n'est valide ; `race-smoke` (CI) : graines 1 et 2, 5 voitures doigt posé (robots : driver provisoire) → personne bloqué > 2 s, ≤ 3 respawns par voiture, aucun événement `'speed'`, Galahad arrive, `meanStepMs` < 4 (indicateur imprimé) ; « 5 dans la lave » : les 5 voitures posées **à `xLava`** (comme `respawn-sim.test.ts`), avec le **même** `safePoint` (`x = xLancement + 1`, légal) imposé aux 5 états, doigt posé → 5 respawns dans les 3 s, à l'instant de chaque respawn aucune paire de châssis dont les AABB se chevauchent, aucun `'speed'` dans les 5 s suivantes ; `slow/race-invariants` : graines 0 à 9, mêmes invariants.
 - [ ] **Step 2–4** ; **Step 5 : Commit** `feat: course à 5 voitures, grille de départ, chocs, respawn groupé` ; push ; **le papa mesure le fps à 5 voitures** (`?debug=1`) → décide la tâche 9 (qui peut s'intercaler n'importe où avant la tâche 16, sans renumérotation).
 
+> **Fait (2026-10-21)** : `cf034c6..b28ce50`, avec les voitures fantômes près des volcans (addendum §2 [tâche 5b]). Voir le registre pour les rulings et les mesures.
+
+---
+
+### Task 5c (ajoutée, décision du papa) : Saut fiabilisé
+
+**Constat (relecture adversariale de la 5b) :** doigt posé, une voiture lancée peut tomber dans la lave sans aucun choc (10,98 et 11,44 m/s au sommet), selon la phase de la suspension : la roue arrière sautille sur la rampe (écart roue-sol 0,39–0,40 m contre ≈ 0,30 en passage) et frappe l'arête du sommet. Galahad seul n'y tombe sur aucune des graines 0 à 23 (trajectoire unique par piste), mais un doigt levé plus tôt change la phase d'arrivée.
+
+**Files:** à déterminer par la mesure (candidats : `src/track/slices.ts` (arête de rampe arrondie), `src/config.ts` (`LAVA_MARGIN`, amortissement de suspension)), `tests/slow/` (balayage de phases), `tests/helpers/race.ts` (invariant élargi).
+
+- [ ] **Step 1 : Mesure** : Galahad doigt posé depuis `xLancement` après des historiques variés (départs échelonnés en amont au pas de 0,05 m, motifs de doigt antérieurs tirés par graine), sur les volcans des graines 0 à 9 : taux de chute, vitesse au sommet, écart roue arrière–sol sur la rampe.
+- [ ] **Step 2 : Correctifs candidats** mesurés de la même façon (au moins : arête arrondie ; `LAVA_MARGIN` 0,75 ; amortissement), en gardant vrais les cas 1 à 7 de la tâche 4 (en particulier « arrêt à `xElanStart` → lave ») ; tableau comparatif pour le papa, qui choisit.
+- [ ] **Step 3 : Implémenter le choix**, puis invariant `lavaByCar.galahad === 0` à 5 voitures doigt posé sur les graines 0 à 23 (suite lente) ; **Commit** `fix: saut fiabilisé` ; push ; le papa vérifie sur la tablette.
+
 ---
 
 ### Task 6 : Conduite des robots
@@ -218,6 +232,7 @@ export function stepRace(sim, galahadThrottle: boolean): void;
 export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: number, cfg: Config): Driver;
 ```
 Règles (spec §7, addendum §1.8) : `false` tant que `t < rank × START_DELAY_PER_RANK` ; `true` dans `[xLancement, xLava]` de tout volcan ; devant une `rampe-saut` ou `double-bosse` (x dans les 8 m avant `xStart` de la tranche), tirage une fois par tranche : `rng() < pilot.lift` → lever 0,4 s ; sinon `true`. Après `finishedAt` : ignoré (le pas freine).
+**[tâche 5b] Robots polis** (décision du papa) : hors `[xLancement, xLava]`, `false` si une autre voiture presque arrêtée est juste devant (seuils de vitesse et de distance fixés par mesure dans cette tâche) ; le contexte du `Driver` reçoit ce qu'il faut pour le savoir. Le test e2e « sans doigt » retrouve sa fenêtre de 2 s avec les copains. Héritages de la 5b à reprendre : commentaire du champ `ghost` (`simulate.ts`, zone sans la roue arrière), `carOf` resté dans `tests/simulate.test.ts`, harnais `simulateRace` à extraire de `simulate.ts` si la tâche y ajoute du code.
 
 - [ ] **Step 1 : Tests** : délai de départ ; jamais `false` dans la zone volcan même avec `lift = 1` ; avec `lift = 1` lève exactement 0,4 s avant chaque rampe-saut ; avec `lift = 0` jamais ; déterministe par graine.
 - [ ] **Step 2–4** → **Step 5 : Commit** `feat: conduite des robots`

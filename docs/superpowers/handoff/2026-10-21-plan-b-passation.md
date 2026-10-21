@@ -52,6 +52,21 @@ sans le contexte de celle-ci.
   ≥ 3:1 sur le ciel `#0a1030`. Trois relectures + `code-review`, deux tours
   de correction ; 286/286 tests. **Validée par le papa** (couleurs et
   caractères gardés), poussée.
+- **Tâche 5b faite** (course à 5 voitures : `cf034c6`, `b646e72`,
+  `1ec51dc`, `b28ce50`) : `RaceSim.cars` (Galahad = `cars[0]`), grille à
+  3,3 m, départs à 0,3 s × rang, driver provisoire (doigt posé après le
+  délai), chocs réels, `shiftTarget` (respawn groupé sans chevauchement),
+  `rankCars` créé dès la 5b, `simulateRace` v2 (classement, respawns et lave
+  par voiture, `meanStepMs`), casque en `helmet`, prénoms, invulnérabilité
+  sur toutes les pièces, `rebuildCars` sûr. **Décisions du papa** après la
+  relecture adversariale (Galahad doigt posé tombait dans la lave sur 2
+  pistes sur 24 à 5 voitures) : **voitures fantômes près des volcans**
+  (`[xLancement, xReception + 1,2 m]`, faites dans la 5b : chutes 11 → 2 sur
+  les graines 0 à 23), **saut fiabilisé** (nouvelle tâche 5c pour les 2
+  chutes « propres » restantes) et **robots polis** (tâche 6). Galahad seul
+  reste identique au bit près au plan A. 323/323 tests, e2e 6/6. **Validée
+  par le papa**, poussée ; mesure du fps à 5 voitures sur la tablette à
+  faire.
 - Consignes de conteneur apprises : le push passe quand la session est en
   mode « accepter les modifications » (le mode auto le classe comme
   déploiement) ; vérifier `git status -sb` avant un push (HEAD détaché au
@@ -79,8 +94,9 @@ sans le contexte de celle-ci.
 | 3 points sûrs et respawn v2 | **faite, validée**, poussée |
 | 4 simulations d'acceptation, suites lentes, balayage de dosage | **faite, validée, poussée** → gate tablette **fait** : « un peu facile », L_ELAN 6 conservé |
 | 5a pilotes | **faite, validée**, poussée |
-| 5b course à 5 voitures, grille, chocs, respawn groupé | à faire → mesure fps du papa |
-| 6 conduite des robots | à faire |
+| 5b course à 5 voitures, grille, chocs, respawn groupé (+ fantômes près des volcans) | **faite, validée**, poussée → mesure fps du papa |
+| 5c (ajoutée) saut fiabilisé | **prochaine** |
+| 6 conduite des robots (+ robots polis) | à faire |
 | 7 élastique (+ suite `test:slow:race`) | à faire |
 | 8 position, barre de progression, classement | à faire |
 | 9 (conditionnelle) fenêtre glissante de sol | si fps < 50 |
@@ -130,7 +146,7 @@ après la tâche 5b : durcir `ENGINE_BRAKE` (levier continu, voir registre
 tâche 4) et, si le défi manque encore, proposer au papa d'avancer une part du
 plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 
-## Leçons des sessions du 2026-10-21 (tâches 1 à 5a)
+## Leçons des sessions du 2026-10-21 (tâches 1 à 5b)
 
 - Push : passe quand la session est en mode « accepter les modifications »
   (le mode auto le classe comme déploiement). Vérifier `git status -sb`
@@ -151,28 +167,28 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 - Couleurs (tâche 5a) : le critère du plan « ≥ 120 sur une composante RGB »
   ne suffit pas à la lisibilité ; un aperçu rendu (PNG) des voitures a permis
   au papa de trancher en un coup d'œil.
+- Tâche 5b : la relecture adversariale à 5 voitures a montré que les mesures
+  de marge faites voiture seule (tâche 4) ne valent que pour les trajectoires
+  mesurées : une autre phase de suspension à l'arrivée peut faire tomber une
+  voiture lancée. Élargir les graines (0 à 23) et retirer les autres voitures
+  pour trancher choc / chute propre.
+- Un relecteur ciblé peut lire un paquet de diff pendant que l'implémenteur
+  travaille au tour suivant, à condition de lui interdire de lancer des tests.
 
 ## Prochaine action précise
 
 1. Nouvelle session : lire cette passation, puis `sdd-ledger-plan-b.md`
-   (Progression, tâches 1 à 5a et gate), le registre du plan A (« Décisions
-   prises hors plan »), l'addendum v3.1 amendé [tâche 2] [tâche 4], le plan
-   v2.1.
-2. Dispatcher la **tâche 5b** (course à 5 voitures, grille, chocs, respawn
-   groupé) à un implémenteur frais (brief : plan tâche 5b, addendum §2 et
-   §1.6, contraintes globales, registres), en lui portant les décisions de la
-   tâche 5a (registre, « Task 5a: à porter en 5b ») :
-   - le rendu dessine le casque en `helmet` (aujourd'hui `accent`,
-     `src/render/car.ts:31`) : ajouter `helmet` à `CarView` ;
-   - l'état de Galahad est construit depuis `GALAHAD` (source unique ;
-     `simulate.ts` lit aujourd'hui `cfg.GALAHAD_COLOR`) ;
-   - `pilotSeed` = entier de [0, 2³²) dérivé indépendamment de la graine de
-     piste (ex. `(seed ^ 0x9e3779b9) >>> 0`), sinon `drawPilots` lève ;
-   - l'index i de `drawPilots` est le robot de rang i + 1 (Galahad rang 0) ;
-   - `count = 4` : `ROBOT_COUNT` en CONFIG si la grille et le HUD en ont
-     besoin ;
-   - juger au rendu le contraste carrosserie/sol (orange, rose, vert, rouge).
-   Puis relectures standard + adversariale + `code-review`, tours de
-   correction, validation du papa, passation, push ; **le papa mesure le fps
-   à 5 voitures** (`?debug=1`) → décide la tâche 9, et rejuge la difficulté
-   (`ENGINE_BRAKE`, plan C).
+   (Progression, tâches 1 à 5b et gate), le registre du plan A (« Décisions
+   prises hors plan »), l'addendum v3.1 amendé [tâche 2] [tâche 4]
+   [tâche 5b], le plan v2.1 (tâche 5c ajoutée, tâche 6 amendée).
+2. **Le papa mesure le fps à 5 voitures** sur la tablette (`?debug=1`) :
+   < 50 → tâche 9 (fenêtre glissante de sol) avant le décor ; il rejuge aussi
+   la difficulté (`ENGINE_BRAKE`, plan C) après les tâches 6 et 7.
+3. Dispatcher la **tâche 5c** (saut fiabilisé, plan) à un implémenteur frais :
+   mesure des chutes propres sur de nombreuses phases de suspension, tableau
+   de correctifs candidats (arête arrondie, `LAVA_MARGIN` 0,75,
+   amortissement) qui gardent vrais les cas 1 à 7 de la tâche 4, **choix du
+   papa**, puis invariant `lavaByCar.galahad === 0` à 5 voitures sur les
+   graines 0 à 23. Relectures standard + adversariale (sondes physiques) +
+   `code-review`, validation, passation, push.
+4. Puis la **tâche 6** (conduite des robots + robots polis, plan amendé).
