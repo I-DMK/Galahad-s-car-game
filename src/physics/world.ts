@@ -50,9 +50,10 @@ function buildGround(track: Track, ppm: number, floorY: number): Matter.Body[] {
  * Lave : un capteur par volcan, qui remplit tout le volume du cratère et dépasse le rebord de
  * LAVA_SENSOR_ABOVE_RIM (y monde rimY + LAVA_SENSOR_ABOVE_RIM) jusqu'à floorY, sur
  * [xLava − lavaWidth/2, xLava + lavaWidth/2] : une voiture lente ne peut pas franchir le cratère au
- * pas en s'appuyant sur ses bords, et un rebond sur le flanc amont ne survole pas la lave (pour la
- * voiture lancée la plus lente mesurée, 11,47 m/s au sommet, le point bas des roues passe 1,05 m
- * au-dessus du capteur). Le rendu de la lave, lui, s'arrête sous le rebord.
+ * pas en s'appuyant sur ses bords, et un rebond sur le flanc amont ne survole pas la lave. Seuil de
+ * franchissement au sommet entre 9,76 (lave) et 10,03 m/s (passe) ; pour la voiture lancée la plus
+ * lente mesurée (11,47 m/s) le point bas des roues passe 1,05 m au-dessus du capteur (mesures du tour
+ * de relecture de la tâche 1). Le rendu de la lave, lui, s'arrête sous le rebord.
  */
 function buildLava(track: Track, cfg: Config, floorY: number): Matter.Body[] {
   const ppm = cfg.PIXELS_PER_METER;

@@ -19,7 +19,9 @@ function walk(rng: () => number, from: number, to: number, out: number[]): void 
  * Place les étoiles : candidats tous les 12–20 m sur les plats (hors départ) et les plats de réception ;
  * exclusion devant les laves et sur le plat d'arrivée. Plus d'étoile « 1 m avant une rampe-saut »
  * (addendum §1.5 : non admissible ; prise avec un turbo juste avant une rampe-saut qui précède un
- * volcan, elle envoyait la voiture rebondir sur le plat d'élan puis dans la lave).
+ * volcan, elle lançait un saut de ≈ 50 m par-dessus la rampe-saut : atterrissage au bout du plat de
+ * lancement, rebond, puis lave — graine 4 : xLancement 1134,2, xElanStart 1166,6, atterrissage 1165,6,
+ * lave à 1192).
  */
 export function placeStars(track: Track, rng: () => number, cfg: Config): Star[] {
   const candidates: number[] = [];
