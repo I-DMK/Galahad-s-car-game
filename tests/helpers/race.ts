@@ -40,14 +40,24 @@ export function fiveCarRace(seed: number): FiveCarRace {
   return { r, summary, seconds };
 }
 
-/** ≤ 3 réapparitions par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive avant 240 s. */
+/**
+ * ≤ 3 réapparitions par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive avant
+ * 240 s sans tomber dans la lave ; cohérence des mesures de `simulateRace` (classement, chutes, arrivée).
+ */
 export function expectRaceInvariants({ r, summary }: FiveCarRace): void {
   expect(Object.keys(r.respawnsByCar), summary).toHaveLength(5);
   expect(r.finishedAt, summary).not.toBeNull();
   expect(r.finishedAt!, summary).toBeLessThan(RACE_MAX_SECONDS);
+  expect(r.finishedAtByCar.galahad, summary).toBe(r.finishedAt);
+  expect(r.lavaByCar.galahad, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {
     expect(rs.length, `${id} : ${summary}`).toBeLessThanOrEqual(MAX_RESPAWNS_PER_CAR);
     expect(rs.filter((e) => e.reason === 'speed'), `${id} : ${summary}`).toEqual([]);
+    expect(r.lavaByCar[id], `${id} : ${summary}`).toBe(rs.filter((e) => e.reason === 'lava').length);
     expect(r.maxStuckByCar[id], `${id} : ${summary}`).toBeLessThanOrEqual(MAX_STUCK_SECONDS);
   }
+  // En tête du classement : la première arrivée (à temps égal, le plus petit index, ordre des clés).
+  const arrived = Object.entries(r.finishedAtByCar).filter((e): e is [string, number] => e[1] !== null);
+  const first = arrived.reduce((best, e) => (e[1] < best[1] ? e : best));
+  expect(r.ranking[0], summary).toBe(first[0]);
 }

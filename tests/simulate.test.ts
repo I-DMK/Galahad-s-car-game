@@ -1,15 +1,18 @@
 // Pas de course (tâche 5b) : non-régression du plan A (Galahad seul, défaut `robots: false`), grille
-// de départ à 5 voitures (`robots: true`), délai de départ, déterminisme, garde-fou `rebuildCars`.
+// de départ à 5 voitures (`robots: true`), délai de départ, déterminisme, étoiles partagées, garde-fou
+// `rebuildCars`.
 import Matter from 'matter-js';
 import { GALAHAD, drawPilots } from '../src/cars/pilots';
 import { CONFIG } from '../src/config';
+import { placeCar } from '../src/physics/car';
 import { physToWorld } from '../src/physics/units';
 import { CAT } from '../src/physics/world';
 import {
-  carView, createRaceSim, rebuildCars, sceneOf, simulateRace, stepRace, type CarSim, type RaceSim,
+  carView, createRaceSim, rebuildCars, sceneOf, simulateRace, stepRace, type CarSim, type RaceSim, type SimEvent,
 } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
-import { heightAt } from '../src/track/query';
+import type { Track } from '../src/track/types';
+import { heightAt, slopeAt } from '../src/track/query';
 
 const TRACK = generateTrack(1, 1680, CONFIG);
 const DT = CONFIG.PHYSICS_DT;
@@ -183,5 +186,78 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
     expect(Math.max(...xs)).toBeCloseTo(xSafe, 6);
     for (let i = 0; i < 60; i++) stepRace(sim, true);
     expect(sim.cars.every((c) => c.state.progress > xSafe - 6 * GRID_GAP)).toBe(true);
+  });
+});
+
+test('une étoile prise par une voiture est inactive pour toutes : au même pas et au pas suivant', () => {
+  const sim = createRaceSim(TRACK, CONFIG, { robots: true });
+  for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+  const star = TRACK.stars[0];
+  const [a, b] = sim.cars;
+  // Les deux châssis recouvrent le capteur de l'étoile (rayon 0,5 m), l'un devant, l'autre derrière, sans se toucher.
+  for (const [car, dx] of [[a, 1.25], [b, -1.25]] as const) {
+    placeCar(car.body, star.x + dx, (x) => heightAt(TRACK, x), slopeAt(TRACK, star.x + dx), CONFIG);
+  }
+  const taken: SimEvent[] = [];
+  for (let i = 0; i < 2; i++) {
+    stepRace(sim, false);
+    taken.push(...sim.events.filter((e) => e.type === 'star'));
+    expect(b.state.turboUntil, `pas ${i}`).toBe(0);
+  }
+  expect(taken).toEqual([{ type: 'star', carId: a.state.id, t: 0, id: star.id }]);
+  expect(a.state.turboUntil).toBeCloseTo(CONFIG.TURBO_SECONDS, 9);
+  expect(sceneOf(sim).stars[0].active).toBe(false);
+});
+
+describe('rebuildCars (garde-fou après une exception de stepRace)', () => {
+  /** Course à 5 voitures, doigt posé, jusqu'à t (s). */
+  const raceUntil = (track: Track, t: number): RaceSim => {
+    const sim = createRaceSim(track, CONFIG, { robots: true });
+    while (sim.time < t - 1e-9) stepRace(sim, true);
+    return sim;
+  };
+
+  test('à t = 0,2 s : chaque voiture reste sur sa case de la grille (les anciennes positions ne comptent pas)', () => {
+    const sim = raceUntil(TRACK, 0.2);
+    rebuildCars(sim);
+    sim.cars.forEach((car, i) => {
+      expect(chassisX(car), car.state.id).toBeCloseTo(TRACK.xStart - 2 - i * GRID_GAP, 1);
+    });
+  });
+
+  test('à mi-course : état remis comme après un respawn, aucun respawn « stuck » dans les 3 s', () => {
+    const sim = raceUntil(TRACK, 40);
+    rebuildCars(sim);
+    for (const car of sim.cars) {
+      const x = chassisX(car);
+      expect(car.state.safePoint.x, car.state.id).toBeCloseTo(x, 6);
+      expect(car.state.stuckRefProgress, car.state.id).toBeCloseTo(x, 6);
+      expect([car.state.stuckSince, car.state.flippedSince, car.state.sideSince], car.state.id).toEqual([null, null, null]);
+      expect(car.invulnerable, car.state.id).toBe(true);
+    }
+    const respawns: string[] = [];
+    while (sim.time < 43) {
+      stepRace(sim, true);
+      for (const e of sim.events) if (e.type === 'respawn') respawns.push(`${e.carId} ${e.reason} @${e.t.toFixed(2)}`);
+    }
+    expect(respawns.filter((r) => r.includes('stuck'))).toEqual([]);
+  });
+
+  test('après l’arrivée : la voiture arrivée est reconstruite sur place, au-delà de xFinish', () => {
+    const short = generateTrack(1, 300, CONFIG);
+    const sim = createRaceSim(short, CONFIG, { robots: true });
+    const g = sim.cars[0];
+    while (g.state.finishedAt === null && sim.time < 60) stepRace(sim, true);
+    const finishedAt = g.state.finishedAt;
+    expect(finishedAt).not.toBeNull();
+    for (let i = 0; i < 60; i++) stepRace(sim, true);
+    const before = chassisX(g);
+    expect(before).toBeGreaterThan(short.xFinish);
+    rebuildCars(sim);
+    expect(chassisX(g)).toBeCloseTo(before, 6);
+    expect(g.state.finishedAt).toBe(finishedAt);
+    for (let i = 0; i < 120; i++) stepRace(sim, true);
+    expect(chassisX(g)).toBeGreaterThan(short.xFinish);
+    expect(g.state.finishedAt).toBe(finishedAt);
   });
 });

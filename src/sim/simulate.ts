@@ -207,22 +207,29 @@ function collectStars(sim: RaceSim, car: CarSim): void {
   }
 }
 
-/** x des châssis de toutes les voitures sauf `car`, à cet instant. */
-function otherChassisXs(sim: RaceSim, car: CarSim): number[] {
-  return sim.cars.filter((c) => c !== car).map((c) => physToWorld(c.body.chassis.position).x);
+/** Toutes les voitures de la course sauf `car`. */
+function otherCars(sim: RaceSim, car: CarSim): CarSim[] {
+  return sim.cars.filter((c) => c !== car);
 }
 
+/** x du châssis (m). */
+const chassisX = (car: CarSim): number => physToWorld(car.body.chassis.position).x;
+
+/** Point posé au sol en x : hauteur et angle du sol local. */
+const groundPoint = (track: Track, x: number): SafePoint => ({ x, y: heightAt(track, x), angle: slopeAt(track, x) });
+
 /**
- * Lève l'invulnérabilité à partir de `invulnerableUntil` si aucun autre châssis ne chevauche la
- * voiture, et de toute façon à `invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)`.
+ * Lève l'invulnérabilité à partir de `invulnerableUntil` si aucune pièce de la voiture (châssis ou
+ * roue, toutes filtrées CAT.CAR) ne chevauche une pièce d'une autre voiture, et de toute façon à
+ * `invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)`.
  */
 function releaseInvulnerability(sim: RaceSim, car: CarSim): void {
   if (!car.invulnerable) return;
   const { cfg, time: t } = sim;
   const { state } = car;
   if (t < state.invulnerableUntil) return;
-  const others = sim.cars.filter((c) => c !== car).map((c) => c.body.chassis);
-  const free = Matter.Query.collides(car.body.chassis, others).length === 0;
+  const others = otherCars(sim, car).flatMap((c) => c.body.parts);
+  const free = car.body.parts.every((p) => Matter.Query.collides(p, others).length === 0);
   if (free || t >= state.invulnerableUntil + (cfg.RESPAWN_INVULN_MAX - cfg.RESPAWN_INVULN)) {
     setCarInvulnerable(car.body, false);
     car.invulnerable = false;
@@ -261,36 +268,49 @@ function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolea
   }, cfg);
   if (reason === null) return;
   const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg, reason);
-  const target = shiftTarget(point, otherChassisXs(sim, car), track, cfg);
-  placeCar(body, target.x, (xx) => heightAt(track, xx), target.angle, cfg);
-  setCarInvulnerable(body, true);
-  car.invulnerable = true;
-  // applyRespawnToState garde la cible par référence (nouveau point sûr) : copie dédiée.
-  applyRespawnToState(state, { ...target }, lavaX, consecutive, t, cfg);
-  car.contact.groundedUntil = [-1, -1];
-  car.airborneSince = null;
+  const target = shiftTarget(point, otherCars(sim, car).map(chassisX), track, cfg);
+  placeInvulnerable(sim, car, target, lavaX, consecutive);
   sim.events.push({ type: 'respawn', carId: state.id, t, reason, x, target: { ...target } });
 }
 
 /**
+ * Pose la voiture à l'arrêt sur `target` (roues au sol), invulnérable RESPAWN_INVULN, et remet son état
+ * comme après une réapparition (chronomètres à zéro, point sûr = cible, série « même volcan » =
+ * `lavaX` / `consecutive`) ; contact au sol et chronomètre d'envol remis à zéro.
+ */
+function placeInvulnerable(sim: RaceSim, car: CarSim, target: SafePoint, lavaX: number | null, consecutive: number): void {
+  const { cfg, track } = sim;
+  placeCar(car.body, target.x, (x) => heightAt(track, x), target.angle, cfg);
+  setCarInvulnerable(car.body, true);
+  car.invulnerable = true;
+  // applyRespawnToState garde la cible par référence (nouveau point sûr) : copie dédiée.
+  applyRespawnToState(car.state, { ...target }, lavaX, consecutive, sim.time, cfg);
+  car.contact.groundedUntil = [-1, -1];
+  car.airborneSince = null;
+}
+
+/**
  * Garde-fou (après une exception dans `stepRace`) : remplace chaque voiture, dans l'ordre des index,
- * par une neuve posée à son point sûr (décalé vers l'amont s'il est occupé, comme un respawn groupé),
- * invulnérable RESPAWN_INVULN ; contact au sol et chronomètre d'envol remis à zéro.
+ * par une neuve, posée invulnérable comme après une réapparition (`placeInvulnerable`, série « même
+ * volcan » conservée). Une voiture en course repart de son point sûr, décalé vers l'amont s'il est
+ * occupé par une voiture déjà reconstruite dans cet appel (`shiftTarget` ; les anciennes positions ne
+ * comptent pas). Une voiture arrivée est reconstruite sur place, au sol (elle ne réapparaît plus :
+ * renvoyée à son point sûr, elle resterait garée avant la ligne) ; si son x n'est plus un nombre fini,
+ * sur la ligne d'arrivée.
  */
 export function rebuildCars(sim: RaceSim): void {
   const { world, cfg, track } = sim;
+  const rebuilt: number[] = [];
   for (const car of sim.cars) {
+    const { state } = car;
+    const xNow = chassisX(car);
     Matter.Composite.remove(world.engine.world, car.body.composite, true);
-    const sp = shiftTarget(car.state.safePoint, otherChassisXs(sim, car), track, cfg);
-    const body = createCar(world, car.body.id, car.body.index, sp.x, cfg);
-    placeCar(body, sp.x, (x) => heightAt(track, x), sp.angle, cfg);
-    setCarInvulnerable(body, true);
-    car.body = body;
-    car.contact = newContact();
-    car.airborneSince = null;
-    car.invulnerable = true;
-    car.state.invulnerableUntil = sim.time + cfg.RESPAWN_INVULN;
-    car.state.progress = physToWorld(body.chassis.position).x;
+    const target = state.finishedAt !== null
+      ? groundPoint(track, Number.isFinite(xNow) ? xNow : track.xFinish)
+      : shiftTarget(state.safePoint, rebuilt, track, cfg);
+    car.body = createCar(world, car.body.id, car.body.index, target.x, cfg);
+    placeInvulnerable(sim, car, target, state.lastRespawnLavaX, state.consecutiveRespawns);
+    rebuilt.push(target.x);
   }
 }
 

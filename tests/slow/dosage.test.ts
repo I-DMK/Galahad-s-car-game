@@ -40,8 +40,9 @@ const RUN_SECONDS = 20;
  * 0,4 m après la lecture de la vitesse et ce coup décide de la trajectoire ; la phase de rebond dépend
  * du départ (roue arrière posée sur la tranche précédente quand on part de xLancement). Mesuré (roues
  * bridées, 15 volcans des graines 0 à 2) : chute observée jusqu'à 10,26 m/s, passage dès 9,84 (tombe
- * 9,54–10,26, passe 9,84–10,47). Marge réelle du cas 2 contre la pire chute : 11,18 − 10,26 ≈ 0,9 m/s
- * (11,18 = départ à xLancement ; pire point sûr : 11,73).
+ * 9,54–10,26, passe 9,84–10,47). Ce n'est pas une marge garantie pour le cas 2 (11,18 = départ à
+ * xLancement ; pire point sûr : 11,73) : en course doigt posé, des chutes sont mesurées à 10,98 et
+ * 11,44 m/s selon la phase de la suspension (relecture adversariale de la tâche 5b).
  */
 const BAND_TOLERANCE = 0.5;
 /**

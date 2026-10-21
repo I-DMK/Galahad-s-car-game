@@ -26,11 +26,11 @@ export const DEG = Math.PI / 180;
 /**
  * Vitesse au sommet de référence (m/s, norme de la vitesse du châssis au premier pas où x ≥ xLip)
  * pour le franchissement de la lave, à LAVA_MARGIN 0,8 et capteur +0,3 m : V_JUMP = 10. Le seuil
- * réel est une bande qui se chevauche (bissection de `tests/slow/dosage.test.ts` sur les 15 volcans
- * des graines 0 à 2, tâche 4) : chute observée jusqu'à 10,26 m/s, passage dès 9,84 ; l'issue dans la
- * bande est décidée par le coup de la roue arrière sur l'arête du sommet. Le cas 2 exige
- * LIP_SPEED_THRESHOLD + 1 ; sa vitesse au sommet la plus basse (11,18, départ à xLancement) laisse
- * ≈ 0,9 m/s de marge contre la pire chute observée (11,18 − 10,26).
+ * réel n'est pas net : la bissection de `tests/slow/dosage.test.ts` (15 volcans des graines 0 à 2,
+ * tâche 4) voit des passages dès 9,84 m/s, et des chutes doigt posé sont mesurées à 10,98 et
+ * 11,44 m/s selon la phase de la suspension (la roue arrière sautille sur la rampe et frappe l'arête
+ * du sommet ; relecture adversariale de la tâche 5b). Le cas 2 exige LIP_SPEED_THRESHOLD + 1 (sa
+ * vitesse au sommet la plus basse : 11,18, départ à xLancement), ce qui ne garantit pas le passage.
  */
 export const LIP_SPEED_THRESHOLD: number = CONFIG.V_JUMP;
 /** |angle du châssis| maximal à l'atterrissage (cas 2 à 5, cratère). */

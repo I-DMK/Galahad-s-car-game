@@ -8,7 +8,7 @@ export const CONFIG = {
   GRAVITY: 4.9,                 // m/s²
   V_MAX: 14,                    // m/s
   V_CRUISE: 0.8 * 14,
-  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22°, LAVA_MARGIN 0,8 et capteur à +0,3 m, le seuil réel est une bande qui se chevauche : chute observée jusqu'à 10,26 m/s, passage dès 9,84, issue décidée par le coup de la roue arrière sur l'arête ; bissection sur les 15 volcans des graines 0 à 2, tâche 4 du plan B)
+  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22°, LAVA_MARGIN 0,8 et capteur à +0,3 m). Le seuil réel n'est pas net : la bissection de la tâche 4 du plan B (15 volcans des graines 0 à 2) voit des passages dès 9,84 m/s, et des chutes doigt posé sont mesurées à 10,98 et 11,44 m/s selon la phase de la suspension (la roue arrière sautille sur la rampe ; relecture adversariale de la tâche 5b)
   TURBO_FACTOR: 1.5,
   TURBO_SECONDS: 3,
   STAR_RESPAWN_SECONDS: 5,
@@ -19,7 +19,7 @@ export const CONFIG = {
   RAMP_ANGLE: 22 * DEG,
   RAMP_LENGTH: 6,               // m le long de la pente → sommet à 2,25 m
   MAX_SLOPE: 27 * DEG,
-  LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre) ; voiture lancée la plus lente mesurée 11,18 m/s au sommet (doigt posé depuis xLancement, graines 0 à 9), soit ≈ 0,9 m/s au-dessus de la pire chute observée (10,26 m/s ; tâche 4 du plan B)
+  LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre) ; voiture lancée la plus lente mesurée 11,18 m/s au sommet (doigt posé depuis xLancement, graines 0 à 9, tâche 4 du plan B) ; pas de marge garantie : des chutes doigt posé sont mesurées à 10,98 et 11,44 m/s selon la phase de la suspension (relecture adversariale de la tâche 5b)
   L_ELAN: 6,                    // m : plat d'élan entre le plat de lancement et la rampe, seul levier de difficulté (addendum §1.6)
   D_LANCE,
   LANCEMENT_LENGTH: D_LANCE + SAFE_LANCEMENT_MARGIN,   // m : plat de lancement devant chaque plat d'élan (addendum §1.4) ; la zone interdite étant fermée en xLancement + SAFE_LANCEMENT_MARGIN, le pire point sûr est strictement avant et laisse au moins D_LANCE de plat

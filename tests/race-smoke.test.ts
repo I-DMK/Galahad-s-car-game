@@ -56,6 +56,8 @@ test('5 dans la lave au même pas, même point sûr (xLancement + 1) : 5 respawn
   const { track, v } = firstVolcano();
   const h = (x: number) => heightAt(track, x);
   const sim = createRaceSim(track, CONFIG, { robots: true });
+  // Doigt posé pour tous dès le respawn : pas de délai de grille dans ce scénario (t = 0).
+  for (const robot of sim.cars.slice(1)) robot.driver = () => true;
   const xSafe = v.xLancement + 1;
   for (const car of sim.cars) {
     car.state.safePoint = { x: xSafe, y: h(xSafe), angle: 0 };
@@ -84,6 +86,8 @@ test('5 dans la lave au même pas, même point sûr (xLancement + 1) : 5 respawn
   console.log(`5 dans la lave (xLava ${f2(v.xLava)}, point sûr ${f2(xSafe)}) : ${report} ; ensuite : [${later.join(' ; ')}]`);
   expect(overlaps, report).toEqual([]);
   expect(all.filter((e) => e.reason === 'speed'), later.join(' ; ')).toEqual([]);
+  // Galahad, en tête de la file, ne retombe pas dans la lave dans les 5 s.
+  expect(all.slice(firsts.length).filter((e) => e.carId === 'galahad' && e.reason === 'lava'), later.join(' ; ')).toEqual([]);
   // Cibles en file, 1,5 × CAR_LENGTH entre deux voitures, la première au point sûr.
   const xs = firsts.map((e) => e.target.x).sort((a, b) => b - a);
   expect(xs[0]).toBeCloseTo(xSafe, 6);

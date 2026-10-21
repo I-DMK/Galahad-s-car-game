@@ -193,6 +193,37 @@ describe('invulnérabilité après une réapparition', () => {
     expect(masks(sim)).toEqual([CAT.CAR, CAT.CAR, CAT.CAR]);
   });
 
+  test('roue d’une autre voiture dans une roue, châssis séparés : invulnérable jusqu’au plafond (toutes les pièces comptent)', () => {
+    const { track, v } = firstVolcano();
+    const sim = createRaceSim(track, CONFIG, { robots: true });
+    for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+    const g = sim.cars[0];
+    const xSafe = v.xLancement + 1;
+    g.state.safePoint = { x: xSafe, y: heightAt(track, xSafe), angle: 0 };
+    placeCar(g.body, v.xLava, h(track), 0, CONFIG);
+    const e = stepUntilRespawn(sim, false, 5);
+    expect(e?.carId).toBe('galahad');
+    expect(e!.target.x).toBeCloseTo(xSafe, 6);
+    // Copain reposé à chaque pas 2,35 m derrière Galahad : sa roue avant mord de 5 cm dans la roue arrière
+    // de Galahad (0,85 m entre centres < 2 × WHEEL_RADIUS), les châssis restent à 15 cm l'un de l'autre.
+    const other = sim.cars[1];
+    const follow = () => {
+      const x = physToWorld(g.body.chassis.position).x - 2.35;
+      placeCar(other.body, x, h(track), slopeAt(track, x), CONFIG);
+    };
+    follow();
+    expect(Matter.Query.collides(g.body.chassis, other.body.parts)).toEqual([]);
+    expect(Matter.Query.collides(other.body.chassis, g.body.parts)).toEqual([]);
+    expect(Matter.Query.collides(g.body.wheels[0], [other.body.wheels[1]])).not.toEqual([]);
+    const release = g.state.invulnerableUntil + (CONFIG.RESPAWN_INVULN_MAX - CONFIG.RESPAWN_INVULN);
+    while (sim.time < release - 2 * DT) { stepRace(sim, false); follow(); }
+    expect(sim.time).toBeGreaterThan(g.state.invulnerableUntil + 1);
+    expect(g.invulnerable).toBe(true);
+    expect(masks(sim)).toEqual([0, 0, 0]);
+    for (let i = 0; i < 3; i++) { stepRace(sim, false); follow(); }
+    expect(g.invulnerable).toBe(false);
+  });
+
   test('autre châssis superposé : invulnérable jusqu’à invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)', () => {
     const { track, v } = firstVolcano();
     // 5 voitures : le copain de rang 1 sert de châssis superposé ; les copains restent à l'arrêt sur la grille.
