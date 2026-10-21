@@ -62,8 +62,8 @@ Trois situations, trois issues, vérifiées par simulation (§1.7) :
 
 | Situation | Vitesse au sommet | Issue |
 |---|---|---|
-| Arrêt au début du plat d'élan, puis doigt posé | ≈ 7,5 à 9 m/s (théorie 9,2 à `L_ELAN` 9 m, pertes mesurées 1,3 à 2,6 m/s sur la rampe) | tombe dans la lave, à chaque volcan |
-| Doigt posé depuis le début du plat de lancement | ≥ 11,1 m/s (mesuré 11,1 à 12,7) | passe, atterrit ≥ 2 m après le rebord aval, sur le plat de réception |
+| Arrêt au début du plat d'élan, puis doigt posé | ≈ 7,7 à 9 m/s (théorie 10,3 à `L_ELAN` 9 m moteur actif sur la rampe, pertes mesurées 1,3 à 2,6 m/s) | tombe dans la lave, à chaque volcan ; si la marge sous 9,4 m/s est trop mince, la calibration descend `L_ELAN` à 7 ou 8 m |
+| Doigt posé depuis le début du plat de lancement | ≥ 11,1 m/s (mesuré 11,1 à 12,7) | passe, atterrit à `x ≥ xReception` (à 9,8 m/s déjà : 18,5 m du sommet contre 17,0 pour `xReception`) |
 | Turbo actif au sommet | jusqu'à 21 m/s | atterrit sur le plat de réception, jamais au-delà |
 
 Vitesse requise au sommet pour franchir le bord aval de la lave avec
@@ -85,7 +85,7 @@ d'après §1.7, puis confirmées sur la tablette.
 | `LAVA_MARGIN` | 0,7 | 0,8 | lave à 13,1 m du sommet (centre), franchie dès 9,4–9,8 m/s |
 | `STOP_BUMP_HEIGHT`, `STOP_BUMP_LENGTH` | 0,3 / 1 | supprimées | butée supprimée (§0) |
 | `STAR_EXCLUSION_BEFORE_LAVA` | 63 m | supprimée | remplacée par §1.5 |
-| `STAR_STEP_MIN`, `STAR_STEP_MAX` (nouvelles) | 12 / 20 m (dans `stars.ts`) | 120 / 180 m | pas du curseur global d'étoiles (§1.5) |
+| `STAR_STEP_MIN`, `STAR_STEP_MAX` (nouvelles) | 12 / 20 m (dans `stars.ts`) | 100 / 150 m | pas du curseur global d'étoiles (§1.5 ; ≈ 830 m admissibles par course → ≈ 6,5 étoiles + ≈ 2,7 d'élan) |
 
 Plat de réception inchangé : au moins `jumpRange(V_MAX × TURBO_FACTOR) × 1,2`
 depuis le sommet (67,7 × 1,2 m), et au moins 10 m après le rebord aval.
@@ -99,14 +99,19 @@ depuis le sommet (67,7 × 1,2 m), et au moins 10 m après le rebord aval.
   précéder un volcan : le plat de lancement absorbe une arrivée lente (voiture
   échouée au pied d'une `rampe-saut`, défaut noté en 7b).
 - Nouveau type de tranche **`cratère`** (livré avec le décor, §3.2, mais défini
-  ici car il touche la génération) : creux doux sans lave, longueur 6 à 10 m,
-  profondeur ≤ 1,2 m, pentes ≤ `MAX_SLOPE`, fond arrondi. Compte comme « autre
+  ici car il touche la génération) : creux doux sans lave, longueur `L` de 8 à
+  12 m, profondeur ≤ `L × tan(MAX_SLOPE) / π` (≈ 1,3 m à 8 m), pentes ≤
+  `MAX_SLOPE`, fond arrondi. Compte comme « autre
   type » entre deux volcans. Aucune étoile ni point sûr dans un `cratère`
   (exclusion explicite, en plus de la règle de pente). Les robots n'y lèvent
   pas le pied. Poids de tirage égal à `double-bosse`.
-- Test : 3 à 6 volcans par course de longueur par défaut sur les graines 0 à
-  19 (les tranches s'allongent de 32 m ; si la moyenne passe sous 4, le poids
-  de `rampe-volcan` est relevé dans la tâche de calibration).
+- `xElanStart` change de sens : début du plat d'élan (après le lancement),
+  plus début de tranche. La zone de `nearestVolcanoZone` (`src/track/query.ts`)
+  et ses tests passent de `[xElanStart, xEnd[` à `[xLancement, xEnd[`.
+- Test : 3 à 7 volcans par course de longueur par défaut sur les graines 0 à
+  19 (la tranche passe de 109,5 à ≈ 128 m ; plan A : 4 à 7 ; si la moyenne
+  passe sous 4, le poids de `rampe-volcan` est relevé dans la tâche de
+  calibration).
 
 ### 1.5 Étoiles (amende spec §5 et §11 « étoiles jamais à moins de 63 m »)
 
@@ -135,11 +140,13 @@ depuis le sommet (67,7 × 1,2 m), et au moins 10 m après le rebord aval.
   d'atterrissage des autres voitures.
 - Respawn groupé : si un châssis occupe déjà la cible (à moins de
   `1,5 × CAR_LENGTH`), la cible recule de `1,5 × CAR_LENGTH` par voiture déjà
-  posée, jusqu'à 4 fois. Test : 5 voitures dans la lave au même pas → aucun
+  posée, jusqu'à 4 fois, posée à la hauteur et à l'angle du sol local (le
+  recul peut sortir du plat). La cible `xEnd − 10` reste ≥ `xReception + 10`
+  (plat de réception ≥ 20 m, garanti par la règle turbo). Test : 5 voitures dans la lave au même pas → aucun
   chevauchement à la réapparition, aucun garde-fou de vitesse déclenché.
 - Dosage (après la réponse de Galahad et le test tablette) : `L_ELAN` 11 m
-  (« facile » : un départ arrêté arrive à ≈ 8 à 10 m/s, passe parfois) ou
-  9 m (« plus difficile », valeur de départ). `LAVA_MARGIN` ne bouge pas.
+  (« facile » : un départ arrêté arrive à ≈ 8,5 à 9,8 m/s, passe souvent) ou
+  9 m ou moins (« plus difficile », valeur de départ). `LAVA_MARGIN` ne bouge pas.
 
 ### 1.7 Simulations d'acceptation (amende spec §11)
 
@@ -163,6 +170,10 @@ sans turbo sauf mention, assertions à 100 % (le monde est déterministe) :
    graine de piste, tranches de 1 s) → ≤ 2 respawns par volcan (la règle
    « replacé après » borne à 2), arrivée avant 240 s.
 
+Répartition : cas 1 à 5 sur les graines 0 à 4 et cas 6 dans `npm test`
+(≈ 3 min, remplace le `jump.test.ts` actuel) ; cas 1 à 5 sur les graines 5 à
+9 et cas 7 dans `tests/slow/` (§2).
+
 Tests du plan A à réécrire (listés pour l'implémenteur) : `tests/jump.test.ts`
 (« élan complet » devient le cas 1, « pire point sûr » devient le cas 2,
 `ELAN_SAFE_FRACTION` disparaît), `tests/safepoint.test.ts` (zone interdite),
@@ -181,9 +192,9 @@ tours** de calibration supplémentaires ; ensuite le papa tranche la valeur.
   réception).
 - Pré-zone de 40 m avant `xLancement` : le facteur remonte vers 1,0 à la
   vitesse normale (0,15/s, 2,7 s depuis 0,6). À `xLancement`, clamp immédiat
-  à ≥ 1,0 par sécurité. Ce clamp ne change que le plafond de vitesse, pas
-  l'accélération (4,3 m/s²) : il est invisible même pour un robot à l'écran
-  (facteur de caractère 0,85 → 1,0).
+  à ≥ 1,0 par sécurité. Le facteur s'applique au couple et au plafond (spec
+  §7) : un saut de 0,85 à 1,0 sur le couple d'un robot à l'écran est jugé
+  invisible (≈ 0,6 m/s² de plus).
 
 ## 2. Copains (étape 4 du spec, amende §7 et §11)
 
