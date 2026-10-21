@@ -1,7 +1,7 @@
 // Pas de course : relie la physique (matter-js) à l'état de course. Sans DOM : utilisable sous node
 // (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b),
 // ligne d'arrivée (11), étoiles et turbo (12) ; course à 5 voitures dans un seul monde, grille de
-// départ, chocs réels et respawn groupé (tâche 5b du plan B).
+// départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B).
 import Matter from 'matter-js';
 import type { Config } from '../config';
 import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
@@ -21,7 +21,7 @@ import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
 import { createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
-import { heightAt, inElanZone, slopeAt } from '../track/query';
+import { heightAt, inElanZone, inGhostZone, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 
 /** Chaque événement porte l'id (`CarState.id`) de la voiture concernée. */
@@ -48,6 +48,11 @@ export interface CarSim {
   airborneSince: number | null;
   /** Collisions avec les autres voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
   invulnerable: boolean;
+  /**
+   * Fantôme : châssis dans la zone [xLancement, xReception] d'un volcan (`inGhostZone`), ou sorti de la
+   * zone mais encore engagé dans une autre voiture (`updateGhost`). Les voitures se traversent.
+   */
+  ghost: boolean;
   /** Pilote automatique d'un robot ; null pour Galahad (doigt de l'enfant, argument de `stepRace`). */
   driver: Driver | null;
   /** Facteur de vitesse du pilote, multiplié au turbo (élastique, tâche 7) ; 1 en 5b. */
@@ -107,7 +112,7 @@ function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cf
   const state = newCarState(pilot.id, pilot.name, colorHex(pilot.color), colorHex(pilot.accent), start);
   state.progress = physToWorld(body.chassis.position).x;
   return {
-    pilot, body, state, contact: newContact(), airborneSince: null, invulnerable: false,
+    pilot, body, state, contact: newContact(), airborneSince: null, invulnerable: false, ghost: false,
     driver: rank === 0 ? null : holdAfterStartDelay(rank, cfg), factor: 1, throttle: false,
   };
 }
@@ -130,10 +135,10 @@ export function createRaceSim(
 }
 
 /**
- * Un pas fixe de PHYSICS_DT pour toutes les voitures : pour chacune, conduite (doigt de Galahad =
- * `galahadThrottle`, robots = leur driver ; vitesse × turbo × `factor`), contact au sol et
- * mise à plat en l'air ; un seul pas physique ; puis, voiture par voiture dans l'ordre des index :
- * bornage des vitesses, progression, étoiles, arrivée, invulnérabilité et réapparition.
+ * Un pas fixe de PHYSICS_DT pour toutes les voitures : pour chacune, état fantôme (`updateGhost`),
+ * conduite (doigt de Galahad = `galahadThrottle`, robots = leur driver ; vitesse × turbo × `factor`),
+ * contact au sol et mise à plat en l'air ; un seul pas physique ; puis, voiture par voiture dans
+ * l'ordre des index : bornage des vitesses, progression, étoiles, arrivée, invulnérabilité et réapparition.
  * Après son arrivée (`state.finishedAt` défini), une voiture freine (FINISH_BRAKE) et ne réapparaît
  * plus jamais (elle s'arrête sur le plat avant le mur de fin). Une étoile active touchée est prise
  * (pour toutes les voitures, réapparition STAR_RESPAWN_SECONDS plus tard) et lance TURBO_SECONDS de
@@ -145,6 +150,7 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean): void {
   sim.events = [];
   const onGround = sim.cars.map((car) => {
     const { body, state } = car;
+    updateGhost(sim, car);
     if (state.finishedAt !== null) {
       car.throttle = false;
       applyBrake(body, cfg.FINISH_BRAKE);
@@ -218,21 +224,45 @@ const chassisX = (car: CarSim): number => physToWorld(car.body.chassis.position)
 /** Point posé au sol en x : hauteur et angle du sol local. */
 const groundPoint = (track: Track, x: number): SafePoint => ({ x, y: heightAt(track, x), angle: slopeAt(track, x) });
 
+/** Une pièce de la voiture (châssis ou roue, toutes filtrées CAT.CAR) chevauche-t-elle une pièce d'une autre voiture ? */
+function overlapsOtherCar(sim: RaceSim, car: CarSim): boolean {
+  const others = otherCars(sim, car).flatMap((c) => c.body.parts);
+  return car.body.parts.some((p) => Matter.Query.collides(p, others).length > 0);
+}
+
 /**
- * Lève l'invulnérabilité à partir de `invulnerableUntil` si aucune pièce de la voiture (châssis ou
- * roue, toutes filtrées CAT.CAR) ne chevauche une pièce d'une autre voiture, et de toute façon à
- * `invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)`.
+ * Masque de collision de la voiture, posé ici seulement : sans les autres voitures si elle est
+ * fantôme OU invulnérable, normal sinon. Appelé à chaque changement de l'un des deux états.
+ */
+function syncMask(car: CarSim): void {
+  setCarInvulnerable(car.body, car.ghost || car.invulnerable);
+}
+
+/**
+ * Avant le pas physique : fantôme si le châssis est dans une zone fantôme ; en sortant de la zone, la
+ * voiture le reste tant qu'une de ses pièces chevauche une autre voiture, sans plafond de durée
+ * (rétablir la collision sur un chevauchement donnerait une impulsion).
+ */
+function updateGhost(sim: RaceSim, car: CarSim): void {
+  const ghost = inGhostZone(sim.track, chassisX(car)) || (car.ghost && overlapsOtherCar(sim, car));
+  if (ghost === car.ghost) return;
+  car.ghost = ghost;
+  syncMask(car);
+}
+
+/**
+ * Lève l'invulnérabilité à partir de `invulnerableUntil` si aucune pièce de la voiture ne chevauche une
+ * pièce d'une autre voiture, et de toute façon à `invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)`.
+ * Une voiture fantôme garde son masque sans voitures (`syncMask`).
  */
 function releaseInvulnerability(sim: RaceSim, car: CarSim): void {
   if (!car.invulnerable) return;
   const { cfg, time: t } = sim;
   const { state } = car;
   if (t < state.invulnerableUntil) return;
-  const others = otherCars(sim, car).flatMap((c) => c.body.parts);
-  const free = car.body.parts.every((p) => Matter.Query.collides(p, others).length === 0);
-  if (free || t >= state.invulnerableUntil + (cfg.RESPAWN_INVULN_MAX - cfg.RESPAWN_INVULN)) {
-    setCarInvulnerable(car.body, false);
+  if (!overlapsOtherCar(sim, car) || t >= state.invulnerableUntil + (cfg.RESPAWN_INVULN_MAX - cfg.RESPAWN_INVULN)) {
     car.invulnerable = false;
+    syncMask(car);
   }
 }
 
@@ -281,8 +311,8 @@ function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolea
 function placeInvulnerable(sim: RaceSim, car: CarSim, target: SafePoint, lavaX: number | null, consecutive: number): void {
   const { cfg, track } = sim;
   placeCar(car.body, target.x, (x) => heightAt(track, x), target.angle, cfg);
-  setCarInvulnerable(car.body, true);
   car.invulnerable = true;
+  syncMask(car);
   // applyRespawnToState garde la cible par référence (nouveau point sûr) : copie dédiée.
   applyRespawnToState(car.state, { ...target }, lavaX, consecutive, sim.time, cfg);
   car.contact.groundedUntil = [-1, -1];
@@ -372,6 +402,11 @@ export interface SimulateResult {
   lavaByCar: Record<string, number>;
   maxStuckByCar: Record<string, number>;
   finishedAtByCar: Record<string, number | null>;
+  /**
+   * Nombre de paires actives (pas × paire de pièces) entre deux voitures dont l'une avait son châssis
+   * dans une zone fantôme au début du pas : 0 attendu (contrôle des masques).
+   */
+  ghostContacts: number;
   /** Indicateurs : durée mur (ms) d'un `stepRace`, maximale et moyenne. */
   maxStepMs: number;
   meanStepMs: number;
@@ -405,6 +440,19 @@ class StuckMeter {
   }
 }
 
+/** Paires actives du dernier pas entre pièces de deux voitures différentes dont l'une est dans `ids`. */
+function carPairsTouching(sim: RaceSim, ids: ReadonlySet<string>): number {
+  const carOf = (b: Matter.Body): string | undefined => (b.parent.plugin as { carId?: string } | undefined)?.carId;
+  let n = 0;
+  for (const pair of sim.world.engine.pairs.list) {
+    if (!pair.isActive) continue;
+    const a = carOf(pair.bodyA);
+    const b = carOf(pair.bodyB);
+    if (a !== undefined && b !== undefined && a !== b && (ids.has(a) || ids.has(b))) n++;
+  }
+  return n;
+}
+
 /**
  * Course sans affichage : `throttle(t)` décide du doigt de Galahad à chaque pas (les robots suivent
  * leur driver). S'arrête `stopAfterFinish` secondes (défaut FINISH_COAST_SECONDS) après l'arrivée de
@@ -431,18 +479,21 @@ export function simulateRace(
   const starsTaken: SimEvent[] = [];
   let finishes = 0;
   let maxSpeed = 0;
+  let ghostContacts = 0;
   let maxStepMs = 0;
   let totalStepMs = 0;
   let stepsDone = 0;
   for (let i = 0; i < steps; i++) {
     const t = sim.time;
     const throttle = opts.throttle(t);
+    const inZone = sim.cars.length > 1 ? new Set(sim.cars.filter((c) => inGhostZone(track, chassisX(c))).map((c) => c.state.id)) : null;
     const t0 = performance.now();
     stepRace(sim, throttle);
     const ms = performance.now() - t0;
     maxStepMs = Math.max(maxStepMs, ms);
     totalStepMs += ms;
     stepsDone++;
+    if (inZone !== null && inZone.size > 0) ghostContacts += carPairsTouching(sim, inZone);
     const respawned = new Set<string>();
     for (const e of sim.events) {
       const mine = e.carId === galahad.state.id;
@@ -476,6 +527,7 @@ export function simulateRace(
     lavaByCar,
     maxStuckByCar: Object.fromEntries(ids.map((id, k) => [id, stuck[k].max])),
     finishedAtByCar: Object.fromEntries(sim.cars.map((c) => [c.state.id, c.state.finishedAt])),
+    ghostContacts,
     maxStepMs,
     meanStepMs: stepsDone > 0 ? totalStepMs / stepsDone : 0,
   };

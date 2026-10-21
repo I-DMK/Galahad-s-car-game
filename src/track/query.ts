@@ -65,3 +65,12 @@ export function nearestVolcanoZone(track: Track, x: number): Volcano | undefined
 export function inElanZone(track: Track, x: number): boolean {
   return track.volcanoes.some((v) => x >= v.xElanStart && x <= v.xLip);
 }
+
+/**
+ * Vrai si x est dans [xLancement, xReception] d'un volcan, bornes incluses : zone où les voitures se
+ * traversent (fantômes), pour qu'aucun choc ne fasse tomber une voiture dans la lave (décision du
+ * papa, tâche 5b). Partout ailleurs, les voitures se cognent.
+ */
+export function inGhostZone(track: Track, x: number): boolean {
+  return track.volcanoes.some((v) => x >= v.xLancement && x <= v.xReception);
+}

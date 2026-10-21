@@ -227,7 +227,7 @@ export function clampVelocities(car: CarBody, cfg: Config): void {
   }
 }
 
-/** Invulnérable : la voiture ne heurte plus les autres voitures (sol et capteurs restent). */
+/** `on` : la voiture ne heurte plus les autres voitures, sol et capteurs restent (invulnérable ou fantôme). */
 export function setCarInvulnerable(car: CarBody, on: boolean): void {
   for (const p of car.parts) p.collisionFilter.mask = on ? MASK_INVULNERABLE : MASK_NORMAL;
 }

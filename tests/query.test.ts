@@ -1,6 +1,6 @@
 import { CONFIG } from '../src/config';
 import { generateTrack } from '../src/track/generate';
-import { heightAt, inElanZone, nearestVolcanoZone, sliceAt, slopeAt, volcanoAhead } from '../src/track/query';
+import { heightAt, inElanZone, inGhostZone, nearestVolcanoZone, sliceAt, slopeAt, volcanoAhead } from '../src/track/query';
 import type { Track } from '../src/track/types';
 
 function makeTrack(): Track {
@@ -96,10 +96,25 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
     expect(inElanZone(track, 0)).toBe(false);
   });
 
+  test('inGhostZone : [xLancement, xReception], bornes incluses (voitures fantômes près des volcans)', () => {
+    expect(inGhostZone(track, v0.xLancement - 0.01)).toBe(false);
+    expect(inGhostZone(track, v0.xLancement)).toBe(true);
+    expect(inGhostZone(track, v0.xElanStart)).toBe(true);
+    expect(inGhostZone(track, v0.xLip)).toBe(true);
+    expect(inGhostZone(track, v0.xLava)).toBe(true);
+    expect(inGhostZone(track, v0.xReception)).toBe(true);
+    expect(inGhostZone(track, v0.xReception + 0.01)).toBe(false);
+    expect(inGhostZone(track, v0.xEnd - 0.01)).toBe(false);
+    expect(inGhostZone(track, v1.xLancement + 1)).toBe(true);
+    expect(inGhostZone(track, 0)).toBe(false);
+    expect(inGhostZone(track, track.xStart)).toBe(false);
+  });
+
   test('piste sans volcan', () => {
     const t = generateTrack(1, 1000, CONFIG, { onlyPlat: true });
     expect(volcanoAhead(t, 10)).toBeUndefined();
     expect(nearestVolcanoZone(t, 10)).toBeUndefined();
     expect(inElanZone(t, 10)).toBe(false);
+    expect(inGhostZone(t, 10)).toBe(false);
   });
 });

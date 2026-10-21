@@ -42,7 +42,8 @@ export function fiveCarRace(seed: number): FiveCarRace {
 
 /**
  * ≤ 3 réapparitions par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive avant
- * 240 s sans tomber dans la lave ; cohérence des mesures de `simulateRace` (classement, chutes, arrivée).
+ * 240 s sans tomber dans la lave, aucun choc dans une zone fantôme ; cohérence des mesures de
+ * `simulateRace` (classement, chutes, arrivée).
  */
 export function expectRaceInvariants({ r, summary }: FiveCarRace): void {
   expect(Object.keys(r.respawnsByCar), summary).toHaveLength(5);
@@ -50,6 +51,8 @@ export function expectRaceInvariants({ r, summary }: FiveCarRace): void {
   expect(r.finishedAt!, summary).toBeLessThan(RACE_MAX_SECONDS);
   expect(r.finishedAtByCar.galahad, summary).toBe(r.finishedAt);
   expect(r.lavaByCar.galahad, summary).toBe(0);
+  // Fantômes près des volcans : aucune paire active entre deux voitures dont l'une est dans une zone fantôme.
+  expect(r.ghostContacts, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {
     expect(rs.length, `${id} : ${summary}`).toBeLessThanOrEqual(MAX_RESPAWNS_PER_CAR);
     expect(rs.filter((e) => e.reason === 'speed'), `${id} : ${summary}`).toEqual([]);
