@@ -5,7 +5,6 @@ describe('CONFIG', () => {
   it('expose les constantes de base', () => {
     expect(CONFIG.PIXELS_PER_METER).toBe(40);
     expect(CONFIG.GRAVITY).toBe(4.9);
-    expect(CONFIG.STAR_EXCLUSION_BEFORE_LAVA).toBe(63);
     expect(CONFIG.AIR_DRAG).toBe(0);
   });
 
@@ -25,9 +24,17 @@ describe('CONFIG', () => {
     expect('STOP_BUMP_LENGTH' in CONFIG).toBe(false);
   });
 
-  it('constantes en sursis (retirées en tâches 2 et 3)', () => {
+  it('étoiles v2 (tâche 2) : pas du curseur, plancher, étoile d’élan ; STAR_EXCLUSION_BEFORE_LAVA retirée', () => {
+    expect(CONFIG.STAR_STEP_MIN).toBe(80);
+    expect(CONFIG.STAR_STEP_MAX).toBe(130);
+    expect(CONFIG.STAR_MIN_COUNT).toBe(6);
+    expect(CONFIG.STAR_ELAN_OFFSET).toBe(2);
+    expect(CONFIG.STAR_ELAN_GAP).toBe(5);
+    expect('STAR_EXCLUSION_BEFORE_LAVA' in CONFIG).toBe(false);
+  });
+
+  it('constante en sursis (retirée en tâche 3)', () => {
     expect(CONFIG.ELAN_SAFE_FRACTION).toBe(0.75);
-    expect(CONFIG.STAR_EXCLUSION_BEFORE_LAVA).toBe(63);
   });
 
   it('dimensionne la zone de départ pour 5 longueurs de voiture à vitesse turbo plus 10 m', () => {

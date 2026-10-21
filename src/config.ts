@@ -10,7 +10,10 @@ export const CONFIG = {
   TURBO_FACTOR: 1.5,
   TURBO_SECONDS: 3,
   STAR_RESPAWN_SECONDS: 5,
-  STAR_EXCLUSION_BEFORE_LAVA: 3 * 14 * 1.5,   // 63 m — retirée en tâche 2
+  STAR_STEP_MIN: 80, STAR_STEP_MAX: 130,   // m : pas du curseur global d'étoiles sur les zones admissibles (addendum §1.5 ; cible 8 à 12 étoiles par course)
+  STAR_MIN_COUNT: 6,            // plancher : étoiles d'élan ajoutées aux volcans sans étoile, dans l'ordre de la piste
+  STAR_ELAN_OFFSET: 2,          // m : étoile d'élan à xElanStart − 2 (turbo encore actif au sommet)
+  STAR_ELAN_GAP: 5,             // m : le curseur s'arrête à xElanStart − 5 sur le plat de lancement (≥ 3 m avant l'étoile d'élan)
   RAMP_ANGLE: 22 * DEG,
   RAMP_LENGTH: 6,               // m le long de la pente → sommet à 2,25 m
   MAX_SLOPE: 27 * DEG,

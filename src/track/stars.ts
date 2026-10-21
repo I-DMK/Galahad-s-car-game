@@ -3,39 +3,65 @@ import { heightAt } from './query';
 import type { Star, Track } from './types';
 
 const STAR_HEIGHT = 0.6;
-const STEP_MIN = 12;
-const STEP_MAX = 20;
 
-/** Pose des candidats sur [from, to[ : premier pas puis pas suivants tirés dans [12, 20] m. */
-function walk(rng: () => number, from: number, to: number, out: number[]): void {
-  let x = from + STEP_MIN + rng() * (STEP_MAX - STEP_MIN);
-  while (x < to) {
-    out.push(x);
-    x += STEP_MIN + rng() * (STEP_MAX - STEP_MIN);
+/**
+ * Zones admissibles (addendum §1.5, plan B tâche 2), de longueur > 0, dans l'ordre de la piste :
+ * chaque `plat` hors plat de départ (indice 0) et hors plat d'arrivée `[xFinish − FINISH_PLAT_BEFORE, xWall]`,
+ * chaque plat de lancement `[xLancement, xElanStart − STAR_ELAN_GAP]`, chaque plat de réception `[xReception, xEnd)`.
+ * Aucune zone de longueur nulle : elle ne recevrait jamais le curseur.
+ */
+function admissibleZones(track: Track, cfg: Config): [number, number][] {
+  const limit = track.xFinish - cfg.FINISH_PLAT_BEFORE;
+  const zones: [number, number][] = [];
+  track.slices.forEach((sl, i) => {
+    if (sl.type === 'plat' && i > 0) zones.push([sl.xStart, Math.min(sl.xEnd, limit)]);
+  });
+  for (const v of track.volcanoes) {
+    zones.push([v.xLancement, v.xElanStart - cfg.STAR_ELAN_GAP]);
+    zones.push([v.xReception, v.xEnd]);
   }
+  return zones.filter(([a, b]) => b - a > 0).sort((p, q) => p[0] - q[0]);
 }
 
 /**
- * Place les étoiles : candidats tous les 12–20 m sur les plats (hors départ) et les plats de réception ;
- * exclusion devant les laves et sur le plat d'arrivée. Plus d'étoile « 1 m avant une rampe-saut »
- * (addendum §1.5 : non admissible ; prise avec un turbo juste avant une rampe-saut qui précède un
- * volcan, elle lançait un saut de ≈ 50 m par-dessus la rampe-saut : atterrissage au bout du plat de
- * lancement, rebond, puis lave — graine 4 : xLancement 1134,2, xElanStart 1166,6, atterrissage 1165,6,
- * lave à 1192).
+ * Place les étoiles (déterministe, un seul `rng`) :
+ * 1. curseur global : la distance ne s'accumule que sur les zones admissibles ; à chaque pas tiré dans
+ *    [STAR_STEP_MIN, STAR_STEP_MAX], une étoile est posée dès que la distance cumulée atteint le pas ;
+ * 2. étoile d'élan : un volcan sur deux (tirage), à `xElanStart − STAR_ELAN_OFFSET` ;
+ * 3. plancher : tant qu'il y a moins de STAR_MIN_COUNT étoiles, une étoile d'élan est ajoutée au premier volcan
+ *    (ordre de la piste) qui n'en a pas ; plus de volcan → on laisse ;
+ * 4. tri par x, ids 0, 1, 2…, `y = heightAt + 0,6`.
+ * Invariant : aucune étoile dans [xElanStart, xLava], ni sur le plat de départ, ni après xFinish − FINISH_PLAT_BEFORE.
  */
 export function placeStars(track: Track, rng: () => number, cfg: Config): Star[] {
-  const candidates: number[] = [];
-  track.slices.forEach((sl, i) => {
-    if (sl.type === 'plat' && i > 0) walk(rng, sl.xStart, sl.xEnd, candidates);
-  });
-  for (const v of track.volcanoes) walk(rng, v.xReception, v.xEnd, candidates);
+  const step = (): number => cfg.STAR_STEP_MIN + rng() * (cfg.STAR_STEP_MAX - cfg.STAR_STEP_MIN);
+  const xs: number[] = [];
 
-  return candidates
-    .filter((x) => x > track.xStart)
-    .filter((x) => x < track.xFinish - cfg.FINISH_PLAT_BEFORE)
-    .filter((x) => track.volcanoes.every(
-      (v) => x < v.xLava - cfg.STAR_EXCLUSION_BEFORE_LAVA || x > v.xLava,
-    ))
-    .sort((a, b) => a - b)
+  // 1. Curseur global.
+  let due = step();
+  let d = 0;
+  for (const [a, b] of admissibleZones(track, cfg)) {
+    let x = a;
+    while (d + (b - x) >= due) {
+      x += due - d;
+      xs.push(x);
+      d = due;
+      due += step();
+    }
+    d += b - x;
+  }
+
+  // 2. Étoiles d'élan tirées, 3. plancher.
+  const hasElan = track.volcanoes.map(() => rng() < 0.5);
+  for (let i = 0; i < hasElan.length && xs.length + hasElan.filter(Boolean).length < cfg.STAR_MIN_COUNT; i++) {
+    if (!hasElan[i]) hasElan[i] = true;
+  }
+  track.volcanoes.forEach((v, i) => {
+    if (hasElan[i]) xs.push(v.xElanStart - cfg.STAR_ELAN_OFFSET);
+  });
+
+  // 4. Tri, ids, hauteur.
+  return xs
+    .sort((p, q) => p - q)
     .map((x, id) => ({ id, x, y: heightAt(track, x) + STAR_HEIGHT }));
 }
