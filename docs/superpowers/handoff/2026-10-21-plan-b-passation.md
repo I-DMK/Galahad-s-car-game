@@ -33,7 +33,7 @@ sans le contexte de celle-ci.
   `fc83f97` + tour 2 non poussés) : curseur global, étoiles d'élan, plancher
   de 6, pas recalibré à [60, 100] m (ruling, voir registre : ≈ 9 étoiles par
   course au lieu de 7,3). Trois relectures approuvées après deux tours.
-  **En attente de validation du papa**, puis push.
+  **Validée par le papa**, poussée (`6dd91e2..bb42472`).
 - Consignes de conteneur apprises : le push passe quand la session est en
   mode « accepter les modifications » (le mode auto le classe comme
   déploiement) ; vérifier `git status -sb` avant un push (HEAD détaché au
@@ -57,7 +57,7 @@ sans le contexte de celle-ci.
 | Tâche | État |
 |---|---|
 | 1 géométrie du volcan v2 (lancement, élan 6 m, lave 0,8, capteur +0,3, butée supprimée) | **faite, validée** (+ option (a) : pas de volcan après une rampe-saut) ; push en attente d'autorisation |
-| 2 étoiles v2 (curseur global, étoiles d'élan, plancher 6, pas 60–100) | **code fait, relu (3 relectures, 2 tours), en attente de validation du papa** |
+| 2 étoiles v2 (curseur global, étoiles d'élan, plancher 6, pas 60–100) | **faite, validée**, poussée |
 | 3 points sûrs et respawn v2 | à faire |
 | 4 simulations d'acceptation, suites lentes, balayage de dosage | à faire → **gate : test tablette du papa** |
 | 5a pilotes | à faire |
@@ -98,10 +98,7 @@ sans le contexte de celle-ci.
 
 ## Prochaine action précise
 
-1. Obtenir du papa la **validation de la tâche 2** (commits `6dd91e2..11ed39b`,
-   ruling du pas 60–100 inclus), puis `git push -u origin ccr-5b6fabc4-n96ofo`
-   (session en mode « accepter les modifications »).
-2. Dispatcher la **tâche 3** (points sûrs et respawn v2) à un implémenteur
+1. **Tâche 3** (points sûrs et respawn v2) dispatchée à un implémenteur
    frais (brief : plan tâche 3, addendum §1.6, contraintes globales, registre
    plan A §rulings 10a/10b et registre plan B), puis relectures, validation,
    passation, push.
