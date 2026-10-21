@@ -2,8 +2,9 @@
 // (cas 1, cas 2 au pire point sûr, cas 4 ; même vitesse au sommet à 3e-6 près sur les 43 volcans des
 // graines 0 à 9, voir helpers/cases.ts) sont déjà joués en CI : une seule graine ici (3), le rejouer
 // ailleurs serait un pur doublon. Les scénarios qui varient avec la piste (cas 2 au début du plat de
-// lancement, cas 3, cas 5, turbo permanent : la roue arrière part de la tranche précédente) tournent
-// sur tous les volcans des graines 3 à 9. Cas 7 (course « doigt levé 30 % du
+// lancement, cas 5, turbo permanent : la roue arrière part de la tranche précédente) tournent sur
+// tous les volcans des graines 0 à 9 (la CI n'en joue que le premier des graines 0 à 2) ; le cas 3 sur
+// tous les volcans des graines 3 à 9 (0 à 2 en CI). Cas 7 (course « doigt levé 30 % du
 // temps », graines 0 à 9 ; absorbe l'ancien motif 0,7 s / 0,3 s de respawn-sim) et le scénario du
 // registre « rampe-saut → plat → volcan avec turbo pris avant la rampe-saut » (le plat de lancement
 // absorbe le saut turbo, option (a) de la tâche 1).
@@ -16,7 +17,8 @@ import { describeRespawns, describeRun, f1, liftedPattern, runFrom, trackFor, wo
 
 const SLOW_SEEDS = [3, 4, 5, 6, 7, 8, 9];
 const UNIQUE_SEEDS = [3];
-const RACE_SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const ALL_SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const RACE_SEEDS = ALL_SEEDS;
 /** Cas 7 : part du temps doigt levé, arrivée exigée avant 240 s, au plus 2 réapparitions par volcan. */
 const LIFTED_SHARE = 0.3;
 const RACE_MAX_SECONDS = 240;
@@ -25,7 +27,7 @@ const TURBO_BEFORE_RAMP = [20, 40, 60];
 const RUN_UP_BEFORE_TURBO = 40;
 
 registerVolcanoCases(
-  { 1: UNIQUE_SEEDS, 2: UNIQUE_SEEDS, '2-lancement': SLOW_SEEDS, 3: SLOW_SEEDS, 4: UNIQUE_SEEDS, 5: SLOW_SEEDS, turbo: SLOW_SEEDS },
+  { 1: UNIQUE_SEEDS, 2: UNIQUE_SEEDS, '2-lancement': ALL_SEEDS, 3: SLOW_SEEDS, 4: UNIQUE_SEEDS, 5: ALL_SEEDS, turbo: ALL_SEEDS },
   ['2-lancement', 3, 5, 'turbo'],
 );
 

@@ -15,11 +15,12 @@
 //  → NE sont PAS une trajectoire unique : posée à xLancement, la roue arrière (0,75 m derrière le
 //    châssis) repose sur la tranche précédente ; après des bosses elle part d'une pente et le sommet
 //    est plus rapide (11,93–13,11), après plat ou double-bosse 11,184 ou 11,186 selon la tranche.
-//    Ces trois scénarios tournent sur le premier volcan en CI et sur tous les volcans des graines 3
-//    à 9 en suite lente (`allVolcanoes` de registerVolcanoCases), comme le cas 3 (relief précédent).
+//    Ces trois scénarios tournent sur le premier volcan en CI et sur tous les volcans des graines 0
+//    à 9 en suite lente (`allVolcanoes` de registerVolcanoCases) ; le cas 3 (relief précédent) sur
+//    tous les volcans, en CI comme en lent.
 import { CONFIG, type Config } from '../../src/config';
 import type { World } from '../../src/physics/world';
-import type { Track, Volcano } from '../../src/track/types';
+import type { SliceType, Track, Volcano } from '../../src/track/types';
 import {
   LANDING_MAX_ANGLE, LIP_SPEED_THRESHOLD, describeRun, f2, runFrom, trackFor, worldFor, worstSafePoint,
   type RunOptions, type RunResult,
@@ -28,7 +29,7 @@ import {
 /** Cas 2 scindé : `2` = pire point sûr (trajectoire unique), `'2-lancement'` = début du plat de lancement (variable). */
 export type CaseId = 1 | 2 | '2-lancement' | 3 | 4 | 5 | 'turbo';
 export const ALL_CASES: CaseId[] = [1, 2, '2-lancement', 3, 4, 5, 'turbo'];
-/** Cas à trajectoire unique (mesuré, voir l'en-tête) : premier volcan de la graine, jamais plus. */
+/** Cas à trajectoire unique (mesuré, voir l'en-tête) : le premier volcan suffit (rejouer ailleurs = doublon). */
 export const UNIQUE_TRAJECTORY_CASES: CaseId[] = [1, 2, 4];
 
 export interface Scenario { name: string; x0: number; opts: RunOptions }
@@ -37,7 +38,7 @@ const always = () => true;
 const RUN_SECONDS = 20;
 /** Cas 3 : arrêt 60 m avant xLancement quand la tranche précédente est bosses ou double-bosse. */
 const CASE3_BEFORE = 60;
-export const CASE3_PREVIOUS: readonly string[] = ['bosses', 'double-bosse'];
+export const CASE3_PREVIOUS: readonly SliceType[] = ['bosses', 'double-bosse'];
 /** Cas 4 : vitesse ramenée à 8 m/s jusqu'à xElanStart (vrai pire choc : en fin de plat de lancement). */
 const CASE4_SPEED = 8;
 const CASE4_UNTIL = 0;
@@ -90,7 +91,7 @@ export function passesVolcano(r: RunResult, v: Volcano): boolean {
     && !r.flipped && r.wheelsBelow;
 }
 
-/** Assertions des cas 2 à 5 : celles de `passesVolcano`, une par une (messages lisibles), plus la marge au sommet. */
+/** Assertions des cas 2 à 5 : celles de `passesVolcano`, une par une (messages lisibles), la marge au sommet, puis `passesVolcano` lui-même. */
 export function expectPasses(r: RunResult, v: Volcano, where: string): void {
   expect(r.lava, where).toBe(false);
   expect(r.landX, where).not.toBeNull();
@@ -100,6 +101,8 @@ export function expectPasses(r: RunResult, v: Volcano, where: string): void {
   expect(r.wheelsBelow, where).toBe(true);
   expect(r.lipSpeed, where).not.toBeNull();
   expect(r.lipSpeed!, where).toBeGreaterThanOrEqual(LIP_SPEED_THRESHOLD + 1);
+  // Garde-fou de cohérence : les assertions détaillées ci-dessus et passesVolcano disent la même chose.
+  expect(passesVolcano(r, v), `passesVolcano incohérent : ${where}`).toBe(true);
 }
 
 /** Cas 1 : la voiture tombe dans la lave avant d'atteindre la réception. */
@@ -121,15 +124,15 @@ function record(stats: LipStats, r: RunResult, v: Volcano): void {
 }
 
 /**
- * Joue le cas sur les rampe-volcan de la piste du monde (tous si `allVolcanoes`, le premier sinon ;
- * jamais plus que le premier pour un cas à trajectoire unique) et vérifie chaque run à 100 %.
+ * Joue le cas sur les rampe-volcan de la piste du monde (tous si `allVolcanoes`, le premier sinon,
+ * y compris pour un cas à trajectoire unique : la demande de l'appelant est honorée) et vérifie
+ * chaque run à 100 %.
  * Renvoie les statistiques de vitesse au sommet.
  */
-export function runCase(caseId: CaseId, seed: number, world: World, allVolcanoes: boolean, cfg: Config = CONFIG): LipStats {
+export function runCase(caseId: CaseId, seed: number, world: World, allVolcanoes = false, cfg: Config = CONFIG): LipStats {
   const stats = newStats();
   const { track } = world;
-  const all = allVolcanoes && !UNIQUE_TRAJECTORY_CASES.includes(caseId);
-  const volcanoes = all ? track.volcanoes : track.volcanoes.slice(0, 1);
+  const volcanoes = allVolcanoes ? track.volcanoes : track.volcanoes.slice(0, 1);
   for (const v of volcanoes) {
     const scenarios = scenariosFor(caseId, track, v, cfg);
     if (scenarios.length) stats.volcanoes++;
@@ -175,12 +178,9 @@ export function registerVolcanoCases(seedsByCase: Record<CaseId, number[]>, allV
       if (caseId === 3) {
         test(`au moins un volcan précédé de ${CASE3_PREVIOUS.join(' ou ')} sur les graines ${seeds.join(', ')}`, () => {
           const perSeed = seeds.map((seed) => {
-            const { slices, volcanoes } = trackFor(seed);
-            const vs = allVolcanoes.includes(3) ? volcanoes : volcanoes.slice(0, 1);
-            return vs.filter((v) => {
-              const i = slices.findIndex((s) => s.xStart === v.xLancement);
-              return i > 0 && CASE3_PREVIOUS.includes(slices[i - 1].type);
-            }).length;
+            const track = trackFor(seed);
+            const vs = allVolcanoes.includes(3) ? track.volcanoes : track.volcanoes.slice(0, 1);
+            return vs.reduce((n, v) => n + scenariosFor(3, track, v).length, 0);
           });
           expect(perSeed.reduce((a, b) => a + b, 0), `motifs par graine : ${perSeed.join(', ')}`).toBeGreaterThan(0);
         });

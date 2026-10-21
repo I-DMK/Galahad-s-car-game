@@ -10,9 +10,11 @@
 // Chaque ligne est poussée dans le tableau avant toute assertion. Assertion conservée : à
 // CONFIG.L_ELAN, le cas 1 tombe et le cas 2 passe. Puis bissection du seuil de franchissement au
 // sommet (LIP_SPEED_THRESHOLD) sur tous les volcans des graines 0 à 2, min / max imprimés, et deux
-// garde-fous : la plus grande vitesse qui tombe reste sous LIP_SPEED_THRESHOLD + 0,5 et à plus de
-// 0,5 m/s sous la vitesse au sommet la plus basse du cas 2 (pire point sûr et début du plat de
-// lancement, mêmes volcans).
+// garde-fous : la plus petite vitesse qui tombe est ≤ LIP_SPEED_THRESHOLD (la constante reste dans
+// ou au-dessus de la bande des chutes), la plus grande reste sous LIP_SPEED_THRESHOLD + 0,5 et à plus
+// de 0,5 m/s sous la vitesse au sommet la plus basse du cas 2 (pire point sûr et début du plat de
+// lancement, mêmes volcans ; runs arrêtés au sommet : l'issue de ces runs est assertée par
+// tests/volcans.test.ts et tests/slow/volcans-slow.test.ts sur tous les volcans des graines 0 à 9).
 import { CONFIG, type Config } from '../../src/config';
 import type { World } from '../../src/physics/world';
 import type { Volcano } from '../../src/track/types';
@@ -42,7 +44,12 @@ const RUN_SECONDS = 20;
  * (11,18 = départ à xLancement ; pire point sûr : 11,73).
  */
 const BAND_TOLERANCE = 0.5;
-/** Écart minimal exigé entre la plus grande vitesse qui tombe et la plus basse du cas 2. */
+/**
+ * Écart minimal exigé entre la plus grande vitesse qui tombe et la plus basse du cas 2. Les chutes sont
+ * bissectées roues plafonnées (vitesse de décollage = vitesse lue) ; le `lipSpeed` du cas 2 est lu roues
+ * libres, et la roue arrière à plein régime peut encore pousser sur l'arête après la lecture (jusqu'à
+ * +0,3 m/s de vitesse réelle de décollage) : d'où une marge de 0,5 et non 0.
+ */
 const CASE2_MARGIN = 0.5;
 
 const outcome = (r: RunResult, v: Volcano): string => (r.lava ? 'lave ' : passesVolcano(r, v) ? 'passe' : 'autre');
@@ -60,7 +67,7 @@ describe(`(a) L_ELAN de ${L_ELAN_FROM} à ${L_ELAN_TO} m au pas de ${L_ELAN_STEP
   test.each(L_ELANS)('L_ELAN = %s m', (lElan) => {
     const isConfig = Math.abs(lElan - CONFIG.L_ELAN) < 1e-9;
     const cfg: Config = isConfig ? CONFIG : { ...CONFIG, L_ELAN: lElan };
-    const world = isConfig ? worldFor(TABLE_SEED) : buildWorld(TABLE_SEED, cfg);
+    const world = buildWorld(TABLE_SEED, cfg);
     const v = firstVolcano(world);
     const [c1] = scenariosFor(1, world.track, v, cfg);
     const [c2] = scenariosFor(2, world.track, v, cfg);
@@ -118,7 +125,7 @@ describe('bissection du seuil de franchissement au sommet (LIP_SPEED_THRESHOLD)'
       const world = worldFor(seed);
       for (const v of world.track.volcanoes) {
         for (const c of [2, '2-lancement'] as CaseId[]) {
-          for (const sc of scenariosFor(c, world.track, v)) case2.push(runFrom(world, sc.x0, sc.opts).lipSpeed ?? NaN);
+          for (const sc of scenariosFor(c, world.track, v)) case2.push(runFrom(world, sc.x0, { ...sc.opts, stopAtLip: true }).lipSpeed ?? NaN);
         }
         // Norme de la vitesse ramenée à `cap` jusqu'au sommet, roues bridées au roulement (sinon la roue
         // arrière pousse encore sur l'arête après la lecture : bande « tombe » jusqu'à 10,13 m/s mesurée
@@ -146,6 +153,7 @@ describe('bissection du seuil de franchissement au sommet (LIP_SPEED_THRESHOLD)'
     console.log(`bissection du seuil (LAVA_MARGIN ${CONFIG.LAVA_MARGIN}, capteur +${CONFIG.LAVA_SENSOR_ABOVE_RIM} m, ${falls.length} volcans)\n${lines.join('\n')}\n→ ${band} ; LIP_SPEED_THRESHOLD = ${LIP_SPEED_THRESHOLD}`);
     expect(falls.length).toBeGreaterThan(0);
     expect(case2.every(Number.isFinite), band).toBe(true);
+    expect(Math.min(...falls), band).toBeLessThanOrEqual(LIP_SPEED_THRESHOLD);
     expect(Math.max(...falls), band).toBeLessThan(LIP_SPEED_THRESHOLD + BAND_TOLERANCE);
     expect(Math.max(...falls), band).toBeLessThan(case2Min - CASE2_MARGIN);
   });

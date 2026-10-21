@@ -191,6 +191,8 @@ export interface RunOptions {
    * vitesse réelle de décollage dépasse chaotiquement la vitesse lue, jusqu'à +0,3 m/s).
    */
   speedCapUntil?: { x: number; v: number; wheels?: boolean };
+  /** Arrêter le run dès la lecture de `lipSpeed` (mesure seule, pas d'issue). */
+  stopAtLip?: boolean;
   /** Lancée initiale (m/s, `launch` le long de la pente locale) ; départ arrêté par défaut. */
   launchSpeed?: number;
   /** Volcan visé (xRampStart, xLip, xReception) ; par défaut le premier dont la lave est devant x0. */
@@ -266,7 +268,10 @@ export function runFrom(world: World, x0: number, opts: RunOptions): RunResult {
     }
     if (turboArmed && s.x >= opts.turboAt!) { turboUntil = t + cfg.TURBO_SECONDS; turboArmed = false; }
     if (v && run.rampSpeed === null && s.x >= v.xRampStart) run.rampSpeed = carSpeedMps(car);
-    if (v && run.lipSpeed === null && s.x >= v.xLip) run.lipSpeed = carSpeedMps(car);
+    if (v && run.lipSpeed === null && s.x >= v.xLip) {
+      run.lipSpeed = carSpeedMps(car);
+      if (opts.stopAtLip) break;
+    }
     const angle = carAngle(car);
     if (Math.abs(angle) > cfg.FLIP_ANGLE) run.flipped = true;
     if (!throttle || s.x - stuckRef >= cfg.STUCK_DISTANCE) {
