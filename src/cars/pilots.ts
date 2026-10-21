@@ -6,7 +6,7 @@ import { mulberry32 } from '../track/rng';
 export interface Pilot {
   readonly id: string;
   readonly name: string;
-  /** Carrosserie, accent (bandes) et casque : 0xRRGGBB. */
+  /** Carrosserie, accent (bandes et aileron) et casque : 0xRRGGBB. */
   readonly color: number;
   readonly accent: number;
   readonly helmet: number;
@@ -19,7 +19,7 @@ export interface Pilot {
 /**
  * Galahad, le pilote humain. Ses `base` et `lift` n'ont pas de sens (c'est l'enfant qui
  * conduit, pas le pilote automatique) : valeurs neutres. Couleurs reprises de CONFIG,
- * source unique ; le casque est rouge comme les bandes.
+ * source unique ; le casque est rouge comme les bandes (aspect du plan A).
  */
 export const GALAHAD: Pilot = Object.freeze({
   id: 'galahad',
@@ -36,32 +36,42 @@ const pilote = (p: Pilot): Pilot => Object.freeze(p);
 
 /**
  * Les 6 copains, fixés à la main : 2 prudents, 2 moyens, 2 fonceurs.
- * Couleurs gaies et lisibles sur le fond lunaire gris foncé ; les 7 carrosseries (Galahad
- * compris), comme les 7 casques, sont deux à deux distinctes : écart ≥ 120 sur au moins
- * une composante R, V ou B (testé). Le casque tranche aussi avec la carrosserie du pilote.
+ *
+ * Galahad reste « la voiture bleue » : aucune carrosserie de copain n'est bleue, cyan,
+ * turquoise ou violette. Le casque d'un copain est une nuance plus claire ou plus foncée de
+ * sa propre carrosserie (casque assorti) ; le casque rouge de Galahad ne compte pas dans
+ * cette règle. Carrosserie, casque et bandes doivent rester lisibles sur le ciel quasi noir
+ * (0x05081a, contraste WCAG ≥ 3:1) ; le sol, lui, est un gris moyen (0x8b8b8b). Toutes ces
+ * contraintes sont vérifiées par tests/pilots.test.ts.
  */
 export const PILOTS: readonly Pilot[] = Object.freeze([
-  // Fonceur : rouge vif, ne lève presque jamais le pied.
-  pilote({ id: 'pablo', name: 'Pablo', color: 0xe11e32, accent: 0xffffff, helmet: 0x1ee2ec, base: 0.98, lift: 0.05 }),
-  // Moyen : vert.
-  pilote({ id: 'diego', name: 'Diego', color: 0x32cd5a, accent: 0x14642d, helmet: 0xf5f5f5, base: 0.92, lift: 0.3 }),
-  // Prudent : violet, lève souvent le pied avant les sauts.
-  pilote({ id: 'timothée', name: 'Timothée', color: 0xa846dc, accent: 0xffe14d, helmet: 0x3cd25a, base: 0.86, lift: 0.55 }),
-  // Fonceur : jaune.
-  pilote({ id: 'matthis', name: 'Matthis', color: 0xffdc28, accent: 0x3a3a3a, helmet: 0x1446c8, base: 0.96, lift: 0.1 }),
-  // Moyen : turquoise.
-  pilote({ id: 'malo', name: 'Malo', color: 0x1ee2ec, accent: 0x0a5f73, helmet: 0xffe033, base: 0.93, lift: 0.25 }),
-  // Prudent : blanc.
-  pilote({ id: 'liam', name: 'Liam', color: 0xf5f5f5, accent: 0x7a3ad1, helmet: 0x9b3fe0, base: 0.88, lift: 0.5 }),
+  // Fonceur : rouge vif, casque rouge clair, bandes crème dorée.
+  pilote({ id: 'pablo', name: 'Pablo', color: 0xc8001e, accent: 0xffdc64, helmet: 0xd64056, base: 0.98, lift: 0.05 }),
+  // Moyen : vert, casque vert foncé, bandes crème.
+  pilote({ id: 'diego', name: 'Diego', color: 0x2ecc40, accent: 0xfff096, helmet: 0x208f2d, base: 0.92, lift: 0.3 }),
+  // Prudent : blanc, casque gris clair, bandes sarcelle.
+  pilote({ id: 'timothée', name: 'Timothée', color: 0xf5f5f5, accent: 0x00a8a0, helmet: 0xd0d0d0, base: 0.86, lift: 0.55 }),
+  // Fonceur : jaune, casque jaune clair, bandes marron (abeille).
+  pilote({ id: 'matthis', name: 'Matthis', color: 0xffff00, accent: 0x965a1e, helmet: 0xffff40, base: 0.96, lift: 0.1 }),
+  // Moyen : orange, casque orange clair, bandes turquoise.
+  pilote({ id: 'malo', name: 'Malo', color: 0xff8000, accent: 0x3cd2be, helmet: 0xffa040, base: 0.93, lift: 0.25 }),
+  // Prudent : rose, casque rose clair, bandes citron vert.
+  pilote({ id: 'liam', name: 'Liam', color: 0xff77aa, accent: 0xbee63c, helmet: 0xffa0c4, base: 0.88, lift: 0.5 }),
 ]);
 
 /**
  * Tire `count` copains distincts, sans jamais Galahad : mélange de Fisher-Yates partiel
- * sur une copie de PILOTS, piloté par mulberry32(pilotSeed). L'ordre du tableau renvoyé
- * est le rang sur la grille de départ. Même graine → même tirage.
- * Lève RangeError si `count` n'est pas un entier dans [0, PILOTS.length].
+ * sur une copie de PILOTS, piloté par mulberry32(pilotSeed). L'index i du tableau renvoyé
+ * est le robot de rang i + 1 sur la grille de départ (Galahad = rang 0). Même graine →
+ * même tirage.
+ * Lève RangeError si `pilotSeed` n'est pas un entier dans [0, 2³²) (mulberry32 le ramènerait
+ * modulo 2³² : NaN, les fractions de [0, 1) et 2³² donneraient tous le tirage de la graine 0)
+ * ou si `count` n'est pas un entier dans [0, PILOTS.length].
  */
 export function drawPilots(pilotSeed: number, count = 4): Pilot[] {
+  if (!Number.isInteger(pilotSeed) || pilotSeed < 0 || pilotSeed >= 2 ** 32) {
+    throw new RangeError(`drawPilots: pilotSeed doit être un entier dans [0, 2^32) (reçu ${pilotSeed})`);
+  }
   if (!Number.isInteger(count) || count < 0 || count > PILOTS.length) {
     throw new RangeError(`drawPilots: count doit être un entier dans [0, ${PILOTS.length}] (reçu ${count})`);
   }

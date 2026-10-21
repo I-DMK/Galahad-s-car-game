@@ -3,14 +3,48 @@ import { GALAHAD, PILOTS, drawPilots } from '../src/cars/pilots';
 import type { Pilot } from '../src/cars/pilots';
 
 const NOMS = ['Pablo', 'Diego', 'Timothée', 'Matthis', 'Malo', 'Liam'];
+/** Ciel de la scène (src/render) : le fond sur lequel se détachent voiture et casque. */
+const CIEL = 0x05081a;
+/** Les 7 voitures : les 6 copains, puis Galahad. */
+const TOUS: readonly Pilot[] = [...PILOTS, GALAHAD];
+
+const canaux = (c: number) => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
 
 /** Plus grand écart sur une composante R, V ou B entre deux couleurs 0xRRGGBB. */
 function ecartRVB(a: number, b: number): number {
-  return Math.max(
-    Math.abs(((a >> 16) & 255) - ((b >> 16) & 255)),
-    Math.abs(((a >> 8) & 255) - ((b >> 8) & 255)),
-    Math.abs((a & 255) - (b & 255)),
-  );
+  const [x, y] = [canaux(a), canaux(b)];
+  return Math.max(...x.map((v, i) => Math.abs(v - y[i])));
+}
+
+/** Distance RGB euclidienne entre deux couleurs 0xRRGGBB. */
+function distance(a: number, b: number): number {
+  const [x, y] = [canaux(a), canaux(b)];
+  return Math.hypot(...x.map((v, i) => v - y[i]));
+}
+
+/** Luminance relative WCAG 2.x d'une couleur 0xRRGGBB. */
+function luminance(c: number): number {
+  const [r, g, b] = canaux(c).map((v) => {
+    const s = v / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Rapport de contraste WCAG 2.x entre deux couleurs (de 1 à 21). */
+function contraste(a: number, b: number): number {
+  const [clair, sombre] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (clair + 0.05) / (sombre + 0.05);
+}
+
+/** Toutes les paires {a, b} d'une liste, chaque paire une seule fois. */
+function paires<T>(items: readonly T[]): [T, T][] {
+  return items.flatMap((a, i) => items.slice(i + 1).map((b): [T, T] => [a, b]));
+}
+
+/** Libellés « A / B » des couples pour lesquels `ok` est faux : [] si tout va bien, sinon le test nomme les fautifs. */
+function enDefaut(couples: readonly [Pilot, Pilot][], ok: (a: Pilot, b: Pilot) => boolean): string[] {
+  return couples.filter(([a, b]) => !ok(a, b)).map(([a, b]) => `${a.name} / ${b.name}`);
 }
 
 const ids = (pilotes: readonly Pilot[]) => pilotes.map((p) => p.id);
@@ -34,29 +68,64 @@ describe('PILOTS', () => {
     }
   });
 
+  test('caractères cohérents : triés par base décroissante, le lift croît strictement', () => {
+    // Plus un pilote fonce (base haute), moins il lève le pied (lift bas) : 2 fonceurs, 2 moyens, 2 prudents.
+    const tries = [...PILOTS].sort((a, b) => b.base - a.base);
+    for (let i = 1; i < tries.length; i++) {
+      expect(tries[i].lift, `${tries[i].name} après ${tries[i - 1].name}`).toBeGreaterThan(tries[i - 1].lift);
+    }
+  });
+
   test('le tableau et ses entrées sont figés (aucun appelant ne peut les modifier)', () => {
     expect(Object.isFrozen(PILOTS)).toBe(true);
     for (const p of PILOTS) expect(Object.isFrozen(p), p.name).toBe(true);
     expect(() => (PILOTS as Pilot[]).push(PILOTS[0])).toThrow(TypeError);
     expect(() => ((PILOTS[0] as { base: number }).base = 0)).toThrow(TypeError);
   });
+});
 
-  test('couleurs de carrosserie distinctes deux à deux, Galahad compris (écart ≥ 120 sur R, V ou B)', () => {
-    const tous = [...PILOTS, GALAHAD];
-    for (let i = 0; i < tous.length; i++) {
-      for (let j = i + 1; j < tous.length; j++) {
-        expect(ecartRVB(tous[i].color, tous[j].color), `${tous[i].name} / ${tous[j].name}`).toBeGreaterThanOrEqual(120);
+describe('couleurs', () => {
+  test('carrosseries distinctes deux à deux, Galahad compris (écart ≥ 120 sur R, V ou B)', () => {
+    expect(enDefaut(paires(TOUS), (a, b) => ecartRVB(a.color, b.color) >= 120)).toEqual([]);
+  });
+
+  test('aucune carrosserie de copain n’est bleue, cyan, turquoise ou violette : ≥ 200 (RGB euclidien) du bleu de Galahad', () => {
+    const fautifs = PILOTS.filter((p) => distance(p.color, GALAHAD.color) < 200).map((p) => p.name);
+    expect(fautifs).toEqual([]);
+  });
+
+  test('le casque de chaque copain est une nuance de sa carrosserie : à ≥ 40 d’elle, et plus près d’elle que de toute autre carrosserie (Galahad compris)', () => {
+    // Galahad est exclu : son casque rouge reprend les bandes du plan A, pas sa carrosserie bleue.
+    for (const p of PILOTS) {
+      const propre = distance(p.helmet, p.color);
+      expect(propre, `${p.name} : casque / sa carrosserie`).toBeGreaterThanOrEqual(40);
+      const autres = TOUS.filter((o) => o !== p);
+      expect(autres).toHaveLength(6);
+      for (const o of autres) {
+        expect(propre, `${p.name} : casque plus près de sa carrosserie que de celle de ${o.name}`).toBeLessThan(
+          distance(p.helmet, o.color),
+        );
       }
     }
   });
 
-  test('couleurs de casque distinctes deux à deux, Galahad compris (écart ≥ 120 sur R, V ou B)', () => {
-    const tous = [...PILOTS, GALAHAD];
-    for (let i = 0; i < tous.length; i++) {
-      for (let j = i + 1; j < tous.length; j++) {
-        expect(ecartRVB(tous[i].helmet, tous[j].helmet), `${tous[i].name} / ${tous[j].name}`).toBeGreaterThanOrEqual(120);
-      }
-    }
+  test('casques distincts deux à deux, Galahad compris (≥ 60, RGB euclidien)', () => {
+    expect(enDefaut(paires(TOUS), (a, b) => distance(a.helmet, b.helmet) >= 60)).toEqual([]);
+  });
+
+  test('carrosserie, casque et bandes des copains ont un contraste WCAG ≥ 3:1 contre le ciel', () => {
+    const fautifs = PILOTS.flatMap((p) =>
+      (['color', 'helmet', 'accent'] as const)
+        .filter((k) => contraste(p[k], CIEL) < 3)
+        .map((k) => `${p.name}.${k} ${contraste(p[k], CIEL).toFixed(2)}`),
+    );
+    expect(fautifs).toEqual([]);
+  });
+
+  test('les bandes de chaque copain sont à ≥ 60 (RGB euclidien) de toutes les carrosseries : la sienne et celles des 6 autres voitures', () => {
+    // Les bandes sont dessinées sur la carrosserie du copain : elles doivent s’y voir aussi.
+    const couples = PILOTS.flatMap((p) => TOUS.map((o): [Pilot, Pilot] => [p, o]));
+    expect(enDefaut(couples, (p, o) => distance(p.accent, o.color) >= 60)).toEqual([]);
   });
 });
 
@@ -69,6 +138,11 @@ describe('GALAHAD', () => {
     expect(GALAHAD.helmet).toBe(CONFIG.GALAHAD_ACCENT);
     expect(CONFIG.GALAHAD_COLOR).toBe(0x1e5cff);
     expect(CONFIG.GALAHAD_ACCENT).toBe(0xe2231a);
+  });
+
+  test('base 1 et lift 0 : valeurs neutres, le pilote automatique ne le conduit pas', () => {
+    expect(GALAHAD.base).toBe(1);
+    expect(GALAHAD.lift).toBe(0);
   });
 
   test('n’est pas dans PILOTS', () => {
@@ -95,6 +169,12 @@ describe('drawPilots', () => {
     }
   });
 
+  test('tirage figé : les graines 0 et 1 donnent toujours ces pilotes, dans cet ordre', () => {
+    // Valeurs de l’implémentation actuelle : si elles changent, les courses déjà jouées ne se rejouent plus à l’identique.
+    expect(ids(drawPilots(0))).toEqual(['diego', 'pablo', 'timothée', 'matthis']);
+    expect(ids(drawPilots(1))).toEqual(['matthis', 'diego', 'malo', 'liam']);
+  });
+
   test('graines 0 à 99 : chaque pilote apparaît au moins 20 fois', () => {
     const apparitions = new Map<string, number>(PILOTS.map((p) => [p.id, 0]));
     for (let seed = 0; seed < 100; seed++) {
@@ -103,17 +183,31 @@ describe('drawPilots', () => {
     for (const [id, n] of apparitions) expect(n, id).toBeGreaterThanOrEqual(20);
   });
 
-  test('l’ordre du tirage est le rang sur la grille : chaque pilote peut partir en tête, et le tirage n’est pas toujours dans l’ordre de PILOTS', () => {
-    const enTete = new Set<string>();
-    let dansLOrdre = 0;
-    for (let seed = 0; seed < 100; seed++) {
+  test('graines 0 à 999 : chaque pilote apparaît 607 à 727 fois (±4σ de 666,7) et au moins 300 tirages ordonnés distincts', () => {
+    // Un mélange naïf biaisé (j = floor(rng() × n)) ou une simple rotation de la liste passent
+    // « chaque pilote au moins 20 fois » ; le nombre de tirages ordonnés distincts (360 possibles) les distingue.
+    const apparitions = new Map<string, number>(PILOTS.map((p) => [p.id, 0]));
+    const tirages = new Set<string>();
+    for (let seed = 0; seed < 1000; seed++) {
       const tirage = drawPilots(seed);
-      enTete.add(tirage[0].id);
-      const rangs = tirage.map((p) => PILOTS.indexOf(p));
-      if (rangs.every((r, i) => i === 0 || rangs[i - 1] < r)) dansLOrdre++;
+      tirages.add(ids(tirage).join(','));
+      for (const p of tirage) apparitions.set(p.id, (apparitions.get(p.id) ?? 0) + 1);
     }
-    expect([...enTete].sort()).toEqual(ids(PILOTS).slice().sort());
-    expect(dansLOrdre).toBeLessThan(100);
+    for (const [id, n] of apparitions) {
+      expect(n, id).toBeGreaterThanOrEqual(607);
+      expect(n, id).toBeLessThanOrEqual(727);
+    }
+    expect(tirages.size).toBeGreaterThanOrEqual(300);
+  });
+
+  test('l’index i du tirage est le robot de rang i + 1 sur la grille (Galahad = rang 0) : chaque pilote peut prendre chaque rang', () => {
+    const rangs = PILOTS.map(() => [0, 0, 0, 0]);
+    for (let seed = 0; seed < 100; seed++) {
+      drawPilots(seed).forEach((p, i) => rangs[PILOTS.indexOf(p)][i]++);
+    }
+    PILOTS.forEach((p, k) => {
+      rangs[k].forEach((n, i) => expect(n, `${p.name} au rang ${i + 1}`).toBeGreaterThan(0));
+    });
   });
 
   test('count = 0 → aucun pilote ; count = 6 → les 6 pilotes, mélangés', () => {
@@ -136,5 +230,14 @@ describe('drawPilots', () => {
     for (const count of [-1, 7, 1.5, 0.1, NaN, Infinity, -Infinity]) {
       expect(() => drawPilots(1, count), String(count)).toThrow(RangeError);
     }
+  });
+
+  test('RangeError si pilotSeed n’est pas un entier dans [0, 2³²) ; 0 et 2³² − 1 passent', () => {
+    // mulberry32 fait `seed >>> 0` : sans cette garde, NaN, 0,5 ou 2³² donneraient en silence le tirage de la graine 0.
+    for (const seed of [NaN, 0.5, -1, 2 ** 32, Infinity, -Infinity]) {
+      expect(() => drawPilots(seed), String(seed)).toThrow(RangeError);
+    }
+    expect(() => drawPilots(0)).not.toThrow();
+    expect(() => drawPilots(2 ** 32 - 1)).not.toThrow();
   });
 });
