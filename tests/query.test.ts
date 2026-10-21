@@ -71,8 +71,9 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
     expect(volcanoAhead(track, track.length)).toBeUndefined();
   });
 
-  test('nearestVolcanoZone : [xElanStart, xEnd)', () => {
-    expect(nearestVolcanoZone(track, v0.xElanStart - 0.01)).toBeUndefined();
+  test('nearestVolcanoZone : [xLancement, xEnd)', () => {
+    expect(nearestVolcanoZone(track, v0.xLancement - 0.01)).toBeUndefined();
+    expect(nearestVolcanoZone(track, v0.xLancement)).toBe(v0);
     expect(nearestVolcanoZone(track, v0.xElanStart)).toBe(v0);
     expect(nearestVolcanoZone(track, v0.xLava)).toBe(v0);
     expect(nearestVolcanoZone(track, v0.xEnd - 0.01)).toBe(v0);

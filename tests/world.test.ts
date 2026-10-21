@@ -137,6 +137,30 @@ test('lave : un cercle posé au fond du cratère ou 0,3 m sous le rebord touche 
   expect(sensorsTouching(world.engine, [nearRim]).map((b) => b.label)).toEqual(['lava']);
 });
 
+test('lave : le capteur monte à rimY + LAVA_SENSOR_ABOVE_RIM et descend au plancher', () => {
+  let seed = 0;
+  while (seed < 10 && generateTrack(seed, 1680, CONFIG).volcanoes.length === 0) seed++;
+  const track = generateTrack(seed, 1680, CONFIG);
+  const world = createWorld(track, CONFIG);
+  const ppm = CONFIG.PIXELS_PER_METER;
+  track.volcanoes.forEach((v, k) => {
+    const b = world.lava[k].bounds;
+    // y monde = −y physique / ppm (y physique vers le bas).
+    expect(-b.min.y / ppm).toBeCloseTo(v.rimY + CONFIG.LAVA_SENSOR_ABOVE_RIM, 6);
+    expect(b.max.y).toBeCloseTo(world.floorY, 6);
+    expect(b.min.x / ppm).toBeCloseTo(v.xLava - v.lavaWidth / 2, 6);
+    expect(b.max.x / ppm).toBeCloseTo(v.xLava + v.lavaWidth / 2, 6);
+  });
+  // Une roue dont le bas est 0,15 m au-dessus du rebord (sous le haut du capteur) est dans la lave ;
+  // une roue dont le bas est 0,15 m au-dessus du haut du capteur ne l'est pas.
+  const v = track.volcanoes[0];
+  const low = addWheel(world, v.xLava, v.rimY + 0.15 + R);
+  const high = addWheel(world, v.xLava, v.rimY + CONFIG.LAVA_SENSOR_ABOVE_RIM + 0.15 + R);
+  stepWorld(world);
+  expect(sensorsTouching(world.engine, [low]).map((b) => b.label)).toEqual(['lava']);
+  expect(sensorsTouching(world.engine, [high])).toEqual([]);
+});
+
 test('mur : un corps lancé vers xWall est arrêté avant xWall + 1', () => {
   const track = generateTrack(1, CONFIG.TRACK_MIN_LENGTH, CONFIG);
   const world = createWorld(track, CONFIG);

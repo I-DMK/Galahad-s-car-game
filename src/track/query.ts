@@ -52,7 +52,7 @@ export function volcanoAhead(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => v.xLava > x);
 }
 
-/** Volcan dont la zone [xElanStart, xEnd[ contient x. */
+/** Volcan dont la zone [xLancement, xEnd[ (plat de lancement inclus) contient x. */
 export function nearestVolcanoZone(track: Track, x: number): Volcano | undefined {
-  return track.volcanoes.find((v) => x >= v.xElanStart && x < v.xEnd);
+  return track.volcanoes.find((v) => x >= v.xLancement && x < v.xEnd);
 }

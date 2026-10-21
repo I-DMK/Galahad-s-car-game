@@ -1,8 +1,13 @@
 export interface TrackPoint { x: number; y: number }
-export type SliceType = 'plat' | 'bosses' | 'rampe-saut' | 'double-bosse' | 'rampe-volcan';
+/** `cratère` : défini dès la tâche 1 (addendum §1.4), généré en tâche 15. */
+export type SliceType = 'plat' | 'bosses' | 'rampe-saut' | 'double-bosse' | 'rampe-volcan' | 'cratère';
 export interface Slice { type: SliceType; xStart: number; xEnd: number }
 export interface Volcano {
-  xElanStart: number; xRampStart: number; xLip: number; lipY: number;
+  /** Début de la tranche = début du plat de lancement (LANCEMENT_LENGTH). */
+  xLancement: number;
+  /** Début du plat d'élan (L_ELAN) = xLancement + LANCEMENT_LENGTH. */
+  xElanStart: number;
+  xRampStart: number; xLip: number; lipY: number;
   xLava: number; lavaWidth: number; rimY: number; xReception: number; xEnd: number;
 }
 export interface Star { id: number; x: number; y: number }

@@ -1,5 +1,5 @@
 import type { Config } from '../config';
-import { jumpRange, runUpDistance } from './ballistics';
+import { jumpRange } from './ballistics';
 import type { SliceType } from './types';
 
 type Rng = () => number;
@@ -14,7 +14,7 @@ export interface SliceProfile {
   exemptIndices: number[];
   /** Rampe-volcan uniquement ; tous les dx* sont mesurés depuis le début de la tranche. */
   volcano?: {
-    dxRampStart: number; dxLip: number; lipY: number;
+    dxElanStart: number; dxRampStart: number; dxLip: number; lipY: number;
     dxLava: number; lavaWidth: number; rimY: number;
     dxReception: number; dxEnd: number;
   };
@@ -35,13 +35,6 @@ function sample(cfg: Config, length: number, fn: (x: number) => number): { heigh
 /** Demi-sinus de hauteur `h` sur `len` mètres à partir de `x0` (0 hors de [x0, x0 + len]). */
 const halfSine = (x: number, x0: number, len: number, h: number): number =>
   x > x0 && x < x0 + len ? h * Math.sin((Math.PI * (x - x0)) / len) : 0;
-
-/**
- * Emprise de la butée. Un demi-sinus de hauteur h sur L mètres a une pente max h·π/L : 0,3 m sur 1 m
- * donnerait 43° (> MAX_SLOPE). STOP_BUMP_LENGTH est donc la longueur de chaque flanc : la butée
- * s'étale sur 2 × STOP_BUMP_LENGTH, ce qui donne la pente max ≈ 25° annoncée (spec §5).
- */
-const stopBumpSpan = (cfg: Config): number => 2 * cfg.STOP_BUMP_LENGTH;
 
 export function plat(rng: Rng, cfg: Config, length?: number): SliceProfile {
   const len = length ?? 20 + rng() * 20;
@@ -90,7 +83,9 @@ export function doubleBosse(_rng: Rng, cfg: Config): SliceProfile {
 }
 
 export interface VolcanoGeometry {
-  /** Plat d'élan (m). */
+  /** Plat de lancement (m) = LANCEMENT_LENGTH. */
+  lLancement: number;
+  /** Plat d'élan (m) = L_ELAN. */
   lElan: number;
   rampRun: number;
   lipY: number;
@@ -99,7 +94,7 @@ export interface VolcanoGeometry {
   valleyRun: number;
   /** Centre de la lave, mesuré depuis le sommet de la rampe (lip). */
   dxLava: number;
-  /** Début du plat de réception (après la butée), depuis le début de la tranche. */
+  /** Début du plat de réception (pied de la descente aval), depuis le début de la tranche. */
   dxReception: number;
   /** Fin de la tranche, depuis le début de la tranche. */
   dxEnd: number;
@@ -109,19 +104,18 @@ export function volcanoGeometry(cfg: Config): VolcanoGeometry {
   const rampRun = cfg.RAMP_LENGTH * Math.cos(cfg.RAMP_ANGLE);
   const lipY = cfg.RAMP_LENGTH * Math.sin(cfg.RAMP_ANGLE);
   const tanM = Math.tan(cfg.MAX_SLOPE);
-  const vBottom = Math.sqrt(cfg.V_JUMP ** 2 + 2 * cfg.GRAVITY * lipY);
-  const lElan = (runUpDistance(vBottom, cfg.DRIVE_ACCEL) * cfg.ELAN_MARGIN) / cfg.ELAN_SAFE_FRACTION;
+  const lLancement = cfg.LANCEMENT_LENGTH;
+  const lElan = cfg.L_ELAN;
   const descentRun = lipY / tanM;
   const ascentRun = cfg.RIM_HEIGHT / tanM;
   const dxLava =
     cfg.LAVA_MARGIN * jumpRange(cfg.V_JUMP, cfg.GRAVITY, cfg.RAMP_ANGLE, lipY - cfg.RIM_HEIGHT);
   const valleyRun = dxLava - (descentRun + ascentRun + cfg.LAVA_WIDTH / 2);
-  const dxLip = lElan + rampRun;
-  const dxReception =
-    dxLip + dxLava + cfg.LAVA_WIDTH / 2 + cfg.RIM_HEIGHT / tanM + stopBumpSpan(cfg);
+  const dxLip = lLancement + lElan + rampRun;
+  const dxReception = dxLip + dxLava + cfg.LAVA_WIDTH / 2 + cfg.RIM_HEIGHT / tanM;
   const turboRange = jumpRange(cfg.V_MAX * cfg.TURBO_FACTOR, cfg.GRAVITY, cfg.RAMP_ANGLE, lipY);
   const dxEnd = Math.max(dxReception + 10, dxLip + 1.2 * turboRange);
-  return { lElan, rampRun, lipY, descentRun, ascentRun, valleyRun, dxLava, dxReception, dxEnd };
+  return { lLancement, lElan, rampRun, lipY, descentRun, ascentRun, valleyRun, dxLava, dxReception, dxEnd };
 }
 
 export function rampeVolcan(cfg: Config): SliceProfile {
@@ -134,11 +128,11 @@ export function rampeVolcan(cfg: Config): SliceProfile {
   const s = cfg.TRACK_POINT_SPACING;
   const tanR = Math.tan(cfg.RAMP_ANGLE);
   const tanM = Math.tan(cfg.MAX_SLOPE);
-  const dxLip = g.lElan + g.rampRun;
+  const dxRampStart = g.lLancement + g.lElan;              // fin des plats de lancement et d'élan
+  const dxLip = dxRampStart + g.rampRun;
   const xAscent = dxLip + g.descentRun + g.valleyRun;       // début de la montée
   const xRimA = xAscent + g.ascentRun;                      // bord amont du cratère
   const xRimB = xRimA + cfg.LAVA_WIDTH;                     // bord aval du cratère
-  const xBump = xRimB + cfg.RIM_HEIGHT / tanM;              // pied de la descente aval = début de la butée
   const floorY = cfg.RIM_HEIGHT - cfg.CRATER_DEPTH;
   // Parois verticales : un seul pas d'échantillon chacune (indices k = numéro d'échantillon, 1-based).
   const kWallA = Math.floor(xRimA / s + EPS) + 1;           // premier échantillon au-delà du bord amont
@@ -146,12 +140,12 @@ export function rampeVolcan(cfg: Config): SliceProfile {
   const { heights, length } = sample(cfg, g.dxEnd, (x) => {
     const k = Math.round(x / s);
     if (k >= kWallA && k < kWallB) return floorY;
-    if (x <= g.lElan) return 0;
-    if (x <= dxLip) return (x - g.lElan) * tanR;
+    if (x <= dxRampStart) return 0;
+    if (x <= dxLip) return (x - dxRampStart) * tanR;
     if (x <= xAscent) return Math.max(0, g.lipY - tanM * (x - dxLip));
     if (x <= xRimA) return Math.min(cfg.RIM_HEIGHT, tanM * (x - xAscent));
-    if (x <= xBump) return Math.max(0, cfg.RIM_HEIGHT - tanM * (x - xRimB));
-    return halfSine(x, xBump, stopBumpSpan(cfg), cfg.STOP_BUMP_HEIGHT);
+    // Descente aval de RIM_HEIGHT à 0 (pied en dxReception), puis plat de réception : aucune butée.
+    return Math.max(0, cfg.RIM_HEIGHT - tanM * (x - xRimB));
   });
   return {
     type: 'rampe-volcan',
@@ -159,7 +153,8 @@ export function rampeVolcan(cfg: Config): SliceProfile {
     length,
     exemptIndices: [kWallA - 1, kWallB - 1],
     volcano: {
-      dxRampStart: g.lElan,
+      dxElanStart: g.lLancement,
+      dxRampStart,
       dxLip,
       lipY: g.lipY,
       dxLava: dxLip + g.dxLava,

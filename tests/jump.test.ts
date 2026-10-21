@@ -24,7 +24,7 @@ const FLIGHT_STEPS = 0.3 * STEPS_PER_SECOND;
  * plat) : « deux roues au sol » = chaque roue a touché le sol dans les 0,1 dernière seconde.
  */
 const BOTH_WHEELS_WINDOW = 6;
-const VOLCANO_STEPS = 12 * STEPS_PER_SECOND;
+const VOLCANO_STEPS = 20 * STEPS_PER_SECOND;
 const AFTER_LANDING_STEPS = 3 * STEPS_PER_SECOND;
 /** Abscisse du sommet d'une rampe-saut, depuis le début de la tranche. */
 const SAUT_LIP_DX = CONFIG.RAMP_LENGTH * Math.cos(CONFIG.RAMP_ANGLE);
@@ -127,7 +127,7 @@ interface VolcanoRun {
   wheelsBelow: boolean;
 }
 
-/** Plein gaz depuis l'arrêt en x0, jusqu'à l'atterrissage, la lave ou 12 s. */
+/** Plein gaz depuis l'arrêt en x0, jusqu'à l'atterrissage, la lave ou 20 s. */
 function volcanoRun(world: World, v: Volcano, x0: number, factor: number): VolcanoRun {
   const car = freshCar(world, x0);
   const jump = new JumpTracker(v.xLip);
@@ -195,20 +195,23 @@ function sautRun(world: World, xRamp: number, x0: number, factor: number, v0: nu
 
 const f1 = (n: number) => n.toFixed(1);
 
-test.each(SEEDS)('seed %i : chaque volcan est franchi sans lave (élan complet, pire point sûr, turbo permanent)', (seed) => {
+/**
+ * Invariant conservé en tâche 1 (cas 2 et 5 de l'addendum §1.7) : un départ arrêté au début du plat de
+ * lancement, doigt posé, passe chaque volcan et atterrit sur le plat de réception ; avec le turbo, il
+ * atterrit avant la fin de la tranche. Les scénarios « arrêt dans l'élan » arrivent en tâche 4.
+ */
+test.each(SEEDS)('seed %i : chaque volcan est franchi sans lave depuis l\'arrêt au début du plat de lancement (doigt posé, puis turbo permanent)', (seed) => {
   const world = worldFor(seed);
   const { volcanoes } = world.track;
   expect(volcanoes.length).toBeGreaterThan(0);
   for (const v of volcanoes) {
-    const worst = v.xElanStart + (1 - CONFIG.ELAN_SAFE_FRACTION) * (v.xRampStart - v.xElanStart);
     const scenarios = [
-      { name: 'élan complet', x0: v.xElanStart, factor: 1 },
-      { name: 'pire point sûr', x0: worst, factor: 1 },
-      { name: 'turbo permanent', x0: v.xElanStart, factor: CONFIG.TURBO_FACTOR },
+      { name: 'doigt posé', x0: v.xLancement, factor: 1 },
+      { name: 'turbo permanent', x0: v.xLancement, factor: CONFIG.TURBO_FACTOR },
     ];
     for (const { name, x0, factor } of scenarios) {
       const r = volcanoRun(world, v, x0, factor);
-      const where = `seed ${seed}, volcan en x = ${f1(v.xElanStart)}, ${name} : vitesse au sommet ${f1(r.lipSpeed)} m/s, `
+      const where = `seed ${seed}, volcan en x = ${f1(v.xLancement)}, ${name} : vitesse au sommet ${f1(r.lipSpeed)} m/s, `
         + `x max ${f1(r.maxX)}, contact ${f1(r.touchX)}, atterrissage ${f1(r.landX)} `
         + `(lave ${f1(v.xLava)}, réception [${f1(v.xReception)} ; ${f1(v.xEnd)}])`;
       expect(r.lava, where).toBe(false);
@@ -227,7 +230,7 @@ test.each(SEEDS)('seed %i : chaque rampe-saut, abordée à V_MAX puis à V_MAX �
   for (const ramp of ramps) {
     // Élan de 40 m depuis l'arrêt, jamais dans la zone d'un volcan (on repartirait du plat de réception).
     let restX = ramp.xStart - SAUT_RUN_UP;
-    for (const v of track.volcanoes) if (restX >= v.xElanStart && restX < v.xReception) restX = v.xReception;
+    for (const v of track.volcanoes) if (restX >= v.xLancement && restX < v.xReception) restX = v.xReception;
     const launchX = ramp.xStart - SAUT_LAUNCH_BEFORE;
     for (const factor of [1, CONFIG.TURBO_FACTOR]) {
       const target = CONFIG.V_MAX * factor;

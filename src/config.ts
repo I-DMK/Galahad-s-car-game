@@ -1,20 +1,25 @@
 const DEG = Math.PI / 180;
+/** runUpDistance(V_MAX, DRIVE_ACCEL) × 1,2 : plat garantissant V_MAX depuis l'arrêt (≈ 27,3 m) ; à recalculer si DRIVE_ACCEL change. */
+const D_LANCE = (14 * 14) / (2 * 4.3) * 1.2;
 export const CONFIG = {
   PIXELS_PER_METER: 40,
   GRAVITY: 4.9,                 // m/s²
   V_MAX: 14,                    // m/s
   V_CRUISE: 0.8 * 14,
-  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22°, exige ≥ 8,8 m/s pour passer le bord aval de la lave)
+  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22° et LAVA_MARGIN 0,8, le bord aval de la lave se franchit dès ≈ 9,4 m/s au centre, 9,8 m/s roue arrière)
   TURBO_FACTOR: 1.5,
   TURBO_SECONDS: 3,
   STAR_RESPAWN_SECONDS: 5,
-  STAR_EXCLUSION_BEFORE_LAVA: 3 * 14 * 1.5,   // 63 m
+  STAR_EXCLUSION_BEFORE_LAVA: 3 * 14 * 1.5,   // 63 m — retirée en tâche 2
   RAMP_ANGLE: 22 * DEG,
   RAMP_LENGTH: 6,               // m le long de la pente → sommet à 2,25 m
   MAX_SLOPE: 27 * DEG,
-  LAVA_MARGIN: 0.7,             // lave à 70 % de la portée calculée à V_JUMP
-  ELAN_MARGIN: 1.2,
-  ELAN_SAFE_FRACTION: 0.75,     // le plat d'élan est dimensionné pour qu'il suffise de 75 % de sa longueur
+  LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre)
+  L_ELAN: 6,                    // m : plat d'élan entre le plat de lancement et la rampe, seul levier de difficulté (addendum §1.6)
+  D_LANCE,
+  LANCEMENT_LENGTH: D_LANCE + 5,   // m : plat de lancement devant chaque plat d'élan (addendum §1.4)
+  LAVA_SENSOR_ABOVE_RIM: 0.3,   // m : le capteur de lave dépasse le rebord (un rebond sur le flanc amont ne survole pas la lave)
+  ELAN_SAFE_FRACTION: 0.75,     // retirée en tâche 3 (transition : forbiddenZone l'applique au plat de lancement)
   CAR_LENGTH: 2.2, CAR_HEIGHT: 0.7, WHEEL_BASE: 1.5, WHEEL_RADIUS: 0.45, WHEEL_DROP: 0.25,
   WHEEL_SIDES: 48,              // roues en 48-gone (Bodies.polygon) : Bodies.circle plafonne les côtés à min(maxSides, r px) = 18 ici ; excursion du châssis à V_MAX 0,105 m avec 18 côtés → 0,067 m dans la configuration livrée (48 côtés, 3e ressort, WHEEL_SPINUP 0,0054 ; mesuré en 7c)
   CHASSIS_MASS: 60, WHEEL_MASS: 40,
@@ -33,7 +38,7 @@ export const CONFIG = {
   TRACK_MIN_LENGTH: 300, TRACK_MAX_LENGTH: 6000,
   START_LENGTH: 5 * 1.5 * 2.2 + 10,     // 26,5 m
   FINISH_PLAT_BEFORE: 20, AFTER_FINISH: 60,
-  LAVA_WIDTH: 3, RIM_HEIGHT: 1.2, CRATER_DEPTH: 1, STOP_BUMP_HEIGHT: 0.3, STOP_BUMP_LENGTH: 1,
+  LAVA_WIDTH: 3, RIM_HEIGHT: 1.2, CRATER_DEPTH: 1,
   PHYSICS_DT: 1 / 60, MAX_STEPS_PER_FRAME: 4,
   SAFE_POINT_INTERVAL: 0.5, SAFE_POINT_MAX_SLOPE: 10 * DEG,
   RESPAWN_INVULN: 0.5, RESPAWN_INVULN_MAX: 2,

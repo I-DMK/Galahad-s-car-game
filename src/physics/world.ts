@@ -47,14 +47,16 @@ function buildGround(track: Track, ppm: number, floorY: number): Matter.Body[] {
 }
 
 /**
- * Lave : un capteur par volcan, qui remplit tout le volume du cratère, du niveau du rebord (y monde
- * rimY) jusqu'à floorY, sur [xLava − lavaWidth/2, xLava + lavaWidth/2] : une voiture lente ne peut
- * pas franchir le cratère au pas en s'appuyant sur ses bords.
+ * Lave : un capteur par volcan, qui remplit tout le volume du cratère et dépasse le rebord de
+ * LAVA_SENSOR_ABOVE_RIM (y monde rimY + LAVA_SENSOR_ABOVE_RIM) jusqu'à floorY, sur
+ * [xLava − lavaWidth/2, xLava + lavaWidth/2] : une voiture lente ne peut pas franchir le cratère au
+ * pas en s'appuyant sur ses bords, et un rebond sur le flanc amont ne survole pas la lave (les sauts
+ * réussis passent ≥ 2 m au-dessus). Le rendu de la lave, lui, s'arrête sous le rebord.
  */
 function buildLava(track: Track, cfg: Config, floorY: number): Matter.Body[] {
   const ppm = cfg.PIXELS_PER_METER;
   return track.volcanoes.map((volcano) => {
-    const top = -volcano.rimY * ppm;
+    const top = -(volcano.rimY + cfg.LAVA_SENSOR_ABOVE_RIM) * ppm;
     const width = volcano.lavaWidth * ppm;
     const body = Bodies.rectangle(volcano.xLava * ppm, (top + floorY) / 2, width, floorY - top, {
       isStatic: true,

@@ -27,11 +27,12 @@ const okX = track.xStart + 1;
 const ok = { x: okX, t: 1, bothWheelsOnGround: true, carAngle: 0, groundSlope: 0 };
 
 describe('forbiddenZone', () => {
-  test('= [élan + 25 %, réception)', () => {
-    expect(zoneStart).toBeCloseTo(v.xElanStart + (1 - CONFIG.ELAN_SAFE_FRACTION) * (v.xRampStart - v.xElanStart), 9);
+  test('= [lancement + 25 % du plat de lancement, réception) (transition tâche 1 → 3)', () => {
+    expect(zoneStart).toBeCloseTo(v.xLancement + (1 - CONFIG.ELAN_SAFE_FRACTION) * (v.xElanStart - v.xLancement), 9);
     expect(zoneEnd).toBe(v.xReception);
-    expect(zoneStart).toBeGreaterThan(v.xElanStart);
-    expect(zoneStart).toBeLessThan(v.xRampStart);
+    expect(zoneStart).toBeGreaterThan(v.xLancement);
+    // Le plat d'élan (6 m) est entièrement interdit : jamais de point sûr dessus.
+    expect(zoneStart).toBeLessThan(v.xElanStart);
   });
 });
 
@@ -72,9 +73,15 @@ describe('isSafePointCandidate', () => {
     expect(isSafePointCandidate({ ...ok, x: zoneEnd }, state(), track, CONFIG)).toBe(true);
   });
 
-  test('accepté : plat de réception et premier quart de l’élan', () => {
+  test('refusé : sur le plat d’élan et la rampe', () => {
+    expect(isSafePointCandidate({ ...ok, x: v.xElanStart }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: v.xElanStart + 3 }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: v.xRampStart + 1 }, state(), track, CONFIG)).toBe(false);
+  });
+
+  test('accepté : plat de réception et premier quart du plat de lancement', () => {
     expect(isSafePointCandidate({ ...ok, x: v.xReception + 3 }, state(), track, CONFIG)).toBe(true);
-    expect(isSafePointCandidate({ ...ok, x: v.xElanStart + 0.1 * (zoneStart - v.xElanStart) }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: v.xLancement + 0.1 * (zoneStart - v.xLancement) }, state(), track, CONFIG)).toBe(true);
     expect(isSafePointCandidate({ ...ok, x: zoneStart - 0.01 }, state(), track, CONFIG)).toBe(true);
   });
 });

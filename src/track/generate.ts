@@ -75,7 +75,8 @@ export function generateTrack(
     if (p.volcano) {
       const v = p.volcano;
       volcanoes.push({
-        xElanStart: xStart, xRampStart: xStart + v.dxRampStart, xLip: xStart + v.dxLip, lipY: v.lipY,
+        xLancement: xStart, xElanStart: xStart + v.dxElanStart, xRampStart: xStart + v.dxRampStart,
+        xLip: xStart + v.dxLip, lipY: v.lipY,
         xLava: xStart + v.dxLava, lavaWidth: v.lavaWidth, rimY: v.rimY,
         xReception: xStart + v.dxReception, xEnd: xStart + v.dxEnd,
       });

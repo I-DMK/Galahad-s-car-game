@@ -63,7 +63,7 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
     for (const [seed, len] of CASES) {
       const t = track(seed, len);
       for (const v of t.volcanoes) {
-        expect(v.xElanStart).toBeGreaterThanOrEqual(0.15 * len - 1e-9);
+        expect(v.xLancement).toBeGreaterThanOrEqual(0.15 * len - 1e-9);
         expect(v.xEnd).toBeLessThanOrEqual(0.9 * len + 1e-9);
         expect(v.xLava - v.lavaWidth / 2).toBeGreaterThanOrEqual(0.15 * len);
         expect(v.xLava + v.lavaWidth / 2).toBeLessThan(0.9 * len);
@@ -81,8 +81,11 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
       expect(t.volcanoes).toHaveLength(vs.length);
       vs.forEach((s, k) => {
         const v = t.volcanoes[k];
-        expect(v.xElanStart).toBe(s.xStart);
+        expect(v.xLancement).toBe(s.xStart);
         expect(v.xEnd).toBeCloseTo(s.xEnd, 9);
+        expect(v.xElanStart - v.xLancement).toBeCloseTo(CONFIG.LANCEMENT_LENGTH, 9);
+        expect(v.xRampStart - v.xElanStart).toBeCloseTo(CONFIG.L_ELAN, 9);
+        expect(v.xLancement).toBeLessThan(v.xElanStart);
         expect(v.xElanStart).toBeLessThan(v.xRampStart);
         expect(v.xRampStart).toBeLessThan(v.xLip);
         expect(v.xLip).toBeLessThan(v.xLava);
@@ -131,6 +134,14 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
       const sorted = [...t.exemptPointIndices].sort((a, b) => a - b);
       expect(t.exemptPointIndices).toEqual(sorted);
       expect(new Set(t.exemptPointIndices).size).toBe(sorted.length);
+    }
+  });
+
+  test('3 à 7 volcans par piste de 1 680 m sur les graines 0 à 19', () => {
+    const counts = SEEDS.slice(0, 20).map((seed) => track(seed, 1680).volcanoes.length);
+    for (const [seed, n] of counts.entries()) {
+      expect(n, `seed ${seed} : ${n} volcans (${counts.join(' ')})`).toBeGreaterThanOrEqual(3);
+      expect(n, `seed ${seed} : ${n} volcans (${counts.join(' ')})`).toBeLessThanOrEqual(7);
     }
   });
 

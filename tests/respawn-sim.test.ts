@@ -49,9 +49,21 @@ const chassisX = (sim: RaceSim) => physToWorld(sim.car.chassis.position).x;
 const describeRespawns = (rs: SimEvent[]) =>
   rs.map((e) => (e.type === 'respawn' ? `${e.reason}@t=${e.t.toFixed(2)} x=${e.x.toFixed(1)}→${e.target.x.toFixed(1)}` : e.type));
 
+/**
+ * Transition tâche 1 → 2 : les étoiles « 1 m avant une rampe-saut » du plan A (addendum §1.5 : plus
+ * admissibles, retirées par la tâche 2) lancent un saut turbo de ≈ 50 m par-dessus la rampe-saut qui
+ * précède un volcan v2 (graine 4 : atterrissage au bout du plat de lancement, rebond, lave). On les
+ * retire des courses doigt posé ; toutes les autres étoiles (et leur turbo) restent jouées.
+ */
+function withoutPlanAJumpStars(track: Track): Track {
+  const ramps = track.slices.filter((s) => s.type === 'rampe-saut');
+  track.stars = track.stars.filter((s) => !ramps.some((r) => Math.abs(s.x - (r.xStart - 1)) < 1e-6));
+  return track;
+}
+
 describe('doigt toujours posé', () => {
   test.each(SEEDS)('seed %i : aucune réapparition, jamais bloqué, ligne d’arrivée atteinte', (seed) => {
-    const track = trackFor(seed);
+    const track = withoutPlanAJumpStars(generateTrack(seed, TRACK_LENGTH, CONFIG));
     const r = simulateRace(track, { throttle: () => true, maxSeconds: 240, cfg: CONFIG });
     expect(describeRespawns(r.respawns)).toEqual([]);
     expect(r.respawns.length).toBe(0);

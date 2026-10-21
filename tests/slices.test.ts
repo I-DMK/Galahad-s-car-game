@@ -1,13 +1,13 @@
 import { CONFIG } from '../src/config';
-import { jumpRange, runUpDistance } from '../src/track/ballistics';
+import { jumpRange } from '../src/track/ballistics';
 import { mulberry32 } from '../src/track/rng';
 import {
   bosses, doubleBosse, plat, rampeSaut, rampeVolcan, volcanoGeometry,
   type SliceProfile,
 } from '../src/track/slices';
 
-// Config figée : les tâches suivantes recalibrent DRIVE_ACCEL / LAVA_MARGIN.
-const PINNED = { ...CONFIG, DRIVE_ACCEL: 4, V_JUMP: 10, LAVA_MARGIN: 0.7 };
+// Config figée : les valeurs de référence ci-dessous en dépendent (la calibration peut rejouer LAVA_MARGIN / L_ELAN).
+const PINNED = { ...CONFIG, V_JUMP: 10, LAVA_MARGIN: 0.8, L_ELAN: 6 };
 const S = CONFIG.TRACK_POINT_SPACING;
 const EPS = 1e-9;
 
@@ -109,17 +109,23 @@ describe('volcanoGeometry (config figée)', () => {
     expect(g.rampRun).toBeCloseTo(5.56, 2);
     expect(g.descentRun).toBeCloseTo(4.41, 2);
     expect(g.ascentRun).toBeCloseTo(2.36, 2);
-    expect(Math.abs(g.dxLava - 11.49)).toBeLessThan(0.1);
-    expect(g.valleyRun).toBeCloseTo(3.22, 1);
-    expect(Math.abs(g.lElan - 24.4)).toBeLessThan(0.5);
+    expect(Math.abs(g.dxLava - 13.13)).toBeLessThan(0.05);
+    expect(g.valleyRun).toBeCloseTo(4.86, 1);
+    expect(g.lElan).toBe(PINNED.L_ELAN);
+    expect(g.lLancement).toBe(PINNED.LANCEMENT_LENGTH);
+    const dxLip = g.lLancement + g.lElan + g.rampRun;
+    expect(Math.abs(g.dxReception - dxLip - 17.0)).toBeLessThan(0.05);
   });
 
-  test('cohérence', () => {
+  test('cohérence : réception = lave + demi-largeur + descente aval, sans butée', () => {
     expect(g.valleyRun).toBeGreaterThanOrEqual(0);
     expect(PINNED.RIM_HEIGHT).toBeLessThan(g.lipY);
     expect(g.dxLava).toBeCloseTo(g.descentRun + g.valleyRun + g.ascentRun + PINNED.LAVA_WIDTH / 2, 9);
-    const dxLip = g.lElan + g.rampRun;
+    const dxLip = g.lLancement + g.lElan + g.rampRun;
+    expect(g.dxReception).toBeCloseTo(
+      dxLip + g.dxLava + PINNED.LAVA_WIDTH / 2 + PINNED.RIM_HEIGHT / Math.tan(PINNED.MAX_SLOPE), 9);
     const turbo = jumpRange(PINNED.V_MAX * PINNED.TURBO_FACTOR, PINNED.GRAVITY, PINNED.RAMP_ANGLE, g.lipY);
+    expect(g.dxEnd).toBeCloseTo(Math.max(g.dxReception + 10, dxLip + 1.2 * turbo), 9);
     expect(g.dxEnd).toBeGreaterThanOrEqual(dxLip + 1.2 * turbo);
     expect(g.dxEnd).toBeGreaterThanOrEqual(g.dxReception + 10);
     expect(g.dxReception).toBeGreaterThan(dxLip + g.dxLava);
@@ -128,10 +134,9 @@ describe('volcanoGeometry (config figée)', () => {
 
 describe('volcanoGeometry (CONFIG réelle : formules)', () => {
   const g = volcanoGeometry(CONFIG);
-  test('lElan suit la formule', () => {
-    const vBottom = Math.sqrt(CONFIG.V_JUMP ** 2 + 2 * CONFIG.GRAVITY * g.lipY);
-    expect(g.lElan).toBeCloseTo(
-      (runUpDistance(vBottom, CONFIG.DRIVE_ACCEL) * CONFIG.ELAN_MARGIN) / CONFIG.ELAN_SAFE_FRACTION, 9);
+  test('lLancement = LANCEMENT_LENGTH, lElan = L_ELAN', () => {
+    expect(g.lLancement).toBe(CONFIG.LANCEMENT_LENGTH);
+    expect(g.lElan).toBe(CONFIG.L_ELAN);
   });
   test('dxLava = LAVA_MARGIN × portée à V_JUMP', () => {
     expect(g.dxLava).toBeCloseTo(
@@ -144,10 +149,12 @@ describe('rampe-volcan : géométrie du profil', () => {
   const v = p.volcano!;
   const g = volcanoGeometry(PINNED);
   const at = (x: number) => p.heights[Math.round(x / S) - 1];
+  const tanM = Math.tan(PINNED.MAX_SLOPE);
 
   test('infos de volcan cohérentes avec volcanoGeometry (depuis le début de tranche)', () => {
-    expect(v.dxRampStart).toBeCloseTo(g.lElan, 9);
-    expect(v.dxLip).toBeCloseTo(g.lElan + g.rampRun, 9);
+    expect(v.dxElanStart).toBeCloseTo(g.lLancement, 9);
+    expect(v.dxRampStart).toBeCloseTo(g.lLancement + g.lElan, 9);
+    expect(v.dxLip).toBeCloseTo(g.lLancement + g.lElan + g.rampRun, 9);
     expect(v.lipY).toBeCloseTo(g.lipY, 9);
     expect(v.dxLava).toBeCloseTo(v.dxLip + g.dxLava, 9);
     expect(v.lavaWidth).toBe(PINNED.LAVA_WIDTH);
@@ -157,8 +164,17 @@ describe('rampe-volcan : géométrie du profil', () => {
     expect(p.length).toBeGreaterThanOrEqual(g.dxEnd - S);
   });
 
-  test('plat d\'élan à 0, sommet de rampe à lipY, fond de lave à RIM − CRATER_DEPTH', () => {
-    expect(at(v.dxRampStart / 2)).toBe(0);
+  test('plat de lancement et plat d\'élan à 0 sur [0, lLancement + lElan]', () => {
+    const kLast = Math.floor((g.lLancement + g.lElan) / S + EPS);
+    expect(kLast).toBeGreaterThan(0);
+    expect(p.heights.slice(0, kLast).every((h) => h === 0)).toBe(true);
+    expect(at(v.dxElanStart)).toBe(0);
+    expect(at(v.dxElanStart + g.lElan / 2)).toBe(0);
+    // la rampe monte dès le pas suivant
+    expect(p.heights[kLast + 1]).toBeGreaterThan(0);
+  });
+
+  test('sommet de rampe à lipY, fond de lave à RIM − CRATER_DEPTH', () => {
     expect(Math.max(...p.heights)).toBeCloseTo(g.lipY, 1);
     expect(at(v.dxLava)).toBeCloseTo(PINNED.RIM_HEIGHT - PINNED.CRATER_DEPTH, 9);
   });
@@ -168,24 +184,21 @@ describe('rampe-volcan : géométrie du profil', () => {
     expect(at(x)).toBeCloseTo(0, 9);
   });
 
-  test('butée de 0,3 m puis plat de réception à 0 jusqu\'à la fin', () => {
-    const bumpTop = v.dxReception - PINNED.STOP_BUMP_LENGTH;
-    expect(at(bumpTop)).toBeCloseTo(PINNED.STOP_BUMP_HEIGHT, 1);
-    const k0 = Math.round(v.dxReception / S);
-    expect(p.heights.slice(k0).every((h) => h === 0)).toBe(true);
+  test('après le rebord aval : descente de RIM_HEIGHT vers 0 sans bosse, puis plat de réception à 0 jusqu\'à la fin', () => {
+    const xRimB = v.dxLava + PINNED.LAVA_WIDTH / 2;
+    const kRimB = Math.ceil(xRimB / S - EPS);              // premier échantillon au bord aval ou au-delà
+    const tail = p.heights.slice(kRimB - 1);                // à partir du bord aval, jusqu'à la fin
+    expect(Math.max(...tail)).toBeLessThanOrEqual(PINNED.RIM_HEIGHT + EPS);
+    for (let k = 1; k < tail.length; k++) expect(tail[k]).toBeLessThanOrEqual(tail[k - 1] + EPS);   // jamais de remontée
+    expect(at(xRimB + 0.5 * PINNED.RIM_HEIGHT / tanM)).toBeCloseTo(0.5 * PINNED.RIM_HEIGHT, 1);
+    const k0 = Math.ceil(v.dxReception / S - EPS);         // premier échantillon en dxReception ou au-delà
+    expect(p.heights[k0 - 2]).toBeLessThanOrEqual(tanM * S + EPS);   // dernier échantillon de la descente
+    expect(p.heights.slice(k0 - 1).every((h) => h === 0)).toBe(true);
+    expect(p.heights.length - k0).toBeGreaterThan(10 / S - 2);
   });
 
-  test('butée : pente max ≈ 25° (sous MAX_SLOPE)', () => {
-    const k0 = Math.round((v.dxReception - 2 * PINNED.STOP_BUMP_LENGTH) / S);
-    let worst = 0;
-    for (let k = k0; k < k0 + Math.round((2 * PINNED.STOP_BUMP_LENGTH) / S); k++) {
-      worst = Math.max(worst, Math.atan(Math.abs(p.heights[k] - p.heights[k - 1]) / S));
-    }
-    expect((worst * 180) / Math.PI).toBeGreaterThan(20);
-    expect(worst).toBeLessThanOrEqual(PINNED.MAX_SLOPE);
-  });
-
-  test('parois verticales : un seul pas, exemptées', () => {
+  test('parois verticales : un seul pas, exemptées ; deux parois exactement', () => {
+    expect(p.exemptIndices).toHaveLength(2);
     const [a, b] = p.exemptIndices;
     expect(p.heights[a - 1] - p.heights[a]).toBeGreaterThan(0.9);
     expect(p.heights[b] - p.heights[b - 1]).toBeGreaterThan(0.9);
