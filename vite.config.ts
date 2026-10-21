@@ -5,7 +5,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.test.ts'],
+    // Suites lentes dans tests/slow/ : npm run test:slow et test:slow:race (vitest.slow*.config.ts).
+    include: ['tests/*.test.ts'],
     testTimeout: 180_000,
   },
 });

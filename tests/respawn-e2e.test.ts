@@ -1,38 +1,20 @@
-// Réapparitions branchées dans le pas de course (tâche 10b) : simulations complètes et scénarios ciblés.
+// Réapparitions branchées dans le pas de course (tâches 10b du plan A et 3 du plan B) : scénarios
+// ciblés rapides (quelques secondes simulées chacun), gardés en CI. Les courses complètes sont
+// dans tests/slow/respawn-sim.test.ts.
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
 import { physToWorld, worldToPhys } from '../src/physics/units';
 import { CAT } from '../src/physics/world';
-import { createRaceSim, simulateRace, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
-import { generateTrack } from '../src/track/generate';
-import { heightAt, nearestVolcanoZone, slopeAt, volcanoAhead } from '../src/track/query';
+import { createRaceSim, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
+import { heightAt, slopeAt } from '../src/track/query';
 import type { Track, Volcano } from '../src/track/types';
+import { firstVolcano, trackFor } from './helpers/runs';
 
 type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 
 const SEEDS = [0, 1, 2, 3, 4];
-const TRACK_LENGTH = 1680;
 const DT = CONFIG.PHYSICS_DT;
-
-const tracks = new Map<number, Track>();
-function trackFor(seed: number): Track {
-  let t = tracks.get(seed);
-  if (!t) {
-    t = generateTrack(seed, TRACK_LENGTH, CONFIG);
-    tracks.set(seed, t);
-  }
-  return t;
-}
-
-/** Première piste (seed 1, 2, …) ayant un volcan, et ce volcan. */
-function firstVolcano(): { track: Track; v: Volcano } {
-  for (const seed of [1, 0, 2, 3, 4, 5, 6, 7]) {
-    const track = trackFor(seed);
-    if (track.volcanoes.length > 0) return { track, v: track.volcanoes[0] };
-  }
-  throw new Error('aucune piste avec volcan');
-}
 
 /** Pas de course jusqu'au premier événement 'respawn' (au plus maxSteps pas). */
 function stepUntilRespawn(sim: RaceSim, throttle: boolean, maxSteps: number): RespawnEvent | undefined {
@@ -46,19 +28,6 @@ function stepUntilRespawn(sim: RaceSim, throttle: boolean, maxSteps: number): Re
 
 const h = (track: Track) => (x: number) => heightAt(track, x);
 const chassisX = (sim: RaceSim) => physToWorld(sim.car.chassis.position).x;
-const describeRespawns = (rs: SimEvent[]) =>
-  rs.map((e) => (e.type === 'respawn' ? `${e.reason}@t=${e.t.toFixed(2)} x=${e.x.toFixed(1)}→${e.target.x.toFixed(1)}` : e.type));
-
-describe('doigt toujours posé', () => {
-  test.each(SEEDS)('seed %i : aucune réapparition, jamais bloqué, ligne d’arrivée atteinte', (seed) => {
-    const track = trackFor(seed);
-    const r = simulateRace(track, { throttle: () => true, maxSeconds: 240, cfg: CONFIG });
-    expect(describeRespawns(r.respawns)).toEqual([]);
-    expect(r.respawns.length).toBe(0);
-    expect(r.maxStuckSeconds).toBeLessThanOrEqual(2.1);
-    expect(r.progressAt(240)).toBeGreaterThanOrEqual(track.xFinish);
-  });
-});
 
 /** Seeds des scénarios ciblés : le premier seed de 0..4 ayant un volcan, et le seed 1. */
 const VOLCANO_SEEDS = [...new Set([SEEDS.find((s) => trackFor(s).volcanoes.length > 0)!, 1])];
@@ -174,23 +143,34 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
     // Les chronomètres sont stricts (>) : ≥ reste vrai.
     expect(e!.t - t0).toBeGreaterThanOrEqual(e!.reason === 'side' ? CONFIG.SIDE_SECONDS : CONFIG.FLIP_SECONDS);
   });
-});
 
-test('motif 0,7 s posé / 0,3 s levé, seed 1 : au plus 2 réapparitions par volcan, jamais bloqué, arrivée atteinte', () => {
-  const track = trackFor(1);
-  const r = simulateRace(track, { throttle: (t) => t % 1 < 0.7, maxSeconds: 300, cfg: CONFIG });
-  const perVolcano = new Map<string, number>();
-  for (const e of r.respawns) {
-    if (e.type !== 'respawn') continue;
-    const v = nearestVolcanoZone(track, e.x) ?? volcanoAhead(track, e.x);
-    const key = v ? v.xLava.toFixed(1) : 'none';
-    perVolcano.set(key, (perVolcano.get(key) ?? 0) + 1);
-  }
-  const summary = { volcanoes: track.volcanoes.length, respawns: describeRespawns(r.respawns), perVolcano: [...perVolcano] };
-  expect(r.respawns.length, JSON.stringify(summary)).toBeLessThanOrEqual(2 * track.volcanoes.length + 2);
-  for (const [key, n] of perVolcano) expect(n, `${key} ${JSON.stringify(summary)}`).toBeLessThanOrEqual(2);
-  expect(r.maxStuckSeconds).toBeLessThanOrEqual(2.1);
-  expect(r.progressAt(300)).toBeGreaterThanOrEqual(track.xFinish);
+  test('deux retournements de suite dans l’élan : chaque fois ramenée au point sûr, jamais à xEnd − 10 (la série ne compte que la lave)', () => {
+    const sim = createRaceSim(track0, CONFIG);
+    const xSafe = v0.xLancement + 1;
+    sim.state.safePoint = { x: xSafe, y: heightAt(track0, xSafe), angle: 0 };
+    const xBack = v0.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK;
+    for (let k = 1; k <= 2; k++) {
+      placeFlipped(sim, v0.xElanStart + 1);
+      const e = stepUntilRespawn(sim, false, 1);
+      expect(e, `retournement ${k}`).toBeDefined();
+      expect(e!.reason, `retournement ${k}`).toBe('flipped');
+      expect(e!.target.x, `retournement ${k}`).toBeCloseTo(xSafe, 6);
+      expect(e!.target.x, `retournement ${k}`).not.toBeCloseTo(xBack, 6);
+      expect(chassisX(sim), `retournement ${k}`).toBeCloseTo(xSafe, 6);
+      expect(sim.state.consecutiveRespawns, `retournement ${k}`).toBe(0);
+      expect(sim.state.lastRespawnLavaX, `retournement ${k}`).toBeNull();
+    }
+    // Lave, puis retournement, puis lave : la série est interrompue par le retournement → point sûr.
+    placeCar(sim.car, v0.xLava, h(track0), 0, CONFIG);
+    expect(stepUntilRespawn(sim, true, 5)?.reason).toBe('lava');
+    expect(sim.state.consecutiveRespawns).toBe(1);
+    placeFlipped(sim, v0.xElanStart + 1);
+    expect(stepUntilRespawn(sim, false, 1)?.reason).toBe('flipped');
+    placeCar(sim.car, v0.xLava, h(track0), 0, CONFIG);
+    const after = stepUntilRespawn(sim, true, 5);
+    expect(after?.reason).toBe('lava');
+    expect(after!.target.x).toBeCloseTo(xSafe, 6);
+  });
 });
 
 describe('invulnérabilité après une réapparition', () => {

@@ -1,8 +1,8 @@
 // Étoiles et turbo dans le pas de course (tâche 12) : seed 1, 1680 m, doigt toujours posé.
-import { CONFIG } from '../src/config';
-import { isStarActive } from '../src/cars/stars';
-import { createRaceSim, sceneOf, simulateRace, stepRace, carView, type SimEvent } from '../src/sim/simulate';
-import { generateTrack } from '../src/track/generate';
+import { CONFIG } from '../../src/config';
+import { isStarActive } from '../../src/cars/stars';
+import { createRaceSim, sceneOf, simulateRace, stepRace, carView, type SimEvent } from '../../src/sim/simulate';
+import { generateTrack } from '../../src/track/generate';
 
 type StarEvent = Extract<SimEvent, { type: 'star' }>;
 
