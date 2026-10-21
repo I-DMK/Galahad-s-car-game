@@ -40,9 +40,11 @@ const pilote = (p: Pilot): Pilot => Object.freeze(p);
  * Galahad reste « la voiture bleue » : aucune carrosserie de copain n'est bleue, cyan,
  * turquoise ou violette. Le casque d'un copain est une nuance plus claire ou plus foncée de
  * sa propre carrosserie (casque assorti) ; le casque rouge de Galahad ne compte pas dans
- * cette règle. Carrosserie, casque et bandes doivent rester lisibles sur le ciel quasi noir
- * (0x05081a, contraste WCAG ≥ 3:1) ; le sol, lui, est un gris moyen (0x8b8b8b). Toutes ces
- * contraintes sont vérifiées par tests/pilots.test.ts.
+ * cette règle. Carrosserie, casque et bandes ont un contraste WCAG ≥ 3:1 contre l'arrêt le
+ * plus clair du ciel (0x0a1030, dégradé de prerenderSky dans src/render/background.ts). Ces
+ * contraintes de couleur sont vérifiées par tests/pilots.test.ts. Le contraste avec le sol
+ * (gris moyen 0x8b8b8b) n'est pas testé : certaines carrosseries s'y détachent peu (vert,
+ * orange, rose, rouge), il sera jugé au rendu, en 5b.
  */
 export const PILOTS: readonly Pilot[] = Object.freeze([
   // Fonceur : rouge vif, casque rouge clair, bandes crème dorée.

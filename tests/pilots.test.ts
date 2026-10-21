@@ -3,8 +3,12 @@ import { GALAHAD, PILOTS, drawPilots } from '../src/cars/pilots';
 import type { Pilot } from '../src/cars/pilots';
 
 const NOMS = ['Pablo', 'Diego', 'Timothée', 'Matthis', 'Malo', 'Liam'];
-/** Ciel de la scène (src/render) : le fond sur lequel se détachent voiture et casque. */
-const CIEL = 0x05081a;
+/**
+ * Arrêt le plus clair du dégradé du ciel (#000000 → #0a1030, prerenderSky dans
+ * src/render/background.ts). Les couleurs testées sont plus claires que le ciel : le pire
+ * contraste est donc contre cet arrêt.
+ */
+const CIEL = 0x0a1030;
 /** Les 7 voitures : les 6 copains, puis Galahad. */
 const TOUS: readonly Pilot[] = [...PILOTS, GALAHAD];
 
@@ -99,9 +103,7 @@ describe('couleurs', () => {
     for (const p of PILOTS) {
       const propre = distance(p.helmet, p.color);
       expect(propre, `${p.name} : casque / sa carrosserie`).toBeGreaterThanOrEqual(40);
-      const autres = TOUS.filter((o) => o !== p);
-      expect(autres).toHaveLength(6);
-      for (const o of autres) {
+      for (const o of TOUS.filter((autre) => autre !== p)) {
         expect(propre, `${p.name} : casque plus près de sa carrosserie que de celle de ${o.name}`).toBeLessThan(
           distance(p.helmet, o.color),
         );
@@ -113,7 +115,7 @@ describe('couleurs', () => {
     expect(enDefaut(paires(TOUS), (a, b) => distance(a.helmet, b.helmet) >= 60)).toEqual([]);
   });
 
-  test('carrosserie, casque et bandes des copains ont un contraste WCAG ≥ 3:1 contre le ciel', () => {
+  test('carrosserie, casque et bandes des copains ont un contraste WCAG ≥ 3:1 contre le ciel (arrêt le plus clair du dégradé)', () => {
     const fautifs = PILOTS.flatMap((p) =>
       (['color', 'helmet', 'accent'] as const)
         .filter((k) => contraste(p[k], CIEL) < 3)
