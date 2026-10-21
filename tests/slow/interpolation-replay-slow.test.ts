@@ -5,7 +5,8 @@
 //
 // Exigences, par écran :
 // - aucun épisode interpolé dû à la cadence (`classifyEpisodes(…).cadence` = 0 sur chaque course) ;
-// - Σ interpolé ≤ Σ physique + Σ épisodes interpolés masqués (expliqués par la trajectoire) ;
+// - au plus MAX_MASKED épisode interpolé masqué (expliqué par la trajectoire) par écran : le masquage ne doit pas
+//   devenir une porte de sortie (interpolé = masqués + cadence, et cadence = 0 est déjà exigé) ;
 // - contrôle vivant : à 60,05 et à 59,94 Hz, le rendu actuel (sans interpolation) a au moins un épisode dû
 //   à la cadence.
 // Mesuré au tour 1 (épisodes physique / actuel / interpolé, dont masqués) : 60,05 Hz 0 / 75 / 0 ;
@@ -61,9 +62,12 @@ test.each(SEEDS)('graine %i : 0 épisode interpolé dû à la cadence, sur chaqu
 
 const sum = (si: number, k: keyof Row) => rows[si].reduce((a, r) => a + r[k], 0);
 
-test.each(SCREENS.map((s, si) => [`${s.hz} Hz, gigue ${s.jitterMs} ms`, si] as const))('%s : Σ interpolé ≤ Σ physique + masqués', (_, si) => {
+/** Mesuré au tour 1 : 1 / 0 / 0 / 0 épisodes masqués selon l'écran (choc réel, graine 0 à 60,000 Hz). */
+const MAX_MASKED = 1;
+
+test.each(SCREENS.map((s, si) => [`${s.hz} Hz, gigue ${s.jitterMs} ms`, si] as const))('%s : au plus MAX_MASKED épisode masqué', (_, si) => {
   expect(rows[si]).toHaveLength(SEEDS.length);
-  expect(sum(si, 'interpolé')).toBeLessThanOrEqual(sum(si, 'physique') + sum(si, 'masqués'));
+  expect(sum(si, 'masqués')).toBeLessThanOrEqual(MAX_MASKED);
 });
 
 test.each(LIVE_CONTROL_HZ)('contrôle vivant : à %f Hz, le rendu actuel a au moins un épisode dû à la cadence', (hz) => {

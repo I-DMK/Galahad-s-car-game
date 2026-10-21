@@ -59,11 +59,15 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
   const hud = document.createElement('div');
   document.body.append(canvas, hud);
   const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
-  const internals = game as unknown as { sim: RaceSim; loop: { acc: number; history: { reset(p: CarPose[]): void } }; step: (...a: unknown[]) => unknown };
+  const internals = game as unknown as {
+    sim: RaceSim; loop: { acc: number; history: { reset(p: CarPose[]): void } }; step: (...a: unknown[]) => unknown;
+    stop(): void; throttle: { dispose(): void };
+  };
   const { sim } = internals;
-  // Galahad posé sur la lave du premier volcan : il réapparaît pendant le test.
+  // Galahad et le copain 2 posés sur la lave du premier volcan : ils réapparaissent au même pas pendant le test
+  // (`stepOutcome` doit signaler les deux voitures réapparues, pas seulement la première).
   const v = sim.track.volcanoes[0];
-  placeCar(sim.cars[0].body, v.xLava, (x) => heightAt(sim.track, x), 0, CONFIG);
+  for (const i of [0, 2]) placeCar(sim.cars[i].body, v.xLava, (x) => heightAt(sim.track, x), 0, CONFIG);
   internals.loop.history.reset(posesOf(sim));
 
   // Poses après chaque pas de `Game.step`, et voitures réapparues pendant ce pas.
@@ -109,11 +113,13 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
     camera.update(target.x, target.y, target.speed, elapsedMs / 1000);
     expect(camX, `image ${f}`).toBeCloseTo(camera.x, 9);
     expect(camY, `image ${f}`).toBeCloseTo(camera.y, 9);
-    if (steppedThisFrame && cur.teleported.has(0)) teleportFramesChecked++;
+    if (steppedThisFrame && cur.teleported.has(0) && cur.teleported.has(2)) teleportFramesChecked++;
     if (alpha > 0.1 && alpha < 0.9 && Math.abs(cur.poses[0].chassis.x - prev.poses[0].chassis.x) > 0.01) interpolatedFrames++;
   }
-  // Contrôles vivants : la réapparition de Galahad tombe en dernier pas d'une image, et l'interpolation
+  // Contrôles vivants : la réapparition simultanée de Galahad et du copain 2 tombe en dernier pas d'une image, et l'interpolation
   // dessine bien entre deux pas distincts.
   expect(teleportFramesChecked).toBeGreaterThanOrEqual(1);
   expect(interpolatedFrames).toBeGreaterThan(20);
+  internals.stop();
+  internals.throttle.dispose();
 });
