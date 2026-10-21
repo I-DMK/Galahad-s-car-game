@@ -67,7 +67,7 @@ sans le contexte de celle-ci.
 | 1 géométrie du volcan v2 (lancement, élan 6 m, lave 0,8, capteur +0,3, butée supprimée) | **faite, validée** (+ option (a) : pas de volcan après une rampe-saut) ; push en attente d'autorisation |
 | 2 étoiles v2 (curseur global, étoiles d'élan, plancher 6, pas 60–100) | **faite, validée**, poussée |
 | 3 points sûrs et respawn v2 | **faite, validée**, poussée |
-| 4 simulations d'acceptation, suites lentes, balayage de dosage | **code fait, relu (3 relectures, 3 tours), en attente de validation du papa** → **gate : test tablette du papa** |
+| 4 simulations d'acceptation, suites lentes, balayage de dosage | **faite, validée, poussée** → **gate : test tablette du papa (en attente)** |
 | 5a pilotes | à faire |
 | 5b course à 5 voitures, grille, chocs, respawn groupé | à faire → mesure fps du papa |
 | 6 conduite des robots | à faire |
@@ -106,8 +106,7 @@ sans le contexte de celle-ci.
 
 ## Prochaine action précise
 
-1. Obtenir du papa la **validation de la tâche 4** (commits `4ecb7eb..319ef37`
-   + docs), pousser, puis **gate : test tablette** (L_ELAN 6 recommandé ;
+1. **Gate : test tablette** (tâche 4 validée et poussée) (L_ELAN 6 recommandé ;
    règle vécue par l'enfant : ne pas lever le doigt plus de ≈ 1,5 s juste
    avant un volcan ; levier continu possible : ENGINE_BRAKE ; voir registre).
    Historique : **tâche 4** dispatchée (simulations d'acceptation, suites lentes,
