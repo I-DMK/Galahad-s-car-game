@@ -95,7 +95,7 @@ describe('invariants (graines 0..49, 1 680 m)', () => {
 
 describe('nombre d’étoiles (graines 0..19, 1 680 m)', () => {
   // Le plancher de 6 n'est garanti ici que parce que ces graines ont ≥ 2 volcans (le plancher n'ajoute que des
-  // étoiles d'élan) : ne pas étendre ce test à 0..49 (graine 45 : 5 étoiles).
+  // étoiles d'élan ; une piste sans volcan peut en avoir moins, jusqu'à 0) : ne pas étendre ce test à 0..49.
   test('entre 6 et 14 (cible 8 à 12, addendum §1.5)', () => {
     const counts = tracks20.map((t) => t.stars.length);
     for (const t of tracks20) {
@@ -155,6 +155,7 @@ describe('curseur global', () => {
     let seen = 0;
     for (const t of tracks20) {
       const cursor = t.stars.filter((s) => !isElanStar(t, s));
+      expect(cursor.length, `seed ${t.seed}`).toBeGreaterThan(0);
       for (let i = 1; i < cursor.length; i++) {
         const len = admissibleLength(t, cursor[i - 1].x, cursor[i].x);
         expect(len, `seed ${t.seed} ${cursor[i - 1].x} → ${cursor[i].x}`).toBeGreaterThanOrEqual(CONFIG.STAR_STEP_MIN - 1e-6);
@@ -165,6 +166,10 @@ describe('curseur global', () => {
       const first = admissibleLength(t, t.slices[0].xEnd, cursor[0].x);
       expect(first, `seed ${t.seed}`).toBeGreaterThanOrEqual(CONFIG.STAR_STEP_MIN - 1e-6);
       expect(first, `seed ${t.seed}`).toBeLessThanOrEqual(CONFIG.STAR_STEP_MAX + 1e-6);
+      // Queue : après la dernière étoile du curseur, la longueur admissible restante avant le plat d'arrivée ne
+      // laisse pas la place d'un pas entier (un curseur qui s'arrêterait trop tôt serait vu ici).
+      const tail = admissibleLength(t, cursor[cursor.length - 1].x, xFinishLimit(t));
+      expect(tail, `seed ${t.seed}`).toBeLessThan(CONFIG.STAR_STEP_MAX);
     }
     expect(seen).toBeGreaterThan(50);
   });
@@ -177,6 +182,11 @@ describe('curseur global', () => {
     expect(() => placeStars(t, rng, { ...CONFIG, STAR_ELAN_GAP: 2 })).toThrow(/STAR_ELAN_GAP/);
     expect(() => placeStars(t, rng, { ...CONFIG, STAR_ELAN_GAP: 1, STAR_ELAN_OFFSET: 2 })).toThrow(/STAR_ELAN_GAP/);
     expect(() => placeStars(t, rng, { ...CONFIG, STAR_ELAN_OFFSET: -1 })).toThrow(/STAR_ELAN_GAP/);
+    // Offset 0 : l'étoile d'élan tomberait exactement sur xElanStart, dans l'intervalle interdit [xElanStart, xLava].
+    expect(() => placeStars(t, rng, { ...CONFIG, STAR_ELAN_OFFSET: 0 })).toThrow(/STAR_ELAN_GAP/);
+    // Pas calculé ≤ 0 (rng hors [0, 1) ou NaN) : erreur, jamais de boucle sans fin.
+    expect(() => placeStars(t, () => -2, CONFIG)).toThrow(/pas calculé invalide/);
+    expect(() => placeStars(t, () => NaN, CONFIG)).toThrow(/pas calculé invalide/);
     expect(() => placeStars(t, rng, CONFIG)).not.toThrow();
   });
 });
