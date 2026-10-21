@@ -1,10 +1,9 @@
 # Course Lunaire de Galahad — addendum plan B
 
 Date : 2026-10-21
-Statut : v3 VALIDÉE par le papa le 2026-10-21, après deux tours de relecture (standard, adversariale,
-`code-review` : 9 à 14 points au premier tour, 8 à 9 au second, tous intégrés
-ou tranchés ci-dessous), en attente de validation par le papa avant le plan
-d'implémentation.
+Statut : v3 VALIDÉE par le papa le 2026-10-21, après deux tours de relecture
+(standard, adversariale, `code-review`). v3.1 : cinq amendements issus de la
+relecture du plan (marqués « [plan] » ci-dessous), à confirmer avec le plan.
 
 Ce document amende le spec du 2026-10-20
 (`2026-10-20-course-lunaire-galahad-design.md`), qui reste l'autorité pour tout
@@ -78,13 +77,13 @@ d'après §1.7, puis confirmées sur la tablette.
 
 | Constante | Plan A | Plan B (départ) | Rôle |
 |---|---|---|---|
-| `L_ELAN` (nouvelle) | calculée (22,7 m) | 8 m | longueur du plat d'élan, **seul levier de difficulté** (§1.6) ; valeur retenue mesurée par le cas 1 de §1.7 |
+| `L_ELAN` (nouvelle) | calculée (22,7 m) | 6 m [plan] | longueur du plat d'élan, **seul levier de difficulté** (§1.6) ; valeur retenue mesurée par le cas 1 de §1.7 (sonde de la relecture du plan : à 8 m, 2 volcans sur 29 laissent passer un départ arrêté ; à 6 m, 0 sur 29) |
 | `ELAN_MARGIN`, `ELAN_SAFE_FRACTION` | 1,2 / 0,75 | supprimées | remplacées par `L_ELAN` |
 | `D_LANCE` (nouvelle) | — | `runUpDistance(V_MAX, DRIVE_ACCEL) × 1,2` = 27,3 m | distance de plat garantissant `V_MAX` depuis l'arrêt |
 | `LANCEMENT_LENGTH` (nouvelle) | — | `D_LANCE + 5` = 32,3 m | plat de lancement devant chaque élan (§1.4) |
 | `V_JUMP` | 10 | 10 | vitesse de calibration de la lave (inchangée) |
 | `LAVA_MARGIN` | 0,7 | 0,8 | lave à 13,1 m du sommet (centre), franchie dès 9,4–9,8 m/s |
-| `LAVA_SENSOR_ABOVE_RIM` (nouvelle) | 0 | 0,5 m | le capteur de lave dépasse le rebord de 0,5 m : une voiture qui rebondit sur le flanc amont ne survole pas la lave (les sauts réussis passent ≥ 2 m au-dessus, mesure 10b) |
+| `LAVA_SENSOR_ABOVE_RIM` (nouvelle) | 0 | 0,3 m [plan] | le capteur de lave dépasse le rebord : une voiture qui rebondit sur le flanc amont ne survole pas la lave (les sauts réussis passent ≥ 2 m au-dessus, mesure 10b). À 0,5 m le seuil de franchissement monte à ≈ 10,4 m/s et la marge de la voiture lancée tombe à 0,6 m/s ; la calibration mesure la marge (≥ 1 m/s exigé) et règle entre 0,2 et 0,5 |
 | `STOP_BUMP_HEIGHT`, `STOP_BUMP_LENGTH` | 0,3 / 1 | supprimées | butée supprimée (§0) |
 | `STAR_EXCLUSION_BEFORE_LAVA` | 63 m | supprimée | remplacée par §1.5 |
 | `STAR_STEP_MIN`, `STAR_STEP_MAX` (nouvelles) | 12 / 20 m (dans `stars.ts`) | 80 / 130 m | pas du curseur global d'étoiles (§1.5 ; ≈ 830 m admissibles par course → ≈ 8 étoiles + ≈ 2,7 d'élan ; graines pauvres ≈ 410 m → 4 + 1,5) |
@@ -118,11 +117,12 @@ depuis le sommet (67,7 × 1,2 m), et au moins 10 m après le rebord aval.
 ### 1.5 Étoiles (amende spec §5 et §11 « étoiles jamais à moins de 63 m »)
 
 - **Curseur global** le long de la piste : distance cumulée comptée seulement
-  sur les zones admissibles (plats hors départ, plats de lancement, plats de
-  réception, 1 m avant une `rampe-saut`) ; à chaque pas tiré dans
-  [`STAR_STEP_MIN`, `STAR_STEP_MAX`], une étoile est posée au premier x
-  admissible. Les étoiles automatiques « 1 m avant chaque rampe-saut » du plan
-  A disparaissent (elles donnaient à elles seules 3 à 13 étoiles).
+  sur les zones admissibles (plats hors départ, plats de lancement jusqu'à
+  `xElanStart − 5`, plats de réception) ; à chaque pas tiré dans
+  [`STAR_STEP_MIN`, `STAR_STEP_MAX`], une étoile est posée dès que la distance
+  cumulée atteint le pas. Les étoiles « 1 m avant une rampe-saut » du plan A
+  disparaissent, et ne sont pas admissibles [plan] (une zone de longueur nulle
+  ne peut jamais recevoir le curseur).
 - **Étoile d'élan** : pour un volcan sur deux (tirage par la graine), une
   étoile à `xElanStart − 2` m. Le turbo (3 s, ≥ 42 m) est encore actif au
   sommet ; le plat de réception absorbe le saut turbo.
@@ -149,9 +149,10 @@ depuis le sommet (67,7 × 1,2 m), et au moins 10 m après le rebord aval.
   `cratère`, posée à la hauteur et à l'angle du sol local. La cible
   `xEnd − 10` reste ≥ `xReception + 10` (plat de réception ≥ 20 m, garanti par
   la règle turbo).
-- Voiture retournée ou sur le flanc dans `[xElanStart, xLava]` (copain atterri
-  dessus) : respawn immédiat, sans les délais de 1 s / 2 s, pour ne pas faire
-  obstacle à une voiture lancée. Test : 5 voitures dans la lave au même pas → aucun
+- Voiture retournée ou sur le flanc dans `[xElanStart, xLip]` [plan] (élan et
+  rampe ; au-delà du sommet, c'est la lave qui tranche) : respawn immédiat,
+  sans les délais de 1 s / 2 s, pour ne pas faire obstacle à une voiture
+  lancée. Test : 5 voitures dans la lave au même pas → aucun
   chevauchement à la réapparition, aucun garde-fou de vitesse déclenché.
 - Dosage, **défini par mesure** (cas 1 de §1.7 rejoué pour `L_ELAN` de 6 à
   16 m par pas de 1 m, résultats consignés dans la passation) : « plus
@@ -219,6 +220,10 @@ tours** de calibration supplémentaires ; ensuite le papa tranche la valeur.
 - Pilotes : Pablo, Diego, Timothée, Matthis, Malo, Liam (Suzanne et Mathilde
   retirées). 4 tirés sans doublon par graine de pilotes, mémorisée pour ENCORE.
   Couleurs et casques distincts entre eux et de Galahad (bleu/rouge).
+- Turbo de Galahad : plafond de vitesse seulement, comme au plan A (le couple
+  n'est pas multiplié) [plan], pour ne pas dérégler la calibration validée sur
+  la tablette ; pour les robots, le facteur final (élastique × turbo) s'applique
+  au couple et au plafond (spec §7).
 - Tout le reste conforme aux §6 et §7 : grille en file avec Galahad en pole,
   espacement 1,5 × `CAR_LENGTH`, départ du robot n à 0,3 s × n, chocs réels,
   invulnérabilité au respawn, élastique borné [0,6 ; 1,3], plafond turbo,
@@ -233,12 +238,14 @@ tours** de calibration supplémentaires ; ensuite le papa tranche la valeur.
     physique < 4 ms en moyenne (indicateur), arrivée de Galahad < 240 s.
     Budget : `npm test` reste < 6 min (d'où le déplacement des suites longues
     du plan A dans `tests/slow/`, §1.7).
-  - **Suite lente** (`npm run test:slow`, fichiers `tests/slow/`, hors
-    `npm test`) : 20 graines doigt posé + 10 graines motif 30 % → objectif
-    §7 (Galahad 1er ou 2e au moins la moitié du temps, dernier au plus 2
-    fois, ≤ 3 respawns par robot). Budget < 20 min. Lancée à la fin de la
-    tâche « élastique » et avant la relecture de branche ; résultat consigné
-    dans la passation.
+  - **Suite lente** (fichiers `tests/slow/`, hors `npm test`), en deux
+    scripts [plan] : `npm run test:slow` (volcans graines 3 à 9, balayage de
+    dosage, invariants de course ; ≈ 15 min) et `npm run test:slow:race`
+    (20 graines doigt posé + 10 graines motif 30 % → objectif §7 : Galahad 1er
+    ou 2e au moins la moitié du temps, dernier au plus 2 fois, ≤ 3 respawns par
+    robot ; ≈ 20 à 25 min). Les courses simulées s'arrêtent à l'arrivée de
+    Galahad + 1,5 s. Lancées à la fin de la tâche « élastique » et avant la
+    relecture de branche ; résultats consignés dans la passation.
 
 ## 3. Finitions et décor (étape 5 du spec + décor)
 
