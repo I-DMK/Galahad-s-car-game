@@ -200,6 +200,8 @@ export interface RunOptions {
   maxSeconds: number;
   /** Configuration de la voiture (celle de la piste du monde) ; CONFIG par défaut. */
   cfg?: Config;
+  /** Observateur appelé à chaque pas i (1, 2, …), après le pas physique et avant la lecture de l'issue. */
+  onStep?: (i: number, s: StepState, car: CarBody) => void;
 }
 
 export interface RunResult {
@@ -266,6 +268,7 @@ export function runFrom(world: World, x0: number, opts: RunOptions): RunResult {
         for (const w of car.wheels) if (w.angularVelocity > capOmega) Body.setAngularVelocity(w, capOmega);
       }
     }
+    opts.onStep?.(i, s, car);
     if (turboArmed && s.x >= opts.turboAt!) { turboUntil = t + cfg.TURBO_SECONDS; turboArmed = false; }
     if (v && run.rampSpeed === null && s.x >= v.xRampStart) run.rampSpeed = carSpeedMps(car);
     if (v && run.lipSpeed === null && s.x >= v.xLip) {
