@@ -1,7 +1,7 @@
 # Course Lunaire de Galahad — addendum « bouton saut et étoiles pour tous »
 
 Date : 2026-10-21
-Statut : design validé section par section par le papa le 2026-10-21 (brainstorming), document écrit à relire.
+Statut : **VALIDÉ par le papa** le 2026-10-21 (design approuvé section par section, puis document relu et approuvé).
 Amende : le spec du 2026-10-20 et l'addendum plan B (`2026-10-21-plan-b-addendum.md`, §2 et §3.3). En cas de contradiction, ce document l'emporte sur les deux.
 
 ## 0. Origine et intention

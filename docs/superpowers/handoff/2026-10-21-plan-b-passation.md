@@ -65,8 +65,30 @@ sans le contexte de celle-ci.
   les graines 0 à 23), **saut fiabilisé** (nouvelle tâche 5c pour les 2
   chutes « propres » restantes) et **robots polis** (tâche 6). Galahad seul
   reste identique au bit près au plan A. 323/323 tests, e2e 6/6. **Validée
-  par le papa**, poussée ; mesure du fps à 5 voitures sur la tablette à
-  faire.
+  par le papa**, poussée ; **fps OK sur la tablette** (tâche 9 inutile pour
+  l'instant).
+- **Tâche 5c faite, EN RELECTURE, non validée** (sur la branche de
+  sauvegarde **`wip-plan-b`**, non déployée) : `ee58194` (harnais
+  d'échantillonnage des phases de suspension) et `25ba33f` (congé de 10 m au
+  pied de la rampe-volcan, `RAMP_FOOT_RADIUS`, choisi par le papa sur
+  tableau comparatif). Cause mesurée des chutes propres : rebond au pli du
+  pied de rampe → décollage à 14° au lieu de 21°. Résultat : 0 chute doigt
+  posé sur 2 924 historiques, 0 chute (toutes voitures) à 5 voitures sur les
+  graines 0 à 23, cas 1 à 7 de la tâche 4 tenus. Relecture standard
+  approuvée, `code-review` 10 constats (harnais seulement), adversariale
+  **CORRECTIONS REQUISES** : aucune chute doigt posé sur ≈ 22 900 runs,
+  mais deux chiffres présentés au papa sont faux (garde minimale réelle
+  **0,63 m** en fin de turbo au pied, pas 1,72 m ; doigt levé toléré
+  **inchangé** ≈ 1,3 s, pas 1,5 s) et le harnais doit gagner une famille
+  turbo dense. Tout est dans `handoff/wip-5c/relectures.md`, avec deux
+  questions pour le papa (marge de fin de turbo, levier de difficulté).
+- **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
+  « une voiture qui tremble » → **cause trouvée** : rendu sans
+  interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
+  (tâche 5f) ; « le premier qui prend une étoile est irrattrapable » →
+  **décisions** : étoiles pour tous, élastique gardé, **bouton saut avancé
+  du plan C** : addendum `docs/superpowers/specs/2026-10-21-bouton-saut-design.md`
+  **validé par le papa** (tâches 5d, 5e, 6 amendée).
 - Consignes de conteneur apprises : le push passe quand la session est en
   mode « accepter les modifications » (le mode auto le classe comme
   déploiement) ; vérifier `git status -sb` avant un push (HEAD détaché au
@@ -95,11 +117,14 @@ sans le contexte de celle-ci.
 | 4 simulations d'acceptation, suites lentes, balayage de dosage | **faite, validée, poussée** → gate tablette **fait** : « un peu facile », L_ELAN 6 conservé |
 | 5a pilotes | **faite, validée**, poussée |
 | 5b course à 5 voitures, grille, chocs, respawn groupé (+ fantômes près des volcans) | **faite, validée**, poussée → mesure fps du papa |
-| 5c (ajoutée) saut fiabilisé | **prochaine** |
-| 6 conduite des robots (+ robots polis) | à faire |
+| 5c (ajoutée) saut fiabilisé | **faite, en relecture** (branche `wip-plan-b`) → tour de correction, validation |
+| 5f (ajoutée) rendu interpolé (tremblement) | à faire, juste après 5c |
+| 5d (ajoutée) étoiles pour tous | à faire (addendum bouton saut §2) |
+| 5e (ajoutée) bouton saut et étoiles hautes | à faire (addendum bouton saut §1–2) |
+| 6 conduite des robots (+ robots polis + sauts des copains) | à faire |
 | 7 élastique (+ suite `test:slow:race`) | à faire |
 | 8 position, barre de progression, classement | à faire |
-| 9 (conditionnelle) fenêtre glissante de sol | si fps < 50 |
+| 9 (conditionnelle) fenêtre glissante de sol | fps OK à 5 voitures → non ; à remesurer avec le décor (tâche 16) |
 | 10 machine d'états, titre, décompte, pause, orientation | à faire |
 | 11 podium | à faire |
 | 12 audio | à faire |
@@ -174,21 +199,46 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
   pour trancher choc / chute propre.
 - Un relecteur ciblé peut lire un paquet de diff pendant que l'implémenteur
   travaille au tour suivant, à condition de lui interdire de lancer des tests.
+- Une enquête (débogage) peut tourner en parallèle d'un implémenteur dans un
+  `git worktree` du scratchpad (lien symbolique vers `node_modules`) : aucune
+  interférence avec l'arbre partagé.
+- Un « glitch » rapporté sans détail : demander au papa à quoi il ressemble
+  (choix multiples), puis mesurer avant toute correction ; ici c'était le
+  rendu, pas la physique.
+- Une nouvelle session repart d'un clone de GitHub : le travail non validé
+  doit être poussé sur une branche de sauvegarde (`wip-plan-b`, sans
+  déploiement), jamais laissé seulement dans le conteneur.
 
 ## Prochaine action précise
 
-1. Nouvelle session : lire cette passation, puis `sdd-ledger-plan-b.md`
-   (Progression, tâches 1 à 5b et gate), le registre du plan A (« Décisions
-   prises hors plan »), l'addendum v3.1 amendé [tâche 2] [tâche 4]
-   [tâche 5b], le plan v2.1 (tâche 5c ajoutée, tâche 6 amendée).
-2. **Le papa mesure le fps à 5 voitures** sur la tablette (`?debug=1`) :
-   < 50 → tâche 9 (fenêtre glissante de sol) avant le décor ; il rejuge aussi
-   la difficulté (`ENGINE_BRAKE`, plan C) après les tâches 6 et 7.
-3. Dispatcher la **tâche 5c** (saut fiabilisé, plan) à un implémenteur frais :
-   mesure des chutes propres sur de nombreuses phases de suspension, tableau
-   de correctifs candidats (arête arrondie, `LAVA_MARGIN` 0,75,
-   amortissement) qui gardent vrais les cas 1 à 7 de la tâche 4, **choix du
-   papa**, puis invariant `lavaByCar.galahad === 0` à 5 voitures sur les
-   graines 0 à 23. Relectures standard + adversariale (sondes physiques) +
-   `code-review`, validation, passation, push.
-4. Puis la **tâche 6** (conduite des robots + robots polis, plan amendé).
+1. Nouvelle session : **`git fetch origin wip-plan-b && git checkout -B
+   wip-plan-b origin/wip-plan-b`** (ou cloner cette branche), `npm ci`. Lire
+   cette passation, puis `sdd-ledger-plan-b.md` (tâches 1 à 5c, décisions du
+   2026-10-21), le registre du plan A (« Décisions prises hors plan »),
+   l'addendum v3.1 [tâche 2] [tâche 4] [tâche 5b], l'**addendum bouton saut**
+   (validé), le plan v2.1 (5c ajoutée, 6 amendée), `handoff/wip-5c/` et
+   `2026-10-21-glitch-tremblement.md`.
+2. **Finir la tâche 5c** : poser au papa les deux questions de
+   `wip-5c/relectures.md` (marge 0,63 m en fin de turbo : adoucir la fin du
+   turbo ? levier de difficulté ?) ; un tour de correction groupant les
+   constats adversariaux (chiffres faux corrigés partout, famille turbo dense
+   et garde ≥ 0,3 m asserté, tableau (b) au pas de 0,05 s), les 10 de
+   `code-review` et les mineurs utiles de la relecture standard (au moins 1,
+   2, 3, 5, 6, 8, 9 de code-review ; témoin `pli` vivant ; test « onStep sans
+   effet ») ; re-relecture ciblée ; **validation du papa** ; puis fusion
+   rapide (`git checkout ccr-5b6fabc4-n96ofo && git merge --ff-only
+   wip-plan-b`), passation, registre, push sur `ccr-5b6fabc4-n96ofo`
+   (déploiement), et suppression de `wip-plan-b` sur GitHub si le papa est
+   d'accord.
+3. **Écrire le plan des nouvelles tâches** (skill writing-plans) à partir de
+   l'addendum bouton saut et du rapport de tremblement : **5f** rendu
+   interpolé (interpoler entre le pas précédent et le pas courant, alpha =
+   accumulateur / dt, caméra sur la position interpolée, pas d'interpolation
+   à travers une téléportation ; compteur d'images à 0 / 2 pas en
+   `?debug=1`), **5d** étoiles pour tous, **5e** bouton saut et étoiles
+   hautes, **6** amendée (polis + sauts des copains + traits `jumpTry` /
+   `jumpSkill` à faire valider). Relectures standard + adversariale +
+   `code-review` du plan, validation du papa.
+4. Exécuter dans l'ordre **5f → 5d → 5e → 6 → 7**, avec la méthode habituelle
+   (implémenteur frais, trois relectures, ≤ 5 tours, validation, passation,
+   push). Après 6 et 7, le papa rejuge la difficulté (`ENGINE_BRAKE`, plan C).
