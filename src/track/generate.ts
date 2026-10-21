@@ -41,7 +41,10 @@ function draw(
   let type = pickWeighted(rng, WEIGHTS);
   if (type === 'rampe-volcan') {
     const profile = rampeVolcan(cfg);
-    const refused = x < 0.15 * target || x + profile.length > 0.9 * target || previous === 'rampe-volcan';
+    // Jamais après une rampe-saut : abordée avec un turbo, elle lançait la voiture à 19–21 m/s sur l'élan ou la
+    // rampe (atterrissage à +32…+38 m de xLancement), rebond, lave (relecture adversariale de la tâche 1).
+    const refused = x < 0.15 * target || x + profile.length > 0.9 * target
+      || previous === 'rampe-volcan' || previous === 'rampe-saut';
     if (!refused) return profile;
     type = pickWeighted(rng, WEIGHTS_NO_VOLCANO);
   }

@@ -137,6 +137,15 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
     }
   });
 
+  test('aucun volcan n’est précédé d’une rampe-saut (graines 0 à 49, 1 680 m)', () => {
+    for (const seed of SEEDS) {
+      const t = track(seed, 1680);
+      for (let i = 1; i < t.slices.length; i++) {
+        if (t.slices[i].type === 'rampe-volcan') expect(t.slices[i - 1].type, `seed ${seed}, tranche ${i}`).not.toBe('rampe-saut');
+      }
+    }
+  });
+
   test('3 à 7 volcans par piste de 1 680 m sur les graines 0 à 19', () => {
     const counts = SEEDS.slice(0, 20).map((seed) => track(seed, 1680).volcanoes.length);
     for (const [seed, n] of counts.entries()) {
