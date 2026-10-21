@@ -20,8 +20,16 @@ sans le contexte de celle-ci.
   Galahad sur le plafond seul, suites lentes en deux scripts).
 - **Plan d'implémentation** : `docs/superpowers/plans/2026-10-21-plan-b-copains-et-finitions.md`,
   v2.1 après deux tours de relecture (standard, adversariale avec sonde
-  physique, `code-review`). **En attente de validation du papa** (v2.1 et
-  addendum v3.1) avant le premier dispatch.
+  physique, `code-review`). **Validés par le papa** (v2.1 et addendum v3.1)
+  le 2026-10-21.
+- **Tâche 1 faite côté code** (commits `7967a49`, `f61d2ab`, `ed94190`, non
+  poussés) : volcan v2 (plat de lancement 32,3 m + élan 6 m, lave à 0,8,
+  capteur +0,3 m, butée supprimée), `xLancement`, `nearestVolcanoZone` sur
+  `[xLancement, xEnd)`, `forbiddenZone` de transition, `'cratère'` dans
+  `SliceType`, étoile « 1 m avant une rampe-saut » retirée dès maintenant
+  (voir registre). Typecheck 0 erreur, 224/224 tests, e2e 5/5. **En attente de
+  la validation du papa**, plus une décision (rampe-saut juste avant un
+  volcan, registre « DÉCISION PAPA EN ATTENTE »).
 - Branche : `ccr-5b6fabc4-n96ofo` (branche par défaut, déploiement
   automatique à chaque push). Commits signés par le git config local du dépôt
   (`Claude <noreply@anthropic.com>`) avec les trailers `Co-Authored-By:
@@ -39,7 +47,7 @@ sans le contexte de celle-ci.
 
 | Tâche | État |
 |---|---|
-| 1 géométrie du volcan v2 (lancement, élan 6 m, lave 0,8, capteur +0,3, butée supprimée) | à faire |
+| 1 géométrie du volcan v2 (lancement, élan 6 m, lave 0,8, capteur +0,3, butée supprimée) | **code fait, relu (3 relectures, 2 tours), en attente de validation du papa** |
 | 2 étoiles v2 (curseur global, étoiles d'élan, plancher 6) | à faire |
 | 3 points sûrs et respawn v2 | à faire |
 | 4 simulations d'acceptation, suites lentes, balayage de dosage | à faire → **gate : test tablette du papa** |
@@ -81,10 +89,15 @@ sans le contexte de celle-ci.
 
 ## Prochaine action précise
 
-1. Obtenir du papa la validation du plan v2.1 et de l'addendum v3.1 (ou ses
-   amendements).
-2. Dispatcher la **tâche 1** à un implémenteur frais (brief : plan tâche 1,
-   addendum §1, contraintes globales du plan, registre du plan A §« Décisions
-   prises hors plan »), puis relectures, puis validation, passation, push.
+1. Obtenir du papa la **validation de la tâche 1** (commits `7967a49..ed94190`)
+   et sa décision sur « rampe-saut immédiatement suivie d'un volcan + turbo »
+   (registre, options a/b/c ; recommandation : (a) refuser dans `draw`, coût
+   0,55 volcan par piste en moyenne, et ajouter le scénario à la tâche 4).
+2. Après validation : `git push -u origin ccr-5b6fabc4-n96ofo` (déploiement
+   automatique), puis dispatcher la **tâche 2** (étoiles v2) à un implémenteur
+   frais (brief : plan tâche 2, addendum §1.5, contraintes globales, registre
+   plan A et plan B) ; si l'option (a) est retenue, l'appliquer dans un petit
+   commit avant la tâche 2 (avec son test « aucun volcan précédé d'une
+   rampe-saut » et la fourchette 3–7 revérifiée).
 3. Après la tâche 4 : test tablette du papa et de Galahad (gate), au plus deux
    tours de calibration, puis tâche 5a.
