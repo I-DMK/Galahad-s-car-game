@@ -77,7 +77,7 @@ d'après §1.7, puis confirmées sur la tablette.
 
 | Constante | Plan A | Plan B (départ) | Rôle |
 |---|---|---|---|
-| `L_ELAN` (nouvelle) | calculée (22,7 m) | 6 m [plan] | longueur du plat d'élan, **seul levier de difficulté** (§1.6) ; valeur retenue mesurée par le cas 1 de §1.7 (sonde de la relecture du plan : à 8 m, 2 volcans sur 29 laissent passer un départ arrêté ; à 6 m, 0 sur 29) |
+| `L_ELAN` (nouvelle) | calculée (22,7 m) | 6 m [plan] | longueur du plat d'élan, **seul levier de difficulté** (§1.6) ; valeur retenue mesurée par le cas 1 de §1.7 (sonde de la relecture du plan : à 8 m, 2 volcans sur 29 laissent passer un départ arrêté ; à 6 m, 0 sur 29). [tâche 4] : la relecture adversariale montre que `L_ELAN` n'est **pas un dosage continu** : un départ arrêté à xElanStart tombe pour L_ELAN ≤ 7 m, puis l'issue est chaotique à 0,1 m près entre 7,5 et 8,5 m (la roue arrière sautille sur la rampe et frappe l'arête du sommet), et tout passe au-delà ; tous les volcans donnent la même trajectoire (géométrie identique). La frontière réelle pour l'enfant est le **frein moteur** : lancé à V_MAX, doigt levé 1,5 s avant le volcan → passe, 2 s → tombe (voir registre, tâche 4) |
 | `ELAN_MARGIN`, `ELAN_SAFE_FRACTION` | 1,2 / 0,75 | supprimées | remplacées par `L_ELAN` |
 | `D_LANCE` (nouvelle) | — | `runUpDistance(V_MAX, DRIVE_ACCEL) × 1,2` = 27,3 m | distance de plat garantissant `V_MAX` depuis l'arrêt |
 | `LANCEMENT_LENGTH` (nouvelle) | — | `D_LANCE + 5` = 32,3 m | plat de lancement devant chaque élan (§1.4) |
@@ -176,8 +176,9 @@ sans turbo sauf mention, assertions à 100 % (le monde est déterministe) :
    inélastique simulé) → mêmes assertions que 2.
 5. Même départ que 2 avec turbo pris à `xElanStart − 2` m → pas de `lava`,
    atterrissage sur le plat de réception, avant `xEnd`.
-6. Course complète doigt posé, graines 0 à 4 : 0 respawn, arrivée en 120 à
-   170 s, 6 à 14 étoiles prises.
+6. Course complète doigt posé, graines 0 à 4 : 0 respawn, arrivée en 110 à
+   170 s (120 à l'origine ; [tâche 4] mesuré 118 à 127 s avec les étoiles
+   v2, borne abaissée), 6 à 14 étoiles prises.
 7. Course « doigt levé 30 % du temps » : motif déterministe (graine du motif =
    graine de piste, tranches de 1 s) → ≤ 2 respawns par volcan (la règle
    « replacé après » borne à 2), arrivée avant 240 s.
