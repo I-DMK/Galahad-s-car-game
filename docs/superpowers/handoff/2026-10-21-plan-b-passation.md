@@ -40,8 +40,8 @@ sans le contexte de celle-ci.
   retourné/sur le flanc sur l'élan ou la rampe → respawn immédiat ; rulings :
   raison `'side'` véridique, seules les chutes dans la lave comptent pour la
   série, `LANCEMENT_LENGTH = D_LANCE + SAFE_LANCEMENT_MARGIN`. Trois
-  relectures approuvées après deux tours ; 256/256 tests, e2e 5/5. **En
-  attente de validation du papa**, puis push.
+  relectures approuvées après deux tours ; 256/256 tests, e2e 5/5.
+  **Validée par le papa**, poussée.
 - Consignes de conteneur apprises : le push passe quand la session est en
   mode « accepter les modifications » (le mode auto le classe comme
   déploiement) ; vérifier `git status -sb` avant un push (HEAD détaché au
@@ -66,7 +66,7 @@ sans le contexte de celle-ci.
 |---|---|
 | 1 géométrie du volcan v2 (lancement, élan 6 m, lave 0,8, capteur +0,3, butée supprimée) | **faite, validée** (+ option (a) : pas de volcan après une rampe-saut) ; push en attente d'autorisation |
 | 2 étoiles v2 (curseur global, étoiles d'élan, plancher 6, pas 60–100) | **faite, validée**, poussée |
-| 3 points sûrs et respawn v2 | **code fait, relu (3 relectures, 2 tours), en attente de validation du papa** |
+| 3 points sûrs et respawn v2 | **faite, validée**, poussée |
 | 4 simulations d'acceptation, suites lentes, balayage de dosage | à faire → **gate : test tablette du papa** |
 | 5a pilotes | à faire |
 | 5b course à 5 voitures, grille, chocs, respawn groupé | à faire → mesure fps du papa |
@@ -106,14 +106,13 @@ sans le contexte de celle-ci.
 
 ## Prochaine action précise
 
-1. Obtenir du papa la **validation de la tâche 3** (commits `be41a0b..93b5ad3`
-   + docs), puis `git push -u origin ccr-5b6fabc4-n96ofo`.
-2. Dispatcher la **tâche 4** (simulations d'acceptation, suites lentes,
+1. **Tâche 4** dispatchée (simulations d'acceptation, suites lentes,
    balayage de dosage L_ELAN 6→16) à un implémenteur frais (brief : plan
    tâche 4, addendum §1.7 et §1.6 dosage, contraintes globales et budget CI,
    registres plan A et plan B : scénario « rampe-saut → plat → volcan avec
    turbo » et « 2 flipped de suite » à inclure, mesure « relancer le gaz à
    xElanStart − 1 à 5,3 m/s passe »), puis relectures, validation, passation,
    push, puis **gate : test tablette du papa et de Galahad**.
+2. Après le gate : tâche 5a (pilotes).
 3. Après la tâche 4 : test tablette du papa et de Galahad (gate), au plus deux
    tours de calibration, puis tâche 5a.
