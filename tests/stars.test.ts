@@ -2,7 +2,7 @@
 // tirées un volcan sur deux, plancher de STAR_MIN_COUNT, aucune étoile dans [xElanStart, xLava].
 import { CONFIG, type Config } from '../src/config';
 import { generateTrack } from '../src/track/generate';
-import { heightAt } from '../src/track/query';
+import { heightAt, sliceAt } from '../src/track/query';
 import { mulberry32 } from '../src/track/rng';
 import { placeStars } from '../src/track/stars';
 import type { Star, Track } from '../src/track/types';
@@ -30,17 +30,6 @@ function admissibleZones(t: Track): [number, number][] {
 
 const isElanStar = (t: Track, s: Star): boolean =>
   t.volcanoes.some((v) => Math.abs(s.x - (v.xElanStart - CONFIG.STAR_ELAN_OFFSET)) < 1e-9);
-
-describe('constantes', () => {
-  test('STAR_STEP_* / STAR_MIN_COUNT / STAR_ELAN_* ; STAR_EXCLUSION_BEFORE_LAVA retirée', () => {
-    expect(CONFIG.STAR_STEP_MIN).toBe(80);
-    expect(CONFIG.STAR_STEP_MAX).toBe(130);
-    expect(CONFIG.STAR_MIN_COUNT).toBe(6);
-    expect(CONFIG.STAR_ELAN_OFFSET).toBe(2);
-    expect(CONFIG.STAR_ELAN_GAP).toBe(5);
-    expect('STAR_EXCLUSION_BEFORE_LAVA' in CONFIG).toBe(false);
-  });
-});
 
 describe('invariants (graines 0..49, 1 680 m)', () => {
   test('aucune étoile dans [xElanStart, xLava]', () => {
@@ -105,6 +94,8 @@ describe('invariants (graines 0..49, 1 680 m)', () => {
 });
 
 describe('nombre d’étoiles (graines 0..19, 1 680 m)', () => {
+  // Le plancher de 6 n'est garanti ici que parce que ces graines ont ≥ 2 volcans (le plancher n'ajoute que des
+  // étoiles d'élan) : ne pas étendre ce test à 0..49 (graine 45 : 5 étoiles).
   test('entre 6 et 14 (cible 8 à 12, addendum §1.5)', () => {
     const counts = tracks20.map((t) => t.stars.length);
     for (const t of tracks20) {
@@ -143,17 +134,50 @@ describe('curseur global', () => {
     expect(atMin.length).toBeGreaterThan(atMax.length);
   });
 
-  test('la distance ne s’accumule que sur les zones admissibles (plat, lancement, réception)', () => {
-    // Chaque étoile du curseur se trouve dans une zone admissible : les bosses, rampes-sauts, double-bosses,
-    // l'élan, la rampe, la vallée et le volcan n'en reçoivent jamais. rng = 0,99 : aucune étoile d'élan tirée
-    // (seules celles du plancher, à xElanStart − 2, peuvent s'ajouter).
-    for (const t of tracks20) {
-      const zones = admissibleZones(t);
-      for (const s of placeStars(t, () => 0.99, CONFIG)) {
-        if (isElanStar(t, s)) continue;
-        expect(zones.some(([a, b]) => s.x >= a - 1e-9 && s.x <= b + 1e-9), `seed ${t.seed} x=${s.x}`).toBe(true);
+  test('la distance admissible cumulée entre deux étoiles de curseur consécutives est dans [STAR_STEP_MIN, STAR_STEP_MAX]', () => {
+    // Vérification indépendante de l'implémentation : longueur admissible de [x1, x2] sommée tranche par tranche
+    // à partir de `sliceAt` et des volcans (plat hors départ et hors plat d'arrivée en entier ; dans une tranche
+    // rampe-volcan, seulement [xLancement, xElanStart − GAP] et [xReception, xEnd]).
+    const admissibleLength = (t: Track, x1: number, x2: number): number => {
+      const overlap = (a: number, b: number): number => Math.max(0, Math.min(b, x2) - Math.max(a, x1));
+      let len = 0;
+      for (let x = x1; x < x2; ) {
+        const sl = sliceAt(t, x);
+        if (sl.type === 'plat' && sl.xStart > 0) len += overlap(sl.xStart, Math.min(sl.xEnd, xFinishLimit(t)));
+        if (sl.type === 'rampe-volcan') {
+          const v = t.volcanoes.find((w) => w.xLancement === sl.xStart)!;
+          len += overlap(v.xLancement, v.xElanStart - CONFIG.STAR_ELAN_GAP) + overlap(v.xReception, v.xEnd);
+        }
+        x = sl.xEnd + 1e-9;
       }
+      return len;
+    };
+    let seen = 0;
+    for (const t of tracks20) {
+      const cursor = t.stars.filter((s) => !isElanStar(t, s));
+      for (let i = 1; i < cursor.length; i++) {
+        const len = admissibleLength(t, cursor[i - 1].x, cursor[i].x);
+        expect(len, `seed ${t.seed} ${cursor[i - 1].x} → ${cursor[i].x}`).toBeGreaterThanOrEqual(CONFIG.STAR_STEP_MIN - 1e-6);
+        expect(len, `seed ${t.seed} ${cursor[i - 1].x} → ${cursor[i].x}`).toBeLessThanOrEqual(CONFIG.STAR_STEP_MAX + 1e-6);
+        seen++;
+      }
+      // Et du début de la première zone admissible (fin du plat de départ) à la première étoile du curseur.
+      const first = admissibleLength(t, t.slices[0].xEnd, cursor[0].x);
+      expect(first, `seed ${t.seed}`).toBeGreaterThanOrEqual(CONFIG.STAR_STEP_MIN - 1e-6);
+      expect(first, `seed ${t.seed}`).toBeLessThanOrEqual(CONFIG.STAR_STEP_MAX + 1e-6);
     }
+    expect(seen).toBeGreaterThan(50);
+  });
+
+  test('pas invalide ou étoile d’élan mal placée : erreur explicite (jamais de boucle infinie)', () => {
+    const t = tracks20[0];
+    const rng = mulberry32(1);
+    expect(() => placeStars(t, rng, { ...CONFIG, STAR_STEP_MIN: 0 })).toThrow(/pas invalide/);
+    expect(() => placeStars(t, rng, { ...CONFIG, STAR_STEP_MIN: 100, STAR_STEP_MAX: 50 })).toThrow(/pas invalide/);
+    expect(() => placeStars(t, rng, { ...CONFIG, STAR_ELAN_GAP: 2 })).toThrow(/STAR_ELAN_GAP/);
+    expect(() => placeStars(t, rng, { ...CONFIG, STAR_ELAN_GAP: 1, STAR_ELAN_OFFSET: 2 })).toThrow(/STAR_ELAN_GAP/);
+    expect(() => placeStars(t, rng, { ...CONFIG, STAR_ELAN_OFFSET: -1 })).toThrow(/STAR_ELAN_GAP/);
+    expect(() => placeStars(t, rng, CONFIG)).not.toThrow();
   });
 });
 

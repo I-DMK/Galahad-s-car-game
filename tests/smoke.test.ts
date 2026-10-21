@@ -25,8 +25,8 @@ describe('CONFIG', () => {
   });
 
   it('étoiles v2 (tâche 2) : pas du curseur, plancher, étoile d’élan ; STAR_EXCLUSION_BEFORE_LAVA retirée', () => {
-    expect(CONFIG.STAR_STEP_MIN).toBe(80);
-    expect(CONFIG.STAR_STEP_MAX).toBe(130);
+    expect(CONFIG.STAR_STEP_MIN).toBe(60);
+    expect(CONFIG.STAR_STEP_MAX).toBe(100);
     expect(CONFIG.STAR_MIN_COUNT).toBe(6);
     expect(CONFIG.STAR_ELAN_OFFSET).toBe(2);
     expect(CONFIG.STAR_ELAN_GAP).toBe(5);
