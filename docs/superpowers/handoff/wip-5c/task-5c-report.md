@@ -38,7 +38,7 @@ La vitesse au sommet ne sépare donc pas les chutes des passages. Sur la référ
 
 ## 3. Mesure de référence (configuration actuelle, MESURÉ)
 
-2 924 runs sur 43 volcans : **4 chutes (0,14 %)**, 0 `autre`, sur 4 volcans différents. Toutes sont à plus de 10,5 m/s au sommet.
+2 924 runs sur 43 volcans : **4 chutes (0,14 %)** (phase 1, commit ee58194 ; *tour 1* : 3 chutes avec le nouveau tirage de `turboAt`, voir le tour 1), 0 `autre`, sur 4 volcans différents. Toutes sont à plus de 10,5 m/s au sommet.
 
 | famille | runs | chutes | vitesse à xLancement (min / p1 / p10 / méd. / p90 / max, m/s) |
 |---|---|---|---|
@@ -397,6 +397,6 @@ Aucun changement de comportement du jeu : dans `src/`, seuls des commentaires ch
 - `npm test` : 29 fichiers, **331/331**, en 187 s. Le nouveau test de l'observateur prend ≈ 6 s.
 - `npm run test:slow` : 10 fichiers, **170/170**, en 652 s (10 min 52 s en temps réel).
   - `phases` : 2 924 runs, 0 lave, 0 `autre`.
-  - Témoin `pli` : 3 chutes propres, à 11,18 m/s (g0 v3), 11,04 m/s (g0 v4) et 11,31 m/s (g6 v2).
+  - Témoin `pli` : 3 chutes propres, à 11,18 m/s (g0 v3), 11,04 m/s (g0 v4) et 11,31 m/s (g6 v2). La sonde `PHASES_VARIANTS=pli` sur les graines 0 à 9 (re-relecture) donne aussi **3 chutes sur 2 924** et non plus 4 : le constat code-review 5 (`turboAt` tiré après x0) change les historiques « turbo » (g0 v2 et g8 v2 ne tombent plus, g0 v4 tombe). Le « 0 sur 2 924 » avec congé a été remesuré sur les nouveaux historiques.
   - `phases-dense` : 4 601 runs en ≈ 5 min 20 sur un cœur.
   - 5 voitures, graines 0 à 23 : 0 chute, 0 chute propre.

@@ -8,7 +8,7 @@
 // xLancement au plus tard, et la garde au-dessus du capteur de lave reste ≥ MIN_CLEARANCE (0,3 m) ;
 // sur le témoin « pli », au moins une chute propre à plus de FAST_FALL_LIP_SPEED (10,5 m/s) au sommet :
 // le protocole voit encore le phénomène, l'assertion « 0 chute » a un contrôle vivant.
-// Mesures (43 volcans) : pied d'avant 4 chutes propres sur 2 924 historiques (10,94 à 11,31 m/s au
+// Mesures (43 volcans) : pied d'avant 4 chutes propres sur 2 924 historiques en phase 1 (ee58194, ancien tirage de turboAt), 3 avec le tirage du tour 1 (10,94 à 11,31 m/s au
 // sommet, direction 13,5–14,1° au lieu de ≈ 21°), garde minimale −0,03 m ; congé R = 10 m : 0 chute,
 // garde minimale 1,72 m sur ces familles ; mais 0,63 m en fin de turbo au pied (famille turbo dense).
 // Variables d'environnement (mesure en parallèle sur plusieurs processus) :
@@ -32,7 +32,7 @@ import {
 
 const list = (s: string | undefined): string[] | null => (s ? s.split(',').map((x) => x.trim()).filter(Boolean) : null);
 const variants = (list(env.PHASES_VARIANTS) ?? ['reference']).map(variantById);
-/** Témoin « pli » joué par défaut (PHASES_VARIANTS absent) : graines où le pied d'avant fait tomber (phase 1 : g0 v2, g0 v3, g6 v2). */
+/** Témoin « pli » joué par défaut (PHASES_VARIANTS absent) : graines où le pied d'avant fait tomber (tirage de turboAt du tour 1 : g0 v3, g0 v4, g6 v2). */
 const WITNESS_SEEDS = [0, 6];
 const seeds = list(env.PHASES_SEEDS)?.map(Number) ?? PHASE_SEEDS;
 const parts = new Set(list(env.PHASES_PARTS) ?? ['samples']);
