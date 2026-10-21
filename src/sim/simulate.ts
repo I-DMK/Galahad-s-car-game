@@ -1,10 +1,13 @@
 // Pas de course : relie la physique (matter-js) à l'état de course. Sans DOM : utilisable sous node
 // (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b),
-// ligne d'arrivée (11), étoiles et turbo (12).
+// ligne d'arrivée (11), étoiles et turbo (12) ; course à 5 voitures dans un seul monde, grille de
+// départ, chocs réels et respawn groupé (tâche 5b du plan B).
 import Matter from 'matter-js';
 import type { Config } from '../config';
+import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
+import { rankCars } from '../cars/ranking';
 import {
-  applyRespawnToState, chooseRespawnTarget, updateRespawnTimers, type RespawnReason,
+  applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
 } from '../cars/respawn';
 import { isSafePointCandidate } from '../cars/safepoint';
 import { isStarActive, newStarStates, takeStar, type StarState } from '../cars/stars';
@@ -21,39 +24,56 @@ import type { CarView, Scene } from '../render/renderer';
 import { heightAt, inElanZone, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 
+/** Chaque événement porte l'id (`CarState.id`) de la voiture concernée. */
 export type SimEvent =
   /** `x` : position du châssis (m) au moment de la décision, avant téléportation vers `target`. */
-  | { type: 'respawn'; t: number; reason: RespawnReason; x: number; target: SafePoint }
-  | { type: 'landing'; t: number; x: number; strength: number }
-  | { type: 'star'; t: number; id: number }
-  | { type: 'finish'; t: number };
+  | { type: 'respawn'; carId: string; t: number; reason: RespawnReason; x: number; target: SafePoint }
+  | { type: 'landing'; carId: string; t: number; x: number; strength: number }
+  | { type: 'star'; carId: string; t: number; id: number }
+  | { type: 'finish'; carId: string; t: number };
+
+export type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
+
+/** Pilote automatique : doigt posé à l'instant t ? (`speed` : vitesse du châssis, m/s). */
+export type Driver = (ctx: { t: number; state: CarState; track: Track; speed: number }) => boolean;
+
+/** Une voiture de la course : pilote, corps physique et état de course. */
+export interface CarSim {
+  pilot: Pilot;
+  body: CarBody;
+  state: CarState;
+  /** Contact au sol de jeu (anti-rebond) de `body`. */
+  contact: GroundContact;
+  /** Instant (s) où plus aucune roue ne touche le sol, null si au moins une roue touche. */
+  airborneSince: number | null;
+  /** Collisions avec les autres voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
+  invulnerable: boolean;
+  /** Pilote automatique d'un robot ; null pour Galahad (doigt de l'enfant, argument de `stepRace`). */
+  driver: Driver | null;
+  /** Facteur de vitesse du pilote, multiplié au turbo (élastique, tâche 7) ; 1 en 5b. */
+  factor: number;
+  /** Doigt posé au dernier pas (décision du driver, ou de l'enfant pour Galahad ; false après l'arrivée). */
+  throttle: boolean;
+}
 
 export interface RaceSim {
   track: Track;
   world: World;
-  car: CarBody;
-  state: CarState;
-  /** Contact au sol de jeu (anti-rebond) de `car`. */
-  contact: GroundContact;
+  /** Galahad = cars[0] ; le robot de rang n = cars[n] (ordre de la grille). */
+  cars: CarSim[];
   /** Temps de course (s), PHYSICS_DT par pas. */
   time: number;
   /** Événements du dernier pas (vidés au début de chaque pas). */
   events: SimEvent[];
-  /** Instant (s) où plus aucune roue ne touche le sol, null si au moins une roue touche. */
-  airborneSince: number | null;
-  /** Collisions entre voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
-  invulnerable: boolean;
-  /** Châssis des autres voitures (vide au plan A) : l'invulnérabilité dure tant qu'un d'eux chevauche. */
-  others: Matter.Body[];
-  /** État des étoiles, dans l'ordre de `track.stars`. */
+  /** État des étoiles, dans l'ordre de `track.stars` ; une étoile prise l'est pour toutes les voitures. */
   stars: StarState[];
   /** Capteurs des étoiles, même ordre que `stars`. */
   starBodies: Matter.Body[];
   cfg: Config;
+  /** Graine du tirage des copains (`drawPilots`), mémorisée pour rejouer la même course. */
+  pilotSeed: number;
 }
 
-const CAR_ID = 'galahad';
-const CAR_NAME = 'Galahad';
 /** Durée minimale en l'air (s) pour qu'un retour au sol compte comme atterrissage. */
 const LANDING_MIN_AIRTIME = 0.3;
 
@@ -64,98 +84,163 @@ function colorHex(n: number): string {
 
 const newContact = (): GroundContact => ({ groundedUntil: [-1, -1] });
 
-export function createRaceSim(track: Track, cfg: Config): RaceSim {
-  const world = createWorld(track, cfg);
-  const x0 = track.xStart - 2;
-  const car = createCar(world, CAR_ID, 0, x0, cfg);
+/**
+ * Graine des pilotes dérivée de la graine de piste, entier de [0, 2³²) quel que soit `?seed=`
+ * (`drawPilots` refuse le reste), et décorrélée du premier tirage de la piste.
+ */
+const defaultPilotSeed = (track: Track): number => (track.seed ^ 0x9e3779b9) >>> 0;
+
+/**
+ * Driver provisoire de la tâche 5b : doigt posé dès rank × START_DELAY_PER_RANK (départ échelonné de
+ * la grille). La conduite des robots (lever de pied, zone volcan) arrive en tâche 6.
+ */
+function holdAfterStartDelay(rank: number, cfg: Config): Driver {
+  const start = rank * cfg.START_DELAY_PER_RANK;
+  return ({ t }) => t >= start;
+}
+
+/** Voiture de rang `rank` posée sur la grille : xStart − 2 − rank × GRID_SPACING_FACTOR × CAR_LENGTH. */
+function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cfg: Config): CarSim {
+  const x0 = track.xStart - 2 - rank * cfg.GRID_SPACING_FACTOR * cfg.CAR_LENGTH;
+  const body = createCar(world, pilot.id, rank, x0, cfg);
   const start: SafePoint = { x: x0, y: heightAt(track, x0), angle: 0 };
-  const state = newCarState(CAR_ID, CAR_NAME, colorHex(cfg.GALAHAD_COLOR), colorHex(cfg.GALAHAD_ACCENT), start);
-  state.progress = physToWorld(car.chassis.position).x;
-  const stars = newStarStates(track.stars);
-  const starBodies = createStarBodies(world, track.stars, cfg);
+  const state = newCarState(pilot.id, pilot.name, colorHex(pilot.color), colorHex(pilot.accent), start);
+  state.progress = physToWorld(body.chassis.position).x;
   return {
-    track, world, car, state, contact: newContact(), time: 0, events: [], airborneSince: null,
-    invulnerable: false, others: [], stars, starBodies, cfg,
+    pilot, body, state, contact: newContact(), airborneSince: null, invulnerable: false,
+    driver: rank === 0 ? null : holdAfterStartDelay(rank, cfg), factor: 1, throttle: false,
   };
 }
 
 /**
- * Un pas fixe de PHYSICS_DT. Après l'arrivée (`state.finishedAt` défini), `throttle` est ignoré :
- * les roues sont freinées à chaque pas (FINISH_BRAKE) et la voiture ne réapparaît plus jamais
- * (elle s'arrête sur le plat avant le mur de fin). Une étoile active touchée après le pas physique
- * est prise (réapparition STAR_RESPAWN_SECONDS plus tard) et lance TURBO_SECONDS de turbo.
+ * Course sur `track`. Par défaut (`robots: false`) Galahad roule seul, comme au plan A ; avec
+ * `robots: true`, les 4 copains tirés par `drawPilots(pilotSeed)` partent derrière lui sur la grille.
+ * `pilotSeed` par défaut : dérivée de `track.seed` (même piste → mêmes copains).
  */
-export function stepRace(sim: RaceSim, throttle: boolean): void {
-  const { car, cfg, world } = sim;
-  const h = (x: number) => heightAt(sim.track, x);
+export function createRaceSim(
+  track: Track, cfg: Config, opts: { pilotSeed?: number; robots?: boolean } = {},
+): RaceSim {
+  const world = createWorld(track, cfg);
+  const pilotSeed = opts.pilotSeed ?? defaultPilotSeed(track);
+  const pilots = [GALAHAD, ...(opts.robots ? drawPilots(pilotSeed) : [])];
+  const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, cfg));
+  const stars = newStarStates(track.stars);
+  const starBodies = createStarBodies(world, track.stars, cfg);
+  return { track, world, cars, time: 0, events: [], stars, starBodies, cfg, pilotSeed };
+}
+
+/**
+ * Un pas fixe de PHYSICS_DT pour toutes les voitures : pour chacune, conduite (doigt de Galahad =
+ * `galahadThrottle`, robots = leur driver ; vitesse × turbo × `factor`), contact au sol et
+ * mise à plat en l'air ; un seul pas physique ; puis, voiture par voiture dans l'ordre des index :
+ * bornage des vitesses, progression, étoiles, arrivée, invulnérabilité et réapparition.
+ * Après son arrivée (`state.finishedAt` défini), une voiture freine (FINISH_BRAKE) et ne réapparaît
+ * plus jamais (elle s'arrête sur le plat avant le mur de fin). Une étoile active touchée est prise
+ * (pour toutes les voitures, réapparition STAR_RESPAWN_SECONDS plus tard) et lance TURBO_SECONDS de
+ * turbo à la voiture qui l'a prise.
+ */
+export function stepRace(sim: RaceSim, galahadThrottle: boolean): void {
+  const { cfg, world, track, time: t } = sim;
+  const h = (x: number) => heightAt(track, x);
   sim.events = [];
-  const finished = sim.state.finishedAt !== null;
-  if (finished) applyBrake(car, cfg.FINISH_BRAKE);
-  else applyDrive(car, throttle, turboFactor(sim.state, sim.time, cfg), cfg);
-  const onGround = updateGroundContact(world.engine, car, sim.contact, sim.time, h, cfg);
-  const grounded = onGround[0] || onGround[1];
-  if (!grounded) {
-    sim.airborneSince ??= sim.time;
-  } else if (sim.airborneSince !== null) {
-    if (sim.time - sim.airborneSince >= LANDING_MIN_AIRTIME) {
-      const strength = Math.abs(toM(car.chassis.velocity.y) / cfg.PHYSICS_DT);
-      sim.events.push({ type: 'landing', t: sim.time, x: physToWorld(car.chassis.position).x, strength });
+  const onGround = sim.cars.map((car) => {
+    const { body, state } = car;
+    if (state.finishedAt !== null) {
+      car.throttle = false;
+      applyBrake(body, cfg.FINISH_BRAKE);
+    } else {
+      car.throttle = car.driver ? car.driver({ t, state, track, speed: carSpeedMps(body) }) : galahadThrottle;
+      applyDrive(body, car.throttle, turboFactor(state, t, cfg) * car.factor, cfg);
     }
-    sim.airborneSince = null;
-  }
-  applyAirLevel(car, onGround, cfg);
+    const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
+    detectLanding(sim, car, grounded[0] || grounded[1]);
+    applyAirLevel(body, grounded, cfg);
+    return grounded;
+  });
   stepWorld(world);
-  clampVelocities(car, cfg);
-  sim.state.progress = physToWorld(car.chassis.position).x;
-  collectStars(sim);
-  if (!finished && sim.state.progress >= sim.track.xFinish) {
-    sim.state.finishedAt = sim.time;
-    sim.events.push({ type: 'finish', t: sim.time });
-  }
-  releaseInvulnerability(sim);
-  if (sim.state.finishedAt === null) observeAndRespawn(sim, throttle, onGround);
+  sim.cars.forEach((car, i) => {
+    const { state } = car;
+    const finished = state.finishedAt !== null;
+    clampVelocities(car.body, cfg);
+    state.progress = physToWorld(car.body.chassis.position).x;
+    collectStars(sim, car);
+    if (!finished && state.progress >= track.xFinish) {
+      state.finishedAt = t;
+      sim.events.push({ type: 'finish', carId: state.id, t });
+    }
+    releaseInvulnerability(sim, car);
+    if (state.finishedAt === null) observeAndRespawn(sim, car, onGround[i]);
+  });
+  syncStarBodies(sim.starBodies, sim.stars, t, cfg);
   sim.time += cfg.PHYSICS_DT;
 }
 
-/** Prend les étoiles actives touchées par la voiture ce pas-ci, puis aligne les capteurs sur leur état. */
-function collectStars(sim: RaceSim): void {
+/** Atterrissage : retour au sol après au moins LANDING_MIN_AIRTIME en l'air. */
+function detectLanding(sim: RaceSim, car: CarSim, grounded: boolean): void {
+  const { time: t, cfg } = sim;
+  if (!grounded) {
+    car.airborneSince ??= t;
+  } else if (car.airborneSince !== null) {
+    if (t - car.airborneSince >= LANDING_MIN_AIRTIME) {
+      const { chassis } = car.body;
+      const strength = Math.abs(toM(chassis.velocity.y) / cfg.PHYSICS_DT);
+      sim.events.push({ type: 'landing', carId: car.state.id, t, x: physToWorld(chassis.position).x, strength });
+    }
+    car.airborneSince = null;
+  }
+}
+
+/**
+ * Prend les étoiles actives touchées par la voiture ce pas-ci : une étoile prise est aussitôt inactive
+ * pour les voitures suivantes (les capteurs sont alignés sur l'état à la fin du pas).
+ */
+function collectStars(sim: RaceSim, car: CarSim): void {
   const { cfg, time: t } = sim;
-  for (const sensor of sensorsTouching(sim.world.engine, sim.car.parts)) {
+  for (const sensor of sensorsTouching(sim.world.engine, car.body.parts)) {
     if (sensor.label !== 'star') continue;
     const i = sim.starBodies.indexOf(sensor);
     const star = sim.stars[i];
     if (!star || !isStarActive(star, t, cfg)) continue;
     takeStar(star, t);
-    activateTurbo(sim.state, t, cfg);
-    sim.events.push({ type: 'star', t, id: star.id });
+    activateTurbo(car.state, t, cfg);
+    sim.events.push({ type: 'star', carId: car.state.id, t, id: star.id });
   }
-  syncStarBodies(sim.starBodies, sim.stars, t, cfg);
+}
+
+/** x des châssis de toutes les voitures sauf `car`, à cet instant. */
+function otherChassisXs(sim: RaceSim, car: CarSim): number[] {
+  return sim.cars.filter((c) => c !== car).map((c) => physToWorld(c.body.chassis.position).x);
 }
 
 /**
  * Lève l'invulnérabilité à partir de `invulnerableUntil` si aucun autre châssis ne chevauche la
  * voiture, et de toute façon à `invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)`.
  */
-function releaseInvulnerability(sim: RaceSim): void {
-  if (!sim.invulnerable) return;
-  const { state, cfg, time: t } = sim;
+function releaseInvulnerability(sim: RaceSim, car: CarSim): void {
+  if (!car.invulnerable) return;
+  const { cfg, time: t } = sim;
+  const { state } = car;
   if (t < state.invulnerableUntil) return;
-  const free = Matter.Query.collides(sim.car.chassis, sim.others).length === 0;
+  const others = sim.cars.filter((c) => c !== car).map((c) => c.body.chassis);
+  const free = Matter.Query.collides(car.body.chassis, others).length === 0;
   if (free || t >= state.invulnerableUntil + (cfg.RESPAWN_INVULN_MAX - cfg.RESPAWN_INVULN)) {
-    setCarInvulnerable(sim.car, false);
-    sim.invulnerable = false;
+    setCarInvulnerable(car.body, false);
+    car.invulnerable = false;
   }
 }
 
 /**
  * Après le pas physique (t = instant du pas) : mémorise un point sûr si la position s'y prête,
  * met à jour les chronomètres de réapparition et, si l'un d'eux se déclenche, repose la voiture
- * aussitôt (entre deux pas physiques), invulnérable, et émet l'événement 'respawn'.
+ * aussitôt (entre deux pas physiques), invulnérable, et émet l'événement 'respawn'. La cible est
+ * décalée vers l'amont si un autre châssis l'occupe (respawn groupé, `shiftTarget`) ; les voitures
+ * déjà replacées pendant ce pas comptent (ordre des index).
  */
-function observeAndRespawn(sim: RaceSim, throttle: boolean, onGround: [boolean, boolean]): void {
-  const { car, cfg, state, track, world, time: t } = sim;
+function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolean]): void {
+  const { cfg, track, world, time: t } = sim;
+  const { body, state } = car;
   const x = state.progress;
-  const angle = carAngle(car);
+  const angle = carAngle(body);
   const groundY = heightAt(track, x);
   const groundSlope = slopeAt(track, x);
   const candidate = { x, t, bothWheelsOnGround: onGround[0] && onGround[1], carAngle: angle, groundSlope };
@@ -166,140 +251,212 @@ function observeAndRespawn(sim: RaceSim, throttle: boolean, onGround: [boolean, 
   const reason = updateRespawnTimers(state, {
     t,
     angle,
-    throttle,
+    throttle: car.throttle,
     progress: x,
-    y: physToWorld(car.chassis.position).y,
+    y: physToWorld(body.chassis.position).y,
     groundY,
-    speedMps: carSpeedMps(car),
-    onLava: sensorsTouching(world.engine, car.parts).some((b) => b.label === 'lava'),
+    speedMps: carSpeedMps(body),
+    onLava: sensorsTouching(world.engine, body.parts).some((b) => b.label === 'lava'),
     inElanZone: inElanZone(track, x),
   }, cfg);
   if (reason === null) return;
   const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg, reason);
-  placeCar(car, point.x, (xx) => heightAt(track, xx), point.angle, cfg);
-  setCarInvulnerable(car, true);
-  sim.invulnerable = true;
+  const target = shiftTarget(point, otherChassisXs(sim, car), track, cfg);
+  placeCar(body, target.x, (xx) => heightAt(track, xx), target.angle, cfg);
+  setCarInvulnerable(body, true);
+  car.invulnerable = true;
   // applyRespawnToState garde la cible par référence (nouveau point sûr) : copie dédiée.
-  applyRespawnToState(state, { ...point }, lavaX, consecutive, t, cfg);
-  sim.contact.groundedUntil = [-1, -1];
-  sim.airborneSince = null;
-  sim.events.push({ type: 'respawn', t, reason, x, target: { ...point } });
+  applyRespawnToState(state, { ...target }, lavaX, consecutive, t, cfg);
+  car.contact.groundedUntil = [-1, -1];
+  car.airborneSince = null;
+  sim.events.push({ type: 'respawn', carId: state.id, t, reason, x, target: { ...target } });
 }
 
 /**
- * Garde-fou : remplace la voiture par une neuve posée au point sûr (après une exception dans
- * `stepRace`) ; contact au sol et chronomètre d'envol remis à zéro.
+ * Garde-fou (après une exception dans `stepRace`) : remplace chaque voiture, dans l'ordre des index,
+ * par une neuve posée à son point sûr (décalé vers l'amont s'il est occupé, comme un respawn groupé),
+ * invulnérable RESPAWN_INVULN ; contact au sol et chronomètre d'envol remis à zéro.
  */
-export function rebuildCar(sim: RaceSim): void {
-  const { world, cfg, state } = sim;
-  Matter.Composite.remove(world.engine.world, sim.car.composite, true);
-  const sp = state.safePoint;
-  const car = createCar(world, sim.car.id, sim.car.index, sp.x, cfg);
-  placeCar(car, sp.x, (x) => heightAt(sim.track, x), sp.angle, cfg);
-  sim.car = car;
-  sim.contact = newContact();
-  sim.airborneSince = null;
-  sim.invulnerable = false;
-  state.progress = physToWorld(car.chassis.position).x;
+export function rebuildCars(sim: RaceSim): void {
+  const { world, cfg, track } = sim;
+  for (const car of sim.cars) {
+    Matter.Composite.remove(world.engine.world, car.body.composite, true);
+    const sp = shiftTarget(car.state.safePoint, otherChassisXs(sim, car), track, cfg);
+    const body = createCar(world, car.body.id, car.body.index, sp.x, cfg);
+    placeCar(body, sp.x, (x) => heightAt(track, x), sp.angle, cfg);
+    setCarInvulnerable(body, true);
+    car.body = body;
+    car.contact = newContact();
+    car.airborneSince = null;
+    car.invulnerable = true;
+    car.state.invulnerableUntil = sim.time + cfg.RESPAWN_INVULN;
+    car.state.progress = physToWorld(body.chassis.position).x;
+  }
 }
 
-/** Vue de rendu de la voiture (monde : m, y vers le haut ; angles positifs anti-horaires). */
-export function carView(sim: RaceSim): CarView {
-  const { car, state } = sim;
-  const c = physToWorld(car.chassis.position);
+/** Vue de rendu de la voiture d'index `index` (monde : m, y vers le haut ; angles positifs anti-horaires). */
+export function carView(sim: RaceSim, index: number): CarView {
+  const { body, state, pilot } = sim.cars[index];
+  const c = physToWorld(body.chassis.position);
   return {
     x: c.x,
     y: c.y,
-    angle: carAngle(car),
+    angle: carAngle(body),
     // Angle Matter : y vers le bas, sens horaire ; le renderer attend la convention y vers le haut.
-    wheels: car.wheels.map((w) => ({ ...physToWorld(w.position), angle: -w.angle })),
+    wheels: body.wheels.map((w) => ({ ...physToWorld(w.position), angle: -w.angle })),
     color: state.color,
     accent: state.accent,
+    helmet: colorHex(pilot.helmet),
     name: state.name,
     turbo: turboFactor(state, sim.time, sim.cfg) > 1,
   };
 }
 
+/** Scène de rendu : toutes les voitures, Galahad en dernier (dessiné au-dessus des copains). */
 export function sceneOf(sim: RaceSim): Scene {
   return {
     track: sim.track,
-    cars: [carView(sim)],
+    cars: sim.cars.map((_, i) => carView(sim, i)).reverse(),
     stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActive(sim.stars[i], sim.time, sim.cfg) })),
     t: sim.time,
   };
 }
 
 export interface SimulateResult {
+  /** Réapparitions de Galahad. */
   respawns: SimEvent[];
+  /** Arrivée de Galahad (s), null s'il n'a pas franchi la ligne. */
   finishedAt: number | null;
   /**
-   * Plus long blocage (s) : durée maximale, doigt posé, sans avancer de STUCK_DISTANCE depuis une
-   * référence qui avance par crans (même cliquet que le chronomètre de blocage) ; remis à zéro par
-   * le doigt levé et par chaque réapparition, plus compté après l'arrivée (la voiture freine).
+   * Plus long blocage (s) de Galahad : durée maximale, doigt posé, sans avancer de STUCK_DISTANCE
+   * depuis une référence qui avance par crans (même cliquet que le chronomètre de blocage) ; remis à
+   * zéro par le doigt levé et par chaque réapparition, plus compté après l'arrivée (la voiture freine).
    */
   maxStuckSeconds: number;
-  /** Vitesse maximale du châssis (m/s). */
+  /** Vitesse maximale du châssis de Galahad (m/s). */
   maxSpeed: number;
+  /** Étoiles prises par Galahad. */
   starsTaken: SimEvent[];
   /** Temps de course final (s). */
   time: number;
-  /** Nombre d'événements 'finish' reçus (1 attendu une fois la ligne franchie). */
+  /** Nombre d'événements 'finish' de Galahad (1 attendu une fois la ligne franchie). */
   finishes: number;
-  /** Progression (x du châssis, m) à l'instant t (pas le plus proche, borné à la course). */
+  /** Progression de Galahad (x du châssis, m) à l'instant t (pas le plus proche, borné à la course). */
   progressAt: (t: number) => number;
-  /** Vitesse du châssis (m/s) à l'instant t (pas le plus proche, borné à la course). */
+  /** Vitesse du châssis de Galahad (m/s) à l'instant t (pas le plus proche, borné à la course). */
   speedAt: (t: number) => number;
+  /** Classement final (`rankCars`) : ids des voitures, du premier au dernier. */
+  ranking: string[];
+  /** Par id de voiture : réapparitions, chutes dans la lave, plus long blocage (s, même mesure que `maxStuckSeconds`), arrivée. */
+  respawnsByCar: Record<string, RespawnEvent[]>;
+  lavaByCar: Record<string, number>;
+  maxStuckByCar: Record<string, number>;
+  finishedAtByCar: Record<string, number | null>;
+  /** Indicateurs : durée mur (ms) d'un `stepRace`, maximale et moyenne. */
+  maxStepMs: number;
+  meanStepMs: number;
 }
 
-/** Course sans affichage, `throttle(t)` décide du doigt à chaque pas, pendant au plus `maxSeconds`. */
+/**
+ * Cliquet de blocage d'une voiture (même règle que le chronomètre de blocage) : durée maximale, doigt
+ * posé, sans avancer de STUCK_DISTANCE ; remis à zéro par le doigt levé, l'arrivée et chaque réapparition.
+ */
+class StuckMeter {
+  max = 0;
+  private start: number | null = null;
+
+  constructor(private ref: number, private readonly distance: number) {}
+
+  update(t: number, progress: number, throttle: boolean, finished: boolean, respawned: boolean): void {
+    if (respawned) {
+      if (this.start !== null) this.max = Math.max(this.max, t - this.start);
+      this.reset(progress);
+    } else if (!throttle || finished || progress - this.ref >= this.distance) {
+      this.reset(progress);
+    } else {
+      this.start ??= t;
+      this.max = Math.max(this.max, t - this.start);
+    }
+  }
+
+  private reset(progress: number): void {
+    this.ref = progress;
+    this.start = null;
+  }
+}
+
+/**
+ * Course sans affichage : `throttle(t)` décide du doigt de Galahad à chaque pas (les robots suivent
+ * leur driver). S'arrête `stopAfterFinish` secondes (défaut FINISH_COAST_SECONDS) après l'arrivée de
+ * Galahad, ou à `maxSeconds`. `robots` et `pilotSeed` : comme `createRaceSim` (Galahad seul par défaut).
+ */
 export function simulateRace(
-  track: Track, opts: { throttle: (t: number) => boolean; maxSeconds: number; cfg: Config },
+  track: Track,
+  opts: {
+    throttle: (t: number) => boolean; maxSeconds: number; cfg: Config;
+    robots?: boolean; pilotSeed?: number; stopAfterFinish?: number;
+  },
 ): SimulateResult {
   const { cfg } = opts;
-  const sim = createRaceSim(track, cfg);
+  const sim = createRaceSim(track, cfg, { robots: opts.robots, pilotSeed: opts.pilotSeed });
+  const galahad = sim.cars[0];
+  const stopAfterFinish = opts.stopAfterFinish ?? cfg.FINISH_COAST_SECONDS;
   const steps = Math.round(opts.maxSeconds / cfg.PHYSICS_DT);
-  const samples: number[] = [sim.state.progress];
-  const speeds: number[] = [carSpeedMps(sim.car)];
-  const respawns: SimEvent[] = [];
+  const samples: number[] = [galahad.state.progress];
+  const speeds: number[] = [carSpeedMps(galahad.body)];
+  const ids = sim.cars.map((c) => c.state.id);
+  const respawnsByCar: Record<string, RespawnEvent[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  const lavaByCar: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+  const stuck = sim.cars.map((c) => new StuckMeter(c.state.progress, cfg.STUCK_DISTANCE));
   const starsTaken: SimEvent[] = [];
   let finishes = 0;
   let maxSpeed = 0;
-  let stuckRef = sim.state.progress;
-  let stuckStart: number | null = null;
-  let maxStuckSeconds = 0;
+  let maxStepMs = 0;
+  let totalStepMs = 0;
+  let stepsDone = 0;
   for (let i = 0; i < steps; i++) {
     const t = sim.time;
     const throttle = opts.throttle(t);
+    const t0 = performance.now();
     stepRace(sim, throttle);
-    let respawned = false;
+    const ms = performance.now() - t0;
+    maxStepMs = Math.max(maxStepMs, ms);
+    totalStepMs += ms;
+    stepsDone++;
+    const respawned = new Set<string>();
     for (const e of sim.events) {
-      if (e.type === 'respawn') { respawns.push(e); respawned = true; }
-      else if (e.type === 'star') starsTaken.push(e);
-      else if (e.type === 'finish') finishes++;
+      const mine = e.carId === galahad.state.id;
+      if (e.type === 'respawn') {
+        respawnsByCar[e.carId].push(e);
+        if (e.reason === 'lava') lavaByCar[e.carId]++;
+        respawned.add(e.carId);
+      } else if (e.type === 'star' && mine) starsTaken.push(e);
+      else if (e.type === 'finish' && mine) finishes++;
     }
-    const p = sim.state.progress;
-    if (respawned) {
-      if (stuckStart !== null) maxStuckSeconds = Math.max(maxStuckSeconds, t - stuckStart);
-      stuckRef = p;
-      stuckStart = null;
-    } else if (!throttle || sim.state.finishedAt !== null || p - stuckRef >= cfg.STUCK_DISTANCE) {
-      stuckRef = p;
-      stuckStart = null;
-    } else {
-      stuckStart ??= t;
-      maxStuckSeconds = Math.max(maxStuckSeconds, t - stuckStart);
-    }
-    const v = carSpeedMps(sim.car);
-    samples.push(p);
+    sim.cars.forEach((c, k) => {
+      stuck[k].update(t, c.state.progress, c.throttle, c.state.finishedAt !== null, respawned.has(c.state.id));
+    });
+    const v = carSpeedMps(galahad.body);
+    samples.push(galahad.state.progress);
     speeds.push(v);
     maxSpeed = Math.max(maxSpeed, v);
+    const done = galahad.state.finishedAt;
+    if (done !== null && sim.time >= done + stopAfterFinish - 1e-9) break;
   }
   const at = (values: number[]) => (t: number): number => {
     const i = Math.round(t / cfg.PHYSICS_DT);
     return values[Math.min(values.length - 1, Math.max(0, i))];
   };
+  const ranking = rankCars(sim.cars.map((c, index) => ({ index, progress: c.state.progress, finishedAt: c.state.finishedAt })));
   return {
-    respawns, finishedAt: sim.state.finishedAt, finishes, maxStuckSeconds, maxSpeed, starsTaken,
-    time: sim.time, progressAt: at(samples), speedAt: at(speeds),
+    respawns: respawnsByCar[galahad.state.id], finishedAt: galahad.state.finishedAt, finishes,
+    maxStuckSeconds: stuck[0].max, maxSpeed, starsTaken, time: sim.time, progressAt: at(samples), speedAt: at(speeds),
+    ranking: ranking.map((i) => ids[i]),
+    respawnsByCar,
+    lavaByCar,
+    maxStuckByCar: Object.fromEntries(ids.map((id, k) => [id, stuck[k].max])),
+    finishedAtByCar: Object.fromEntries(sim.cars.map((c) => [c.state.id, c.state.finishedAt])),
+    maxStepMs,
+    meanStepMs: stepsDone > 0 ? totalStepMs / stepsDone : 0,
   };
 }

@@ -3,13 +3,14 @@ import {
   applyRespawnToState,
   chooseRespawnTarget,
   normalizeAngle,
+  shiftTarget,
   updateRespawnTimers,
   type RespawnObs,
 } from '../src/cars/respawn';
 import { newCarState } from '../src/cars/state';
 import { generateTrack } from '../src/track/generate';
 import { heightAt, slopeAt } from '../src/track/query';
-import type { Track } from '../src/track/types';
+import type { Slice, Track, Volcano } from '../src/track/types';
 
 const DEG = Math.PI / 180;
 
@@ -336,5 +337,109 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     expect(s.progress).toBe(42);
     expect(s.safePoint).toEqual(target);
     expect(s.lastSafePointAt).toBe(12);
+  });
+});
+
+describe('shiftTarget : respawn groupé (addendum §1.6)', () => {
+  /** Recul d'une voiture : 1,5 × CAR_LENGTH = 3,3 m. */
+  const GAP = CONFIG.RESPAWN_GROUP_SPACING_FACTOR * CONFIG.CAR_LENGTH;
+  const SPACING = CONFIG.TRACK_POINT_SPACING;
+  const LENGTH = 200;
+  const ramp = Math.tan(20 * DEG);
+
+  /** Piste synthétique de 200 m : profil y(x) échantillonné tous les TRACK_POINT_SPACING, tranches et volcans fournis. */
+  function synthetic(y: (x: number) => number, slices: Slice[] = [], volcanoes: Volcano[] = []): Track {
+    const points = Array.from({ length: Math.round(LENGTH / SPACING) + 1 }, (_, i) => ({ x: i * SPACING, y: y(i * SPACING) }));
+    return {
+      seed: 0, targetLength: LENGTH, length: LENGTH, points, exemptPointIndices: [], volcanoes, stars: [],
+      slices: slices.length > 0 ? slices : [{ type: 'plat', xStart: 0, xEnd: LENGTH }],
+      xStart: 21.5, xFinish: 150, xWall: LENGTH,
+    };
+  }
+  const flat = synthetic(() => 0);
+  /** Pente de 20° (> SAFE_POINT_MAX_SLOPE) entre x = a et x = b, plat ailleurs. */
+  const steepBetween = (a: number, b: number) => synthetic((x) => (x < a ? 0 : (Math.min(x, b) - a) * ramp));
+  const at = (track: Track, x: number) => ({ x, y: heightAt(track, x), angle: slopeAt(track, x) });
+
+  test('aucun châssis à moins de 3,3 m : la cible est rendue telle quelle', () => {
+    const p = at(flat, 100);
+    expect(shiftTarget(p, [], flat, CONFIG)).toEqual(p);
+    expect(shiftTarget(p, [100 + GAP + 0.1, 100 - GAP - 0.1, 20], flat, CONFIG)).toEqual(p);
+  });
+
+  test('sur un plat : recule de 3,3 m par voiture déjà posée, au sol local', () => {
+    const p = at(flat, 100);
+    const occupied: number[] = [];
+    for (let k = 1; k <= 4; k++) {
+      occupied.push(100 - (k - 1) * GAP);
+      const r = shiftTarget(p, occupied, flat, CONFIG);
+      expect(r.x, `${k} occupant(s)`).toBeCloseTo(100 - k * GAP, 9);
+      expect(r.y).toBe(heightAt(flat, r.x));
+      expect(r.angle).toBe(slopeAt(flat, r.x));
+    }
+  });
+
+  test('s’arrête à RESPAWN_GROUP_MAX_SHIFT = 4 reculs (5e occupant : chevauchement couvert par l’invulnérabilité)', () => {
+    expect(CONFIG.RESPAWN_GROUP_MAX_SHIFT).toBe(4);
+    const occupied = [0, 1, 2, 3, 4].map((k) => 100 - k * GAP);
+    expect(shiftTarget(at(flat, 100), occupied, flat, CONFIG).x).toBeCloseTo(100 - 4 * GAP, 9);
+  });
+
+  test('saute une pente > SAFE_POINT_MAX_SLOPE : premier x en amont où la pente est douce', () => {
+    // Pente de 20° sur [92, 97.5[ : le recul (96,7) tombe dessus, l'ajustement remonte jusqu'à x < 92.
+    const track = steepBetween(92, 97.5);
+    expect(Math.abs(slopeAt(track, 100 - GAP))).toBeGreaterThan(CONFIG.SAFE_POINT_MAX_SLOPE);
+    const r = shiftTarget(at(track, 100), [100], track, CONFIG);
+    expect(Math.abs(slopeAt(track, r.x))).toBeLessThan(CONFIG.SAFE_POINT_MAX_SLOPE);
+    expect(r.x).toBeLessThanOrEqual(92 + 1e-9);
+    expect(r.x).toBeGreaterThan(92 - SPACING - 1e-9);
+    expect(r.y).toBe(heightAt(track, r.x));
+    expect(r.angle).toBe(slopeAt(track, r.x));
+  });
+
+  test('refuse la zone interdite d’un volcan [xLancement + 5, xReception[ et une tranche cratère', () => {
+    const v: Volcano = {
+      xLancement: 90, xElanStart: 91, xRampStart: 92, xLip: 93, lipY: 1, xLava: 95, lavaWidth: 1, rimY: 0,
+      xReception: 97, xEnd: 99,
+    };
+    const withVolcano = synthetic(() => 0, [], [v]);
+    const r1 = shiftTarget(at(withVolcano, 99.5), [99.5], withVolcano, CONFIG);
+    expect(r1.x).toBeLessThan(v.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN);
+    expect(r1.x).toBeGreaterThan(v.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN - SPACING - 1e-9);
+
+    const slices: Slice[] = [
+      { type: 'plat', xStart: 0, xEnd: 94 }, { type: 'cratère', xStart: 94, xEnd: 97 }, { type: 'plat', xStart: 97, xEnd: LENGTH },
+    ];
+    const withCrater = synthetic(() => 0, slices);
+    const r2 = shiftTarget(at(withCrater, 99.5), [99.5], withCrater, CONFIG);
+    expect(r2.x).toBeLessThan(94);
+    expect(r2.x).toBeGreaterThan(94 - SPACING - 1e-9);
+  });
+
+  test('rien de valide à moins de 10 m d’ajustement : garde la cible (ou la dernière cible valide)', () => {
+    // Pente de 20° sur [80, 97.5[ : le recul (96,7) n'a pas de sol doux avant 86,7 (10 m) → abandonné.
+    const track = steepBetween(80, 97.5);
+    const p = at(track, 100);
+    expect(shiftTarget(p, [100], track, CONFIG)).toEqual(p);
+    // Premier recul valide (pente sur [80, 95.5[, 96,7 est plat), deuxième abandonné : on garde le premier.
+    const track2 = steepBetween(80, 95.5);
+    const r = shiftTarget(at(track2, 100), [100, 100 - GAP], track2, CONFIG);
+    expect(r.x).toBeCloseTo(100 - GAP, 9);
+  });
+
+  test('jamais avant le début de la piste (rien n’est posé sous x = CAR_LENGTH)', () => {
+    const p = at(flat, 4);
+    expect(shiftTarget(p, [4], flat, CONFIG)).toEqual(p);
+    const r = shiftTarget(at(flat, 6), [6], flat, CONFIG);
+    expect(r.x).toBeCloseTo(6 - GAP, 9);
+    expect(shiftTarget(at(flat, 6), [6, 6 - GAP], flat, CONFIG).x).toBeCloseTo(6 - GAP, 9);
+  });
+
+  test('pur : l’entrée n’est pas modifiée', () => {
+    const p = at(flat, 100);
+    const occupied = [100, 50];
+    shiftTarget(p, occupied, flat, CONFIG);
+    expect(p).toEqual(at(flat, 100));
+    expect(occupied).toEqual([100, 50]);
   });
 });

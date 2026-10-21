@@ -48,6 +48,11 @@ export const CONFIG = {
   PHYSICS_DT: 1 / 60, MAX_STEPS_PER_FRAME: 4,
   SAFE_POINT_INTERVAL: 0.5, SAFE_POINT_MAX_SLOPE: 10 * DEG,
   RESPAWN_INVULN: 0.5, RESPAWN_INVULN_MAX: 2,
+  GRID_SPACING_FACTOR: 1.5,     // grille de départ (spec §6) : robot de rang n à xStart − 2 − n × 1,5 × CAR_LENGTH (3,3 m entre centres) ; Galahad en pole
+  START_DELAY_PER_RANK: 0.3,    // s : le robot de rang n pose le doigt à n × 0,3 s
+  RESPAWN_GROUP_SPACING_FACTOR: 1.5,   // respawn groupé (addendum §1.6) : un châssis à moins de 1,5 × CAR_LENGTH de la cible la fait reculer de 1,5 × CAR_LENGTH
+  RESPAWN_GROUP_MAX_SHIFT: 4,   // au plus 4 reculs (5 voitures sur le même point sûr) ; au-delà, l'invulnérabilité couvre le chevauchement
+  RESPAWN_GROUP_MAX_ADJUST: 10, // m : un recul est ajusté vers l'amont (pente < SAFE_POINT_MAX_SLOPE, hors zone interdite et cratère) sur au plus 10 m, sinon abandonné
   FLIP_ANGLE: 110 * DEG, FLIP_SECONDS: 1, SIDE_ANGLE: 70 * DEG, SIDE_SECONDS: 2,
   STUCK_SECONDS: 2, STUCK_DISTANCE: 1,
   SPEED_GUARD: 3 * 14 * 1.5,    // 63 m/s

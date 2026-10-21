@@ -35,10 +35,14 @@ export function isSafePointCandidate(obs: SafePointObs, state: CarState, track: 
   if (!obs.bothWheelsOnGround) return false;
   if (Math.abs(obs.carAngle) >= SAFE_POINT_MAX_CAR_ANGLE) return false;
   if (Math.abs(obs.groundSlope) >= cfg.SAFE_POINT_MAX_SLOPE) return false;
+  return isSafeZone(obs.x, track, cfg);
+}
+
+/** x hors de la zone interdite de tout volcan et hors d'une tranche « cratère » (points sûrs, respawn groupé). */
+export function isSafeZone(x: number, track: Track, cfg: Config): boolean {
   for (const v of track.volcanoes) {
     const [a, b] = forbiddenZone(v, cfg);
-    if (obs.x >= a && obs.x < b) return false;
+    if (x >= a && x < b) return false;
   }
-  if (sliceAt(track, obs.x).type === 'cratère') return false;
-  return true;
+  return sliceAt(track, x).type !== 'cratère';
 }

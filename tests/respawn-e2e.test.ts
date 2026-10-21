@@ -1,6 +1,7 @@
 // Réapparitions branchées dans le pas de course (tâches 10b du plan A et 3 du plan B) : scénarios
 // ciblés rapides (quelques secondes simulées chacun), gardés en CI. Les courses complètes sont
-// dans tests/slow/finish.test.ts.
+// dans tests/slow/finish.test.ts. Galahad seul (défaut `robots: false` de createRaceSim, plan A),
+// sauf le chevauchement par un autre châssis (5 voitures) ; respawn groupé : tests/race-smoke.test.ts.
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
@@ -27,7 +28,7 @@ function stepUntilRespawn(sim: RaceSim, throttle: boolean, maxSteps: number): Re
 }
 
 const h = (track: Track) => (x: number) => heightAt(track, x);
-const chassisX = (sim: RaceSim) => physToWorld(sim.car.chassis.position).x;
+const chassisX = (sim: RaceSim) => physToWorld(sim.cars[0].body.chassis.position).x;
 
 /** Seeds des scénarios ciblés : le premier seed de 0..4 ayant un volcan, et le seed 1. */
 const VOLCANO_SEEDS = [...new Set([SEEDS.find((s) => trackFor(s).volcanoes.length > 0)!, 1])];
@@ -41,13 +42,13 @@ describe.each(VOLCANO_SEEDS)('seed %i, premier volcan, voiture à l’arrêt pui
     expect(x).toBeGreaterThan(v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5);
     expect(slopeAt(track, x)).toBeCloseTo(CONFIG.MAX_SLOPE, 6);
     const sim = createRaceSim(track, CONFIG);
-    placeCar(sim.car, x, h(track), slopeAt(track, x), CONFIG);
+    placeCar(sim.cars[0].body, x, h(track), slopeAt(track, x), CONFIG);
     const t0 = sim.time;
     const e = stepUntilRespawn(sim, true, Math.ceil(3 / DT));
     expect(e).toBeDefined();
     expect(['lava', 'stuck']).toContain(e!.reason);
     expect(e!.t - t0).toBeLessThanOrEqual(2.1);
-    expect(sim.state.progress).toBeLessThan(v.xLava);
+    expect(sim.cars[0].state.progress).toBeLessThan(v.xLava);
     expect(chassisX(sim)).toBeCloseTo(e!.target.x, 6);
   });
 
@@ -55,7 +56,7 @@ describe.each(VOLCANO_SEEDS)('seed %i, premier volcan, voiture à l’arrêt pui
     const x = v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5;
     expect(slopeAt(track, x)).toBeCloseTo(0, 6);
     const sim = createRaceSim(track, CONFIG);
-    placeCar(sim.car, x, h(track), 0, CONFIG);
+    placeCar(sim.cars[0].body, x, h(track), 0, CONFIG);
     const t0 = sim.time;
     let maxX = -Infinity;
     let e: RespawnEvent | undefined;
@@ -75,9 +76,9 @@ test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible pa
   const { track, v } = firstVolcano();
   const sim = createRaceSim(track, CONFIG);
   const xSafe = v.xLancement + 1;
-  sim.state.safePoint = { x: xSafe, y: heightAt(track, xSafe), angle: 0 };
+  sim.cars[0].state.safePoint = { x: xSafe, y: heightAt(track, xSafe), angle: 0 };
 
-  placeCar(sim.car, v.xLava, h(track), 0, CONFIG);
+  placeCar(sim.cars[0].body, v.xLava, h(track), 0, CONFIG);
   const first = stepUntilRespawn(sim, true, 5);
   expect(first).toBeDefined();
   expect(first!.reason).toBe('lava');
@@ -85,7 +86,7 @@ test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible pa
   expect(chassisX(sim)).toBeCloseTo(xSafe, 6);
 
   // Pas de nouveau point sûr entre les deux : on replonge aussitôt.
-  placeCar(sim.car, v.xLava, h(track), 0, CONFIG);
+  placeCar(sim.cars[0].body, v.xLava, h(track), 0, CONFIG);
   const second = stepUntilRespawn(sim, true, 5);
   expect(second).toBeDefined();
   expect(second!.reason).toBe('lava');
@@ -93,7 +94,7 @@ test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible pa
   expect(xBack).toBeGreaterThanOrEqual(v.xReception + 10);
   expect(second!.target.x).toBeCloseTo(xBack, 6);
   expect(chassisX(sim)).toBeCloseTo(xBack, 6);
-  expect(sim.state.safePoint.x).toBeCloseTo(xBack, 6);
+  expect(sim.cars[0].state.safePoint.x).toBeCloseTo(xBack, 6);
 });
 
 describe('voiture retournée (inElanZone calculé par le pas de course)', () => {
@@ -102,16 +103,16 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
    * volontairement grossière : seule l'orientation du châssis compte (les roues retombent ensuite).
    */
   function placeFlipped(sim: RaceSim, x: number): void {
-    placeCar(sim.car, x, h(track0), 0, CONFIG);
+    placeCar(sim.cars[0].body, x, h(track0), 0, CONFIG);
     const ground = heightAt(track0, x);
     const lift = CONFIG.CAR_HEIGHT + 2 * CONFIG.WHEEL_RADIUS;
-    Matter.Body.setPosition(sim.car.chassis, worldToPhys({ x, y: ground + CONFIG.CAR_HEIGHT / 2 + 0.05 }));
-    Matter.Body.setAngle(sim.car.chassis, Math.PI);
-    sim.car.wheels.forEach((w) => {
+    Matter.Body.setPosition(sim.cars[0].body.chassis, worldToPhys({ x, y: ground + CONFIG.CAR_HEIGHT / 2 + 0.05 }));
+    Matter.Body.setAngle(sim.cars[0].body.chassis, Math.PI);
+    sim.cars[0].body.wheels.forEach((w) => {
       const p = physToWorld(w.position);
       Matter.Body.setPosition(w, worldToPhys({ x: p.x, y: ground + lift }));
     });
-    for (const p of sim.car.parts) { Matter.Body.setVelocity(p, { x: 0, y: 0 }); Matter.Body.setAngularVelocity(p, 0); }
+    for (const p of sim.cars[0].body.parts) { Matter.Body.setVelocity(p, { x: 0, y: 0 }); Matter.Body.setAngularVelocity(p, 0); }
   }
   const { track: track0, v: v0 } = firstVolcano();
 
@@ -147,7 +148,7 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
   test('deux retournements de suite dans l’élan : chaque fois ramenée au point sûr, jamais à xEnd − 10 (la série ne compte que la lave)', () => {
     const sim = createRaceSim(track0, CONFIG);
     const xSafe = v0.xLancement + 1;
-    sim.state.safePoint = { x: xSafe, y: heightAt(track0, xSafe), angle: 0 };
+    sim.cars[0].state.safePoint = { x: xSafe, y: heightAt(track0, xSafe), angle: 0 };
     const xBack = v0.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK;
     for (let k = 1; k <= 2; k++) {
       placeFlipped(sim, v0.xElanStart + 1);
@@ -157,16 +158,16 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
       expect(e!.target.x, `retournement ${k}`).toBeCloseTo(xSafe, 6);
       expect(e!.target.x, `retournement ${k}`).not.toBeCloseTo(xBack, 6);
       expect(chassisX(sim), `retournement ${k}`).toBeCloseTo(xSafe, 6);
-      expect(sim.state.consecutiveRespawns, `retournement ${k}`).toBe(0);
-      expect(sim.state.lastRespawnLavaX, `retournement ${k}`).toBeNull();
+      expect(sim.cars[0].state.consecutiveRespawns, `retournement ${k}`).toBe(0);
+      expect(sim.cars[0].state.lastRespawnLavaX, `retournement ${k}`).toBeNull();
     }
     // Lave, puis retournement, puis lave : la série est interrompue par le retournement → point sûr.
-    placeCar(sim.car, v0.xLava, h(track0), 0, CONFIG);
+    placeCar(sim.cars[0].body, v0.xLava, h(track0), 0, CONFIG);
     expect(stepUntilRespawn(sim, true, 5)?.reason).toBe('lava');
-    expect(sim.state.consecutiveRespawns).toBe(1);
+    expect(sim.cars[0].state.consecutiveRespawns).toBe(1);
     placeFlipped(sim, v0.xElanStart + 1);
     expect(stepUntilRespawn(sim, false, 1)?.reason).toBe('flipped');
-    placeCar(sim.car, v0.xLava, h(track0), 0, CONFIG);
+    placeCar(sim.cars[0].body, v0.xLava, h(track0), 0, CONFIG);
     const after = stepUntilRespawn(sim, true, 5);
     expect(after?.reason).toBe('lava');
     expect(after!.target.x).toBeCloseTo(xSafe, 6);
@@ -174,42 +175,48 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
 });
 
 describe('invulnérabilité après une réapparition', () => {
-  const masks = (sim: RaceSim) => sim.car.parts.map((p) => (p.collisionFilter.mask ?? 0) & CAT.CAR);
+  const masks = (sim: RaceSim) => sim.cars[0].body.parts.map((p) => (p.collisionFilter.mask ?? 0) & CAT.CAR);
 
   test('RESPAWN_INVULN s sans autre voiture : collisions entre voitures coupées puis rétablies', () => {
     const { track, v } = firstVolcano();
     const sim = createRaceSim(track, CONFIG);
-    placeCar(sim.car, v.xLava, h(track), 0, CONFIG);
+    placeCar(sim.cars[0].body, v.xLava, h(track), 0, CONFIG);
     const e = stepUntilRespawn(sim, false, 5);
     expect(e).toBeDefined();
-    expect(sim.state.invulnerableUntil).toBe(e!.t + CONFIG.RESPAWN_INVULN);
-    expect(sim.invulnerable).toBe(true);
+    expect(sim.cars[0].state.invulnerableUntil).toBe(e!.t + CONFIG.RESPAWN_INVULN);
+    expect(sim.cars[0].invulnerable).toBe(true);
     expect(masks(sim)).toEqual([0, 0, 0]);
-    while (sim.time < sim.state.invulnerableUntil - 2 * DT) stepRace(sim, false);
+    while (sim.time < sim.cars[0].state.invulnerableUntil - 2 * DT) stepRace(sim, false);
     expect(masks(sim)).toEqual([0, 0, 0]);
     for (let i = 0; i < 3; i++) stepRace(sim, false);
-    expect(sim.invulnerable).toBe(false);
+    expect(sim.cars[0].invulnerable).toBe(false);
     expect(masks(sim)).toEqual([CAT.CAR, CAT.CAR, CAT.CAR]);
   });
 
   test('autre châssis superposé : invulnérable jusqu’à invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)', () => {
     const { track, v } = firstVolcano();
-    const sim = createRaceSim(track, CONFIG);
-    placeCar(sim.car, v.xLava, h(track), 0, CONFIG);
+    // 5 voitures : le copain de rang 1 sert de châssis superposé ; les copains restent à l'arrêt sur la grille.
+    const sim = createRaceSim(track, CONFIG, { robots: true });
+    for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+    placeCar(sim.cars[0].body, v.xLava, h(track), 0, CONFIG);
     const e = stepUntilRespawn(sim, false, 5);
     expect(e).toBeDefined();
-    // Châssis fantôme (hors monde) posé sur la voiture : il la suit à chaque pas.
-    const ghost = Matter.Bodies.rectangle(0, 0, 100, 100);
-    sim.others.push(ghost);
-    const follow = () => Matter.Body.setPosition(ghost, sim.car.chassis.position);
+    expect(e!.carId).toBe('galahad');
+    // Le copain est reposé sur la voiture (même x, au sol) à chaque pas : son châssis la chevauche.
+    const other = sim.cars[1];
+    const follow = () => {
+      const x = physToWorld(sim.cars[0].body.chassis.position).x;
+      placeCar(other.body, x, h(track), slopeAt(track, x), CONFIG);
+    };
     follow();
-    const release = sim.state.invulnerableUntil + (CONFIG.RESPAWN_INVULN_MAX - CONFIG.RESPAWN_INVULN);
+    expect(Matter.Query.collides(sim.cars[0].body.chassis, [other.body.chassis])).not.toEqual([]);
+    const release = sim.cars[0].state.invulnerableUntil + (CONFIG.RESPAWN_INVULN_MAX - CONFIG.RESPAWN_INVULN);
     while (sim.time < release - 2 * DT) { stepRace(sim, false); follow(); }
-    expect(sim.time).toBeGreaterThan(sim.state.invulnerableUntil + 1);
-    expect(sim.invulnerable).toBe(true);
+    expect(sim.time).toBeGreaterThan(sim.cars[0].state.invulnerableUntil + 1);
+    expect(sim.cars[0].invulnerable).toBe(true);
     expect(masks(sim)).toEqual([0, 0, 0]);
     for (let i = 0; i < 3; i++) { stepRace(sim, false); follow(); }
-    expect(sim.invulnerable).toBe(false);
+    expect(sim.cars[0].invulnerable).toBe(false);
     expect(masks(sim)).toEqual([CAT.CAR, CAT.CAR, CAT.CAR]);
   });
 });

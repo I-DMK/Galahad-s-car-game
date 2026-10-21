@@ -16,9 +16,11 @@ export interface CarView {
   angle: number;
   /** Centres des roues (monde) et angle de rotation de chaque roue (même convention). */
   wheels: { x: number; y: number; angle: number }[];
-  /** Couleurs CSS. */
+  /** Couleurs CSS : carrosserie, bandes et aileron, casque du pilote. */
   color: string;
   accent: string;
+  helmet: string;
+  /** Prénom, écrit au-dessus des copains (pas de Galahad). */
   name: string;
   turbo: boolean;
 }
@@ -90,6 +92,10 @@ export class Renderer {
       drawStar(ctx, p.x, p.y, scene.t, ppm);
     }
 
-    for (const car of scene.cars) drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg);
+    // Dans l'ordre de la scène (le dernier dessiné est au-dessus) ; les voitures hors écran sont sautées.
+    for (const car of scene.cars) {
+      if (Math.abs(car.x - camera.x) > half + this.cfg.CAR_LENGTH) continue;
+      drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg);
+    }
   }
 }

@@ -1,6 +1,6 @@
 // Course sur tablette simulée : chargement, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
 import { expect, test, type Page } from '@playwright/test';
-import { gameState, holdFinger, waitForGame, waitForState } from './helpers';
+import { gameState, holdFinger, pilotIds, progressOf, waitForGame, waitForRaceTime, waitForState } from './helpers';
 
 const SHOTS = 'e2e/screenshots';
 /** Durée maximale doigt posé pour finir une piste de 300 m. */
@@ -48,13 +48,43 @@ test('doigt posé 3 s : la voiture avance', async ({ page }) => {
   expect(after - before).toBeGreaterThan(5);
 });
 
-test('sans doigt : la voiture ne bouge pas', async ({ page }) => {
+/**
+ * Temps de course (s) avant lequel aucun copain ne peut toucher Galahad : le rang 1 part à
+ * START_DELAY_PER_RANK = 0,3 s avec 0,9 m entre ses roues avant et les roues arrière de Galahad, soit
+ * un contact vers 0,3 + √(2 × 0,9 / 4,3) ≈ 0,95 s. Au-delà, sans doigt, les copains poussent Galahad
+ * (course à 5 voitures, tâche 5b ; pas encore de décompte).
+ */
+const BEFORE_ROBOTS_S = 0.8;
+
+test('sans doigt : la voiture ne part pas toute seule (avant que les copains la rejoignent)', async ({ page }) => {
   await page.goto('/?seed=1&debug=1');
   await waitForGame(page);
-  const before = (await gameState(page)).progress;
-  await page.waitForTimeout(2_000);
-  const after = (await gameState(page)).progress;
-  expect(Math.abs(after - before)).toBeLessThan(0.5);
+  const before = await gameState(page);
+  expect(before.time).toBeLessThan(0.3);
+  // Lu dans le même rappel que le temps : aucun pas de course entre les deux.
+  const after = await page.waitForFunction(
+    (t) => { const g = (window as any).__game; return g.time >= t ? g.progress('galahad') : false; },
+    BEFORE_ROBOTS_S,
+  );
+  expect(Math.abs((await after.jsonValue()) - before.progress)).toBeLessThan(0.5);
+});
+
+test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui partent ; capture course-5-voitures.png', async ({ page }) => {
+  await page.goto('/?seed=1&debug=1');
+  await waitForGame(page);
+  const ids = await pilotIds(page);
+  expect(ids).toHaveLength(5);
+  expect(ids[0]).toBe('galahad');
+  expect(new Set(ids).size).toBe(5);
+  const start = await progressOf(page, ids);
+  // Grille en file : Galahad devant, chaque copain 1,5 × CAR_LENGTH = 3,3 m derrière le précédent.
+  for (let i = 1; i < 5; i++) expect(start[i - 1] - start[i]).toBeCloseTo(3.3, 1);
+  await holdFinger(page, 0.6);
+  // Le copain de rang 4 part à 1,2 s ; à 3,5 s les 5 voitures sont groupées à l'écran.
+  await waitForRaceTime(page, 3.5);
+  const later = await progressOf(page, ids);
+  for (let i = 1; i < 5; i++) expect(later[i] - start[i], ids[i]).toBeGreaterThan(1);
+  await page.screenshot({ path: `${SHOTS}/course-5-voitures.png`, fullPage: true });
 });
 
 test('course courte : arrivée et calque ARRIVÉE, sans erreur console', async ({ page }) => {

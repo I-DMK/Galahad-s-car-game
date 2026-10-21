@@ -40,6 +40,18 @@ describe('CONFIG', () => {
     expect('ELAN_SAFE_FRACTION' in CONFIG).toBe(false);
   });
 
+  it('course à 5 voitures (tâche 5b) : grille, délai de départ, respawn groupé', () => {
+    expect(CONFIG.GRID_SPACING_FACTOR).toBe(1.5);
+    expect(CONFIG.START_DELAY_PER_RANK).toBe(0.3);
+    expect(CONFIG.RESPAWN_GROUP_SPACING_FACTOR).toBe(1.5);
+    expect(CONFIG.RESPAWN_GROUP_MAX_SHIFT).toBe(4);
+    expect(CONFIG.RESPAWN_GROUP_MAX_ADJUST).toBe(10);
+    // Le robot de rang 4 (xStart − 2 − 4 × 1,5 × CAR_LENGTH) reste sur le plat de départ (x ≥ 0), roues comprises.
+    const xStart = CONFIG.START_LENGTH - 5;
+    const rearWheel = xStart - 2 - 4 * CONFIG.GRID_SPACING_FACTOR * CONFIG.CAR_LENGTH - CONFIG.WHEEL_BASE / 2 - CONFIG.WHEEL_RADIUS;
+    expect(rearWheel).toBeGreaterThan(0);
+  });
+
   it('dimensionne la zone de départ pour 5 longueurs de voiture à vitesse turbo plus 10 m', () => {
     expect(CONFIG.START_LENGTH).toBeGreaterThanOrEqual(5 * 1.5 * CONFIG.CAR_LENGTH + 10);
   });

@@ -6,7 +6,8 @@ import type { CarView } from '../src/render/renderer';
 import { drawStar, drawTrack } from '../src/render/track';
 import { generateTrack } from '../src/track/generate';
 
-type Call = { name: string; args: unknown[] };
+/** Appel de méthode du contexte, avec le fillStyle courant au moment de l'appel. */
+type Call = { name: string; args: unknown[]; fillStyle?: unknown };
 function fakeCtx(): { ctx: CanvasRenderingContext2D; calls: Call[] } {
   const calls: Call[] = [];
   const gradient = { addColorStop: () => {} };
@@ -14,7 +15,7 @@ function fakeCtx(): { ctx: CanvasRenderingContext2D; calls: Call[] } {
     get(target, prop: string) {
       if (prop in target) return target[prop];
       return (...args: unknown[]) => {
-        calls.push({ name: prop, args });
+        calls.push({ name: prop, args, fillStyle: target.fillStyle });
         return prop.startsWith('create') ? gradient : undefined;
       };
     },
@@ -54,7 +55,7 @@ test('drawCar tourne la carrosserie de −angle (nez en haut = anti-horaire à l
   const car: CarView = {
     x: 10, y: 1, angle: 0.3,
     wheels: [{ x: 9.25, y: 0.4, angle: 1 }, { x: 10.75, y: 0.4, angle: 1 }],
-    color: '#1e5cff', accent: '#e2231a', name: 'Robot', turbo: true,
+    color: '#1e5cff', accent: '#e2231a', helmet: '#00ff00', name: 'Robot', turbo: true,
   };
   const { ctx, calls } = fakeCtx();
   drawCar(ctx, car, 85.7, 0.5, (p) => ({ x: p.x * 10, y: -p.y * 10 }));
@@ -64,6 +65,19 @@ test('drawCar tourne la carrosserie de −angle (nez en haut = anti-horaire à l
   const { ctx: ctx2, calls: calls2 } = fakeCtx();
   drawCar(ctx2, { ...car, name: 'Galahad' }, 85.7, 0.5, (p) => p);
   expect(calls2.some((c) => c.name === 'fillText')).toBe(false);
+});
+
+test('drawCar peint le casque avec `helmet` (et plus avec `accent`)', () => {
+  const car: CarView = {
+    x: 10, y: 1, angle: 0, wheels: [], color: '#ff8000', accent: '#3cd2be', helmet: '#ffa040', name: 'Malo', turbo: false,
+  };
+  const { ctx, calls } = fakeCtx();
+  drawCar(ctx, car, 85.7, 0, (p) => p);
+  // Premier disque dessiné : le casque du pilote (avant la carrosserie, qui en cache le bas).
+  const firstArcFill = calls.find((c, i) => c.name === 'fill' && calls.slice(0, i).some((d) => d.name === 'arc'));
+  expect(firstArcFill?.fillStyle).toBe('#ffa040');
+  // L'accent reste sur l'aileron et les bandes.
+  expect(calls.filter((c) => c.name === 'fillRect').map((c) => c.fillStyle)).toContain('#3cd2be');
 });
 
 test('drawStar ne lève pas', () => {

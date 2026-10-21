@@ -10,11 +10,14 @@ import { FINISH_MAX_SECONDS, FINISH_MIN_SECONDS, describeRespawns, trackFor } fr
 const SEEDS = [0, 1, 2, 3, 4];
 const MAX_SECONDS = 240;
 const DT = CONFIG.PHYSICS_DT;
+/** s : la simulation continue 10 s après l'arrivée (au lieu de FINISH_COAST_SECONDS) pour vérifier l'arrêt avant le mur. */
+const STOP_AFTER_FINISH = 10;
 
 describe('doigt toujours posé (cas 6)', () => {
   test.each(SEEDS)(`seed %i : arrivée entre ${FINISH_MIN_SECONDS} et ${FINISH_MAX_SECONDS} s, détectée au bon pas, arrêt avant le mur, 0 réapparition, jamais bloqué, 6 à 14 étoiles`, (seed) => {
     const track = trackFor(seed);
-    const r = simulateRace(track, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG });
+    // Galahad seul (défaut `robots: false`, plan A) ; course prolongée 10 s après la ligne (arrêt vérifié à finishedAt + 10).
+    const r = simulateRace(track, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG, stopAfterFinish: STOP_AFTER_FINISH });
     const summary = `seed ${seed} : finishedAt=${r.finishedAt?.toFixed(1)} stars=${r.starsTaken.length}/${track.stars.length} `
       + `respawns=${r.respawns.length} maxStuck=${r.maxStuckSeconds.toFixed(2)} [${describeRespawns(r.respawns).join(' ; ')}]`;
     console.log(`cas 6 ${summary}`);
@@ -35,7 +38,7 @@ describe('doigt toujours posé (cas 6)', () => {
     }
     expect(Math.abs(finishedAt - tCross)).toBeLessThanOrEqual(DT + 1e-9);
 
-    const tRest = finishedAt + 10;
+    const tRest = finishedAt + STOP_AFTER_FINISH;
     expect(tRest).toBeLessThanOrEqual(MAX_SECONDS);
     const rest = `${summary} x=${r.progressAt(tRest).toFixed(2)} v=${r.speedAt(tRest).toFixed(3)} xWall=${track.xWall.toFixed(1)}`;
     expect(r.progressAt(tRest), rest).toBeLessThan(track.xWall - 1);

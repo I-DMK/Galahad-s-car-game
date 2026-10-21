@@ -46,6 +46,7 @@ function rampPlatVolcano(seed: number): { i: number; v: Volcano }[] {
 describe(`cas 7 : course « doigt levé ${LIFTED_SHARE * 100} % du temps » (motif mulberry32(seed) par tranche de 1 s)`, () => {
   test.each(RACE_SEEDS)('seed %i : au plus 2 réapparitions par volcan, jamais bloqué, arrivée avant 240 s', (seed) => {
     const track = trackFor(seed);
+    // Galahad seul (défaut `robots: false`, plan A) ; arrêt à l'arrivée + FINISH_COAST_SECONDS.
     const r = simulateRace(track, { throttle: liftedPattern(seed, LIFTED_SHARE), maxSeconds: RACE_MAX_SECONDS, cfg: CONFIG });
     const perVolcano = new Map<string, number>();
     for (const e of r.respawns) {

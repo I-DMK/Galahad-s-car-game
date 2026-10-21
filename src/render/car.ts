@@ -28,7 +28,7 @@ export function drawCar(
   // Pilote d'abord : le bas du casque est caché par la carrosserie (cockpit).
   const hx = -L / 6;
   const hy = -H / 2 - 0.08;
-  circle(ctx, hx, hy, 0.14, car.accent);
+  circle(ctx, hx, hy, 0.14, car.helmet);
   ctx.fillStyle = '#16182a'; // visière vers l'avant
   ctx.beginPath();
   ctx.ellipse(hx + 0.06, hy - 0.01, 0.07, 0.05, 0, 0, Math.PI * 2);

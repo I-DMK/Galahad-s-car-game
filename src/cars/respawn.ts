@@ -3,6 +3,7 @@ import type { Config } from '../config';
 import { heightAt, slopeAt, volcanoAhead } from '../track/query';
 import type { Track } from '../track/types';
 import { normalizeAngle } from './angle';
+import { isSafeZone } from './safepoint';
 import type { CarState, SafePoint } from './state';
 
 export { normalizeAngle } from './angle';
@@ -86,6 +87,45 @@ export function chooseRespawnTarget(state: CarState, track: Track, cfg: Config, 
     return { point: { x, y: heightAt(track, x), angle: slopeAt(track, x) }, lavaX: null, consecutive: 0 };
   }
   return { point: state.safePoint, lavaX, consecutive };
+}
+
+/** m : tolérance d'arrondi de la distance entre voitures du respawn groupé. */
+const GROUP_EPSILON = 1e-6;
+
+/**
+ * Respawn groupé (addendum §1.6) : tant qu'un châssis d'une autre voiture (`occupiedXs`, x des châssis)
+ * est à moins de RESPAWN_GROUP_SPACING_FACTOR × CAR_LENGTH de la cible, et au plus
+ * RESPAWN_GROUP_MAX_SHIFT fois, la cible recule de cette distance, puis remonte vers l'amont par pas
+ * de TRACK_POINT_SPACING jusqu'au premier x de pente douce (< SAFE_POINT_MAX_SLOPE), hors zone
+ * interdite et hors cratère, posée à la hauteur et à l'angle du sol local. Un recul sans tel x sur
+ * RESPAWN_GROUP_MAX_ADJUST mètres, ou qui passerait sous x = CAR_LENGTH (début de la piste), est
+ * abandonné. Dans tous les cas la dernière cible valide est gardée : l'invulnérabilité du respawn
+ * couvre un éventuel chevauchement. Sans voisin trop proche, `point` est rendu tel quel.
+ */
+export function shiftTarget(point: SafePoint, occupiedXs: readonly number[], track: Track, cfg: Config): SafePoint {
+  const gap = cfg.RESPAWN_GROUP_SPACING_FACTOR * cfg.CAR_LENGTH;
+  let target = point;
+  // Un recul pose la cible à exactement `gap` de l'occupant qui l'a provoqué : sans tolérance, l'arrondi
+  // flottant (3,2999999999999972 < 3,3000000000000003) déclencherait un recul de plus.
+  const tooClose = (x: number): boolean => Math.abs(x - target.x) < gap - GROUP_EPSILON;
+  const maxSteps = Math.round(cfg.RESPAWN_GROUP_MAX_ADJUST / cfg.TRACK_POINT_SPACING);
+  const xMin = track.points[0].x + cfg.CAR_LENGTH;
+  for (let shifts = 0; shifts < cfg.RESPAWN_GROUP_MAX_SHIFT; shifts++) {
+    if (!occupiedXs.some(tooClose)) break;
+    const from = target.x - gap;
+    let found: number | null = null;
+    for (let k = 0; k <= maxSteps; k++) {
+      const x = from - k * cfg.TRACK_POINT_SPACING;
+      if (x < xMin) break;
+      if (Math.abs(slopeAt(track, x)) < cfg.SAFE_POINT_MAX_SLOPE && isSafeZone(x, track, cfg)) {
+        found = x;
+        break;
+      }
+    }
+    if (found === null) break;
+    target = { x: found, y: heightAt(track, found), angle: slopeAt(track, found) };
+  }
+  return target;
 }
 
 /** Applique la réapparition choisie à l'état de course (la physique est repositionnée ailleurs). */

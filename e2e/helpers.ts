@@ -39,3 +39,18 @@ export async function waitForState(page: Page, state: string, timeoutMs: number)
 export async function waitForGame(page: Page): Promise<void> {
   await page.waitForFunction(() => (window as any).__game !== undefined);
 }
+
+/** Attend que le temps de course simulé atteigne `t` s (indépendant de la cadence d'affichage). */
+export async function waitForRaceTime(page: Page, t: number): Promise<void> {
+  await page.waitForFunction((tt) => (window as any).__game.time >= tt, t);
+}
+
+/** Ids des pilotes (`window.__game.pilots`), dans l'ordre de la grille : Galahad puis les 4 copains. */
+export async function pilotIds(page: Page): Promise<string[]> {
+  return page.evaluate(() => (window as any).__game.pilots.map((p: { id: string }) => p.id));
+}
+
+/** Progression (m) de chaque voiture `ids`. */
+export async function progressOf(page: Page, ids: string[]): Promise<number[]> {
+  return page.evaluate((list) => list.map((id) => (window as any).__game.progress(id) as number), ids);
+}
