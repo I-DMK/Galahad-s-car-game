@@ -1,6 +1,6 @@
 // Course sur tablette simulée : chargement, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
 import { expect, test, type Page } from '@playwright/test';
-import { gameState, holdFinger, pilotIds, progressOf, waitForGame, waitForRaceTime, waitForState } from './helpers';
+import { frameSteps, gameState, holdFinger, pilotIds, progressOf, waitForGame, waitForRaceTime, waitForState } from './helpers';
 
 const SHOTS = 'e2e/screenshots';
 /** Durée maximale doigt posé pour finir une piste de 300 m. */
@@ -85,6 +85,19 @@ test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui parten
   const later = await progressOf(page, ids);
   for (let i = 1; i < 5; i++) expect(later[i] - start[i], ids[i]).toBeGreaterThan(1);
   await page.screenshot({ path: `${SHOTS}/course-5-voitures.png`, fullPage: true });
+});
+
+test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; capture compteur-images.png', async ({ page }) => {
+  await page.goto('/?seed=1&debug=1');
+  await waitForGame(page);
+  await page.waitForTimeout(2_000);
+  const steps = page.locator('.hud-steps');
+  await expect(steps).toBeVisible();
+  await expect(steps).toHaveText(/^0 pas : \d+ · 2\+ pas : \d+$/);
+  const counts = await frameSteps(page);
+  expect(counts.frames).toBeGreaterThan(0);
+  expect(counts.zero + counts.multi).toBeLessThanOrEqual(counts.frames);
+  await page.screenshot({ path: `${SHOTS}/compteur-images.png`, fullPage: true });
 });
 
 test('course courte : arrivée et calque ARRIVÉE, sans erreur console', async ({ page }) => {

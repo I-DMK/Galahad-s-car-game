@@ -13,6 +13,7 @@ import { isSafePointCandidate } from '../cars/safepoint';
 import { isStarActive, newStarStates, takeStar, type StarState } from '../cars/stars';
 import { newCarState, type CarState, type SafePoint } from '../cars/state';
 import { activateTurbo, turboFactor } from '../cars/turbo';
+import type { CarPose } from '../loop/interpolation';
 import {
   applyAirLevel, applyBrake, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
   setCarInvulnerable, updateGroundContact, type CarBody, type GroundContact,
@@ -347,16 +348,46 @@ export function rebuildCars(sim: RaceSim): void {
   }
 }
 
-/** Vue de rendu de la voiture d'index `index` (monde : m, y vers le haut ; angles positifs anti-horaires). */
-export function carView(sim: RaceSim, index: number): CarView {
-  const { body, state, pilot } = sim.cars[index];
-  const c = physToWorld(body.chassis.position);
+/** Pose de rendu de la voiture d'index `index` au dernier pas (monde : m, y vers le haut ; angles anti-horaires). */
+function poseOf(car: CarSim): CarPose {
+  const { body } = car;
   return {
-    x: c.x,
-    y: c.y,
-    angle: carAngle(body),
+    chassis: { ...physToWorld(body.chassis.position), angle: carAngle(body) },
     // Angle Matter : y vers le bas, sens horaire ; le renderer attend la convention y vers le haut.
     wheels: body.wheels.map((w) => ({ ...physToWorld(w.position), angle: -w.angle })),
+    speed: carSpeedMps(body),
+  };
+}
+
+/** Poses de rendu de toutes les voitures au dernier pas, dans l'ordre des index (Galahad en premier). */
+export function posesOf(sim: RaceSim): CarPose[] {
+  return sim.cars.map(poseOf);
+}
+
+/** Index des voitures téléportées pendant le dernier pas (événement 'respawn' dans `sim.events`). */
+export function teleportedOf(sim: RaceSim): Set<number> {
+  const out = new Set<number>();
+  for (const e of sim.events) {
+    if (e.type !== 'respawn') continue;
+    const i = sim.cars.findIndex((c) => c.state.id === e.carId);
+    if (i >= 0) out.add(i);
+  }
+  return out;
+}
+
+/**
+ * Vue de rendu de la voiture d'index `index` (monde : m, y vers le haut ; angles positifs anti-horaires),
+ * à la pose `pose` (interpolée) ou, sans pose, à celle du dernier pas.
+ */
+export function carView(sim: RaceSim, index: number, pose?: CarPose): CarView {
+  const car = sim.cars[index];
+  const { state, pilot } = car;
+  const p = pose ?? poseOf(car);
+  return {
+    x: p.chassis.x,
+    y: p.chassis.y,
+    angle: p.chassis.angle,
+    wheels: p.wheels.map((w) => ({ x: w.x, y: w.y, angle: w.angle })),
     color: state.color,
     accent: state.accent,
     helmet: colorHex(pilot.helmet),
@@ -365,13 +396,18 @@ export function carView(sim: RaceSim, index: number): CarView {
   };
 }
 
-/** Scène de rendu : toutes les voitures, Galahad en dernier (dessiné au-dessus des copains). */
-export function sceneOf(sim: RaceSim): Scene {
+/**
+ * Scène de rendu : toutes les voitures, Galahad en dernier (dessiné au-dessus des copains). Sans poses :
+ * état du dernier pas. Avec poses et alpha : voitures aux poses données (interpolées, `runFrame`) et
+ * `Scene.t` = sim.time − (1 − alpha) × PHYSICS_DT (même latence que les voitures) ; étoiles et turbo
+ * gardent le temps de simulation.
+ */
+export function sceneOf(sim: RaceSim, poses?: CarPose[], alpha = 1): Scene {
   return {
     track: sim.track,
-    cars: sim.cars.map((_, i) => carView(sim, i)).reverse(),
+    cars: sim.cars.map((_, i) => carView(sim, i, poses?.[i])).reverse(),
     stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActive(sim.stars[i], sim.time, sim.cfg) })),
-    t: sim.time,
+    t: poses === undefined ? sim.time : sim.time - (1 - alpha) * sim.cfg.PHYSICS_DT,
   };
 }
 

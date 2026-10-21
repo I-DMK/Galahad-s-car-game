@@ -1,4 +1,5 @@
-// HUD en DOM au-dessus du canvas : chrono, fps (debug), calque d'arrivée, message d'erreur.
+// HUD en DOM au-dessus du canvas : chrono, fps et compteur d'images à 0 / 2+ pas (debug), calque d'arrivée,
+// message d'erreur.
 // Le conteneur (#hud) est en `pointer-events: none` : seul le calque d'arrivée capte le toucher.
 
 const STYLE_ID = 'hud-style';
@@ -7,6 +8,8 @@ const CSS = `
   text-shadow:0 3px 0 #000a,0 0 12px #000c;font-variant-numeric:tabular-nums;letter-spacing:2px}
 .hud-fps{position:absolute;left:12px;bottom:8px;font:500 16px system-ui,sans-serif;color:#fffc;
   text-shadow:0 1px 2px #000}
+.hud-steps{position:absolute;left:96px;bottom:8px;font:500 16px system-ui,sans-serif;color:#fffc;
+  text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums}
 .hud-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:24px;background:rgba(0,0,20,.65);pointer-events:auto;color:#fff;
   font-family:system-ui,sans-serif;text-align:center;text-shadow:0 3px 0 #000a}
@@ -26,6 +29,7 @@ export function formatTime(seconds: number): string {
 export class Hud {
   private readonly time: HTMLDivElement;
   private readonly fps: HTMLDivElement;
+  private readonly steps: HTMLDivElement;
   private overlay: HTMLDivElement | null = null;
   private lastTime = '';
 
@@ -40,7 +44,9 @@ export class Hud {
     this.time = this.div('hud-time');
     this.fps = this.div('hud-fps');
     this.fps.hidden = true;
-    root.append(this.time, this.fps);
+    this.steps = this.div('hud-steps');
+    this.steps.hidden = true;
+    root.append(this.time, this.fps, this.steps);
     this.setTime(0);
   }
 
@@ -52,6 +58,12 @@ export class Hud {
   setFps(fps: number | null): void {
     this.fps.hidden = fps === null;
     if (fps !== null) this.fps.textContent = `${Math.round(fps)} fps`;
+  }
+
+  /** Images de la dernière seconde à 0 pas et à 2 pas ou plus (`?debug=1`, tremblement §8) ; null masque. */
+  setFrameSteps(counts: { zero: number; multi: number } | null): void {
+    this.steps.hidden = counts === null;
+    if (counts !== null) this.steps.textContent = `0 pas : ${counts.zero} · 2+ pas : ${counts.multi}`;
   }
 
   showFinished(seconds: number, onAgain: () => void): void {
