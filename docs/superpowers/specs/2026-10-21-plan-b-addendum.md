@@ -1,7 +1,7 @@
 # Course Lunaire de Galahad — addendum plan B
 
 Date : 2026-10-21
-Statut : v3 après deux tours de relecture (standard, adversariale,
+Statut : v3 VALIDÉE par le papa le 2026-10-21, après deux tours de relecture (standard, adversariale,
 `code-review` : 9 à 14 points au premier tour, 8 à 9 au second, tous intégrés
 ou tranchés ci-dessous), en attente de validation par le papa avant le plan
 d'implémentation.
