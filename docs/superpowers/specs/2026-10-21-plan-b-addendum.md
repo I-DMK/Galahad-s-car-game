@@ -86,7 +86,7 @@ d'après §1.7, puis confirmées sur la tablette.
 | `LAVA_SENSOR_ABOVE_RIM` (nouvelle) | 0 | 0,3 m [plan] | le capteur de lave dépasse le rebord : une voiture qui rebondit sur le flanc amont ne survole pas la lave (les sauts réussis passent ≥ 2 m au-dessus, mesure 10b). À 0,5 m le seuil de franchissement monte à ≈ 10,4 m/s et la marge de la voiture lancée tombe à 0,6 m/s ; la calibration mesure la marge (≥ 1 m/s exigé) et règle entre 0,2 et 0,5 |
 | `STOP_BUMP_HEIGHT`, `STOP_BUMP_LENGTH` | 0,3 / 1 | supprimées | butée supprimée (§0) |
 | `STAR_EXCLUSION_BEFORE_LAVA` | 63 m | supprimée | remplacée par §1.5 |
-| `STAR_STEP_MIN`, `STAR_STEP_MAX` (nouvelles) | 12 / 20 m (dans `stars.ts`) | 80 / 130 m | pas du curseur global d'étoiles (§1.5 ; ≈ 830 m admissibles par course → ≈ 8 étoiles + ≈ 2,7 d'élan ; graines pauvres ≈ 410 m → 4 + 1,5) |
+| `STAR_STEP_MIN`, `STAR_STEP_MAX` (nouvelles) | 12 / 20 m (dans `stars.ts`) | 80 / 130 m → **60 / 100 m** [tâche 2] | pas du curseur global d'étoiles (§1.5). [tâche 2] : longueur admissible mesurée 397–748 m par course (moy. ≈ 600, non ≈ 830) → à 80/130 moy. 7,3 étoiles ; à 60/100 moy. 9,0 (graines 0–49, min 6, max 13), cible 8–12 atteinte |
 
 Plat de réception inchangé : au moins `jumpRange(V_MAX × TURBO_FACTOR) × 1,2`
 depuis le sommet (67,7 × 1,2 m), et au moins 10 m après le rebord aval.
