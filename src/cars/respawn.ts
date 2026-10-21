@@ -1,6 +1,6 @@
 // Décision de réapparition : chronomètres de blocage et choix de la cible. Pur (ni DOM, ni matter-js).
 import type { Config } from '../config';
-import { heightAt, volcanoAhead } from '../track/query';
+import { heightAt, slopeAt, volcanoAhead } from '../track/query';
 import type { Track } from '../track/types';
 import { normalizeAngle } from './angle';
 import type { CarState, SafePoint } from './state';
@@ -19,13 +19,20 @@ export interface RespawnObs {
   groundY: number;
   speedMps: number;
   onLava: boolean;
+  /**
+   * Vrai si x est dans [xElanStart, xLip] d'un volcan (plat d'élan et rampe ; calculé par le pas de
+   * course). Une voiture retournée ou sur le flanc y réapparaît aussitôt, sans les délais
+   * FLIP_SECONDS / SIDE_SECONDS, pour ne pas faire obstacle à une voiture lancée (addendum §1.6).
+   * Au-delà du sommet, c'est la lave qui tranche.
+   */
+  inElanZone: boolean;
 }
 
 /**
  * Met à jour les chronomètres de l'état et renvoie la raison de réapparition, ou null.
  * Les chronomètres sont tous mis à jour à chaque appel (ils sont indépendants : retourné
  * implique aussi sur le côté) ; la raison renvoyée suit l'ordre de priorité
- * lave > vitesse > sous le sol > retourné > sur le côté > bloqué.
+ * lave > vitesse > sous le sol > retourné (immédiat dans l'élan) > sur le côté > bloqué.
  */
 export function updateRespawnTimers(state: CarState, obs: RespawnObs, cfg: Config): RespawnReason | null {
   const absAngle = Math.abs(normalizeAngle(obs.angle));
@@ -46,6 +53,7 @@ export function updateRespawnTimers(state: CarState, obs: RespawnObs, cfg: Confi
   if (obs.onLava) return 'lava';
   if (obs.speedMps > cfg.SPEED_GUARD) return 'speed';
   if (obs.y < obs.groundY - 1) return 'underground';
+  if (obs.inElanZone && absAngle > cfg.SIDE_ANGLE) return 'flipped';
   if (state.flippedSince !== null && obs.t - state.flippedSince > cfg.FLIP_SECONDS) return 'flipped';
   if (state.sideSince !== null && obs.t - state.sideSince > cfg.SIDE_SECONDS) return 'side';
   if (state.stuckSince !== null && obs.t - state.stuckSince > cfg.STUCK_SECONDS) return 'stuck';
@@ -59,16 +67,18 @@ export interface RespawnTarget {
 }
 
 /**
- * Choisit où réapparaître. Deuxième réapparition de suite devant la même lave :
- * on passe le volcan (réception + 3 m) au lieu de reboucler sur le point sûr.
+ * Choisit où réapparaître. Deuxième réapparition de suite devant la même lave : on passe le volcan,
+ * en fin de plat de réception (xEnd − RESPAWN_AFTER_VOLCANO_BACK, hors de la zone d'atterrissage
+ * des autres voitures ; addendum §1.6), à la hauteur et à l'angle du sol local, au lieu de
+ * reboucler sur le point sûr.
  */
-export function chooseRespawnTarget(state: CarState, track: Track, _cfg: Config): RespawnTarget {
+export function chooseRespawnTarget(state: CarState, track: Track, cfg: Config): RespawnTarget {
   const v = volcanoAhead(track, state.safePoint.x);
   const lavaX: number | null = v?.xLava ?? null;
   const consecutive = lavaX !== null && lavaX === state.lastRespawnLavaX ? state.consecutiveRespawns + 1 : 1;
   if (consecutive >= 2 && v) {
-    const x = v.xReception + 3;
-    return { point: { x, y: heightAt(track, x), angle: 0 }, lavaX: null, consecutive: 0 };
+    const x = v.xEnd - cfg.RESPAWN_AFTER_VOLCANO_BACK;
+    return { point: { x, y: heightAt(track, x), angle: slopeAt(track, x) }, lavaX: null, consecutive: 0 };
   }
   return { point: state.safePoint, lavaX, consecutive };
 }

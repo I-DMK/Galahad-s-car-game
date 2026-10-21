@@ -8,7 +8,7 @@ import {
 } from '../src/cars/respawn';
 import { newCarState } from '../src/cars/state';
 import { generateTrack } from '../src/track/generate';
-import { heightAt } from '../src/track/query';
+import { heightAt, slopeAt } from '../src/track/query';
 import type { Track } from '../src/track/types';
 
 const DEG = Math.PI / 180;
@@ -17,7 +17,7 @@ function newState() {
   return newCarState('a', 'A', '#fff', '#000', { x: 0, y: 0, angle: 0 });
 }
 const base: RespawnObs = {
-  t: 0, angle: 0, throttle: false, progress: 0, y: 5, groundY: 5, speedMps: 10, onLava: false,
+  t: 0, angle: 0, throttle: false, progress: 0, y: 5, groundY: 5, speedMps: 10, onLava: false, inElanZone: false,
 };
 const obs = (o: Partial<RespawnObs>): RespawnObs => ({ ...base, ...o });
 
@@ -135,6 +135,42 @@ describe('updateRespawnTimers', () => {
     expect(updateRespawnTimers(s, { ...all, onLava: false, speedMps: 10 }, CONFIG)).toBe('underground');
     expect(updateRespawnTimers(s, { ...all, onLava: false, speedMps: 10, y: 5 }, CONFIG)).toBe('flipped');
   });
+
+  describe('retournée dans l’élan ou sur la rampe (inElanZone) : flipped immédiat (addendum §1.6)', () => {
+    test('|angle| > SIDE_ANGLE au premier pas → flipped, sans délai', () => {
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 150 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: -150 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
+      // Sur le flanc (entre SIDE_ANGLE et FLIP_ANGLE) : aussi immédiat.
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 80 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: -80 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
+      // L'angle est normalisé (−200° compte comme 160°).
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: -200 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
+    });
+
+    test('|angle| ≤ SIDE_ANGLE dans l’élan → rien', () => {
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 60 * DEG, inElanZone: true }), CONFIG)).toBeNull();
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: CONFIG.SIDE_ANGLE, inElanZone: true }), CONFIG)).toBeNull();
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 0, inElanZone: true }), CONFIG)).toBeNull();
+    });
+
+    test('hors de l’élan (inElanZone false) : délais FLIP_SECONDS / SIDE_SECONDS inchangés', () => {
+      const s = newState();
+      expect(updateRespawnTimers(s, obs({ t: 10, angle: 150 * DEG, inElanZone: false }), CONFIG)).toBeNull();
+      expect(updateRespawnTimers(s, obs({ t: 10.9, angle: 150 * DEG, inElanZone: false }), CONFIG)).toBeNull();
+      expect(updateRespawnTimers(s, obs({ t: 11.05, angle: 150 * DEG, inElanZone: false }), CONFIG)).toBe('flipped');
+      const s2 = newState();
+      expect(updateRespawnTimers(s2, obs({ t: 0, angle: 80 * DEG, inElanZone: false }), CONFIG)).toBeNull();
+      expect(updateRespawnTimers(s2, obs({ t: 1.9, angle: 80 * DEG, inElanZone: false }), CONFIG)).toBeNull();
+      expect(updateRespawnTimers(s2, obs({ t: 2.05, angle: 80 * DEG, inElanZone: false }), CONFIG)).toBe('side');
+    });
+
+    test('la lave et la vitesse gardent la priorité sur le flipped immédiat', () => {
+      const all = obs({ t: 5, angle: 150 * DEG, inElanZone: true, onLava: true, speedMps: 100 });
+      expect(updateRespawnTimers(newState(), all, CONFIG)).toBe('lava');
+      expect(updateRespawnTimers(newState(), { ...all, onLava: false }, CONFIG)).toBe('speed');
+      expect(updateRespawnTimers(newState(), { ...all, onLava: false, speedMps: 10 }, CONFIG)).toBe('flipped');
+    });
+  });
 });
 
 describe('chooseRespawnTarget / applyRespawnToState', () => {
@@ -167,7 +203,8 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     expect(r.point).toEqual(s.safePoint);
   });
 
-  test('2e respawn devant le même volcan (autre point sûr) → réception + 3, puis volcan différent → 1', () => {
+  test('2e respawn devant le même volcan (autre point sûr) → xEnd − RESPAWN_AFTER_VOLCANO_BACK, puis volcan différent → 1', () => {
+    expect(CONFIG.RESPAWN_AFTER_VOLCANO_BACK).toBe(10);
     const s = newState();
     const S1 = { x: V1.xElanStart - 5, y: heightAt(track, V1.xElanStart - 5), angle: 0 };
     s.safePoint = S1;
@@ -184,9 +221,13 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     const r2 = chooseRespawnTarget(s, track, CONFIG);
     expect(r2.consecutive).toBe(0);
     expect(r2.lavaX).toBeNull();
-    expect(r2.point.x).toBeCloseTo(V1.xReception + 3, 9);
-    expect(r2.point.y).toBeCloseTo(heightAt(track, V1.xReception + 3), 9);
-    expect(r2.point.angle).toBe(0);
+    const xBack = V1.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK;
+    expect(r2.point.x).toBeCloseTo(xBack, 9);
+    expect(r2.point.y).toBeCloseTo(heightAt(track, xBack), 9);
+    // Hauteur et angle du sol local : le plat de réception est horizontal.
+    expect(r2.point.angle).toBeCloseTo(slopeAt(track, xBack), 12);
+    expect(r2.point.angle).toBeCloseTo(0, 9);
+    expect(r2.point.x).toBeGreaterThanOrEqual(V1.xReception + 10);
     applyRespawnToState(s, r2.point, r2.lavaX, r2.consecutive, 20, CONFIG);
     expect(s.lastRespawnLavaX).toBeNull();
     expect(s.consecutiveRespawns).toBe(0);
@@ -198,6 +239,29 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     expect(r3.consecutive).toBe(1);
     expect(r3.lavaX).toBe(V2.xLava);
     expect(r3.point).toEqual(S3);
+  });
+
+  test('graines 0 à 19 : la cible de 2e chute xEnd − 10 est ≥ xReception + 10 sur chaque volcan', () => {
+    let volcanoes = 0;
+    for (let seed = 0; seed < 20; seed++) {
+      const t = generateTrack(seed, 1680, CONFIG);
+      for (const w of t.volcanoes) {
+        volcanoes++;
+        const s = newState();
+        s.lastRespawnLavaX = w.xLava;
+        s.consecutiveRespawns = 1;
+        s.safePoint = { x: w.xLancement + 1, y: heightAt(t, w.xLancement + 1), angle: 0 };
+        const r = chooseRespawnTarget(s, t, CONFIG);
+        const where = `seed ${seed}, volcan en x = ${w.xLancement.toFixed(1)}`;
+        expect(r.consecutive, where).toBe(0);
+        expect(r.lavaX, where).toBeNull();
+        expect(r.point.x, where).toBeCloseTo(w.xEnd - 10, 9);
+        expect(r.point.x, where).toBeGreaterThanOrEqual(w.xReception + 10);
+        expect(r.point.y, where).toBeCloseTo(heightAt(t, r.point.x), 9);
+        expect(Math.abs(r.point.angle), where).toBeLessThan(1e-9);
+      }
+    }
+    expect(volcanoes).toBeGreaterThan(50);
   });
 
   test('volcan différent de celui du dernier respawn → consecutive 1', () => {

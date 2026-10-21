@@ -206,8 +206,9 @@ test.each(SEEDS)('seed %i : chaque volcan est franchi sans lave depuis l\'arrêt
   const { volcanoes } = world.track;
   expect(volcanoes.length).toBeGreaterThan(0);
   for (const v of volcanoes) {
-    // « pire point sûr » : le point sûr le plus avancé que tolère la zone de transition de la tâche 1
-    // (xLancement + 25 % du plat de lancement) ; la tâche 4 réécrit ces scénarios.
+    // « pire point sûr » : le point sûr le plus avancé que tolère la zone interdite (tâche 3 :
+    // xLancement + SAFE_LANCEMENT_MARGIN − 1 cm, soit D_LANCE ≈ 27,3 m de plat avant l'élan) ; la
+    // tâche 4 réécrit ces scénarios.
     const scenarios = [
       { name: 'doigt posé', x0: v.xLancement, factor: 1 },
       { name: 'pire point sûr', x0: forbiddenZone(v, CONFIG)[0] - 0.01, factor: 1 },

@@ -22,7 +22,8 @@ export const CONFIG = {
   D_LANCE,
   LANCEMENT_LENGTH: D_LANCE + 5,   // m : plat de lancement devant chaque plat d'élan (addendum §1.4)
   LAVA_SENSOR_ABOVE_RIM: 0.3,   // m : le capteur de lave dépasse le rebord (un rebond sur le flanc amont ne survole pas la lave)
-  ELAN_SAFE_FRACTION: 0.75,     // retirée en tâche 3 (transition : forbiddenZone l'applique au plat de lancement)
+  SAFE_LANCEMENT_MARGIN: 5,     // m : points sûrs admis dans les 5 premiers mètres du plat de lancement (puis D_LANCE de plat → V_MAX avant l'élan), jamais dans [xLancement + 5, xReception[ (addendum §1.6)
+  RESPAWN_AFTER_VOLCANO_BACK: 10,   // m : deuxième chute de suite au même volcan → replacée à xEnd − 10 (fin du plat de réception, hors de la zone d'atterrissage des autres voitures)
   CAR_LENGTH: 2.2, CAR_HEIGHT: 0.7, WHEEL_BASE: 1.5, WHEEL_RADIUS: 0.45, WHEEL_DROP: 0.25,
   WHEEL_SIDES: 48,              // roues en 48-gone (Bodies.polygon) : Bodies.circle plafonne les côtés à min(maxSides, r px) = 18 ici ; excursion du châssis à V_MAX 0,105 m avec 18 côtés → 0,067 m dans la configuration livrée (48 côtés, 3e ressort, WHEEL_SPINUP 0,0054 ; mesuré en 7c)
   CHASSIS_MASS: 60, WHEEL_MASS: 40,

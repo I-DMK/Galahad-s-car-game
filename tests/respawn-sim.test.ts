@@ -2,7 +2,7 @@
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
-import { physToWorld } from '../src/physics/units';
+import { physToWorld, worldToPhys } from '../src/physics/units';
 import { CAT } from '../src/physics/world';
 import { createRaceSim, simulateRace, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
@@ -102,10 +102,10 @@ describe.each(VOLCANO_SEEDS)('seed %i, premier volcan, voiture à l’arrêt pui
   });
 });
 
-test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible passe le volcan (xReception + 3)', () => {
+test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible passe le volcan (xEnd − 10)', () => {
   const { track, v } = firstVolcano();
   const sim = createRaceSim(track, CONFIG);
-  const xSafe = v.xElanStart + 1;
+  const xSafe = v.xLancement + 1;
   sim.state.safePoint = { x: xSafe, y: heightAt(track, xSafe), angle: 0 };
 
   placeCar(sim.car, v.xLava, h(track), 0, CONFIG);
@@ -120,9 +120,54 @@ test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible pa
   const second = stepUntilRespawn(sim, true, 5);
   expect(second).toBeDefined();
   expect(second!.reason).toBe('lava');
-  expect(second!.target.x).toBeCloseTo(v.xReception + 3, 6);
-  expect(chassisX(sim)).toBeCloseTo(v.xReception + 3, 6);
-  expect(sim.state.safePoint.x).toBeCloseTo(v.xReception + 3, 6);
+  const xBack = v.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK;
+  expect(xBack).toBeGreaterThanOrEqual(v.xReception + 10);
+  expect(second!.target.x).toBeCloseTo(xBack, 6);
+  expect(chassisX(sim)).toBeCloseTo(xBack, 6);
+  expect(sim.state.safePoint.x).toBeCloseTo(xBack, 6);
+});
+
+describe('voiture retournée (inElanZone calculé par le pas de course)', () => {
+  /** Voiture posée à l'envers (châssis à 180°, roues en l'air) en x, vitesses nulles. */
+  function placeFlipped(sim: RaceSim, x: number): void {
+    placeCar(sim.car, x, h(track0), 0, CONFIG);
+    const ground = heightAt(track0, x);
+    const lift = CONFIG.CAR_HEIGHT + 2 * CONFIG.WHEEL_RADIUS;
+    Matter.Body.setPosition(sim.car.chassis, worldToPhys({ x, y: ground + CONFIG.CAR_HEIGHT / 2 + 0.05 }));
+    Matter.Body.setAngle(sim.car.chassis, Math.PI);
+    sim.car.wheels.forEach((w) => {
+      const p = physToWorld(w.position);
+      Matter.Body.setPosition(w, worldToPhys({ x: p.x, y: ground + lift }));
+    });
+    for (const p of sim.car.parts) { Matter.Body.setVelocity(p, { x: 0, y: 0 }); Matter.Body.setAngularVelocity(p, 0); }
+  }
+  const { track: track0, v: v0 } = firstVolcano();
+
+  test.each([
+    ['plat d’élan', (v: Volcano) => v.xElanStart + 1],
+    ['rampe', (v: Volcano) => (v.xRampStart + v.xLip) / 2],
+  ])('%s : flipped au premier pas', (_name, xOf) => {
+    const sim = createRaceSim(track0, CONFIG);
+    placeFlipped(sim, xOf(v0));
+    stepRace(sim, false);
+    const e = sim.events.find((ev): ev is RespawnEvent => ev.type === 'respawn');
+    expect(e).toBeDefined();
+    expect(e!.reason).toBe('flipped');
+  });
+
+  test.each([
+    ['plat de lancement', (v: Volcano) => v.xLancement + 2],
+    ['vallée (fond, pente nulle)', (v: Volcano) => v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5],
+    ['hors volcan (plat de départ)', (_v: Volcano) => track0.xStart - 1],
+  ])('%s : pas de réapparition « flipped » avant FLIP_SECONDS', (_name, xOf) => {
+    const sim = createRaceSim(track0, CONFIG);
+    placeFlipped(sim, xOf(v0));
+    const t0 = sim.time;
+    const e = stepUntilRespawn(sim, false, Math.ceil(3 / DT));
+    expect(e).toBeDefined();
+    expect(['flipped', 'side']).toContain(e!.reason);
+    expect(e!.t - t0).toBeGreaterThan(CONFIG.FLIP_SECONDS - 1e-9);
+  });
 });
 
 test('motif 0,7 s posé / 0,3 s levé, seed 1 : au plus 2 réapparitions par volcan, jamais bloqué, arrivée atteinte', () => {

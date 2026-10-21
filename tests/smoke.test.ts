@@ -33,8 +33,10 @@ describe('CONFIG', () => {
     expect('STAR_EXCLUSION_BEFORE_LAVA' in CONFIG).toBe(false);
   });
 
-  it('constante en sursis (retirée en tâche 3)', () => {
-    expect(CONFIG.ELAN_SAFE_FRACTION).toBe(0.75);
+  it('points sûrs et respawn v2 (tâche 3) : marge de lancement, recul en fin de réception ; ELAN_SAFE_FRACTION retirée', () => {
+    expect(CONFIG.SAFE_LANCEMENT_MARGIN).toBe(5);
+    expect(CONFIG.RESPAWN_AFTER_VOLCANO_BACK).toBe(10);
+    expect('ELAN_SAFE_FRACTION' in CONFIG).toBe(false);
   });
 
   it('dimensionne la zone de départ pour 5 longueurs de voiture à vitesse turbo plus 10 m', () => {

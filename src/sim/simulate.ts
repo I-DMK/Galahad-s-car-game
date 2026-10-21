@@ -172,6 +172,8 @@ function observeAndRespawn(sim: RaceSim, throttle: boolean, onGround: [boolean, 
     groundY: heightAt(track, x),
     speedMps: carSpeedMps(car),
     onLava: sensorsTouching(world.engine, car.parts).some((b) => b.label === 'lava'),
+    // Plat d'élan et rampe seulement : au-delà du sommet, c'est la lave qui tranche.
+    inElanZone: track.volcanoes.some((v) => x >= v.xElanStart && x <= v.xLip),
   }, cfg);
   if (reason === null) return;
   const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg);

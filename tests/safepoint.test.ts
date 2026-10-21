@@ -2,6 +2,7 @@ import { CONFIG } from '../src/config';
 import { forbiddenZone, isSafePointCandidate } from '../src/cars/safepoint';
 import { newCarState } from '../src/cars/state';
 import { generateTrack } from '../src/track/generate';
+import { sliceAt } from '../src/track/query';
 import type { Track } from '../src/track/types';
 
 const DEG = Math.PI / 180;
@@ -27,12 +28,24 @@ const okX = track.xStart + 1;
 const ok = { x: okX, t: 1, bothWheelsOnGround: true, carAngle: 0, groundSlope: 0 };
 
 describe('forbiddenZone', () => {
-  test('= [lancement + 25 % du plat de lancement, réception) (transition tâche 1 → 3)', () => {
-    expect(zoneStart).toBeCloseTo(v.xLancement + (1 - CONFIG.ELAN_SAFE_FRACTION) * (v.xElanStart - v.xLancement), 9);
+  test('= [xLancement + SAFE_LANCEMENT_MARGIN, xReception) (addendum §1.6)', () => {
+    expect(CONFIG.SAFE_LANCEMENT_MARGIN).toBe(5);
+    expect(zoneStart).toBeCloseTo(v.xLancement + 5, 9);
     expect(zoneEnd).toBe(v.xReception);
-    expect(zoneStart).toBeGreaterThan(v.xLancement);
-    // Le plat d'élan (6 m) est entièrement interdit : jamais de point sûr dessus.
+    // Le plat d'élan (6 m) et la rampe sont entièrement interdits : jamais de point sûr dessus.
     expect(zoneStart).toBeLessThan(v.xElanStart);
+    // D_LANCE de plat garanti après le pire point sûr (V_MAX avant l'élan).
+    expect(v.xElanStart - zoneStart).toBeCloseTo(CONFIG.D_LANCE, 9);
+  });
+
+  test('graines 0 à 19 : même règle pour chaque volcan', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      for (const w of generateTrack(seed, 1680, CONFIG).volcanoes) {
+        const [a, b] = forbiddenZone(w, CONFIG);
+        expect(a).toBeCloseTo(w.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN, 9);
+        expect(b).toBe(w.xReception);
+      }
+    }
   });
 });
 
@@ -65,12 +78,14 @@ describe('isSafePointCandidate', () => {
     expect(isSafePointCandidate({ ...ok, groundSlope: 5 * DEG }, state(), track, CONFIG)).toBe(true);
   });
 
-  test('refusé : dans la zone interdite (demi-ouverte)', () => {
+  test('refusé : dans la zone interdite [xLancement + 5, xReception), demi-ouverte', () => {
     const mid = (zoneStart + zoneEnd) / 2;
     expect(isSafePointCandidate({ ...ok, x: mid }, state(), track, CONFIG)).toBe(false);
-    expect(isSafePointCandidate({ ...ok, x: zoneStart }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: v.xLancement + 5 }, state(), track, CONFIG)).toBe(false);
     expect(isSafePointCandidate({ ...ok, x: v.xLava - 1 }, state(), track, CONFIG)).toBe(false);
-    expect(isSafePointCandidate({ ...ok, x: zoneEnd }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: v.xReception - 0.01 }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: v.xReception }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: v.xLancement + 5 - 0.01 }, state(), track, CONFIG)).toBe(true);
   });
 
   test('refusé : sur le plat d’élan et la rampe', () => {
@@ -79,9 +94,36 @@ describe('isSafePointCandidate', () => {
     expect(isSafePointCandidate({ ...ok, x: v.xRampStart + 1 }, state(), track, CONFIG)).toBe(false);
   });
 
-  test('accepté : plat de réception et premier quart du plat de lancement', () => {
+  test('accepté : plat de réception et 5 premiers mètres du plat de lancement', () => {
     expect(isSafePointCandidate({ ...ok, x: v.xReception + 3 }, state(), track, CONFIG)).toBe(true);
-    expect(isSafePointCandidate({ ...ok, x: v.xLancement + 0.1 * (zoneStart - v.xLancement) }, state(), track, CONFIG)).toBe(true);
-    expect(isSafePointCandidate({ ...ok, x: zoneStart - 0.01 }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: v.xEnd - 10 }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: v.xLancement }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: v.xLancement + 2.5 }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: v.xLancement - 1 }, state(), track, CONFIG)).toBe(true);
+  });
+
+  test('refusé : dans une tranche « cratère » (fixture : un plat retypé, en copie)', () => {
+    // Un plat intérieur (ni premier ni dernier : sliceAt clampe aux extrémités) hors zone interdite,
+    // dont le milieu est accepté sur la piste d'origine.
+    const plat = track.slices.find((s, i) => {
+      if (s.type !== 'plat' || i === 0 || i === track.slices.length - 1) return false;
+      const x = (s.xStart + s.xEnd) / 2;
+      return isSafePointCandidate({ ...ok, x }, state(), track, CONFIG);
+    });
+    expect(plat).toBeDefined();
+    const xMid = (plat!.xStart + plat!.xEnd) / 2;
+    const cratered: Track = {
+      ...track,
+      slices: track.slices.map((s) => (s === plat ? { ...s, type: 'cratère' as const } : s)),
+    };
+    expect(sliceAt(cratered, xMid).type).toBe('cratère');
+    expect(sliceAt(track, xMid).type).toBe('plat'); // la piste d'origine n'est pas mutée
+    expect(isSafePointCandidate({ ...ok, x: xMid }, state(), cratered, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: plat!.xStart }, state(), cratered, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: plat!.xEnd - 0.01 }, state(), cratered, CONFIG)).toBe(false);
+    // Les voisins (hors cratère) restent acceptés quand ils l'étaient déjà.
+    const before = isSafePointCandidate({ ...ok, x: plat!.xStart - 0.01 }, state(), track, CONFIG);
+    expect(isSafePointCandidate({ ...ok, x: plat!.xStart - 0.01 }, state(), cratered, CONFIG)).toBe(before);
+    expect(isSafePointCandidate({ ...ok, x: xMid }, state(), track, CONFIG)).toBe(true);
   });
 });
