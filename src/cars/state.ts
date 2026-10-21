@@ -14,7 +14,7 @@ export interface CarState {
   safePoint: SafePoint;
   /** Instant (s) du dernier point sûr enregistré. */
   lastSafePointAt: number;
-  /** x de la lave du volcan devant lequel a eu lieu la dernière réapparition, quelle qu'en soit la raison (ruling 10a). */
+  /** x de la lave de la dernière chute dans la lave ; remis à null par tout autre respawn (tâche 10a du plan A, série « même volcan »). */
   lastRespawnLavaX: number | null;
   consecutiveRespawns: number;
   /** Instants (s) de début de retournement / de voiture sur le côté / de blocage, null sinon. */

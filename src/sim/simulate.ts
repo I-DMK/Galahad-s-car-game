@@ -156,11 +156,11 @@ function observeAndRespawn(sim: RaceSim, throttle: boolean, onGround: [boolean, 
   const { car, cfg, state, track, world, time: t } = sim;
   const x = state.progress;
   const angle = carAngle(car);
-  const candidate = {
-    x, t, bothWheelsOnGround: onGround[0] && onGround[1], carAngle: angle, groundSlope: slopeAt(track, x),
-  };
+  const groundY = heightAt(track, x);
+  const groundSlope = slopeAt(track, x);
+  const candidate = { x, t, bothWheelsOnGround: onGround[0] && onGround[1], carAngle: angle, groundSlope };
   if (isSafePointCandidate(candidate, state, track, cfg)) {
-    state.safePoint = { x, y: heightAt(track, x), angle: slopeAt(track, x) };
+    state.safePoint = { x, y: groundY, angle: groundSlope };
     state.lastSafePointAt = t;
   }
   const reason = updateRespawnTimers(state, {
@@ -169,13 +169,13 @@ function observeAndRespawn(sim: RaceSim, throttle: boolean, onGround: [boolean, 
     throttle,
     progress: x,
     y: physToWorld(car.chassis.position).y,
-    groundY: heightAt(track, x),
+    groundY,
     speedMps: carSpeedMps(car),
     onLava: sensorsTouching(world.engine, car.parts).some((b) => b.label === 'lava'),
     inElanZone: inElanZone(track, x),
   }, cfg);
   if (reason === null) return;
-  const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg);
+  const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg, reason);
   placeCar(car, point.x, (xx) => heightAt(track, xx), point.angle, cfg);
   setCarInvulnerable(car, true);
   sim.invulnerable = true;

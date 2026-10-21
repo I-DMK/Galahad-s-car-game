@@ -193,7 +193,7 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
   test('1er respawn : point sûr, consecutive 1, lavaX du volcan', () => {
     const s = newState();
     s.safePoint = { x: V1.xElanStart - 5, y: heightAt(track, V1.xElanStart - 5), angle: 0 };
-    const r = chooseRespawnTarget(s, track, CONFIG);
+    const r = chooseRespawnTarget(s, track, CONFIG, 'lava');
     expect(r.point).toEqual(s.safePoint);
     expect(r.consecutive).toBe(1);
     expect(r.lavaX).toBe(V1.xLava);
@@ -203,7 +203,7 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     const s = newState();
     const last = track.volcanoes[track.volcanoes.length - 1];
     s.safePoint = { x: last.xEnd + 1, y: 0, angle: 0 };
-    const r = chooseRespawnTarget(s, track, CONFIG);
+    const r = chooseRespawnTarget(s, track, CONFIG, 'lava');
     expect(r.lavaX).toBeNull();
     expect(r.consecutive).toBe(1);
     expect(r.point).toEqual(s.safePoint);
@@ -214,7 +214,7 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     const s = newState();
     const S1 = { x: V1.xElanStart - 5, y: heightAt(track, V1.xElanStart - 5), angle: 0 };
     s.safePoint = S1;
-    const r1 = chooseRespawnTarget(s, track, CONFIG);
+    const r1 = chooseRespawnTarget(s, track, CONFIG, 'lava');
     expect(r1.consecutive).toBe(1);
     expect(r1.lavaX).toBe(V1.xLava);
     applyRespawnToState(s, r1.point, r1.lavaX, r1.consecutive, 10, CONFIG);
@@ -224,7 +224,7 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     // nouveau point sûr, différent, toujours avant V1
     const S2 = { x: V1.xElanStart - 2, y: heightAt(track, V1.xElanStart - 2), angle: 0 };
     s.safePoint = S2;
-    const r2 = chooseRespawnTarget(s, track, CONFIG);
+    const r2 = chooseRespawnTarget(s, track, CONFIG, 'lava');
     expect(r2.consecutive).toBe(0);
     expect(r2.lavaX).toBeNull();
     const xBack = V1.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK;
@@ -241,7 +241,7 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     // 3e : point sûr avant un AUTRE volcan → consecutive 1
     const S3 = { x: V2.xElanStart - 5, y: heightAt(track, V2.xElanStart - 5), angle: 0 };
     s.safePoint = S3;
-    const r3 = chooseRespawnTarget(s, track, CONFIG);
+    const r3 = chooseRespawnTarget(s, track, CONFIG, 'lava');
     expect(r3.consecutive).toBe(1);
     expect(r3.lavaX).toBe(V2.xLava);
     expect(r3.point).toEqual(S3);
@@ -257,7 +257,7 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
         s.lastRespawnLavaX = w.xLava;
         s.consecutiveRespawns = 1;
         s.safePoint = { x: w.xLancement + 1, y: heightAt(t, w.xLancement + 1), angle: 0 };
-        const r = chooseRespawnTarget(s, t, CONFIG);
+        const r = chooseRespawnTarget(s, t, CONFIG, 'lava');
         const where = `seed ${seed}, volcan en x = ${w.xLancement.toFixed(1)}`;
         expect(r.consecutive, where).toBe(0);
         expect(r.lavaX, where).toBeNull();
@@ -270,12 +270,52 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     expect(volcanoes).toBeGreaterThan(50);
   });
 
+  test.each(['side', 'flipped', 'stuck', 'underground', 'speed'] as const)(
+    'lave puis %s au même volcan → point sûr normal, série remise à zéro',
+    (reason) => {
+      const s = newState();
+      const S1 = { x: V1.xLancement + 1, y: heightAt(track, V1.xLancement + 1), angle: 0 };
+      s.safePoint = S1;
+      const r1 = chooseRespawnTarget(s, track, CONFIG, 'lava');
+      applyRespawnToState(s, r1.point, r1.lavaX, r1.consecutive, 10, CONFIG);
+      expect(s.lastRespawnLavaX).toBe(V1.xLava);
+      expect(s.consecutiveRespawns).toBe(1);
+
+      const r2 = chooseRespawnTarget(s, track, CONFIG, reason);
+      expect(r2.point).toEqual(S1);
+      expect(r2.lavaX).toBeNull();
+      expect(r2.consecutive).toBe(0);
+      applyRespawnToState(s, r2.point, r2.lavaX, r2.consecutive, 20, CONFIG);
+      expect(s.lastRespawnLavaX).toBeNull();
+      expect(s.consecutiveRespawns).toBe(0);
+    },
+  );
+
+  test('lave, side, lave au même volcan → point sûr normal (consecutive 1), pas xEnd − 10', () => {
+    const s = newState();
+    const S1 = { x: V1.xLancement + 1, y: heightAt(track, V1.xLancement + 1), angle: 0 };
+    s.safePoint = S1;
+    const r1 = chooseRespawnTarget(s, track, CONFIG, 'lava');
+    applyRespawnToState(s, r1.point, r1.lavaX, r1.consecutive, 10, CONFIG);
+    const r2 = chooseRespawnTarget(s, track, CONFIG, 'side');
+    applyRespawnToState(s, r2.point, r2.lavaX, r2.consecutive, 20, CONFIG);
+    const r3 = chooseRespawnTarget(s, track, CONFIG, 'lava');
+    expect(r3.point).toEqual(S1);
+    expect(r3.lavaX).toBe(V1.xLava);
+    expect(r3.consecutive).toBe(1);
+    // La série repart : une 4e chute dans la même lave passe le volcan.
+    applyRespawnToState(s, r3.point, r3.lavaX, r3.consecutive, 30, CONFIG);
+    const r4 = chooseRespawnTarget(s, track, CONFIG, 'lava');
+    expect(r4.consecutive).toBe(0);
+    expect(r4.point.x).toBeCloseTo(V1.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK, 9);
+  });
+
   test('volcan différent de celui du dernier respawn → consecutive 1', () => {
     const s = newState();
     s.lastRespawnLavaX = V1.xLava;
     s.consecutiveRespawns = 1;
     s.safePoint = { x: V2.xElanStart - 5, y: 0, angle: 0 };
-    const r = chooseRespawnTarget(s, track, CONFIG);
+    const r = chooseRespawnTarget(s, track, CONFIG, 'lava');
     expect(r.consecutive).toBe(1);
     expect(r.lavaX).toBe(V2.xLava);
   });

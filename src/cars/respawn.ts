@@ -69,12 +69,15 @@ export interface RespawnTarget {
 }
 
 /**
- * Choisit où réapparaître. Deuxième réapparition de suite devant la même lave : on passe le volcan,
- * en fin de plat de réception (xEnd − RESPAWN_AFTER_VOLCANO_BACK, hors de la zone d'atterrissage
- * des autres voitures ; addendum §1.6), à la hauteur et à l'angle du sol local, au lieu de
- * reboucler sur le point sûr.
+ * Choisit où réapparaître. Seules les chutes dans la lave comptent dans la série « même volcan » :
+ * deuxième chute de suite dans la même lave → on passe le volcan, en fin de plat de réception
+ * (xEnd − RESPAWN_AFTER_VOLCANO_BACK, hors de la zone d'atterrissage des autres voitures ;
+ * addendum §1.6), à la hauteur et à l'angle du sol local, au lieu de reboucler sur le point sûr.
+ * Toute autre raison (retournée, sur le flanc, bloquée…) ramène au point sûr et interrompt la série
+ * (deux chocs sur le flanc dans l'élan ne doivent pas faire passer le volcan sans l'avoir tenté).
  */
-export function chooseRespawnTarget(state: CarState, track: Track, cfg: Config): RespawnTarget {
+export function chooseRespawnTarget(state: CarState, track: Track, cfg: Config, reason: RespawnReason): RespawnTarget {
+  if (reason !== 'lava') return { point: state.safePoint, lavaX: null, consecutive: 0 };
   const v = volcanoAhead(track, state.safePoint.x);
   const lavaX: number | null = v?.xLava ?? null;
   const consecutive = lavaX !== null && lavaX === state.lastRespawnLavaX ? state.consecutiveRespawns + 1 : 1;

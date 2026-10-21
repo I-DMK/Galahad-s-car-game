@@ -1,7 +1,7 @@
 const DEG = Math.PI / 180;
 /** runUpDistance(V_MAX, DRIVE_ACCEL) × 1,2 : plat garantissant V_MAX depuis l'arrêt (≈ 27,3 m) ; à recalculer si DRIVE_ACCEL change. */
 const D_LANCE = (14 * 14) / (2 * 4.3) * 1.2;
-/** m : points sûrs admis dans les SAFE_LANCEMENT_MARGIN premiers mètres du plat de lancement (addendum §1.6). */
+/** m : points sûrs admis strictement avant xLancement + SAFE_LANCEMENT_MARGIN sur le plat de lancement (addendum §1.6). */
 const SAFE_LANCEMENT_MARGIN = 5;
 export const CONFIG = {
   PIXELS_PER_METER: 40,
@@ -22,7 +22,7 @@ export const CONFIG = {
   LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre) ; voiture lancée la plus lente mesurée 11,47 m/s au sommet, soit ≈ 1,5 m/s au-dessus du seuil [9,76 ; 10,03] (tour de relecture de la tâche 1)
   L_ELAN: 6,                    // m : plat d'élan entre le plat de lancement et la rampe, seul levier de difficulté (addendum §1.6)
   D_LANCE,
-  LANCEMENT_LENGTH: D_LANCE + SAFE_LANCEMENT_MARGIN,   // m : plat de lancement devant chaque plat d'élan (addendum §1.4) ; le pire point sûr (xLancement + SAFE_LANCEMENT_MARGIN) laisse exactement D_LANCE de plat
+  LANCEMENT_LENGTH: D_LANCE + SAFE_LANCEMENT_MARGIN,   // m : plat de lancement devant chaque plat d'élan (addendum §1.4) ; la zone interdite étant fermée en xLancement + SAFE_LANCEMENT_MARGIN, le pire point sûr est strictement avant et laisse au moins D_LANCE de plat
   LAVA_SENSOR_ABOVE_RIM: 0.3,   // m : le capteur de lave dépasse le rebord (un rebond sur le flanc amont ne survole pas la lave)
   SAFE_LANCEMENT_MARGIN,        // m : jamais de point sûr dans [xLancement + SAFE_LANCEMENT_MARGIN, xReception[ (addendum §1.6)
   RESPAWN_AFTER_VOLCANO_BACK: 10,   // m : deuxième chute de suite au même volcan → replacée à xEnd − 10 (fin du plat de réception, hors de la zone d'atterrissage des autres voitures)

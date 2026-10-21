@@ -171,7 +171,8 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
     const e = stepUntilRespawn(sim, false, Math.ceil(3 / DT));
     expect(e).toBeDefined();
     expect(['flipped', 'side']).toContain(e!.reason);
-    expect(e!.t - t0).toBeGreaterThanOrEqual(CONFIG.FLIP_SECONDS);
+    // Les chronomètres sont stricts (>) : ≥ reste vrai.
+    expect(e!.t - t0).toBeGreaterThanOrEqual(e!.reason === 'side' ? CONFIG.SIDE_SECONDS : CONFIG.FLIP_SECONDS);
   });
 });
 
