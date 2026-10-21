@@ -1,5 +1,6 @@
 // Aides Playwright : doigt posé (CDP tactile) et lecture de `window.__game` (?debug=1).
 import type { Page } from '@playwright/test';
+import type { StepCounts } from '../src/loop/frame-stats';
 
 export type GameSnapshot = { state: string; time: number; seed: number; progress: number };
 
@@ -55,7 +56,13 @@ export async function progressOf(page: Page, ids: string[]): Promise<number[]> {
   return page.evaluate((list) => list.map((id) => (window as any).__game.progress(id) as number), ids);
 }
 
-/** Images de la dernière seconde (`window.__game.frameSteps`, ?debug=1) : total, à 0 pas, à 2 pas ou plus. */
-export async function frameSteps(page: Page): Promise<{ frames: number; zero: number; multi: number }> {
-  return page.evaluate(() => (window as any).__game.frameSteps);
+/**
+ * Images de la dernière seconde (`window.__game.frameSteps`, ?debug=1) : total, à 0 pas, à 2 pas ou plus,
+ * et texte du compteur du HUD (`.hud-steps`), lus dans le même rappel.
+ */
+export async function frameSteps(page: Page): Promise<StepCounts & { hud: string | null }> {
+  return page.evaluate(() => ({
+    ...(window as any).__game.frameSteps,
+    hud: document.querySelector('.hud-steps')?.textContent ?? null,
+  }));
 }

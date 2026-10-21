@@ -12,16 +12,27 @@ export class StepHistogram {
   private readonly current: StepCounts = { frames: 0, zero: 0, multi: 0 };
   private since: number | null = null;
 
-  /** Une image de `steps` pas à l'instant `nowMs` (horodatage de requestAnimationFrame). */
-  record(steps: number, nowMs: number): void {
+  /**
+   * Une image de `steps` pas à l'instant `nowMs` (horodatage de requestAnimationFrame). Renvoie true quand
+   * elle ferme une fenêtre (`last` vient de changer).
+   */
+  record(steps: number, nowMs: number): boolean {
     this.since ??= nowMs;
     const c = this.current;
     c.frames++;
     if (steps === 0) c.zero++;
     else if (steps >= 2) c.multi++;
-    if (nowMs - this.since < 1000) return;
+    if (nowMs - this.since < 1000) return false;
     Object.assign(this.last, c);
-    c.frames = c.zero = c.multi = 0;
+    this.reset();
     this.since = nowMs;
+    return true;
+  }
+
+  /** Oublie la fenêtre en cours (retour d'onglet : l'image suivante en ouvre une neuve) ; `last` est gardé. */
+  reset(): void {
+    const c = this.current;
+    c.frames = c.zero = c.multi = 0;
+    this.since = null;
   }
 }

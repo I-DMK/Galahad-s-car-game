@@ -53,6 +53,7 @@ test("'stop' interrompt la boucle", () => {
   });
   expect(calls).toEqual([0, 1]);
   expect(r.stopped).toBe(true);
+  expect(r.steps).toBe(1);
 });
 
 test('{ rebuilt } remet l’historique à zéro et termine les pas de l’image', () => {
@@ -64,6 +65,8 @@ test('{ rebuilt } remet l’historique à zéro et termine les pas de l’image'
   });
   expect(calls).toEqual([0, 1]);
   expect(r.stopped).toBe(false);
+  // 3 pas demandés, 1 fait : le pas qui a reconstruit ne compte pas, le 3e n'est pas joué.
+  expect(r.steps).toBe(1);
   // Historique remis à zéro : précédent = courant = poses reconstruites, quel que soit alpha.
   expect(r.poses[0].chassis.x).toBe(42);
   expect(s.history.at(0)[0].chassis.x).toBe(42);

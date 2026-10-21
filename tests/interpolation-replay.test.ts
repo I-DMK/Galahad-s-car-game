@@ -1,14 +1,16 @@
 // Rendu interpolé (tâche 5f du plan B ; tremblement §6) : rejeu d'une course enregistrée sur des écrans
-// simulés à travers les mêmes `runFrame`, `cameraTarget` et `Camera` que `Game` ; téléportations sans
-// traînée ; physique inchangée par la boucle d'images. La version longue (12 courses à 5 voitures, 4
-// écrans) est dans tests/slow/interpolation-replay-slow.test.ts.
+// simulés à travers les mêmes `runFrame`, `presentFrame` (caméra, scène) et `stepOutcome` que `Game` ;
+// scène aux poses données ; téléportations sans traînée ; physique inchangée par la boucle d'images. La
+// version longue (12 courses à 5 voitures, 4 écrans) est dans tests/slow/interpolation-replay-slow.test.ts ;
+// le câblage de `Game` lui-même : tests/game-frame.test.ts.
 import { CONFIG } from '../src/config';
 import { runFrame, type FrameState, type StepOutcome } from '../src/loop/frame';
 import { PoseHistory } from '../src/loop/interpolation';
 import { placeCar } from '../src/physics/car';
-import { createRaceSim, posesOf, rebuildCars, stepRace, teleportedOf, type RaceSim } from '../src/sim/simulate';
+import { stepOutcome } from '../src/sim/present';
+import { createRaceSim, posesOf, rebuildCars, sceneOf, stepRace, type RaceSim } from '../src/sim/simulate';
 import { heightAt } from '../src/track/query';
-import { frameTimesMs, recordTrajectory, replayScreenX, shakeEpisodes, type RenderMode, type ScreenModel } from './helpers/frames';
+import { frameTimesMs, recordTrajectory, replayScreenX, shakeEpisodes, VIEW_W, type RenderMode, type ScreenModel } from './helpers/frames';
 import { stepFingerprint } from './helpers/fingerprint';
 import { trackFor } from './helpers/runs';
 
@@ -23,7 +25,8 @@ describe('Galahad seul, graine 1, 40 s doigt posé : épisodes de tremblement au
     { hz: 59.94, jitterMs: 0.1, seed: s },
   ]);
   const modes: RenderMode[] = ['physique', 'actuel', 'interpolé'];
-  const counts = screens.map((m) => Object.fromEntries(modes.map((mode) => [mode, shakeEpisodes(replayScreenX(traj, track, m, mode))])) as Record<RenderMode, number>);
+  const replays = screens.map((m) => Object.fromEntries(modes.map((mode) => [mode, replayScreenX(traj, track, m, mode)])) as Record<RenderMode, ReturnType<typeof replayScreenX>>);
+  const counts = replays.map((r) => Object.fromEntries(modes.map((mode) => [mode, shakeEpisodes(r[mode])])) as Record<RenderMode, number>);
   console.log(screens.map((m, i) => `${m.hz} Hz σ ${m.jitterMs} ms écran ${m.seed} : physique ${counts[i].physique}, actuel ${counts[i].actuel}, interpolé ${counts[i]['interpolé']}`).join('\n'));
 
   test('contrôle : le rendu actuel (sans interpolation) tremble au moins une fois', () => {
@@ -34,12 +37,24 @@ describe('Galahad seul, graine 1, 40 s doigt posé : épisodes de tremblement au
     expect(counts[i]['interpolé']).toBe(0);
     expect(counts[i]['interpolé']).toBeLessThanOrEqual(counts[i].physique);
   });
+
+  test('Galahad dessiné reste à l’écran à chaque image (la scène suit les poses, la caméra le suit)', () => {
+    for (const r of replays) {
+      for (const mode of modes) {
+        const xs = r[mode].x;
+        expect(xs.length).toBeGreaterThan(2000);
+        expect(Math.min(...xs), mode).toBeGreaterThan(0);
+        expect(Math.max(...xs), mode).toBeLessThan(VIEW_W);
+      }
+    }
+  });
 });
 
-/** Pas de course pour `runFrame`, comme `Game.step` (poses et voitures réapparues). */
+/** Pas de course pour `runFrame`, comme `Game.step` (`stepOutcome`) ; sans le drapeau de téléportation si `keepTeleport` est faux. */
 const stepOf = (sim: RaceSim, keepTeleport = true) => (): StepOutcome => {
   stepRace(sim, true);
-  return { poses: posesOf(sim), teleported: keepTeleport ? teleportedOf(sim) : new Set() };
+  const out = stepOutcome(sim);
+  return keepTeleport || out === 'stop' || 'rebuilt' in out ? out : { poses: out.poses, teleported: new Set() };
 };
 
 function frameState(sim: RaceSim): FrameState {
@@ -107,6 +122,7 @@ test('rebuildCars : la pose dessinée est la cible reconstruite, sans interpolat
     return { rebuilt: posesOf(sim) };
   });
   expect(r.alpha).toBeCloseTo(0.5, 6);
+  expect(r.steps).toBe(0);
   expect(r.poses).toEqual(posesOf(sim));
   expect(Math.abs(r.poses[0].chassis.x - xBefore)).toBeGreaterThan(1);
 });
@@ -131,10 +147,35 @@ test('physique inchangée : 600 pas à 5 voitures (graine 2), avec et sans runFr
       if (got.length >= 600) return 'stop';
       stepRace(sim, true);
       got.push(stepFingerprint(sim));
-      return { poses: posesOf(sim), teleported: teleportedOf(sim) };
+      return stepOutcome(sim);
     });
     if (got.length >= 600) break;
   }
   expect(got).toHaveLength(600);
   expect(got).toEqual(expected);
+});
+
+test('sceneOf(sim, poses, α) : voitures aux poses données (Galahad dessiné en dernier), t = sim.time − (1 − α)·dt', () => {
+  const sim = createRaceSim(trackFor(2), CONFIG, { robots: true });
+  for (let k = 0; k < 90; k++) stepRace(sim, true);
+  const poses = posesOf(sim).map((p, i) => ({
+    chassis: { x: p.chassis.x - 1 - i, y: p.chassis.y + 0.5, angle: 0.1 * i },
+    wheels: p.wheels.map((w, j) => ({ x: w.x - 1 - i, y: w.y + 0.5, angle: 7 + i + j })),
+    speed: 3,
+  }));
+  for (const a of [0, 0.25, 0.99]) {
+    const scene = sceneOf(sim, poses, a);
+    expect(scene.t).toBe(sim.time - (1 - a) * DT);
+    const drawn = [...scene.cars].reverse();
+    expect(drawn).toHaveLength(5);
+    drawn.forEach((c, i) => {
+      expect({ x: c.x, y: c.y, angle: c.angle }).toEqual(poses[i].chassis);
+      expect(c.wheels).toEqual(poses[i].wheels);
+      expect(c.name).toBe(sim.cars[i].state.name);
+    });
+  }
+  // Sans poses : état du dernier pas, t = sim.time.
+  const plain = sceneOf(sim);
+  expect(plain.t).toBe(sim.time);
+  expect(plain.cars[4].x).toBe(posesOf(sim)[0].chassis.x);
 });

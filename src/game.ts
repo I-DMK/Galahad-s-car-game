@@ -3,15 +3,14 @@
 import type { Pilot } from './cars/pilots';
 import { CONFIG, type Config } from './config';
 import { Throttle } from './input/throttle';
-import { cameraTarget, runFrame, type FrameState, type StepOutcome } from './loop/frame';
-import { StepHistogram } from './loop/frame-stats';
+import { runFrame, type FrameState, type StepOutcome } from './loop/frame';
+import { StepHistogram, type StepCounts } from './loop/frame-stats';
 import { PoseHistory, type CarPose } from './loop/interpolation';
 import { Camera } from './render/camera';
 import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
-import {
-  createRaceSim, posesOf, rebuildCars, sceneOf, stepRace, teleportedOf, type RaceSim, type SimEvent,
-} from './sim/simulate';
+import { presentFrame, stepOutcome } from './sim/present';
+import { createRaceSim, posesOf, rebuildCars, stepRace, type RaceSim, type SimEvent } from './sim/simulate';
 import { generateTrack } from './track/generate';
 import { heightAt } from './track/query';
 import { Hud } from './ui/hud';
@@ -63,7 +62,7 @@ export class Game {
   get time(): number { return this.sim.time; }
   get seed(): number { return this.opts.seed; }
   /** Images de la dernière seconde : total, à 0 pas, à 2 pas ou plus (debug, tremblement §8). */
-  get frameSteps(): { frames: number; zero: number; multi: number } { return { ...this.stepStats.last }; }
+  get frameSteps(): StepCounts { return { ...this.stepStats.last }; }
 
   /** Pilotes de la course, dans l'ordre de la grille (Galahad en premier). */
   get pilots(): Pilot[] { return this.sim.cars.map((c) => c.pilot); }
@@ -93,9 +92,11 @@ export class Game {
 
   private readonly onVisibility = (): void => {
     if (document.visibilityState !== 'visible') return;
-    this.loop.acc = 0;
+    // `last` suffit : l'image suivante n'avance que du temps écoulé depuis le retour (le reste de
+    // l'accumulateur est gardé, sinon la voiture dessinée reculerait d'une fraction de pas).
     this.last = this.fpsSince = performance.now();
     this.fpsFrames = 0;
+    this.stepStats.reset();
   };
 
   private readonly frame = (now: number): void => {
@@ -107,10 +108,10 @@ export class Game {
     const events: SimEvent[] = [];
     const frame = runFrame(this.loop, elapsed, this.cfg, () => this.step(pressed, events));
     if (frame.stopped) return;
-    this.stepStats.record(frame.steps, now);
+    if (this.stepStats.record(frame.steps, now) && this.opts.debug) this.hud.setFrameSteps(this.stepStats.last);
 
     try {
-      this.present(now, elapsed, events, frame.poses, frame.alpha);
+      this.present(now, elapsed, events, frame);
     } catch (err) {
       // Caméra, effets, rendu ou HUD : sans ce garde-fou, l'exception tuerait la boucle en silence.
       console.error('le rendu a échoué', err);
@@ -137,7 +138,7 @@ export class Game {
         this._state = 'finished';
         this.finishTime = galahad.finishedAt;
       }
-      return { poses: posesOf(sim), teleported: teleportedOf(sim) };
+      return stepOutcome(sim);
     } catch (err) {
       console.error('stepRace a échoué', err);
       if (++this.errors >= MAX_ERRORS) {
@@ -153,13 +154,12 @@ export class Game {
 
   /**
    * Caméra, effets, rendu et HUD d'une image, après les pas de course : voitures et caméra aux poses
-   * dessinées `poses` (interpolées, fraction `alpha` du pas). Ne modifie jamais `sim`.
+   * dessinées `frame.poses` (interpolées, fraction `frame.alpha` du pas ; `presentFrame`). Ne modifie jamais `sim`.
    */
-  private present(now: number, elapsed: number, events: SimEvent[], poses: CarPose[], alpha: number): void {
+  private present(now: number, elapsed: number, events: SimEvent[], frame: { poses: CarPose[]; alpha: number }): void {
     const { sim } = this;
     const galahad = sim.cars[0];
-    const target = cameraTarget(poses[0], (x) => heightAt(sim.track, x));
-    this.camera.update(target.x, target.y, target.speed, elapsed);
+    const scene = presentFrame(sim, frame, this.camera, elapsed);
     const half = this.renderer.visibleHalfWidthM(this.camera);
     // Effets de Galahad, et des copains seulement à l'écran (spec §9).
     const shown = (carId: string, x: number) => carId === galahad.state.id || Math.abs(x - this.camera.x) <= half + EFFECTS_MARGIN_M;
@@ -168,7 +168,7 @@ export class Game {
       else if (e.type === 'landing' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, heightAt(sim.track, e.x), e.strength);
     }
     this.effects.update(elapsed, sim.track, this.camera.x, half);
-    this.renderer.draw(sceneOf(sim, poses, alpha), this.camera, this.effects);
+    this.renderer.draw(scene, this.camera, this.effects);
     this.hud.setTime(this.finishTime ?? sim.time);
     // Après l'arrivée, la voiture roule encore FINISH_COAST_SECONDS en freinant, puis le calque s'affiche.
     if (this.finishTime !== null && !this.finishShown && sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {
@@ -182,7 +182,6 @@ export class Game {
       const span = now - this.fpsSince;
       if (span >= 1000) {
         this.hud.setFps((this.fpsFrames * 1000) / span);
-        this.hud.setFrameSteps(this.stepStats.last);
         this.fpsFrames = 0;
         this.fpsSince = now;
       }

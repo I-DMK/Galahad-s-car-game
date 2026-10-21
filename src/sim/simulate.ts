@@ -364,8 +364,15 @@ export function posesOf(sim: RaceSim): CarPose[] {
   return sim.cars.map(poseOf);
 }
 
-/** Index des voitures téléportées pendant le dernier pas (événement 'respawn' dans `sim.events`). */
-export function teleportedOf(sim: RaceSim): Set<number> {
+/** Ensemble vide partagé (aucune réapparition au dernier pas, le cas courant) : jamais modifié. */
+const NO_TELEPORT: ReadonlySet<number> = new Set();
+
+/**
+ * Index des voitures téléportées pendant le dernier pas (événement 'respawn' dans `sim.events`) ; sans
+ * réapparition, un ensemble vide partagé (pas d'allocation).
+ */
+export function teleportedOf(sim: RaceSim): ReadonlySet<number> {
+  if (!sim.events.some((e) => e.type === 'respawn')) return NO_TELEPORT;
   const out = new Set<number>();
   for (const e of sim.events) {
     if (e.type !== 'respawn') continue;
@@ -387,7 +394,8 @@ export function carView(sim: RaceSim, index: number, pose?: CarPose): CarView {
     x: p.chassis.x,
     y: p.chassis.y,
     angle: p.chassis.angle,
-    wheels: p.wheels.map((w) => ({ x: w.x, y: w.y, angle: w.angle })),
+    // Poses neuves à chaque image (`PoseHistory.at`, `poseOf`) : partagées, sans copie.
+    wheels: p.wheels,
     color: state.color,
     accent: state.accent,
     helmet: colorHex(pilot.helmet),

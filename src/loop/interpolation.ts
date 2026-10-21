@@ -53,13 +53,14 @@ export class PoseHistory {
 
   /**
    * Poses dessinées pour alpha (borné à [0, 1]) : neuves, l'historique n'est jamais modifié. Une voiture
-   * sans pose précédente distincte (départ, reset, téléportation) est dessinée exactement à sa pose courante.
+   * sans pose précédente distincte (départ, reset, téléportation), ou à alpha ≥ 1, est dessinée exactement
+   * à sa pose courante.
    */
   at(alpha: number): CarPose[] {
     const a = Math.min(1, Math.max(0, alpha));
     return this.cur.map((c, i) => {
       const p = this.prev[i] ?? c;
-      return p === c ? clonePose(c) : lerpCarPose(p, c, a);
+      return p === c || a === 1 ? clonePose(c) : lerpCarPose(p, c, a);
     });
   }
 }

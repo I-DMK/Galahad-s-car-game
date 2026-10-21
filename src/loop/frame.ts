@@ -15,7 +15,8 @@ export type StepOutcome = { poses: CarPose[]; teleported: ReadonlySet<number> } 
 export interface FrameState { acc: number; history: PoseHistory }
 
 /**
- * `steps` : pas demandés par l'accumulateur ; `alpha` : fraction de pas dessinée (1 sans interpolation) ;
+ * `steps` : pas faits (ceux de l'accumulateur, moins ceux qu'un `{ rebuilt }` ou un 'stop' a coupés ; le pas
+ * qui a renvoyé l'un des deux ne compte pas) ; `alpha` : fraction de pas dessinée (1 sans interpolation) ;
  * `poses` : poses dessinées ; `stopped` : un pas a renvoyé 'stop'.
  */
 export interface FrameResult { steps: number; alpha: number; poses: CarPose[]; stopped: boolean }
@@ -28,9 +29,10 @@ export interface FrameResult { steps: number; alpha: number; poses: CarPose[]; s
 export function runFrame(
   s: FrameState, elapsed: number, cfg: Config, step: (i: number) => StepOutcome, interpolate = true,
 ): FrameResult {
-  const { steps, acc } = advanceAccumulator(s.acc, elapsed, cfg.PHYSICS_DT, cfg.MAX_STEPS_PER_FRAME);
+  const { steps: wanted, acc } = advanceAccumulator(s.acc, elapsed, cfg.PHYSICS_DT, cfg.MAX_STEPS_PER_FRAME);
   s.acc = acc;
-  for (let i = 0; i < steps; i++) {
+  let steps = 0;
+  for (let i = 0; i < wanted; i++) {
     const out = step(i);
     if (out === 'stop') return { steps, alpha: 1, poses: s.history.at(1), stopped: true };
     if ('rebuilt' in out) {
@@ -38,6 +40,7 @@ export function runFrame(
       break;
     }
     s.history.push(out.poses, out.teleported);
+    steps++;
   }
   const alpha = interpolate ? Math.min(1, s.acc / cfg.PHYSICS_DT) : 1;
   return { steps, alpha, poses: s.history.at(alpha), stopped: false };

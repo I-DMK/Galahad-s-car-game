@@ -1,6 +1,7 @@
 // HUD en DOM au-dessus du canvas : chrono, fps et compteur d'images à 0 / 2+ pas (debug), calque d'arrivée,
 // message d'erreur.
 // Le conteneur (#hud) est en `pointer-events: none` : seul le calque d'arrivée capte le toucher.
+import type { StepCounts } from '../loop/frame-stats';
 
 const STYLE_ID = 'hud-style';
 const CSS = `
@@ -60,10 +61,10 @@ export class Hud {
     if (fps !== null) this.fps.textContent = `${Math.round(fps)} fps`;
   }
 
-  /** Images de la dernière seconde à 0 pas et à 2 pas ou plus (`?debug=1`, tremblement §8) ; null masque. */
-  setFrameSteps(counts: { zero: number; multi: number } | null): void {
-    this.steps.hidden = counts === null;
-    if (counts !== null) this.steps.textContent = `0 pas : ${counts.zero} · 2+ pas : ${counts.multi}`;
+  /** Affiche les images de la dernière seconde à 0 pas et à 2 pas ou plus (`?debug=1`, tremblement §8). */
+  setFrameSteps(counts: StepCounts): void {
+    this.steps.hidden = false;
+    this.steps.textContent = `0 pas : ${counts.zero} · 2+ pas : ${counts.multi}`;
   }
 
   showFinished(seconds: number, onAgain: () => void): void {

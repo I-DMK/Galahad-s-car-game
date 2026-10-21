@@ -96,7 +96,8 @@ test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; 
   await expect(steps).toHaveText(/^0 pas : \d+ · 2\+ pas : \d+$/);
   const counts = await frameSteps(page);
   expect(counts.frames).toBeGreaterThan(0);
-  expect(counts.zero + counts.multi).toBeLessThanOrEqual(counts.frames);
+  // Le HUD affiche exactement les comptes exposés (mis à jour à la clôture de chaque seconde).
+  expect(counts.hud).toBe(`0 pas : ${counts.zero} · 2+ pas : ${counts.multi}`);
   await page.screenshot({ path: `${SHOTS}/compteur-images.png`, fullPage: true });
 });
 

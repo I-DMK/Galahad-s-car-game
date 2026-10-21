@@ -89,3 +89,18 @@ test('at ne modifie rien : ni l’historique, ni les poses poussées ; poses neu
   expect(h.at(0.5)[0].chassis.x).toBe(0.5);
   expect(h.at(1)[1].chassis.x).toBe(12);
 });
+
+test('at(1) et au-delà : copie exacte de la pose courante (bits compris, −0 gardé)', () => {
+  const h = new PoseHistory();
+  const prev = { chassis: { x: 0.1, y: 0.3, angle: 0.1 }, wheels: [{ x: 0.1, y: 0, angle: 0.2 }], speed: 1 };
+  const cur = { chassis: { x: 0.7, y: 0.1 + 0.2, angle: -0 }, wheels: [{ x: 0.7, y: 0, angle: -0 }], speed: 3 };
+  h.reset([prev]);
+  h.push([cur], new Set());
+  for (const a of [1, 1.5]) {
+    const got = h.at(a)[0];
+    expect(got).toEqual(cur);
+    expect(Object.is(got.chassis.angle, -0)).toBe(true);
+    expect(got).not.toBe(cur);
+    expect(got.wheels[0]).not.toBe(cur.wheels[0]);
+  }
+});
