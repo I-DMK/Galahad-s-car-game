@@ -96,18 +96,23 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
     expect(inElanZone(track, 0)).toBe(false);
   });
 
-  test('inGhostZone : [xLancement, xReception], bornes incluses (voitures fantômes près des volcans)', () => {
-    expect(inGhostZone(track, v0.xLancement - 0.01)).toBe(false);
-    expect(inGhostZone(track, v0.xLancement)).toBe(true);
-    expect(inGhostZone(track, v0.xElanStart)).toBe(true);
-    expect(inGhostZone(track, v0.xLip)).toBe(true);
-    expect(inGhostZone(track, v0.xLava)).toBe(true);
-    expect(inGhostZone(track, v0.xReception)).toBe(true);
-    expect(inGhostZone(track, v0.xReception + 0.01)).toBe(false);
-    expect(inGhostZone(track, v0.xEnd - 0.01)).toBe(false);
-    expect(inGhostZone(track, v1.xLancement + 1)).toBe(true);
-    expect(inGhostZone(track, 0)).toBe(false);
-    expect(inGhostZone(track, track.xStart)).toBe(false);
+  test('inGhostZone : châssis dans [xLancement, xReception + WHEEL_BASE/2 + WHEEL_RADIUS] (voiture entière avant la réception)', () => {
+    // La roue arrière dépasse de WHEEL_BASE/2 + WHEEL_RADIUS = 1,2 m derrière le châssis.
+    const rear = CONFIG.WHEEL_BASE / 2 + CONFIG.WHEEL_RADIUS;
+    expect(rear).toBeCloseTo(1.2, 9);
+    expect(inGhostZone(track, v0.xLancement - 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, v0.xLancement, CONFIG)).toBe(true);
+    expect(inGhostZone(track, v0.xElanStart, CONFIG)).toBe(true);
+    expect(inGhostZone(track, v0.xLip, CONFIG)).toBe(true);
+    expect(inGhostZone(track, v0.xLava, CONFIG)).toBe(true);
+    expect(inGhostZone(track, v0.xReception, CONFIG)).toBe(true);
+    expect(inGhostZone(track, v0.xReception + 1, CONFIG)).toBe(true);
+    expect(inGhostZone(track, v0.xReception + rear, CONFIG)).toBe(true);
+    expect(inGhostZone(track, v0.xReception + rear + 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, v0.xEnd - 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, v1.xLancement + 1, CONFIG)).toBe(true);
+    expect(inGhostZone(track, 0, CONFIG)).toBe(false);
+    expect(inGhostZone(track, track.xStart, CONFIG)).toBe(false);
   });
 
   test('piste sans volcan', () => {
@@ -115,6 +120,6 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
     expect(volcanoAhead(t, 10)).toBeUndefined();
     expect(nearestVolcanoZone(t, 10)).toBeUndefined();
     expect(inElanZone(t, 10)).toBe(false);
-    expect(inGhostZone(t, 10)).toBe(false);
+    expect(inGhostZone(t, 10, CONFIG)).toBe(false);
   });
 });

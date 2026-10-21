@@ -5,10 +5,9 @@ import Matter from 'matter-js';
 import { GALAHAD, drawPilots } from '../src/cars/pilots';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
-import { physToWorld } from '../src/physics/units';
 import { CAT } from '../src/physics/world';
 import {
-  carView, createRaceSim, rebuildCars, sceneOf, simulateRace, stepRace, type CarSim, type RaceSim, type SimEvent,
+  carView, chassisX, createRaceSim, rebuildCars, sceneOf, simulateRace, stepRace, type RaceSim, type SimEvent,
 } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import type { Track } from '../src/track/types';
@@ -19,7 +18,6 @@ const DT = CONFIG.PHYSICS_DT;
 /** Espacement de la grille entre deux centres de châssis (m) : 1,5 × CAR_LENGTH = 3,3. */
 const GRID_GAP = CONFIG.GRID_SPACING_FACTOR * CONFIG.CAR_LENGTH;
 
-const chassisX = (car: CarSim): number => physToWorld(car.body.chassis.position).x;
 const hex = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
 
 /**

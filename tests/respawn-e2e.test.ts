@@ -248,13 +248,8 @@ describe('invulnérabilité après une réapparition', () => {
     expect(masks(sim)).toEqual([0, 0, 0]);
     for (let i = 0; i < 3; i++) { stepRace(sim, false); follow(); }
     expect(sim.cars[0].invulnerable).toBe(false);
-    // Tombé dans la lave (zone fantôme) puis sorti de la zone par le respawn : il reste fantôme tant
-    // que le copain le chevauche (voitures fantômes, sans plafond), le masque reste donc coupé.
-    expect(sim.cars[0].ghost).toBe(true);
-    expect(masks(sim)).toEqual([0, 0, 0]);
-    // Le copain s'écarte : Galahad n'est plus fantôme, masque normal.
-    placeCar(other.body, physToWorld(sim.cars[0].body.chassis.position).x - 10, h(track), 0, CONFIG);
-    stepRace(sim, false);
+    // Tombé dans la lave (zone fantôme) mais reposé hors zone : un respawn est une téléportation, pas
+    // une sortie de zone en roulant ; pas fantôme, c'est l'invulnérabilité (plafonnée) qui gouverne.
     expect(sim.cars[0].ghost).toBe(false);
     expect(masks(sim)).toEqual([CAT.CAR, CAT.CAR, CAT.CAR]);
   });

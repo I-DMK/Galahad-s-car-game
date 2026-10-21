@@ -1,12 +1,14 @@
-// Voitures fantômes près des volcans (tâche 5b, tour 2, décision du papa) : entre xLancement et
-// xReception de chaque volcan, les voitures se traversent ; partout ailleurs elles se cognent. En
-// sortant de la zone, une voiture reste fantôme tant qu'une de ses pièces chevauche une autre voiture.
+// Voitures fantômes près des volcans (tâche 5b, tours 2 et 3, décision du papa) : du début du plat de
+// lancement jusqu'à ce que la roue arrière ait passé xReception, les voitures se traversent ; partout
+// ailleurs elles se cognent. En sortant de la zone en roulant, une voiture reste fantôme tant qu'une de
+// ses pièces chevauche une autre voiture ; un respawn (téléportation) recalcule l'état à la cible.
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
-import { physToWorld } from '../src/physics/units';
 import { CAT } from '../src/physics/world';
-import { createRaceSim, stepRace, type CarSim, type RaceSim, type SimEvent } from '../src/sim/simulate';
+import {
+  carPairsTouching, chassisX, createRaceSim, stepRace, type CarSim, type RaceSim, type SimEvent,
+} from '../src/sim/simulate';
 import { heightAt, inGhostZone, slopeAt } from '../src/track/query';
 import { firstVolcano } from './helpers/runs';
 
@@ -14,7 +16,6 @@ type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 
 const { track, v } = firstVolcano();
 const h = (x: number) => heightAt(track, x);
-const chassisX = (car: CarSim): number => physToWorld(car.body.chassis.position).x;
 const place = (car: CarSim, x: number): void => placeCar(car.body, x, h, slopeAt(track, x), CONFIG);
 
 /** Course à 5 voitures, copains à l'arrêt (conduite coupée). */
@@ -24,13 +25,8 @@ function parked(): RaceSim {
   return sim;
 }
 
-const carOf = (b: Matter.Body): string | undefined => (b.parent.plugin as { carId?: string } | undefined)?.carId;
-/** Paires actives entre deux voitures différentes, au dernier pas. */
-function carPairs(sim: RaceSim): string[] {
-  return (sim.world.engine.pairs.list as Matter.Pair[])
-    .filter((p) => p.isActive && carOf(p.bodyA) !== undefined && carOf(p.bodyB) !== undefined && carOf(p.bodyA) !== carOf(p.bodyB))
-    .map((p) => `${carOf(p.bodyA)}/${carOf(p.bodyB)} à t = ${sim.time.toFixed(3)}`);
-}
+/** Paires actives entre deux voitures différentes au dernier pas, lisibles dans un message d'assertion. */
+const carPairs = (sim: RaceSim): string[] => carPairsTouching(sim).map(([a, b]) => `${a}/${b} à t = ${sim.time.toFixed(3)}`);
 /** Une pièce de `a` chevauche-t-elle une pièce de `b` ? */
 const overlap = (a: CarSim, b: CarSim): boolean => a.body.parts.some((p) => Matter.Query.collides(p, b.body.parts).length > 0);
 /** Bit CAT.CAR du masque de chaque pièce : 0 = traverse les autres voitures. */
@@ -42,7 +38,7 @@ test('dans la zone, deux voitures posées en chevauchement se traversent ; hors 
   const sim = parked();
   const [a, b] = sim.cars;
   const x = v.xLancement + 10;
-  expect(inGhostZone(track, x) && inGhostZone(track, x - 1)).toBe(true);
+  expect(inGhostZone(track, x, CONFIG) && inGhostZone(track, x - 1, CONFIG)).toBe(true);
   place(a, x);
   place(b, x - 1); // châssis recouverts sur 1,2 m
   expect(overlap(a, b)).toBe(true);
@@ -57,7 +53,7 @@ test('dans la zone, deux voitures posées en chevauchement se traversent ; hors 
   const out = parked();
   const [c, d] = out.cars;
   const y = v.xLancement - 8;
-  expect(inGhostZone(track, y) || inGhostZone(track, y - 2.35)).toBe(false);
+  expect(inGhostZone(track, y, CONFIG) || inGhostZone(track, y - 2.35, CONFIG)).toBe(false);
   place(c, y);
   place(d, y - 2.35); // roues engagées de 5 cm, châssis à 15 cm
   const hits: string[] = [];
@@ -111,13 +107,13 @@ test('deux voitures qui se chevauchent en sortant de la zone restent fantômes j
   expect([g.ghost, r.ghost]).toEqual([true, true]);
   place(g, v.xReception + 2.5);
   place(r, v.xReception + 2);
-  expect(inGhostZone(track, chassisX(g)) || inGhostZone(track, chassisX(r))).toBe(false);
+  expect(inGhostZone(track, chassisX(g), CONFIG) || inGhostZone(track, chassisX(r), CONFIG)).toBe(false);
   // Même conduite bridée à 4,2 m/s : elles roulent ensemble, recouvertes, hors zone.
   g.factor = 0.3;
   r.factor = 0.3;
   r.driver = () => true;
   for (let i = 0; i < 60; i++) { step(true); pairs.push(...carPairs(sim)); }
-  expect(inGhostZone(track, chassisX(g)) || inGhostZone(track, chassisX(r))).toBe(false);
+  expect(inGhostZone(track, chassisX(g), CONFIG) || inGhostZone(track, chassisX(r), CONFIG)).toBe(false);
   expect(overlap(g, r)).toBe(true);
   expect([g.ghost, r.ghost]).toEqual([true, true]);
   expect([carBits(g), carBits(r)]).toEqual([PASS, PASS]);
@@ -138,7 +134,7 @@ test('deux voitures qui se chevauchent en sortant de la zone restent fantômes j
   let hit: string[] = [];
   while (hit.length === 0 && sim.time < t0 + 8) { step(false); hit = carPairs(sim); }
   expect(hit.length, 'pas de choc').toBeGreaterThan(0);
-  expect(inGhostZone(track, chassisX(g)) || inGhostZone(track, chassisX(r))).toBe(false);
+  expect(inGhostZone(track, chassisX(g), CONFIG) || inGhostZone(track, chassisX(r), CONFIG)).toBe(false);
   expect(chassisX(g)).toBeLessThan(v.xEnd);
   expect(respawns.map((e) => `${e.carId} ${e.reason} @${e.t.toFixed(2)}`)).toEqual([]);
 });
@@ -185,4 +181,40 @@ test('masque = fantôme OU invulnérable : aucun des deux états n’écrase l�
   expect([g.invulnerable, g.ghost, carBits(g)]).toEqual([true, false, PASS]);
   while (g.invulnerable && sim.time < 20) stepRace(sim, false);
   expect(carBits(g)).toEqual(SOLID);
+});
+
+test('chute dans la lave en zone, respawn hors zone sur une voiture : pas fantôme, invulnérable, masque normal au plafond', () => {
+  const sim = parked();
+  const [g, r] = sim.cars;
+  // Point sûr sur le plat de réception, hors zone, occupé par un copain à l'arrêt : le recul tombe dans
+  // la zone interdite du volcan et est abandonné, la cible reste sur le copain (chevauchement).
+  const xSafe = v.xReception + 2;
+  expect(inGhostZone(track, xSafe, CONFIG)).toBe(false);
+  g.state.safePoint = { x: xSafe, y: h(xSafe), angle: 0 };
+  place(r, xSafe);
+  place(g, v.xLava);
+  stepRace(sim, false);
+  const e = sim.events.find((ev): ev is RespawnEvent => ev.type === 'respawn');
+  expect(e?.carId).toBe('galahad');
+  expect(e!.target.x).toBeCloseTo(xSafe, 6);
+  expect(overlap(g, r)).toBe(true);
+  expect([g.ghost, g.invulnerable, carBits(g)]).toEqual([false, true, PASS]);
+  const release = g.state.invulnerableUntil + (CONFIG.RESPAWN_INVULN_MAX - CONFIG.RESPAWN_INVULN);
+  while (sim.time < release - 2 * CONFIG.PHYSICS_DT) stepRace(sim, false);
+  expect(overlap(g, r)).toBe(true);
+  expect([g.ghost, g.invulnerable, carBits(g)]).toEqual([false, true, PASS]);
+  for (let i = 0; i < 3; i++) stepRace(sim, false);
+  expect([g.ghost, g.invulnerable, carBits(g)]).toEqual([false, false, SOLID]);
+});
+
+test('la voiture reste fantôme tant que sa roue arrière n’a pas dépassé xReception', () => {
+  const sim = createRaceSim(track, CONFIG); // Galahad seul : seul son état fantôme est observé
+  const [g] = sim.cars;
+  const rear = CONFIG.WHEEL_BASE / 2 + CONFIG.WHEEL_RADIUS;
+  place(g, v.xReception + rear - 0.1);
+  stepRace(sim, false);
+  expect([g.ghost, carBits(g)]).toEqual([true, PASS]);
+  place(g, v.xReception + rear + 0.1);
+  stepRace(sim, false);
+  expect([g.ghost, carBits(g)]).toEqual([false, SOLID]);
 });

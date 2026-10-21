@@ -219,7 +219,7 @@ function otherCars(sim: RaceSim, car: CarSim): CarSim[] {
 }
 
 /** x du châssis (m). */
-const chassisX = (car: CarSim): number => physToWorld(car.body.chassis.position).x;
+export const chassisX = (car: CarSim): number => physToWorld(car.body.chassis.position).x;
 
 /** Point posé au sol en x : hauteur et angle du sol local. */
 const groundPoint = (track: Track, x: number): SafePoint => ({ x, y: heightAt(track, x), angle: slopeAt(track, x) });
@@ -244,7 +244,7 @@ function syncMask(car: CarSim): void {
  * (rétablir la collision sur un chevauchement donnerait une impulsion).
  */
 function updateGhost(sim: RaceSim, car: CarSim): void {
-  const ghost = inGhostZone(sim.track, chassisX(car)) || (car.ghost && overlapsOtherCar(sim, car));
+  const ghost = inGhostZone(sim.track, chassisX(car), sim.cfg) || (car.ghost && overlapsOtherCar(sim, car));
   if (ghost === car.ghost) return;
   car.ghost = ghost;
   syncMask(car);
@@ -306,11 +306,14 @@ function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolea
 /**
  * Pose la voiture à l'arrêt sur `target` (roues au sol), invulnérable RESPAWN_INVULN, et remet son état
  * comme après une réapparition (chronomètres à zéro, point sûr = cible, série « même volcan » =
- * `lavaX` / `consecutive`) ; contact au sol et chronomètre d'envol remis à zéro.
+ * `lavaX` / `consecutive`) ; contact au sol et chronomètre d'envol remis à zéro. Une pose est une
+ * téléportation, pas une sortie de zone en roulant : l'état fantôme est recalculé à la cible, sans
+ * rétention par chevauchement (hors zone, c'est l'invulnérabilité, plafonnée, qui gouverne).
  */
 function placeInvulnerable(sim: RaceSim, car: CarSim, target: SafePoint, lavaX: number | null, consecutive: number): void {
   const { cfg, track } = sim;
   placeCar(car.body, target.x, (x) => heightAt(track, x), target.angle, cfg);
+  car.ghost = inGhostZone(track, target.x, cfg);
   car.invulnerable = true;
   syncMask(car);
   // applyRespawnToState garde la cible par référence (nouveau point sûr) : copie dédiée.
@@ -440,17 +443,21 @@ class StuckMeter {
   }
 }
 
-/** Paires actives du dernier pas entre pièces de deux voitures différentes dont l'une est dans `ids`. */
-function carPairsTouching(sim: RaceSim, ids: ReadonlySet<string>): number {
+/**
+ * Paires actives du dernier pas entre pièces de deux voitures différentes, en ids de voitures (une
+ * entrée par paire de pièces) ; avec `ids`, seulement celles qui impliquent l'une de ces voitures.
+ */
+export function carPairsTouching(sim: RaceSim, ids?: ReadonlySet<string>): [string, string][] {
   const carOf = (b: Matter.Body): string | undefined => (b.parent.plugin as { carId?: string } | undefined)?.carId;
-  let n = 0;
+  const found: [string, string][] = [];
   for (const pair of sim.world.engine.pairs.list) {
     if (!pair.isActive) continue;
     const a = carOf(pair.bodyA);
     const b = carOf(pair.bodyB);
-    if (a !== undefined && b !== undefined && a !== b && (ids.has(a) || ids.has(b))) n++;
+    if (a === undefined || b === undefined || a === b) continue;
+    if (ids === undefined || ids.has(a) || ids.has(b)) found.push([a, b]);
   }
-  return n;
+  return found;
 }
 
 /**
@@ -486,14 +493,14 @@ export function simulateRace(
   for (let i = 0; i < steps; i++) {
     const t = sim.time;
     const throttle = opts.throttle(t);
-    const inZone = sim.cars.length > 1 ? new Set(sim.cars.filter((c) => inGhostZone(track, chassisX(c))).map((c) => c.state.id)) : null;
+    const inZone = sim.cars.length > 1 ? new Set(sim.cars.filter((c) => inGhostZone(track, chassisX(c), cfg)).map((c) => c.state.id)) : null;
     const t0 = performance.now();
     stepRace(sim, throttle);
     const ms = performance.now() - t0;
     maxStepMs = Math.max(maxStepMs, ms);
     totalStepMs += ms;
     stepsDone++;
-    if (inZone !== null && inZone.size > 0) ghostContacts += carPairsTouching(sim, inZone);
+    if (inZone !== null && inZone.size > 0) ghostContacts += carPairsTouching(sim, inZone).length;
     const respawned = new Set<string>();
     for (const e of sim.events) {
       const mine = e.carId === galahad.state.id;

@@ -1,3 +1,4 @@
+import type { Config } from '../config';
 import type { Slice, Track, Volcano } from './types';
 
 /** Indice i (1 ≤ i ≤ n − 1) du premier point d'abscisse ≥ x (x supposé dans l'intervalle des points). */
@@ -67,10 +68,13 @@ export function inElanZone(track: Track, x: number): boolean {
 }
 
 /**
- * Vrai si x est dans [xLancement, xReception] d'un volcan, bornes incluses : zone où les voitures se
- * traversent (fantômes), pour qu'aucun choc ne fasse tomber une voiture dans la lave (décision du
- * papa, tâche 5b). Partout ailleurs, les voitures se cognent.
+ * Vrai si la voiture dont le châssis est en `chassisX` est dans la zone fantôme d'un volcan : du début
+ * du plat de lancement (châssis ≥ xLancement) jusqu'à ce que la voiture entière ait passé la réception
+ * (roue arrière, WHEEL_BASE/2 + WHEEL_RADIUS derrière le châssis, au-delà de xReception). Les voitures
+ * s'y traversent, pour qu'aucun choc ne fasse tomber une voiture dans la lave (décision du papa,
+ * tâche 5b) ; partout ailleurs, elles se cognent.
  */
-export function inGhostZone(track: Track, x: number): boolean {
-  return track.volcanoes.some((v) => x >= v.xLancement && x <= v.xReception);
+export function inGhostZone(track: Track, chassisX: number, cfg: Pick<Config, 'WHEEL_BASE' | 'WHEEL_RADIUS'>): boolean {
+  const rear = cfg.WHEEL_BASE / 2 + cfg.WHEEL_RADIUS;
+  return track.volcanoes.some((v) => chassisX >= v.xLancement && chassisX <= v.xReception + rear);
 }
