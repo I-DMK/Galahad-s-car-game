@@ -67,7 +67,7 @@ sans le contexte de celle-ci.
 | 1 géométrie du volcan v2 (lancement, élan 6 m, lave 0,8, capteur +0,3, butée supprimée) | **faite, validée** (+ option (a) : pas de volcan après une rampe-saut) ; push en attente d'autorisation |
 | 2 étoiles v2 (curseur global, étoiles d'élan, plancher 6, pas 60–100) | **faite, validée**, poussée |
 | 3 points sûrs et respawn v2 | **faite, validée**, poussée |
-| 4 simulations d'acceptation, suites lentes, balayage de dosage | **faite, validée, poussée** → **gate : test tablette du papa (en attente)** |
+| 4 simulations d'acceptation, suites lentes, balayage de dosage | **faite, validée, poussée** → gate tablette **fait** : « un peu facile », L_ELAN 6 conservé |
 | 5a pilotes | à faire |
 | 5b course à 5 voitures, grille, chocs, respawn groupé | à faire → mesure fps du papa |
 | 6 conduite des robots | à faire |
@@ -104,18 +104,39 @@ sans le contexte de celle-ci.
 - Les skills `superpowers:*` ne sont pas installés dans le conteneur : on en
   applique la méthode telle que décrite ici et dans les plans.
 
+## Retour du test tablette (gate après la tâche 4)
+
+Galahad (seul en piste) trouve le jeu « un peu facile, surtout quand on a
+juste à appuyer pour avancer », et voudrait plus d'obstacles. Le papa pense
+que les copains ajouteront du défi. `L_ELAN` reste à 6 m. À reconsidérer
+après la tâche 5b : durcir `ENGINE_BRAKE` (levier continu, voir registre
+tâche 4) et, si le défi manque encore, proposer au papa d'avancer une part du
+plan C (obstacles qui ralentissent, bouton « bond lunaire »).
+
+## Leçons de la session du 2026-10-21 (tâches 1 à 4)
+
+- Push : passe quand la session est en mode « accepter les modifications »
+  (le mode auto le classe comme déploiement). Vérifier `git status -sb`
+  avant (HEAD détaché au démarrage possible : `git checkout -B
+  ccr-5b6fabc4-n96ofo`).
+- Jamais de `git reset`/`checkout`/`stash`/`clean` pendant qu'un sous-agent
+  travaille dans l'arbre partagé ; le dire dans chaque brief.
+- Relecture adversariale avec sondes physiques indispensable : elle a trouvé
+  la fausse « falaise » de dosage et la trajectoire unique (registre tâche 4).
+- Vitest 5 masque les `console.log` des tests verts : `silent: false` est
+  posé dans les configs.
+- Une limite de quota peut arrêter un sous-agent : vérifier `git log` avant
+  de relancer (le commit peut être fait).
+- Les sous-agents laissent des sondes `tests/zz-probe-*.test.ts` le temps de
+  leur travail ; le hook d'arrêt les signale, c'est normal.
+
 ## Prochaine action précise
 
-1. **Gate : test tablette** (tâche 4 validée et poussée) (L_ELAN 6 recommandé ;
-   règle vécue par l'enfant : ne pas lever le doigt plus de ≈ 1,5 s juste
-   avant un volcan ; levier continu possible : ENGINE_BRAKE ; voir registre).
-   Historique : **tâche 4** dispatchée (simulations d'acceptation, suites lentes,
-   balayage de dosage L_ELAN 6→16) à un implémenteur frais (brief : plan
-   tâche 4, addendum §1.7 et §1.6 dosage, contraintes globales et budget CI,
-   registres plan A et plan B : scénario « rampe-saut → plat → volcan avec
-   turbo » et « 2 flipped de suite » à inclure, mesure « relancer le gaz à
-   xElanStart − 1 à 5,3 m/s passe »), puis relectures, validation, passation,
-   push, puis **gate : test tablette du papa et de Galahad**.
-2. Après le gate : tâche 5a (pilotes).
-3. Après la tâche 4 : test tablette du papa et de Galahad (gate), au plus deux
-   tours de calibration, puis tâche 5a.
+1. Nouvelle session : lire cette passation, puis `sdd-ledger-plan-b.md`
+   (Progression, tâches 1 à 4 et gate), le registre du plan A (« Décisions
+   prises hors plan »), l'addendum v3.1 amendé [tâche 2] [tâche 4], le plan
+   v2.1.
+2. Dispatcher la **tâche 5a** (pilotes) à un implémenteur frais (brief :
+   plan tâche 5a, addendum §2, contraintes globales, registres), puis
+   relectures standard + adversariale + `code-review`, tours de correction,
+   validation du papa, passation, push. Puis 5b (mesure fps du papa).
