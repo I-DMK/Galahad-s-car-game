@@ -27,10 +27,12 @@ export const DEG = Math.PI / 180;
  * Vitesse au sommet de référence (m/s, norme de la vitesse du châssis au premier pas où x ≥ xLip)
  * pour le franchissement de la lave, à LAVA_MARGIN 0,8 et capteur +0,3 m : V_JUMP = 10. Le seuil
  * réel n'est pas net : la bissection de `tests/slow/dosage.test.ts` (15 volcans des graines 0 à 2,
- * tâche 4) voit des passages dès 9,84 m/s, et des chutes doigt posé sont mesurées à 10,98 et
- * 11,44 m/s selon la phase de la suspension (la roue arrière sautille sur la rampe et frappe l'arête
- * du sommet ; relecture adversariale de la tâche 5b). Le cas 2 exige LIP_SPEED_THRESHOLD + 1 (sa
- * vitesse au sommet la plus basse : 11,18, départ à xLancement), ce qui ne garantit pas le passage.
+ * roues bridées, congé du pied de rampe de la tâche 5c) voit des chutes de 9,75 à 10,14 m/s et des
+ * passages dès 9,96. Le cas 2 exige LIP_SPEED_THRESHOLD + 1 (sa vitesse au sommet la plus basse :
+ * 12,66, départ à xLancement). Avant le congé, des chutes doigt posé étaient mesurées jusqu'à 11,44 m/s :
+ * c'est la direction de la vitesse au sommet (≈ 14° au lieu de ≈ 21°, voiture qui survole la rampe
+ * après un rebond au pied) qui décidait ; l'échantillonnage des phases (tests/slow/phases.test.ts) le
+ * surveille : 0 chute sur 2 924 historiques, garde minimale 1,72 m au-dessus du capteur.
  */
 export const LIP_SPEED_THRESHOLD: number = CONFIG.V_JUMP;
 /** |angle du châssis| maximal à l'atterrissage (cas 2 à 5, cratère). */
@@ -185,7 +187,8 @@ export interface RunOptions {
    * Choc simulé : à chaque pas tant que x < `x`, le vecteur vitesse de chaque partie est ramené à la
    * norme `v` m/s (Body.setVelocity, direction conservée). La rotation des roues n'est pas touchée :
    * un choc ne coupe pas le moteur, les roues patinent et la voiture repart au frottement (mesure du
-   * cas 4 avec roues aussi bridées : 10,26 m/s au sommet, passe le volcan mais sous la marge +1 m/s).
+   * cas 4 avec roues aussi bridées, tâche 4, pied d'avant le congé : 10,26 m/s au sommet, passe le volcan
+   * mais sous la marge +1 m/s).
    * `wheels: true` bride aussi la rotation des roues au roulement à `v` (sonde de bissection : sans
    * cela, la roue arrière à plein régime pousse encore sur l'arête après la lecture au sommet et la
    * vitesse réelle de décollage dépasse chaotiquement la vitesse lue, jusqu'à +0,3 m/s).

@@ -464,12 +464,14 @@ export function carPairsTouching(sim: RaceSim, ids?: ReadonlySet<string>): [stri
  * Course sans affichage : `throttle(t)` décide du doigt de Galahad à chaque pas (les robots suivent
  * leur driver). S'arrête `stopAfterFinish` secondes (défaut FINISH_COAST_SECONDS) après l'arrivée de
  * Galahad, ou à `maxSeconds`. `robots` et `pilotSeed` : comme `createRaceSim` (Galahad seul par défaut).
+ * `onStep` : observateur appelé après chaque pas (`sim.events` = événements du pas), sans effet sur la course.
  */
 export function simulateRace(
   track: Track,
   opts: {
     throttle: (t: number) => boolean; maxSeconds: number; cfg: Config;
     robots?: boolean; pilotSeed?: number; stopAfterFinish?: number;
+    onStep?: (sim: RaceSim) => void;
   },
 ): SimulateResult {
   const { cfg } = opts;
@@ -501,6 +503,7 @@ export function simulateRace(
     totalStepMs += ms;
     stepsDone++;
     if (inZone !== null && inZone.size > 0) ghostContacts += carPairsTouching(sim, inZone).length;
+    opts.onStep?.(sim);
     const respawned = new Set<string>();
     for (const e of sim.events) {
       const mine = e.carId === galahad.state.id;

@@ -51,9 +51,10 @@ function buildGround(track: Track, ppm: number, floorY: number): Matter.Body[] {
  * LAVA_SENSOR_ABOVE_RIM (y monde rimY + LAVA_SENSOR_ABOVE_RIM) jusqu'à floorY, sur
  * [xLava − lavaWidth/2, xLava + lavaWidth/2] : une voiture lente ne peut pas franchir le cratère au
  * pas en s'appuyant sur ses bords, et un rebond sur le flanc amont ne survole pas la lave. Seuil de
- * franchissement au sommet entre 9,76 (lave) et 10,03 m/s (passe) ; pour la voiture lancée la plus
- * lente mesurée (11,47 m/s) le point bas des roues passe 1,05 m au-dessus du capteur (mesures du tour
- * de relecture de la tâche 1). Le rendu de la lave, lui, s'arrête sous le rebord.
+ * franchissement au sommet : chutes de 9,75 à 10,14 m/s, passages dès 9,96 (bissection de
+ * tests/slow/dosage.test.ts) ; doigt posé depuis le plat de lancement, le point bas de la voiture passe
+ * au moins 1,72 m au-dessus du capteur (2 924 historiques, congé du pied de rampe, tâche 5c du plan B).
+ * Le rendu de la lave, lui, s'arrête sous le rebord.
  */
 function buildLava(track: Track, cfg: Config, floorY: number): Matter.Body[] {
   const ppm = cfg.PIXELS_PER_METER;

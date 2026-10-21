@@ -1,5 +1,4 @@
-// Échantillonnage des phases de suspension au saut des volcans (tâche 5c du plan B, phase 1 : mesure
-// et correctifs candidats). Promesse du jeu : doigt posé depuis le plat de lancement (xLancement), on
+// Échantillonnage des phases de suspension au saut des volcans (tâche 5c du plan B). Promesse du jeu : doigt posé depuis le plat de lancement (xLancement), on
 // ne tombe jamais dans la lave. L'issue dépend pourtant de la phase de la suspension à l'arrivée au
 // pied de la rampe, donc de l'historique de la voiture avant xLancement. Le protocole tire des
 // historiques variés et déterministes (mulberry32), puis doigt posé au plus tard à xLancement,
@@ -16,12 +15,14 @@
 // la voiture décolle dès le pied et survole toute la rampe (écart roue–sol 0,3 à 0,4 m) sans la
 // retoucher ; la direction de sa vitesse retombe à ≈ 14° au sommet au lieu de 22°, le saut est trop
 // plat et la roue arrière touche le bord aval du capteur de lave. Quand la roue avant retouche la rampe
-// avant le sommet, la direction revient à 22° et le saut passe largement.
+// avant le sommet, la direction revient à 22° et le saut passe largement. Correctif retenu par le papa
+// (phase 2) : congé concave au pied de la rampe (RAMP_FOOT_RADIUS = 10 m, src/track/slices.ts) ; les
+// autres candidats de la phase 1 (arête arrondie, LAVA_MARGIN 0,75, SUSPENSION_DAMPING 0,3) sont au
+// commit ee58194. Le candidat « pli » (RAMP_FOOT_RADIUS 0) rejoue le pied d'avant, pour la comparaison.
 // Monde rogné : les corps statiques hors de la fenêtre du volcan sont retirés du monde Matter
 // (`croppedWorld`) ; les runs sont identiques au bit près à ceux du monde complet (sonde : 16 runs sur
 // 16) et ≈ 15 fois plus rapides (0,12 ms par pas au lieu de 1,8).
-// Les correctifs candidats s'évaluent par `cfg` surchargé ou par une retouche du profil de la piste
-// (`roundLip`, `filletRampFoot`, appliquées aux points après génération) ; rien n'est changé dans src/.
+// Un candidat s'évalue par `cfg` surchargé (piste regénérée avec lui).
 import Matter from 'matter-js';
 import { CONFIG, type Config } from '../../src/config';
 import { carAngle, carSpeedMps, wheelsBelowChassis, type CarBody } from '../../src/physics/car';
@@ -67,79 +68,13 @@ export const FAMILIES: Family[] = ['échelonné', 'motif', 'turbo'];
 
 // ——— Candidats ———
 
-/** Un candidat : configuration (piste regénérée avec elle) et retouche éventuelle du profil. */
-export interface Variant {
-  id: string;
-  label: string;
-  cfg: Config;
-  /** Retouche du profil (points) de la piste, sans changer tranches ni volcans ; identité par défaut. */
-  reshape?: (track: Track, cfg: Config) => Track;
-}
+/** Un candidat : configuration (la piste est regénérée avec elle). */
+export interface Variant { id: string; label: string; cfg: Config }
 
-/** Copie de la piste dont la hauteur des points est `y(x, yOrigine)` (mêmes x, tranches, volcans, étoiles). */
-function withHeights(track: Track, y: (x: number, y0: number) => number): Track {
-  return { ...track, points: track.points.map((p) => ({ x: p.x, y: y(p.x, p.y) })) };
-}
-
-/**
- * (a) Arête du sommet arrondie côté aval : le sommet (xLip, lipY) reste le point haut et la rampe ne
- * change pas ; la descente commence à l'horizontale par un arc de rayon `r` tangent à la pente
- * MAX_SLOPE, puis reprend la descente rectiligne décalée vers l'aval de Δ = r (sin θ − (1 − cos θ) / tan θ)
- * (θ = MAX_SLOPE ; Δ = 0,24 r à 27°), prise sur la vallée. Le pli au sommet passe de 22° + 27° = 49° à 22°.
- * Pente ≤ MAX_SLOPE ; parois du cratère inchangées (la vallée garde valleyRun − Δ).
- */
-export function roundLip(r: number) {
-  return (track: Track, cfg: Config): Track => {
-    const th = cfg.MAX_SLOPE;
-    const tanM = Math.tan(th);
-    const delta = r * (Math.sin(th) - (1 - Math.cos(th)) / tanM);
-    return withHeights(track, (x, y0) => {
-      for (const v of track.volcanoes) {
-        const dx = x - v.xLip;
-        if (dx <= 1e-9 || dx > delta + v.lipY / tanM + 1) continue;
-        const arc = dx <= r * Math.sin(th) ? v.lipY - r + Math.sqrt(r * r - dx * dx) : -Infinity;
-        const line = Math.max(0, v.lipY - tanM * (dx - delta));
-        return Math.max(y0, Math.min(v.lipY, Math.max(arc, line)));
-      }
-      return y0;
-    });
-  };
-}
-
-/**
- * Congé concave au pied de la rampe (candidat suggéré par la mesure) : arc de rayon `R` tangent au plat
- * d'élan en xRampStart − R tan(θ/2) et à la rampe en xRampStart − R tan(θ/2) + R sin θ (θ = RAMP_ANGLE) ;
- * au-delà, la rampe rectiligne, son sommet (xLip, lipY) et l'angle de décollage ne changent pas.
- * Pente ≤ RAMP_ANGLE.
- */
-export function filletRampFoot(R: number) {
-  return (track: Track, cfg: Config): Track => {
-    const th = cfg.RAMP_ANGLE;
-    const half = R * Math.tan(th / 2);
-    return withHeights(track, (x, y0) => {
-      for (const v of track.volcanoes) {
-        const x1 = v.xRampStart - half;
-        const dx = x - x1;
-        if (dx <= 0 || dx >= R * Math.sin(th)) continue;
-        return Math.max(y0, R - Math.sqrt(R * R - dx * dx));
-      }
-      return y0;
-    });
-  };
-}
-
-export const REFERENCE: Variant = { id: 'reference', label: 'référence (configuration actuelle)', cfg: CONFIG };
-/** Rayon de l'arête arrondie (m). */
-export const LIP_ROUND_RADIUS = 1;
-/** Rayon du congé au pied de la rampe (m). */
-export const FOOT_FILLET_RADIUS = 10;
-export const VARIANTS: Variant[] = [
-  REFERENCE,
-  { id: 'arete', label: `(a) arête du sommet arrondie côté aval, r = ${LIP_ROUND_RADIUS} m`, cfg: CONFIG, reshape: roundLip(LIP_ROUND_RADIUS) },
-  { id: 'marge', label: '(b) LAVA_MARGIN 0,75', cfg: { ...CONFIG, LAVA_MARGIN: 0.75 } },
-  { id: 'amortissement', label: '(c) SUSPENSION_DAMPING 0,3', cfg: { ...CONFIG, SUSPENSION_DAMPING: 0.3 } },
-  { id: 'pied', label: `(d) congé au pied de la rampe, R = ${FOOT_FILLET_RADIUS} m`, cfg: CONFIG, reshape: filletRampFoot(FOOT_FILLET_RADIUS) },
-];
+export const REFERENCE: Variant = { id: 'reference', label: 'configuration actuelle (congé au pied de la rampe, R = 10 m)', cfg: CONFIG };
+/** Pied de rampe d'avant la tâche 5c (pli 0° → 22°) : le protocole doit y retrouver des chutes propres. */
+export const SHARP_FOOT: Variant = { id: 'pli', label: 'pied de rampe d\'avant la tâche 5c (pli 0° → 22°, RAMP_FOOT_RADIUS 0)', cfg: { ...CONFIG, RAMP_FOOT_RADIUS: 0 } };
+export const VARIANTS: Variant[] = [REFERENCE, SHARP_FOOT];
 export const variantById = (id: string): Variant => {
   const v = VARIANTS.find((x) => x.id === id);
   if (!v) throw new Error(`candidat inconnu : ${id} (connus : ${VARIANTS.map((x) => x.id).join(', ')})`);
@@ -153,7 +88,6 @@ export function variantTrack(seed: number, variant: Variant): Track {
   let t = tracks.get(key);
   if (!t) {
     t = generateTrack(seed, TRACK_LENGTH, variant.cfg);
-    if (variant.reshape) t = variant.reshape(t, variant.cfg);
     tracks.set(key, t);
   }
   return t;
@@ -579,7 +513,9 @@ export function variantReport(variant: Variant, shards: Shard[]): string {
       if (!rs.length) continue;
       const ko = rs.filter((c) => !c.ok);
       const margin = id === 1 || id === 'i' ? '' : `, sommet ≥ seuil + 1 : ${rs.filter((c) => c.lipSpeed >= LIP_SPEED_THRESHOLD + 1).length}/${rs.length}`;
-      lines.push(`    cas ${String(id).padEnd(11)} : ${rs.length - ko.length}/${rs.length} tenus, sommet ${g2(Math.min(...rs.map((c) => c.lipSpeed)))}–${g2(Math.max(...rs.map((c) => c.lipSpeed)))} m/s${margin}`
+      const lo = Math.min(...rs.map((c) => c.lipSpeed));
+      const hi = Math.max(...rs.map((c) => c.lipSpeed));
+      lines.push(`    cas ${String(id).padEnd(11)} : ${rs.length - ko.length}/${rs.length} tenus, sommet ${lo.toFixed(4)}–${hi.toFixed(4)} m/s (écart ${(hi - lo).toPrecision(2)})${margin}`
         + (ko.length ? ` ; NON TENUS : ${ko.map((c) => `g${c.seed} v${c.vi} ${c.detail} (sommet ${g2(c.lipSpeed)}, lave ${c.lava})`).join(' ; ')}` : ''));
     }
     const ci = cases.filter((c) => seeds.includes(c.seed) && [0, 1, 2].includes(c.seed) && (c.vi === 0 || c.caseId === 3) && c.caseId !== 'i');
@@ -616,33 +552,4 @@ export function variantReport(variant: Variant, shards: Shard[]): string {
   }
   lines.push(`  durées (s, cumul des morceaux) : échantillonnage ${sec('samples').toFixed(0)}, cas ${sec('cases').toFixed(0)}, (b) ${sec('releases').toFixed(0)}, rampes ${sec('ramps').toFixed(0)}, courses ${sec('races').toFixed(0)}`);
   return lines.join('\n');
-}
-
-/**
- * Contrôle d'une retouche de profil contre la piste de référence de la même graine : pente max (°) hors
- * indices exemptés, étendue des points modifiés (m, relatives au pied de rampe et au sommet du volcan le
- * plus proche), sommet gardé : les 2 derniers mètres de rampe avant xLip sont inchangés et aucun point
- * ne dépasse lipY à moins de 8 m de xLip (xLip et lipY du volcan sont ceux de la génération).
- */
-export function profileCheck(track: Track, reference: Track): { maxSlope: number; changed: string; lipKept: boolean } {
-  const exempt = new Set(track.exemptPointIndices);
-  let maxSlope = 0;
-  for (let i = 1; i < track.points.length; i++) {
-    if (exempt.has(i)) continue;
-    const a = track.points[i - 1]; const b = track.points[i];
-    maxSlope = Math.max(maxSlope, Math.abs(Math.atan((b.y - a.y) / (b.x - a.x))));
-  }
-  let fromFoot = Infinity; let toFoot = -Infinity; let fromLip = Infinity; let toLip = -Infinity;
-  track.points.forEach((p, i) => {
-    if (p.y === reference.points[i].y) return;
-    const v = track.volcanoes.reduce((best, vv) => (Math.abs(vv.xLip - p.x) < Math.abs(best.xLip - p.x) ? vv : best));
-    fromFoot = Math.min(fromFoot, p.x - v.xRampStart); toFoot = Math.max(toFoot, p.x - v.xRampStart);
-    fromLip = Math.min(fromLip, p.x - v.xLip); toLip = Math.max(toLip, p.x - v.xLip);
-  });
-  const lipKept = track.volcanoes.every((v) => track.points.every((p, i) => (p.x < v.xLip - 2 || p.x > v.xLip || p.y === reference.points[i].y)
-    && (Math.abs(p.x - v.xLip) >= 8 || p.y <= v.lipY + 1e-9)));
-  const changed = Number.isFinite(fromFoot)
-    ? `points modifiés de xRampStart ${fromFoot >= 0 ? '+' : '−'} ${Math.abs(fromFoot).toFixed(2)} à xRampStart ${toFoot >= 0 ? '+' : '−'} ${Math.abs(toFoot).toFixed(2)} m (xLip ${fromLip >= 0 ? '+' : '−'} ${Math.abs(fromLip).toFixed(2)} à xLip ${toLip >= 0 ? '+' : '−'} ${Math.abs(toLip).toFixed(2)})`
-    : 'aucun point modifié';
-  return { maxSlope: maxSlope / DEG, changed, lipKept };
 }

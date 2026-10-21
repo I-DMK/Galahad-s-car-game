@@ -118,6 +118,12 @@ export function volcanoGeometry(cfg: Config): VolcanoGeometry {
   return { lLancement, lElan, rampRun, lipY, descentRun, ascentRun, valleyRun, dxLava, dxReception, dxEnd };
 }
 
+/**
+ * Rampe-volcan. Le pied de la rampe est un congé concave de rayon RAMP_FOOT_RADIUS (tâche 5c) : arc
+ * tangent au plat d'élan en xFoot0 = dxRampStart − R tan(θ/2) et à la rampe en xFoot0 + R sin θ
+ * (θ = RAMP_ANGLE), au lieu du pli 0° → θ qui faisait décoller la voiture dès le pied. La rampe
+ * rectiligne au-delà, le sommet (dxLip, lipY) et tout l'aval ne changent pas ; R = 0 redonne le pli.
+ */
 export function rampeVolcan(cfg: Config): SliceProfile {
   const g = volcanoGeometry(cfg);
   if (g.valleyRun < 0) {
@@ -130,6 +136,15 @@ export function rampeVolcan(cfg: Config): SliceProfile {
   const tanM = Math.tan(cfg.MAX_SLOPE);
   const dxRampStart = g.lLancement + g.lElan;              // fin des plats de lancement et d'élan
   const dxLip = dxRampStart + g.rampRun;
+  const R = cfg.RAMP_FOOT_RADIUS;
+  const xFoot0 = dxRampStart - R * Math.tan(cfg.RAMP_ANGLE / 2);   // tangence avec le plat d'élan
+  const xFoot1 = xFoot0 + R * Math.sin(cfg.RAMP_ANGLE);            // tangence avec la rampe
+  if (xFoot0 < g.lLancement || xFoot1 >= dxLip) {
+    throw new Error(
+      `rampe-volcan impossible : le congé du pied (R = ${R} m) déborde du plat d'élan ou atteint le sommet `
+      + `([${(xFoot0 - dxRampStart).toFixed(2)} ; ${(xFoot1 - dxRampStart).toFixed(2)}] m autour du pied)`,
+    );
+  }
   const xAscent = dxLip + g.descentRun + g.valleyRun;       // début de la montée
   const xRimA = xAscent + g.ascentRun;                      // bord amont du cratère
   const xRimB = xRimA + cfg.LAVA_WIDTH;                     // bord aval du cratère
@@ -140,6 +155,7 @@ export function rampeVolcan(cfg: Config): SliceProfile {
   const { heights, length } = sample(cfg, g.dxEnd, (x) => {
     const k = Math.round(x / s);
     if (k >= kWallA && k < kWallB) return floorY;
+    if (x > xFoot0 && x < xFoot1) return R - Math.sqrt(R * R - (x - xFoot0) ** 2);
     if (x <= dxRampStart) return 0;
     if (x <= dxLip) return (x - dxRampStart) * tanR;
     if (x <= xAscent) return Math.max(0, g.lipY - tanM * (x - dxLip));

@@ -1,9 +1,11 @@
 // Course complète à 5 voitures (tâche 5b, addendum §2) : Galahad doigt toujours posé, les 4 copains au
 // driver provisoire (doigt posé dès n × START_DELAY_PER_RANK), arrêt à l'arrivée de Galahad + 1,5 s.
 // Invariants partagés par la CI (tests/race-smoke.test.ts, graines 1 et 2) et la suite lente
-// (tests/slow/race-invariants.test.ts, graines 0 à 9).
+// (tests/slow/race-invariants-*.test.ts, graines 0 à 23 en quatre fichiers parallèles), avec la cause
+// de chaque chute dans la lave (tâche 5c).
 import { CONFIG } from '../../src/config';
-import { simulateRace, type SimulateResult } from '../../src/sim/simulate';
+import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/simulate';
+import { nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
 import { describeRespawns, f1, f2, trackFor } from './runs';
 
 /** Arrivée de Galahad exigée avant 240 s (addendum §2). */
@@ -17,8 +19,31 @@ export const MAX_RESPAWNS_PER_CAR = 3;
  */
 export const MAX_STUCK_SECONDS = 2.1;
 
+/**
+ * Une chute dans la lave (toute voiture) et sa cause : « choc » si la voiture a touché une autre voiture
+ * dans les CONTACT_WINDOW secondes qui précèdent (approche du volcan : plat de lancement, élan, rampe,
+ * vol ; dans la zone fantôme les voitures se traversent), « propre » sinon. Tous les drivers ont le doigt
+ * posé (Galahad tout du long, les copains dès leur départ échelonné) : une chute propre contredit la
+ * promesse « doigt posé depuis le plat de lancement, on ne tombe jamais ».
+ */
+export interface Fall {
+  carId: string; t: number; x: number;
+  /** Indice du volcan dans `track.volcanoes`. */
+  volcano: number;
+  cause: 'choc' | 'propre';
+  /** Dernier contact avec une autre voiture avant la chute, null si aucun depuis le départ. */
+  lastContact: { t: number; with: string } | null;
+}
+/** Fenêtre (s) avant la chute dans laquelle un contact entre voitures en fait une chute « par choc ». */
+export const CONTACT_WINDOW = 5;
+export const describeFall = (f: Fall): string =>
+  `${f.carId} au volcan ${f.volcano} (t = ${f1(f.t)} s, x = ${f1(f.x)}) : ${f.cause}`
+  + (f.lastContact ? `, dernier contact avec ${f.lastContact.with} ${f1(f.t - f.lastContact.t)} s avant` : ', aucun contact depuis le départ');
+
 export interface FiveCarRace {
   r: SimulateResult;
+  /** Chutes dans la lave de toutes les voitures, avec leur cause. */
+  falls: Fall[];
   /** Résumé lisible (par voiture), imprimé et repris dans les messages d'assertion. */
   summary: string;
   /** Durée mur de la simulation (s). */
@@ -28,7 +53,27 @@ export interface FiveCarRace {
 export function fiveCarRace(seed: number): FiveCarRace {
   const track = trackFor(seed);
   const t0 = performance.now();
-  const r = simulateRace(track, { throttle: () => true, maxSeconds: RACE_MAX_SECONDS, cfg: CONFIG, robots: true });
+  const lastContact = new Map<string, { t: number; with: string }>();
+  const falls: Fall[] = [];
+  const r = simulateRace(track, {
+    throttle: () => true, maxSeconds: RACE_MAX_SECONDS, cfg: CONFIG, robots: true,
+    onStep: (sim) => {
+      const t = sim.time;
+      for (const [a, b] of carPairsTouching(sim)) {
+        lastContact.set(a, { t, with: b });
+        lastContact.set(b, { t, with: a });
+      }
+      for (const e of sim.events) {
+        if (e.type !== 'respawn' || e.reason !== 'lava') continue;
+        const v = nearestVolcanoZone(track, e.x) ?? volcanoAhead(track, e.x);
+        const c = lastContact.get(e.carId) ?? null;
+        falls.push({
+          carId: e.carId, t: e.t, x: e.x, volcano: v ? track.volcanoes.indexOf(v) : -1,
+          cause: c && e.t - c.t <= CONTACT_WINDOW ? 'choc' : 'propre', lastContact: c ? { ...c } : null,
+        });
+      }
+    },
+  });
   const seconds = (performance.now() - t0) / 1000;
   const cars = Object.keys(r.respawnsByCar).map((id) => {
     const rs = r.respawnsByCar[id];
@@ -36,8 +81,9 @@ export function fiveCarRace(seed: number): FiveCarRace {
       + `arrivée ${f1(r.finishedAtByCar[id])} s [${describeRespawns(rs).join(' ; ')}]`;
   });
   const summary = `seed ${seed} : Galahad arrivé à ${f1(r.finishedAt)} s, fin à ${f1(r.time)} s, classement ${r.ranking.join(' > ')}, `
-    + `meanStepMs ${f2(r.meanStepMs)} (indicateur, cible < 4), maxStepMs ${f1(r.maxStepMs)}, durée ${f1(seconds)} s\n  ${cars.join('\n  ')}`;
-  return { r, summary, seconds };
+    + `meanStepMs ${f2(r.meanStepMs)} (indicateur, cible < 4), maxStepMs ${f1(r.maxStepMs)}, durée ${f1(seconds)} s\n  ${cars.join('\n  ')}`
+    + `\n  chutes dans la lave : ${falls.length ? falls.map(describeFall).join(' ; ') : 'aucune'}`;
+  return { r, falls, summary, seconds };
 }
 
 /**
@@ -63,4 +109,26 @@ export function expectRaceInvariants({ r, summary }: FiveCarRace): void {
   const arrived = Object.entries(r.finishedAtByCar).filter((e): e is [string, number] => e[1] !== null);
   const first = arrived.reduce((best, e) => (e[1] < best[1] ? e : best));
   expect(r.ranking[0], summary).toBe(first[0]);
+}
+
+/**
+ * Invariants à 5 voitures sur `seeds` (suite lente, un fichier par tranche de graines pour paralléliser) :
+ * `expectRaceInvariants` par graine, dont `lavaByCar.galahad === 0` (tâche 5c), puis tableau des chutes
+ * dans la lave de toutes les voitures, avec leur cause (choc ou propre).
+ */
+export function registerRaceInvariants(seeds: number[]): void {
+  const falls: (Fall & { seed: number })[] = [];
+  describe(`course à 5 voitures, doigt posé (robots : driver provisoire), graines ${seeds[0]} à ${seeds[seeds.length - 1]}`, () => {
+    test.each(seeds)('seed %i : ≤ 3 respawns par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive sans tomber', (seed) => {
+      const race = fiveCarRace(seed);
+      console.log(`course à 5 ${race.summary}`);
+      falls.push(...race.falls.map((f) => ({ ...f, seed })));
+      expectRaceInvariants(race);
+    });
+    afterAll(() => {
+      const propres = falls.filter((f) => f.cause === 'propre').length;
+      console.log(`chutes dans la lave à 5 voitures, graines ${seeds.join(', ')} : ${falls.length} (propres ${propres}, choc ${falls.length - propres})`
+        + (falls.length ? `\n  ${falls.map((f) => `seed ${f.seed} : ${describeFall(f)}`).join('\n  ')}` : ''));
+    });
+  });
 }

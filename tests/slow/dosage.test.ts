@@ -36,13 +36,14 @@ const RELEASE_SECONDS = [0, 0.5, 1, 1.5, 2, 2.5, 3, 4];
 const STOP_BEFORE_ELAN = [0, 1, 2, 3, 4, 6, 8, 10];
 const RUN_SECONDS = 20;
 /**
- * Le seuil est une bande qui se chevauche, pas un nombre : la roue arrière frappe l'arête du sommet 0 à
- * 0,4 m après la lecture de la vitesse et ce coup décide de la trajectoire ; la phase de rebond dépend
- * du départ (roue arrière posée sur la tranche précédente quand on part de xLancement). Mesuré (roues
- * bridées, 15 volcans des graines 0 à 2) : chute observée jusqu'à 10,26 m/s, passage dès 9,84 (tombe
- * 9,54–10,26, passe 9,84–10,47). Ce n'est pas une marge garantie pour le cas 2 (11,18 = départ à
- * xLancement ; pire point sûr : 11,73) : en course doigt posé, des chutes sont mesurées à 10,98 et
- * 11,44 m/s selon la phase de la suspension (relecture adversariale de la tâche 5b).
+ * Le seuil est une bande qui se chevauche, pas un nombre : la phase de la suspension au sommet dépend du
+ * départ (roue arrière posée sur la tranche précédente quand on part de xLancement). Mesuré (roues
+ * bridées, 15 volcans des graines 0 à 2, congé du pied de rampe RAMP_FOOT_RADIUS, tâche 5c) : tombe
+ * 9,75–10,14 m/s, passe 9,96–10,75 ; cas 2 au sommet ≥ 12,77 sur ces volcans (marge 2,63 m/s contre la
+ * pire chute). Avant le congé : tombe 9,54–10,26, passe 9,84–10,47, cas 2 ≥ 11,18, et des chutes doigt
+ * posé jusqu'à 11,44 m/s (la voiture rebondissait au pied et décollait trop à plat, tâche 5c).
+ * Tableau (a) avec le congé : cas 1 en lave jusqu'à L_ELAN 7,5 m, puis passe de 7,75 à 12 m sauf à
+ * 9,25 m (lave) ; avant : issue chaotique dès 7,5 m.
  */
 const BAND_TOLERANCE = 0.5;
 /**

@@ -7,7 +7,10 @@ import {
 } from '../src/track/slices';
 
 // Config figée : les valeurs de référence ci-dessous en dépendent (la calibration peut rejouer LAVA_MARGIN / L_ELAN).
-const PINNED = { ...CONFIG, V_JUMP: 10, LAVA_MARGIN: 0.8, L_ELAN: 6 };
+const PINNED = { ...CONFIG, V_JUMP: 10, LAVA_MARGIN: 0.8, L_ELAN: 6, RAMP_FOOT_RADIUS: 10 };
+/** Pied de rampe d'avant la tâche 5c : pli 0° → 22°, sans congé (RAMP_FOOT_RADIUS 0). */
+const SHARP = { ...PINNED, RAMP_FOOT_RADIUS: 0 };
+const DEG = Math.PI / 180;
 const S = CONFIG.TRACK_POINT_SPACING;
 const EPS = 1e-9;
 
@@ -164,15 +167,89 @@ describe('rampe-volcan : géométrie du profil', () => {
     expect(p.length).toBeGreaterThanOrEqual(g.dxEnd - S);
   });
 
-  test('plat de lancement et plat d\'élan à 0 sur [0, lLancement + lElan]', () => {
-    const kLast = Math.floor((g.lLancement + g.lElan) / S + EPS);
-    expect(kLast).toBeGreaterThan(0);
-    expect(p.heights.slice(0, kLast).every((h) => h === 0)).toBe(true);
+  /** Congé du pied (tâche 5c) : tangent au plat d'élan en x1, à la rampe en x2 ; arc de rayon R entre les deux. */
+  const R = PINNED.RAMP_FOOT_RADIUS;
+  const x1 = v.dxRampStart - R * Math.tan(PINNED.RAMP_ANGLE / 2);
+  const x2 = x1 + R * Math.sin(PINNED.RAMP_ANGLE);
+  const arc = (x: number) => R - Math.sqrt(R * R - (x - x1) ** 2);
+  const sharp = rampeVolcan(SHARP);
+
+  test('plat de lancement et plat d\'élan à 0 sur [0, xRampStart − R tan(θ/2)], puis relevés par le congé sur leurs ≈ 1,94 derniers mètres', () => {
+    expect(v.dxRampStart - x1).toBeCloseTo(1.944, 3);
+    const kFlat = Math.floor(x1 / S + EPS);                 // échantillons 1..kFlat en x ≤ x1
+    expect(kFlat).toBeGreaterThan(0);
+    expect(p.heights.slice(0, kFlat).every((h) => h === 0)).toBe(true);
     expect(at(v.dxElanStart)).toBe(0);
     expect(at(v.dxElanStart + g.lElan / 2)).toBe(0);
+    // Fin du plat d'élan relevée : chaque échantillon de ]x1, xRampStart] est sur l'arc, au-dessus de 0.
+    const raised = p.heights.map((h, i) => ({ x: (i + 1) * S, h })).filter(({ x }) => x > x1 + EPS && x <= v.dxRampStart);
+    expect(raised.length).toBeGreaterThan(5);
+    for (const { x, h } of raised) {
+      expect(h).toBeGreaterThan(0);
+      expect(h).toBeCloseTo(arc(x), 9);
+    }
+    // Au droit de l'ancien pli, le sol est relevé de R − √(R² − (R tan(θ/2))²) ≈ 0,19 m.
+    expect(arc(v.dxRampStart)).toBeCloseTo(0.191, 3);
+  });
+
+  test('premier point de rampe : sur l\'arc du congé, au-dessus de l\'ancienne rampe rectiligne', () => {
+    const k = Math.floor(v.dxRampStart / S + EPS) + 1;      // premier échantillon au-delà de xRampStart
+    const x = k * S;
+    expect(x).toBeLessThan(x2);
+    expect(p.heights[k - 1]).toBeCloseTo(arc(x), 9);
+    expect(p.heights[k - 1]).toBeGreaterThan((x - v.dxRampStart) * Math.tan(PINNED.RAMP_ANGLE));
+    expect(sharp.heights[k - 1]).toBeCloseTo((x - v.dxRampStart) * Math.tan(PINNED.RAMP_ANGLE), 9);
+  });
+
+  test('au-delà du congé : rampe rectiligne, sommet (dxLip, lipY), lave et réception identiques au pied sans congé', () => {
+    expect(v).toEqual(sharp.volcano);
+    expect(p.length).toBe(sharp.length);
+    expect(p.exemptIndices).toEqual(sharp.exemptIndices);
+    p.heights.forEach((h, i) => {
+      const x = (i + 1) * S;
+      if (x >= x2 - EPS || x <= x1 + EPS) expect(h, `x = ${x.toFixed(1)}`).toBe(sharp.heights[i]);
+      else expect(h, `x = ${x.toFixed(1)}`).toBeGreaterThanOrEqual(sharp.heights[i]);
+    });
+    expect(Math.max(...p.heights)).toBe(Math.max(...sharp.heights));
+  });
+
+  test('congé : pente continue de 0 à RAMP_ANGLE, pas de pli au pied (variation ≤ 1,5° par segment ; 22° sans congé)', () => {
+    const kFrom = Math.floor(v.dxElanStart / S + EPS);
+    const kTo = Math.floor(v.dxLip / S + EPS) - 1;           // dernier segment entièrement sur la rampe
+    const kink = (heights: number[]) => {
+      let maxTurn = 0; let maxSlope = 0; let minSlope = Infinity;
+      for (let k = kFrom + 1; k <= kTo; k++) {
+        const a = Math.atan((heights[k - 1] - heights[k - 2]) / S);
+        const b = Math.atan((heights[k] - heights[k - 1]) / S);
+        maxTurn = Math.max(maxTurn, Math.abs(b - a));
+        maxSlope = Math.max(maxSlope, b); minSlope = Math.min(minSlope, b);
+      }
+      return { maxTurn, maxSlope, minSlope };
+    };
+    const filleted = kink(p.heights);
+    expect(filleted.maxTurn).toBeLessThanOrEqual(1.5 * DEG);
+    expect(filleted.maxSlope).toBeLessThanOrEqual(PINNED.RAMP_ANGLE + EPS);
+    expect(filleted.minSlope).toBeGreaterThanOrEqual(0);
+    expect(kink(sharp.heights).maxTurn).toBeGreaterThan(15 * DEG);
+  });
+
+  test('RAMP_FOOT_RADIUS 0 : pli d\'origine, plats à 0 sur [0, lLancement + lElan] et rampe rectiligne dès le pied', () => {
+    const kLast = Math.floor((g.lLancement + g.lElan) / S + EPS);
+    expect(kLast).toBeGreaterThan(0);
+    expect(sharp.heights.slice(0, kLast).every((h) => h === 0)).toBe(true);
     // la rampe monte dès l'échantillon suivant (heights[i] = f((i + 1) × S))
-    expect(p.heights[kLast]).toBeGreaterThan(0);
-    expect(p.heights[kLast]).toBeCloseTo(((kLast + 1) * S - (g.lLancement + g.lElan)) * Math.tan(PINNED.RAMP_ANGLE), 9);
+    expect(sharp.heights[kLast]).toBeGreaterThan(0);
+    expect(sharp.heights[kLast]).toBeCloseTo(((kLast + 1) * S - (g.lLancement + g.lElan)) * Math.tan(PINNED.RAMP_ANGLE), 9);
+  });
+
+  test('lance si le congé dépasse le plat d\'élan ou atteint le sommet', () => {
+    expect(() => rampeVolcan({ ...PINNED, L_ELAN: 1.5 })).toThrow(/congé/);
+    expect(() => rampeVolcan({ ...PINNED, L_ELAN: 12, RAMP_FOOT_RADIUS: 32 })).toThrow(/congé/);
+    expect(() => rampeVolcan({ ...PINNED, L_ELAN: 3 })).not.toThrow();
+  });
+
+  test('le congé ne touche que la rampe-volcan : rampe-saut identique avec ou sans', () => {
+    expect(rampeSaut(mulberry32(1), PINNED)).toEqual(rampeSaut(mulberry32(1), SHARP));
   });
 
   test('sommet de rampe à lipY, fond de lave à RIM − CRATER_DEPTH', () => {

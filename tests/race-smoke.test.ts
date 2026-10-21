@@ -1,6 +1,6 @@
 // Courses complètes en CI. Cas 6 de l'addendum §1.7 (Galahad seul, graine 1, ≈ 20 s ; graines 0 à 4 :
 // tests/slow/finish.test.ts). Course à 5 voitures (tâche 5b, addendum §2) : graines 1 et 2, doigt
-// posé, invariants de tests/helpers/race.ts (graines 0 à 9 : tests/slow/race-invariants.test.ts).
+// posé, invariants de tests/helpers/race.ts (graines 0 à 23 : tests/slow/race-invariants-*.test.ts).
 // « 5 dans la lave » (review focus du plan) : respawn groupé sur le même point sûr.
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';

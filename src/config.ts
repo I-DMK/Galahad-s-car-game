@@ -8,7 +8,7 @@ export const CONFIG = {
   GRAVITY: 4.9,                 // m/s²
   V_MAX: 14,                    // m/s
   V_CRUISE: 0.8 * 14,
-  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22°, LAVA_MARGIN 0,8 et capteur à +0,3 m). Le seuil réel n'est pas net : la bissection de la tâche 4 du plan B (15 volcans des graines 0 à 2) voit des passages dès 9,84 m/s, et des chutes doigt posé sont mesurées à 10,98 et 11,44 m/s selon la phase de la suspension (la roue arrière sautille sur la rampe ; relecture adversariale de la tâche 5b)
+  V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22°, LAVA_MARGIN 0,8 et capteur à +0,3 m). Le seuil réel n'est pas net (bissection de tests/slow/dosage.test.ts, 15 volcans des graines 0 à 2, roues bridées : tombe 9,75–10,14 m/s, passe 9,96–10,75 ; tâche 5c). Avant le congé du pied (RAMP_FOOT_RADIUS, tâche 5c), des chutes doigt posé étaient mesurées jusqu'à 11,44 m/s au sommet : ce n'est pas la vitesse mais la direction au décollage qui décidait
   TURBO_FACTOR: 1.5,
   TURBO_SECONDS: 3,
   STAR_RESPAWN_SECONDS: 5,
@@ -18,8 +18,9 @@ export const CONFIG = {
   STAR_ELAN_GAP: 5,             // m : le curseur s'arrête à xElanStart − 5 sur le plat de lancement (≥ 3 m avant l'étoile d'élan)
   RAMP_ANGLE: 22 * DEG,
   RAMP_LENGTH: 6,               // m le long de la pente → sommet à 2,25 m
+  RAMP_FOOT_RADIUS: 10,         // m : congé concave au pied de la rampe-volcan (pas des rampes-saut), tangent au plat d'élan 1,94 m avant xRampStart et à la rampe 1,80 m après ; sommet, angle de décollage et lave inchangés. Sans lui, la roue avant tapait le pli 0° → 22° et la voiture décollait dès le pied, survolait la rampe et partait du sommet à ≈ 14° au lieu de ≈ 21° : 4 chutes propres doigt posé sur 2 924 historiques (43 volcans des graines 0 à 9), garde minimale −0,03 m au-dessus du capteur de lave ; avec R = 10 : 0 chute, garde minimale 1,72 m (tâche 5c du plan B, tests/slow/phases.test.ts)
   MAX_SLOPE: 27 * DEG,
-  LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre) ; voiture lancée la plus lente mesurée 11,18 m/s au sommet (doigt posé depuis xLancement, graines 0 à 9, tâche 4 du plan B) ; pas de marge garantie : des chutes doigt posé sont mesurées à 10,98 et 11,44 m/s selon la phase de la suspension (relecture adversariale de la tâche 5b)
+  LAVA_MARGIN: 0.8,             // lave à 80 % de la portée calculée à V_JUMP (13,1 m du sommet, centre) ; avec le congé du pied (RAMP_FOOT_RADIUS) : voiture lancée la plus lente 12,66 m/s au sommet (cas 2-lancement) (doigt posé depuis xLancement, graines 0 à 9), échantillonnage des phases 0 chute sur 2 924 historiques, garde minimale 1,72 m au-dessus du capteur (tâche 5c)
   L_ELAN: 6,                    // m : plat d'élan entre le plat de lancement et la rampe, seul levier de difficulté (addendum §1.6)
   D_LANCE,
   LANCEMENT_LENGTH: D_LANCE + SAFE_LANCEMENT_MARGIN,   // m : plat de lancement devant chaque plat d'élan (addendum §1.4) ; la zone interdite étant fermée en xLancement + SAFE_LANCEMENT_MARGIN, le pire point sûr est strictement avant et laisse au moins D_LANCE de plat

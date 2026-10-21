@@ -2,19 +2,21 @@
 // tests/volcans.test.ts (graines 0 à 2), tests/slow/volcans-slow.test.ts (graines 3 à 9) et
 // tests/slow/dosage.test.ts (cfg surchargé).
 //
-// Trajectoire unique (tours de correction 1 et 2) : un départ arrêté à une position relative fixe sur
-// une géométrie de volcan identique donne une seule trajectoire, À CONDITION que la voiture parte du
-// plat qui précède la rampe. Sonde du tour 2, vitesse au sommet sur les 43 volcans des graines 0 à 9 :
-//  - cas 1 (arrêt à xElanStart) : 8,6775 m/s, écart max 4e-9 ;
-//  - cas 2 au pire point sûr (xLancement + 4,99) : 11,7304 m/s, écart max 5e-7 ;
-//  - cas 4 (plafond 8 m/s jusqu'à xElanStart) : 11,4834 m/s, écart max 3e-6 ;
-//  → une seule trajectoire : premier volcan de la graine, une graine suffit en suite lente.
-//  - cas 2 au début du plat de lancement : 11,18 à 13,11 m/s (écart 1,9) ;
-//  - cas 5 (turbo à l'étoile d'élan) : 13,78 à 15,93 m/s (écart 2,1) ;
-//  - turbo permanent depuis xLancement : 15,84 à 17,79 m/s (écart 1,9).
+// Trajectoire unique (tours de correction 1 et 2 de la tâche 4) : un départ arrêté à une position
+// relative fixe sur une géométrie de volcan identique donne une seule trajectoire, À CONDITION que la
+// voiture parte du plat qui précède la rampe. Vitesse au sommet sur les 43 volcans des graines 0 à 9,
+// avec le congé du pied de rampe (RAMP_FOOT_RADIUS, tâche 5c ; tests/slow/phases.test.ts) :
+//  - cas 1 (arrêt à xElanStart) : 8,4477 m/s, écart max 7e-9 (8,6775 avant le congé) ;
+//  - cas 2 au pire point sûr (xLancement + 4,99) : 13,2783 m/s, écart max 1e-7 (11,7304 avant) ;
+//  - cas 4 (plafond 8 m/s jusqu'à xElanStart) : 12,9327 à 12,9368 m/s, écart max 0,004 (11,4834 et
+//    3e-6 avant) ;
+//  → une seule trajectoire (à 0,004 m/s près) : premier volcan de la graine, une graine suffit en lent.
+//  - cas 2 au début du plat de lancement : 12,66 à 13,54 m/s (écart 0,87 ; 11,18 à 13,11 avant) ;
+//  - cas 5 (turbo à l'étoile d'élan) : 15,00 à 16,17 m/s (écart 1,2 ; 13,78 à 15,93 avant) ;
+//  - turbo permanent depuis xLancement : 16,76 à 18,52 m/s (écart 1,8 ; 15,84 à 17,79 avant).
 //  → NE sont PAS une trajectoire unique : posée à xLancement, la roue arrière (0,75 m derrière le
-//    châssis) repose sur la tranche précédente ; après des bosses elle part d'une pente et le sommet
-//    est plus rapide (11,93–13,11), après plat ou double-bosse 11,184 ou 11,186 selon la tranche.
+//    châssis) repose sur la tranche précédente (bosses, plat ou double-bosse) ; la phase de la
+//    suspension à l'arrivée au pied en dépend.
 //    Ces trois scénarios tournent sur le premier volcan en CI et sur tous les volcans des graines 0
 //    à 9 en suite lente (`allVolcanoes` de registerVolcanoCases) ; le cas 3 (relief précédent) sur
 //    tous les volcans, en CI comme en lent.
