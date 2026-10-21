@@ -24,11 +24,13 @@ export const TRACK_LENGTH = 1680;
 export const STEPS_PER_SECOND = 60;
 export const DEG = Math.PI / 180;
 /**
- * Vitesse au sommet (m/s, norme de la vitesse du châssis au premier pas où x ≥ xLip) en deçà de
- * laquelle la voiture tombe dans la lave, à LAVA_MARGIN 0,8 et capteur +0,3 m. Seuil mesuré entre
- * 9,4 et 10,0 m/s selon le volcan (coup de la roue arrière sur l'arête du sommet, qui décide de la
- * trajectoire ; tour de correction 1 de la tâche 4), bissection dans `tests/slow/dosage.test.ts` ;
- * la marge +1 m/s du cas 2 se mesure contre le haut de la bande, soit V_JUMP.
+ * Vitesse au sommet de référence (m/s, norme de la vitesse du châssis au premier pas où x ≥ xLip)
+ * pour le franchissement de la lave, à LAVA_MARGIN 0,8 et capteur +0,3 m : V_JUMP = 10. Le seuil
+ * réel est une bande qui se chevauche (bissection de `tests/slow/dosage.test.ts` sur les 15 volcans
+ * des graines 0 à 2, tâche 4) : chute observée jusqu'à 10,26 m/s, passage dès 9,84 ; l'issue dans la
+ * bande est décidée par le coup de la roue arrière sur l'arête du sommet. Le cas 2 exige
+ * LIP_SPEED_THRESHOLD + 1 ; sa vitesse au sommet la plus basse (11,18, départ à xLancement) laisse
+ * ≈ 0,9 m/s de marge contre la pire chute observée (11,18 − 10,26).
  */
 export const LIP_SPEED_THRESHOLD: number = CONFIG.V_JUMP;
 /** |angle du châssis| maximal à l'atterrissage (cas 2 à 5, cratère). */
@@ -189,6 +191,8 @@ export interface RunOptions {
    * vitesse réelle de décollage dépasse chaotiquement la vitesse lue, jusqu'à +0,3 m/s).
    */
   speedCapUntil?: { x: number; v: number; wheels?: boolean };
+  /** Lancée initiale (m/s, `launch` le long de la pente locale) ; départ arrêté par défaut. */
+  launchSpeed?: number;
   /** Volcan visé (xRampStart, xLip, xReception) ; par défaut le premier dont la lave est devant x0. */
   volcano?: Volcano;
   maxSeconds: number;
@@ -218,7 +222,7 @@ export interface RunResult {
 }
 
 /**
- * Voiture neuve à l'arrêt en x0, conduite selon `throttle(t)` vers le premier volcan dont la lave
+ * Voiture neuve à l'arrêt en x0 (ou lancée à `launchSpeed`), conduite selon `throttle(t)` vers le premier volcan dont la lave
  * est devant x0 (`volcanoAhead`), jusqu'à la lave, 1 s après l'atterrissage deux roues sur le plat
  * de réception (x ≥ xReception), ou maxSeconds. Un atterrissage avant la réception (vallée, flanc)
  * est enregistré mais ne termine pas le run : la lave ou le temps tranchent.
@@ -227,6 +231,7 @@ export function runFrom(world: World, x0: number, opts: RunOptions): RunResult {
   const cfg = opts.cfg ?? CONFIG;
   const v = opts.volcano ?? volcanoAhead(world.track, x0);
   const car = freshCar(world, x0, cfg);
+  if (opts.launchSpeed !== undefined) launch(world, car, x0, opts.launchSpeed, cfg);
   const contact = newContact();
   const jump = v ? new JumpTracker(v.xLip) : null;
   const run: RunResult = {

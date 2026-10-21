@@ -1,6 +1,6 @@
 // Réapparitions branchées dans le pas de course (tâches 10b du plan A et 3 du plan B) : scénarios
 // ciblés rapides (quelques secondes simulées chacun), gardés en CI. Les courses complètes sont
-// dans tests/slow/respawn-sim.test.ts.
+// dans tests/slow/finish.test.ts.
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';

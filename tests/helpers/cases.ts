@@ -2,22 +2,34 @@
 // tests/volcans.test.ts (graines 0 à 2), tests/slow/volcans-slow.test.ts (graines 3 à 9) et
 // tests/slow/dosage.test.ts (cfg surchargé).
 //
-// Ruling (tour de correction 1) : un départ arrêté à une position relative fixe sur une géométrie de
-// volcan identique donne une seule trajectoire (vitesse au sommet identique à 1e-8 près sur les 43
-// volcans des graines 0 à 9). Les cas 1, 2, 4, 5 et turbo permanent ne tournent donc que sur le
-// premier volcan de chaque graine ; seul le cas 3 (relief précédent) varie et tourne sur tous.
+// Trajectoire unique (tours de correction 1 et 2) : un départ arrêté à une position relative fixe sur
+// une géométrie de volcan identique donne une seule trajectoire, À CONDITION que la voiture parte du
+// plat qui précède la rampe. Sonde du tour 2, vitesse au sommet sur les 43 volcans des graines 0 à 9 :
+//  - cas 1 (arrêt à xElanStart) : 8,6775 m/s, écart max 4e-9 ;
+//  - cas 2 au pire point sûr (xLancement + 4,99) : 11,7304 m/s, écart max 5e-7 ;
+//  - cas 4 (plafond 8 m/s jusqu'à xElanStart) : 11,4834 m/s, écart max 3e-6 ;
+//  → une seule trajectoire : premier volcan de la graine, une graine suffit en suite lente.
+//  - cas 2 au début du plat de lancement : 11,18 à 13,11 m/s (écart 1,9) ;
+//  - cas 5 (turbo à l'étoile d'élan) : 13,78 à 15,93 m/s (écart 2,1) ;
+//  - turbo permanent depuis xLancement : 15,84 à 17,79 m/s (écart 1,9).
+//  → NE sont PAS une trajectoire unique : posée à xLancement, la roue arrière (0,75 m derrière le
+//    châssis) repose sur la tranche précédente ; après des bosses elle part d'une pente et le sommet
+//    est plus rapide (11,93–13,11), après plat ou double-bosse 11,184 ou 11,186 selon la tranche.
+//    Ces trois scénarios tournent sur le premier volcan en CI et sur tous les volcans des graines 3
+//    à 9 en suite lente (`allVolcanoes` de registerVolcanoCases), comme le cas 3 (relief précédent).
 import { CONFIG, type Config } from '../../src/config';
 import type { World } from '../../src/physics/world';
 import type { Track, Volcano } from '../../src/track/types';
 import {
-  LANDING_MAX_ANGLE, LIP_SPEED_THRESHOLD, describeRun, f2, runFrom, worldFor, worstSafePoint,
+  LANDING_MAX_ANGLE, LIP_SPEED_THRESHOLD, describeRun, f2, runFrom, trackFor, worldFor, worstSafePoint,
   type RunOptions, type RunResult,
 } from './runs';
 
-export type CaseId = 1 | 2 | 3 | 4 | 5 | 'turbo';
-export const ALL_CASES: CaseId[] = [1, 2, 3, 4, 5, 'turbo'];
-/** Cas à trajectoire unique : premier volcan de la graine seulement. */
-export const FIRST_VOLCANO_CASES: CaseId[] = [1, 2, 4, 5, 'turbo'];
+/** Cas 2 scindé : `2` = pire point sûr (trajectoire unique), `'2-lancement'` = début du plat de lancement (variable). */
+export type CaseId = 1 | 2 | '2-lancement' | 3 | 4 | 5 | 'turbo';
+export const ALL_CASES: CaseId[] = [1, 2, '2-lancement', 3, 4, 5, 'turbo'];
+/** Cas à trajectoire unique (mesuré, voir l'en-tête) : premier volcan de la graine, jamais plus. */
+export const UNIQUE_TRAJECTORY_CASES: CaseId[] = [1, 2, 4];
 
 export interface Scenario { name: string; x0: number; opts: RunOptions }
 
@@ -25,7 +37,7 @@ const always = () => true;
 const RUN_SECONDS = 20;
 /** Cas 3 : arrêt 60 m avant xLancement quand la tranche précédente est bosses ou double-bosse. */
 const CASE3_BEFORE = 60;
-const CASE3_PREVIOUS = ['bosses', 'double-bosse'] as const;
+export const CASE3_PREVIOUS: readonly string[] = ['bosses', 'double-bosse'];
 /** Cas 4 : vitesse ramenée à 8 m/s jusqu'à xElanStart (vrai pire choc : en fin de plat de lancement). */
 const CASE4_SPEED = 8;
 const CASE4_UNTIL = 0;
@@ -34,7 +46,8 @@ const CASE5_TURBO_BEFORE = CONFIG.STAR_ELAN_OFFSET;
 
 export const CASE_TITLES: Record<CaseId, string> = {
   1: 'cas 1 : arrêt au début du plat d’élan, doigt posé → lave avant la réception',
-  2: 'cas 2 : arrêt au pire point sûr et au début du plat de lancement, doigt posé → passe, atterrit sur la réception',
+  2: 'cas 2 : arrêt au pire point sûr, doigt posé → passe, atterrit sur la réception',
+  '2-lancement': 'cas 2 : arrêt au début du plat de lancement, doigt posé → passe, atterrit sur la réception',
   3: 'cas 3 : lancée après bosses ou double-bosse (arrêt 60 m avant le lancement) → passe',
   4: 'cas 4 : choc simulé (8 m/s jusqu’à xElanStart) → passe',
   5: 'cas 5 : turbo pris à l’étoile d’élan → passe, atterrit avant la fin de la tranche',
@@ -48,14 +61,13 @@ export function scenariosFor(caseId: CaseId, track: Track, v: Volcano, cfg: Conf
     case 1:
       return [{ name: 'arrêt à xElanStart', x0: v.xElanStart, opts: base }];
     case 2:
-      return [
-        { name: 'pire point sûr (xLancement + 4,99)', x0: worstSafePoint(v, cfg), opts: base },
-        { name: 'début du plat de lancement', x0: v.xLancement, opts: base },
-      ];
+      return [{ name: 'pire point sûr (xLancement + 4,99)', x0: worstSafePoint(v, cfg), opts: base }];
+    case '2-lancement':
+      return [{ name: 'début du plat de lancement', x0: v.xLancement, opts: base }];
     case 3: {
       const i = track.slices.findIndex((s) => s.xStart === v.xLancement);
       const prev = i > 0 ? track.slices[i - 1] : undefined;
-      if (!prev || !(CASE3_PREVIOUS as readonly string[]).includes(prev.type)) return [];
+      if (!prev || !CASE3_PREVIOUS.includes(prev.type)) return [];
       const x0 = Math.max(v.xLancement - CASE3_BEFORE, prev.xStart);
       return [{ name: `lancée après ${prev.type} (arrêt ${(v.xLancement - x0).toFixed(1)} m avant)`, x0, opts: { ...base, maxSeconds: RUN_SECONDS + 10 } }];
     }
@@ -78,7 +90,7 @@ export function passesVolcano(r: RunResult, v: Volcano): boolean {
     && !r.flipped && r.wheelsBelow;
 }
 
-/** Assertions des cas 2 à 5 (détaillées pour le message) : `passesVolcano` plus la marge au sommet. */
+/** Assertions des cas 2 à 5 : celles de `passesVolcano`, une par une (messages lisibles), plus la marge au sommet. */
 export function expectPasses(r: RunResult, v: Volcano, where: string): void {
   expect(r.lava, where).toBe(false);
   expect(r.landX, where).not.toBeNull();
@@ -86,7 +98,6 @@ export function expectPasses(r: RunResult, v: Volcano, where: string): void {
   expect(Math.abs(r.landAngle), where).toBeLessThan(LANDING_MAX_ANGLE);
   expect(r.flipped, where).toBe(false);
   expect(r.wheelsBelow, where).toBe(true);
-  expect(passesVolcano(r, v), where).toBe(true);
   expect(r.lipSpeed, where).not.toBeNull();
   expect(r.lipSpeed!, where).toBeGreaterThanOrEqual(LIP_SPEED_THRESHOLD + 1);
 }
@@ -110,13 +121,15 @@ function record(stats: LipStats, r: RunResult, v: Volcano): void {
 }
 
 /**
- * Joue le cas sur les rampe-volcan de la piste du monde (le premier volcan seulement pour les cas à
- * trajectoire unique) et vérifie chaque run à 100 %. Renvoie les statistiques de vitesse au sommet.
+ * Joue le cas sur les rampe-volcan de la piste du monde (tous si `allVolcanoes`, le premier sinon ;
+ * jamais plus que le premier pour un cas à trajectoire unique) et vérifie chaque run à 100 %.
+ * Renvoie les statistiques de vitesse au sommet.
  */
-export function runCase(caseId: CaseId, seed: number, world: World, cfg: Config = CONFIG): LipStats {
+export function runCase(caseId: CaseId, seed: number, world: World, allVolcanoes: boolean, cfg: Config = CONFIG): LipStats {
   const stats = newStats();
   const { track } = world;
-  const volcanoes = FIRST_VOLCANO_CASES.includes(caseId) ? track.volcanoes.slice(0, 1) : track.volcanoes;
+  const all = allVolcanoes && !UNIQUE_TRAJECTORY_CASES.includes(caseId);
+  const volcanoes = all ? track.volcanoes : track.volcanoes.slice(0, 1);
   for (const v of volcanoes) {
     const scenarios = scenariosFor(caseId, track, v, cfg);
     if (scenarios.length) stats.volcanoes++;
@@ -135,10 +148,12 @@ export function runCase(caseId: CaseId, seed: number, world: World, cfg: Config 
 }
 
 /**
- * Déclare un test par (cas, graine) sur les mondes CONFIG, un test « au moins un run » pour le cas 3
- * (jamais un cas vide silencieux), puis imprime le tableau des vitesses au sommet à la fin du fichier.
+ * Déclare un test par (cas, graine) sur les mondes CONFIG, un test « au moins un motif » pour le cas 3
+ * (jamais un cas vide silencieux ; motifs comptés sur les pistes elles-mêmes), puis imprime le tableau
+ * des vitesses au sommet à la fin du fichier. `allVolcanoes` : cas joués sur tous les volcans de la
+ * graine (les autres sur le premier seulement).
  */
-export function registerVolcanoCases(seedsByCase: Record<CaseId, number[]>): void {
+export function registerVolcanoCases(seedsByCase: Record<CaseId, number[]>, allVolcanoes: CaseId[]): void {
   const totals = Object.fromEntries(ALL_CASES.map((c) => [c, newStats()])) as Record<CaseId, LipStats>;
   const runsBySeed: Record<CaseId, Map<number, number>> = Object.fromEntries(ALL_CASES.map((c) => [c, new Map()])) as Record<CaseId, Map<number, number>>;
   for (const caseId of ALL_CASES) {
@@ -148,7 +163,7 @@ export function registerVolcanoCases(seedsByCase: Record<CaseId, number[]>): voi
       test.each(seeds)('seed %i', (seed) => {
         const world = worldFor(seed);
         expect(world.track.volcanoes.length).toBeGreaterThan(0);
-        const s = runCase(caseId, seed, world);
+        const s = runCase(caseId, seed, world, allVolcanoes.includes(caseId));
         runsBySeed[caseId].set(seed, s.runs);
         const t = totals[caseId];
         t.runs += s.runs;
@@ -158,8 +173,16 @@ export function registerVolcanoCases(seedsByCase: Record<CaseId, number[]>): voi
         t.landToEndMin = Math.min(t.landToEndMin, s.landToEndMin);
       });
       if (caseId === 3) {
-        test(`au moins un run sur les graines ${seeds.join(', ')}`, () => {
-          expect(totals[3].runs, `runs par graine : ${JSON.stringify([...runsBySeed[3]])}`).toBeGreaterThan(0);
+        test(`au moins un volcan précédé de ${CASE3_PREVIOUS.join(' ou ')} sur les graines ${seeds.join(', ')}`, () => {
+          const perSeed = seeds.map((seed) => {
+            const { slices, volcanoes } = trackFor(seed);
+            const vs = allVolcanoes.includes(3) ? volcanoes : volcanoes.slice(0, 1);
+            return vs.filter((v) => {
+              const i = slices.findIndex((s) => s.xStart === v.xLancement);
+              return i > 0 && CASE3_PREVIOUS.includes(slices[i - 1].type);
+            }).length;
+          });
+          expect(perSeed.reduce((a, b) => a + b, 0), `motifs par graine : ${perSeed.join(', ')}`).toBeGreaterThan(0);
         });
       }
     });

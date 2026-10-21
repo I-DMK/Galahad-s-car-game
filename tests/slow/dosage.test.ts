@@ -3,17 +3,20 @@
 // le premier volcan de la graine 0. Trois tableaux imprimés (silent: false) :
 //  (a) L_ELAN de 3 à 12 m au pas de 0,25 (cfg surchargé, piste regénérée) : cas 1 (arrêt à
 //      xElanStart) et cas 2 (pire point sûr) — vitesse au pied de la rampe, au sommet, issue,
-//      atterrissage ;
-//  (b) à CONFIG.L_ELAN, « doigt levé pendant T s puis gaz » : lancée à V_MAX depuis xLancement,
-//      relâche à xElanStart − 10 pendant T, puis doigt posé ;
+//      atterrissage, et xLava / xReception de la piste de la ligne ;
+//  (b) à CONFIG.L_ELAN, « doigt levé pendant T s puis gaz » : voiture lancée à V_MAX en xLancement
+//      (`launchSpeed`), relâche à xElanStart − 10 pendant T, puis doigt posé ;
 //  (c) à CONFIG.L_ELAN, arrêt complet à xElanStart − k.
 // Chaque ligne est poussée dans le tableau avant toute assertion. Assertion conservée : à
 // CONFIG.L_ELAN, le cas 1 tombe et le cas 2 passe. Puis bissection du seuil de franchissement au
-// sommet (LIP_SPEED_THRESHOLD) sur tous les volcans des graines 0 à 2, min / max imprimés.
+// sommet (LIP_SPEED_THRESHOLD) sur tous les volcans des graines 0 à 2, min / max imprimés, et deux
+// garde-fous : la plus grande vitesse qui tombe reste sous LIP_SPEED_THRESHOLD + 0,5 et à plus de
+// 0,5 m/s sous la vitesse au sommet la plus basse du cas 2 (pire point sûr et début du plat de
+// lancement, mêmes volcans).
 import { CONFIG, type Config } from '../../src/config';
 import type { World } from '../../src/physics/world';
 import type { Volcano } from '../../src/track/types';
-import { expectFalls, expectPasses, passesVolcano, scenariosFor } from '../helpers/cases';
+import { expectFalls, expectPasses, passesVolcano, scenariosFor, type CaseId } from '../helpers/cases';
 import {
   LIP_SPEED_THRESHOLD, buildWorld, f1, f2, runFrom, worldFor, type RunResult,
 } from '../helpers/runs';
@@ -31,13 +34,16 @@ const RELEASE_SECONDS = [0, 0.5, 1, 1.5, 2, 2.5, 3, 4];
 const STOP_BEFORE_ELAN = [0, 1, 2, 3, 4, 6, 8, 10];
 const RUN_SECONDS = 20;
 /**
- * Le seuil est une bande, pas un nombre : la roue arrière frappe l'arête du sommet 0 à 0,4 m après la
- * lecture de la vitesse et ce coup décide de la trajectoire ; la phase de rebond dépend du départ (roue
- * arrière posée sur le relief précédent quand on part de xLancement). Mesuré (roues bridées) : tombe
- * 9,54–10,26, passe 9,84–10,47 m/s. Le haut de la bande doit rester sous LIP_SPEED_THRESHOLD + tolérance,
- * elle-même sous la marge +1 m/s exigée du cas 2.
+ * Le seuil est une bande qui se chevauche, pas un nombre : la roue arrière frappe l'arête du sommet 0 à
+ * 0,4 m après la lecture de la vitesse et ce coup décide de la trajectoire ; la phase de rebond dépend
+ * du départ (roue arrière posée sur la tranche précédente quand on part de xLancement). Mesuré (roues
+ * bridées, 15 volcans des graines 0 à 2) : chute observée jusqu'à 10,26 m/s, passage dès 9,84 (tombe
+ * 9,54–10,26, passe 9,84–10,47). Marge réelle du cas 2 contre la pire chute : 11,18 − 10,26 ≈ 0,9 m/s
+ * (11,18 = départ à xLancement ; pire point sûr : 11,73).
  */
 const BAND_TOLERANCE = 0.5;
+/** Écart minimal exigé entre la plus grande vitesse qui tombe et la plus basse du cas 2. */
+const CASE2_MARGIN = 0.5;
 
 const outcome = (r: RunResult, v: Volcano): string => (r.lava ? 'lave ' : passesVolcano(r, v) ? 'passe' : 'autre');
 const cell = (r: RunResult, v: Volcano): string =>
@@ -52,22 +58,22 @@ const firstVolcano = (world: World): Volcano => {
 describe(`(a) L_ELAN de ${L_ELAN_FROM} à ${L_ELAN_TO} m au pas de ${L_ELAN_STEP}, premier volcan de la graine ${TABLE_SEED}`, () => {
   const rows: string[] = [];
   test.each(L_ELANS)('L_ELAN = %s m', (lElan) => {
-    const cfg: Config = { ...CONFIG, L_ELAN: lElan };
-    const world = buildWorld(TABLE_SEED, cfg);
+    const isConfig = Math.abs(lElan - CONFIG.L_ELAN) < 1e-9;
+    const cfg: Config = isConfig ? CONFIG : { ...CONFIG, L_ELAN: lElan };
+    const world = isConfig ? worldFor(TABLE_SEED) : buildWorld(TABLE_SEED, cfg);
     const v = firstVolcano(world);
     const [c1] = scenariosFor(1, world.track, v, cfg);
     const [c2] = scenariosFor(2, world.track, v, cfg);
     const r1 = runFrom(world, c1.x0, c1.opts);
     const r2 = runFrom(world, c2.x0, c2.opts);
-    const isConfig = Math.abs(lElan - CONFIG.L_ELAN) < 1e-9;
-    rows.push(`L_ELAN ${lElan.toFixed(2).padStart(5)} m | cas 1 : ${cell(r1, v)} | cas 2 : ${cell(r2, v)}${isConfig ? '  ← CONFIG' : ''}`);
+    rows.push(`L_ELAN ${lElan.toFixed(2).padStart(5)} m (lave ${f1(v.xLava)}, réception ${f1(v.xReception)}) | cas 1 : ${cell(r1, v)} | cas 2 : ${cell(r2, v)}${isConfig ? '  ← CONFIG' : ''}`);
     if (isConfig) {
       expectFalls(r1, v, `cas 1 à CONFIG.L_ELAN : ${cell(r1, v)}`);
       expectPasses(r2, v, `cas 2 (pire point sûr) à CONFIG.L_ELAN : ${cell(r2, v)}`);
     }
   });
   afterAll(() => {
-    console.log(`(a) tableau de dosage, graine ${TABLE_SEED}, lave à ${f1(firstVolcano(worldFor(TABLE_SEED)).xLava)}, réception à ${f1(firstVolcano(worldFor(TABLE_SEED)).xReception)}\n${rows.join('\n')}`);
+    console.log(`(a) tableau de dosage, graine ${TABLE_SEED}\n${rows.join('\n')}`);
   });
 });
 
@@ -82,11 +88,11 @@ describe(`(b) à CONFIG.L_ELAN (${CONFIG.L_ELAN} m) : lancée à V_MAX, doigt le
       if (releasedAt === null && x >= xRelease) releasedAt = t;
       return releasedAt === null || t >= releasedAt + T;
     };
-    const r = runFrom(world, v.xLancement, { throttle, maxSeconds: RUN_SECONDS, volcano: v });
+    const r = runFrom(world, v.xLancement, { throttle, launchSpeed: CONFIG.V_MAX, maxSeconds: RUN_SECONDS, volcano: v });
     rows.push(`T ${T.toFixed(1)} s | ${cell(r, v)}`);
     expect(r.lipSpeed).not.toBeNull();
   });
-  afterAll(() => console.log(`(b) doigt levé T s puis gaz, graine ${TABLE_SEED}\n${rows.join('\n')}`));
+  afterAll(() => console.log(`(b) lancée à V_MAX, doigt levé T s puis gaz, graine ${TABLE_SEED}\n${rows.join('\n')}`));
 });
 
 describe(`(c) à CONFIG.L_ELAN (${CONFIG.L_ELAN} m) : arrêt complet à xElanStart − k, doigt posé`, () => {
@@ -103,13 +109,17 @@ describe(`(c) à CONFIG.L_ELAN (${CONFIG.L_ELAN} m) : arrêt complet à xElanSta
 });
 
 describe('bissection du seuil de franchissement au sommet (LIP_SPEED_THRESHOLD)', () => {
-  test(`sur tous les volcans des graines ${SEEDS.join(', ')} : la plus grande vitesse qui tombe est < ${LIP_SPEED_THRESHOLD} + ${BAND_TOLERANCE} m/s`, () => {
+  test(`sur tous les volcans des graines ${SEEDS.join(', ')} : la plus grande vitesse qui tombe est < ${LIP_SPEED_THRESHOLD} + ${BAND_TOLERANCE} m/s et < sommet du cas 2 − ${CASE2_MARGIN}`, () => {
     const falls: number[] = [];
     const passes: number[] = [];
+    const case2: number[] = [];
     const lines: string[] = [];
     for (const seed of SEEDS) {
       const world = worldFor(seed);
       for (const v of world.track.volcanoes) {
+        for (const c of [2, '2-lancement'] as CaseId[]) {
+          for (const sc of scenariosFor(c, world.track, v)) case2.push(runFrom(world, sc.x0, sc.opts).lipSpeed ?? NaN);
+        }
         // Norme de la vitesse ramenée à `cap` jusqu'au sommet, roues bridées au roulement (sinon la roue
         // arrière pousse encore sur l'arête après la lecture : bande « tombe » jusqu'à 10,13 m/s mesurée
         // roues libres). Bissection sur `cap`, lecture de lipSpeed (dernier pas libre).
@@ -130,11 +140,13 @@ describe('bissection du seuil de franchissement au sommet (LIP_SPEED_THRESHOLD)'
         passes.push(hi.lip);
       }
     }
-    const band = `tombe : ${f2(Math.min(...falls))}–${f2(Math.max(...falls))} ; passe : ${f2(Math.min(...passes))}–${f2(Math.max(...passes))}`;
+    const case2Min = Math.min(...case2);
+    const band = `tombe : ${f2(Math.min(...falls))}–${f2(Math.max(...falls))} ; passe : ${f2(Math.min(...passes))}–${f2(Math.max(...passes))} ; `
+      + `cas 2 au sommet ≥ ${f2(case2Min)} (marge ${f2(case2Min - Math.max(...falls))} m/s contre la pire chute)`;
     console.log(`bissection du seuil (LAVA_MARGIN ${CONFIG.LAVA_MARGIN}, capteur +${CONFIG.LAVA_SENSOR_ABOVE_RIM} m, ${falls.length} volcans)\n${lines.join('\n')}\n→ ${band} ; LIP_SPEED_THRESHOLD = ${LIP_SPEED_THRESHOLD}`);
     expect(falls.length).toBeGreaterThan(0);
+    expect(case2.every(Number.isFinite), band).toBe(true);
     expect(Math.max(...falls), band).toBeLessThan(LIP_SPEED_THRESHOLD + BAND_TOLERANCE);
-    expect(Math.min(...falls), band).toBeLessThan(LIP_SPEED_THRESHOLD);
-    expect(Math.min(...passes), band).toBeGreaterThan(Math.min(...falls));
+    expect(Math.max(...falls), band).toBeLessThan(case2Min - CASE2_MARGIN);
   });
 });
