@@ -7,6 +7,11 @@ export interface Volcano {
   xLancement: number;
   /** Début du plat d'élan (L_ELAN) = xLancement + LANCEMENT_LENGTH. */
   xElanStart: number;
+  /**
+   * Pied de la rampe rectiligne d'origine (fin nominale du plat d'élan). Avec le congé (RAMP_FOOT_RADIUS,
+   * tâche 5c), le sol se relève dès xRampStart − R tan(RAMP_ANGLE / 2) (≈ 1,94 m avant, plat réel
+   * L_ELAN − 1,94) et rejoint la rampe rectiligne ≈ 1,80 m après ; en xRampStart il est à ≈ 0,19 m.
+   */
   xRampStart: number; xLip: number; lipY: number;
   xLava: number; lavaWidth: number; rimY: number; xReception: number; xEnd: number;
 }

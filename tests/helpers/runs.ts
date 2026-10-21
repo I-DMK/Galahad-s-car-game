@@ -32,7 +32,9 @@ export const DEG = Math.PI / 180;
  * 12,66, départ à xLancement). Avant le congé, des chutes doigt posé étaient mesurées jusqu'à 11,44 m/s :
  * c'est la direction de la vitesse au sommet (≈ 14° au lieu de ≈ 21°, voiture qui survole la rampe
  * après un rebond au pied) qui décidait ; l'échantillonnage des phases (tests/slow/phases.test.ts) le
- * surveille : 0 chute sur 2 924 historiques, garde minimale 1,72 m au-dessus du capteur.
+ * surveille : 0 chute sur 2 924 + 4 601 historiques (turbo dense, tests/slow/phases-dense.test.ts),
+ * garde minimale 0,63 m au-dessus du capteur en fin de turbo au pied (lancée à V_MAX, turbo pris à
+ * xLancement − 26, doigt posé ; g0 v2 et g8 v3), 1,72 m hors fin de turbo ; garde ≥ 0,3 m assertée.
  */
 export const LIP_SPEED_THRESHOLD: number = CONFIG.V_JUMP;
 /** |angle du châssis| maximal à l'atterrissage (cas 2 à 5, cratère). */
@@ -222,7 +224,10 @@ export interface RunResult {
   maxStuck: number;
   /** Vitesse (m/s) au premier pas où le châssis passe xLip du volcan visé, null si jamais atteint. */
   lipSpeed: number | null;
-  /** Vitesse (m/s) au premier pas où le châssis passe xRampStart (pied de la rampe), null sinon. */
+  /**
+   * Vitesse (m/s) au premier pas où le châssis passe xRampStart (pied nominal de la rampe), null sinon.
+   * Avec le congé (tâche 5c), ce point est sur la courbe, ≈ 0,19 m plus haut, 1,94 m après son début.
+   */
   rampSpeed: number | null;
   /** Durée du run (s). */
   seconds: number;

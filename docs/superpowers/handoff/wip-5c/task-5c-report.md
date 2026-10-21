@@ -98,7 +98,7 @@ Lecture :
 - **(a)** ne change que la descente après le sommet. Le saut reste aussi plat (13,8–13,9°), il est simplement un peu moins puni.
 - **(b)** rapproche la lave. La garde du 1 % le plus bas passe de 0,96 à 1,21 m, mais les sauts les plus plats touchent encore.
 - **(c)** fait pire. Une suspension plus raide transmet le coup du pied de rampe au châssis : 150 chutes, sur tous les volcans.
-- **(d)** traite la cause. La voiture reste collée à la rampe (écart roue arrière moyen médian 0,07 m au lieu de 0,12) et garde sa motricité (sommet médian 13,03 m/s au lieu de 12,50). Elle décolle toujours entre 18,3 et 26,5°. **Aucune chute, et le saut le plus juste passe encore à 1,72 m au-dessus de la lave.**
+- **(d)** traite la cause. La voiture reste collée à la rampe (écart roue arrière moyen médian 0,07 m au lieu de 0,12) et garde sa motricité (sommet médian 13,03 m/s au lieu de 12,50). Elle décolle toujours entre 18,3 et 26,5°. **Aucune chute.** Sur ces 2 924 historiques, le saut le plus juste passe à 1,72 m au-dessus de la lave. *Rectifié au tour 1 :* ce n'est pas la garde minimale du jeu. En fin de turbo au pied, elle tombe à **0,63 m** (voir « Tour de correction 1 »).
 
 ### 4.2 Cas 1 à 7 de la tâche 4, sous chaque candidat
 
@@ -129,8 +129,9 @@ Pour (d), le cas 7 de la graine 8 tombe deux fois au même volcan, à la limite 
 
 | | référence | (a) | (b) | (c) | (d) |
 |---|---|---|---|---|---|
-| tableau (b) : volcans passés à T = 1 / 1,25 / 1,5 / 1,75 s | 43 / 43 / 18 / 0 | 43 / 43 / 18 / 0 | 43 / 43 / 40 / 0 | 43 / 1 / 0 / 0 | 43 / 43 / 41 / 0 |
-| doigt levé toléré par volcan, min / médiane | 1,25 / 1,25 s | 1,25 / 1,25 s | 1,25 / 1,5 s | **1 / 1 s** | 1,25 / 1,5 s |
+| tableau (b) : volcans passés à T = 1 / 1,25 / 1,5 / 1,75 s (*grille trop grossière, rectifiée au tour 1*) | 43 / 43 / 18 / 0 | 43 / 43 / 18 / 0 | 43 / 43 / 40 / 0 | 43 / 1 / 0 / 0 | 43 / 43 / 41 / 0 |
+| doigt levé toléré par volcan, min / médiane (grille de 0,25 s) | 1,25 / 1,25 s | 1,25 / 1,25 s | 1,25 / 1,5 s | **1 / 1 s** | 1,25 / 1,5 s |
+| *tour 1, pas de 0,05 s, au sens strict : médiane / moyenne* | *1,45 / 1,42 s* | — | — | — | *1,25 / 1,32 s* |
 | rampes-saut (tests/rampes.test.ts, graines 0–4) | 152/152 | 152/152 (identiques) | 152/152 (identiques) | 152/152 (angle au contact max 8,4°, au lieu de 3,1°) | 152/152 (identiques) |
 | pas simulés des cas joués en CI (volcans) / rampes | 13 629 / 77 660 | 13 629 / 77 660 | 13 629 / 77 660 | 13 194 / 75 816 | 13 853 (+1,6 %) / 77 660 |
 | durée de `npm test` | **165,7 s MESURÉ** (323/323) | ≈ 165,7 s | ≈ 165,7 s | ≈ 163 s | ≈ 166–167 s |
@@ -146,13 +147,13 @@ Durées de `npm test` par candidat (SUPPOSÉ) : je n'ai rien changé dans `src/`
 | **(a) Sommet de la rampe arrondi** | Rien de visible au départ du saut : seule la pente qui suit le sommet devient arrondie. La voiture saute exactement pareil, et le défaut, la voiture qui « décolle trop plat », reste. | Oui, 2 fois sur 2 924 (contre 4 aujourd'hui). | Insuffisant. |
 | **(b) Lave rapprochée (marge 0,75)** | La lave est 80 cm plus près du tremplin, donc tous les sauts sont un peu plus faciles. Lever le doigt juste avant un volcan pardonne un peu plus. S'arrêter 1,5 m avant le début du plat d'élan ne fait plus tomber, alors qu'aujourd'hui si. | Oui, 2 fois sur 2 924. Les sauts « ratés » restent ratés, la lave est juste plus près. | Insuffisant seul ; rend le jeu plus facile. |
 | **(c) Suspension plus amortie** | La voiture est plus raide. Elle encaisse plus mal le pied du tremplin et décolle de travers bien plus souvent. Un choc juste avant le volcan (cas 4) la fait tomber à tous les coups. | Oui, et beaucoup plus : 150 fois sur 2 924, sur tous les volcans. | **Rejeté** (le cas 4 casse). |
-| **(d) Bas du tremplin arrondi (congé de 10 m)** | Le tremplin du volcan commence en douceur, par une courbe au lieu d'un pli. La voiture monte collée à la rampe au lieu de rebondir au pied, et elle s'envole toujours dans le bon angle. Le reste ne change pas : s'arrêter devant le volcan fait toujours tomber, et lever le doigt plus d'environ 1,5 s juste avant aussi. | **Non : 0 sur 2 924.** Le saut le plus juste passe encore à 1,7 m au-dessus de la lave, contre 0 cm aujourd'hui. | **Recommandé.** |
+| **(d) Bas du tremplin arrondi (congé de 10 m)** | Le tremplin du volcan commence en douceur, par une courbe au lieu d'un pli. La voiture monte collée à la rampe au lieu de rebondir au pied, et elle s'envole toujours dans le bon angle. Le reste ne change pas : s'arrêter devant le volcan fait toujours tomber, et lever le doigt plus d'environ 1,3 s juste avant aussi (*rectifié au tour 1* : c'était écrit 1,5 s). Le jeu n'est pas plus facile. | **Non : 0 sur 2 924** (et 0 sur 4 601 en turbo dense, tour 1). Le saut le plus juste passe encore à 0,63 m au-dessus de la lave, en fin de turbo au pied (*rectifié au tour 1* : c'était écrit 1,7 m), contre 0 cm aujourd'hui. | **Recommandé.** |
 
 **Recommandation : (d), congé au pied de la rampe-volcan, R = 10 m.** Trois raisons.
 
-1. C'est le seul candidat qui supprime les chutes propres : 0 sur 2 924, au lieu de 4. Il le fait avec une marge (garde minimale de 1,72 m) et non au bord.
+1. C'est le seul candidat qui supprime les chutes propres : 0 sur 2 924, au lieu de 4. Il le fait avec une marge, et non au bord : garde minimale de 0,63 m en fin de turbo au pied (*rectifié au tour 1* : c'était écrit 1,72 m, valeur hors fin de turbo).
 2. Il corrige la cause mesurée, le rebond au pied de la rampe, et non un symptôme.
-3. Il garde tout ce que le papa a validé : le cas 1 (arrêt au pied → lave) et sa frontière à 1,5–2 m, le seuil de doigt levé (minimum 1,25 s, médiane 1,5 s, contre 1,25 s), les rampes-saut, les cas 2 à 7 et (i). La course doigt posé dure de 116,7 à 126,8 s, contre 118,1 à 126,5 s aujourd'hui.
+3. Il garde tout ce que le papa a validé : le cas 1 (arrêt au pied → lave) et sa frontière à 1,5–2 m, le seuil de doigt levé (*rectifié au tour 1*, pas de 0,05 s, au sens strict : médiane / moyenne 1,25 / 1,32 s, contre 1,45 / 1,42 s avec le pli ; pas plus facile), les rampes-saut, les cas 2 à 7 et (i). La course doigt posé dure de 116,7 à 126,8 s, contre 118,1 à 126,5 s aujourd'hui.
 
 Points d'attention, à vérifier au Step 3 :
 
@@ -228,7 +229,7 @@ Aucun push, aucune modification de `src/`.
 
 **Code (`src/`) :**
 
-- **`src/config.ts`** : nouvelle constante `RAMP_FOOT_RADIUS: 10`. Son commentaire cite la mesure : 4 chutes propres sur 2 924 avant, 0 après, garde minimale de −0,03 m avant et de 1,72 m après, tâche 5c. Les commentaires de `V_JUMP` et `LAVA_MARGIN` reprennent les nouvelles mesures.
+- **`src/config.ts`** : nouvelle constante `RAMP_FOOT_RADIUS: 10`. Son commentaire cite la mesure : 4 chutes propres sur 2 924 avant, 0 après, garde minimale de −0,03 m avant et de 1,72 m après, tâche 5c (*rectifié au tour 1* : 0,63 m en fin de turbo au pied). Les commentaires de `V_JUMP` et `LAVA_MARGIN` reprennent les nouvelles mesures.
 - **`src/track/slices.ts`, `rampeVolcan`** :
   - le congé est le comportement par défaut, sans option morte. L'arc concave est tangent au plat d'élan en xRampStart − R tan 11° (−1,94 m) et à la rampe en xRampStart − 1,94 + R sin 22° (+1,80 m) ;
   - le profil lève une erreur si le congé déborde du plat d'élan ou atteint le sommet ;
@@ -266,7 +267,7 @@ Aucun push, aucune modification de `src/`.
 **Échantillonnage des phases** (2 924 historiques, 43 volcans, graines 0 à 9) :
 
 - **0 chute**, 0 `autre` ;
-- garde au-dessus du capteur (min / p1 / p10 / médiane / p90 / max) : **1,72** / 1,92 / 2,21 / 2,76 / 3,69 / 5,69 m ;
+- garde au-dessus du capteur (min / p1 / p10 / médiane / p90 / max) : **1,72** / 1,92 / 2,21 / 2,76 / 3,69 / 5,69 m (*rectifié au tour 1* : sur ces familles seulement ; le minimum du jeu est 0,63 m, en fin de turbo au pied) ;
 - sommet : 12,04 / 12,44 / 12,71 / 13,03 / 13,65 / 20,10 m/s ;
 - direction au sommet : 18,3 / 18,8 / 19,4 / 20,8 / 22,8 / 26,5° ;
 - écart roue arrière–sol sur la rampe : 0,11 m (médiane du max) et 0,07 m (médiane du moyen).
@@ -296,7 +297,7 @@ Tous les cas exigeant une vitesse au sommet ≥ seuil + 1 la tiennent.
   - Tableau (c) : arrêt à xElanStart − k → lave pour k = 0 et 1, passage dès k = 2 (inchangé).
   - Tableau (b), premier volcan de la graine 0 : doigt levé 1,5 s → passe (10,41), 2 s → lave (9,48).
   - Tableau (a) : le cas 1 tombe jusqu'à L_ELAN 7,5 m. Il passe ensuite de 7,75 à 12 m, sauf à 9,25 m (lave). Avant, l'issue était chaotique dès 7,5 m.
-- **Tableau (b) sur les 43 volcans** (harnais) : doigt levé toléré minimum 1,25 s, médiane 1,5 s (1,25 s avant).
+- **Tableau (b) sur les 43 volcans** (harnais) : doigt levé toléré minimum 1,25 s, médiane 1,5 s (1,25 s avant). *Rectifié au tour 1 : artefact de la grille de 0,25 s. Au pas de 0,05 s, au sens strict : médiane / moyenne 1,25 / 1,32 s avec le congé, 1,45 / 1,42 s avec le pli.*
 - **Rampes-saut :** 152/152, identiques.
 
 **Courses à 5 voitures, doigt posé, graines 0 à 23 :**
@@ -342,3 +343,60 @@ Commits de la tâche 5c :
 - `25ba33f` : fix, phase 2.
 
 Aucun push.
+
+## Tour de correction 1 (relectures de docs/superpowers/handoff/wip-5c/relectures.md)
+
+Aucun changement de comportement du jeu : dans `src/`, seuls des commentaires changent. Décisions du papa appliquées : marge de 0,63 m gardée (ni `applyDrive` ni la physique ne changent), pas de levier de difficulté.
+
+### Chiffres rectifiés (MESURÉ)
+
+- **Garde minimale au-dessus du capteur : 0,63 m, pas 1,72 m.** Nouvelle famille « turbo dense » (`tests/slow/phases-dense.test.ts`) : lancée à V_MAX en xLancement − 40, − 45 et − 50, doigt posé, turbo pris à chaque mètre de [xLancement − 40 ; xLancement − 5], sur les 43 volcans des graines 0 à 9, soit 4 601 runs. Résultat : 0 chute, 0 `autre`. Garde min / p1 / p10 / médiane : **0,63** / 1,84 / 2,28 / 2,93 m.
+  - Le minimum est atteint, à l'identique, sur g0 v2 et g8 v3 : lancée en xLancement − 45, turbo à xLancement − 26. La voiture arrive au pied à 11,30 m/s et passe le sommet à 11,05 m/s, à 18,75°. On retrouve la mesure de l'adversaire.
+  - Viennent ensuite 0,68 m (g6 v1, turbo à − 27), 0,84 m et 0,96 m.
+  - La garde dépend aussi de l'écart entre le départ et le turbo. Avec le même turbo à − 26 et une lancée en − 50, elle vaut 2,06 m. D'où les trois départs.
+  - Assertions : tout passe, garde ≥ 0,3 m, et garde minimale < 1 m. Cette dernière vérifie que la famille sonde toujours le pire cas.
+- **Hors turbo dense**, la garde minimale vaut 1,72 m sur les 2 924 historiques (g7 v0, motif). Après la correction de `turboAt` (constat 5), elle vaut 1,81 m pour la famille turbo.
+- **Tableau (b) au pas de 0,05 s** (43 volcans, T de 0 à 2,5 s, `PHASES_PARTS=releases`). « Toléré au sens strict » désigne le plus grand T dont tous les T' ≤ T passent.
+
+  | | min | médiane | moyenne | max | plus grand T qui passe (méd. / max) |
+  |---|---|---|---|---|---|
+  | congé R = 10 m | 1,25 | **1,25** | **1,32** | 1,65 | 1,55 / 1,65 |
+  | pli (avant la 5c) | 1,30 | **1,45** | **1,42** | 1,55 | 1,55 / 1,60 |
+
+  - Ces chiffres sont identiques à ceux de l'adversaire.
+  - La frontière est chaotique. Sous congé, T = 1,30 s ne passe que sur 11 volcans sur 43, alors que T = 1,35 s passe sur les 43 : 36 volcans sur 43 ont un « trou » (un T qui tombe sous un T qui passe), sous congé comme avec le pli.
+  - Le « 1,25 → 1,5 s » de la phase 2 était un artefact de la grille de 0,25 s. **Le jeu n'est pas plus facile.**
+
+### Harnais durci
+
+- `expectAllPass` fait échouer toute issue autre que `passe` : `lave` et aussi `autre`. Il fait aussi échouer une garde NaN et une garde < 0,3 m.
+- Le témoin `pli` tourne par défaut dans `test:slow` : graines 0 et 6, familles sans turbo dense. Il asserte au moins une chute propre à plus de 10,5 m/s au sommet.
+- En mode `PHASES_MERGE`, la fusion échoue si l'échantillonnage d'un candidat ne couvre pas les graines 0 à 9.
+- `turboAt` est désormais tiré après le départ x0.
+- Les historiques « motif » et « turbo » sont rejouables à l'identique : leur état est remis à zéro au premier pas. Le test de l'observateur a révélé ce défaut.
+- `cases`, `releases`, `ramps` et `races` ne tournent plus par défaut. Ce sont des outils de mesure, sans assertion, à lancer via `PHASES_PARTS`.
+- Les statistiques des morceaux relus en JSON (NaN, ±Infinity) ignorent les valeurs non finies.
+- Courses à 5 voitures :
+  - 0 chute propre assertée pour toutes les voitures, en CI et en lent ;
+  - `lastContact` est remis à zéro à chaque respawn ;
+  - les en-têtes des fichiers `race-invariants-*` tiennent en une ligne ;
+  - l'origine de `lavaByCar.galahad === 0` est corrigée : tâche 5b, élargie aux graines 0 à 23 par la 5c.
+- Nouveau test CI `tests/observer.test.ts`, ≈ 6 s : `simulateRace` à 5 voitures sur 12 s, et `runFrom`, avec et sans observateur. Les résultats sont égaux.
+- `tests/slices.test.ts` : les deux assertions qui ne lisaient que les helpers lisent maintenant `p.heights`.
+- Le congé relève les ≈ 1,94 derniers mètres du plat d'élan. C'est documenté dans les commentaires de `L_ELAN`, `Volcano.xRampStart`, `dxRampStart` et `RunResult.rampSpeed`.
+
+### Constats non corrigés, avec leur justification
+
+- **code-review 7** (`carPairsTouching` à chaque pas de `fiveCarRace`) : gardé. C'est un parcours de `pairs.list` de plus, sur les ≈ 15 que fait déjà chaque pas. La relecture adversariale (§6) mesure `race-smoke` à 77,9 s en base contre 74,8 s en head.
+- **Mineur 3 de la relecture standard** (isoler la hausse de `npm test`) : déjà mesuré par l'adversaire, au §6 de la relecture. C'est du bruit de machine.
+- **Mineur 7 de la relecture standard** (cas 7 à la limite de 2 chutes par volcan) : ce seuil date de la tâche 4. Le cas 7 est hors de la promesse, puisque le doigt y est levé.
+
+### Vérifications (MESURÉ)
+
+- `npm run typecheck` : 0 erreur.
+- `npm test` : 29 fichiers, **331/331**, en 187 s. Le nouveau test de l'observateur prend ≈ 6 s.
+- `npm run test:slow` : 10 fichiers, **170/170**, en 652 s (10 min 52 s en temps réel).
+  - `phases` : 2 924 runs, 0 lave, 0 `autre`.
+  - Témoin `pli` : 3 chutes propres, à 11,18 m/s (g0 v3), 11,04 m/s (g0 v4) et 11,31 m/s (g6 v2).
+  - `phases-dense` : 4 601 runs en ≈ 5 min 20 sur un cœur.
+  - 5 voitures, graines 0 à 23 : 0 chute, 0 chute propre.

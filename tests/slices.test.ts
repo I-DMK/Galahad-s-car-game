@@ -175,7 +175,11 @@ describe('rampe-volcan : géométrie du profil', () => {
   const sharp = rampeVolcan(SHARP);
 
   test('plat de lancement et plat d\'élan à 0 sur [0, xRampStart − R tan(θ/2)], puis relevés par le congé sur leurs ≈ 1,94 derniers mètres', () => {
-    expect(v.dxRampStart - x1).toBeCloseTo(1.944, 3);
+    // Lu sur le profil : dernier échantillon à 0 avant le pied ≈ 1,94 m avant xRampStart (à un pas près).
+    const lastZero = p.heights.reduce((k, h, i) => ((i + 1) * S <= v.dxRampStart && h === 0 ? i : k), -1);
+    const xLastZero = (lastZero + 1) * S;
+    expect(v.dxRampStart - xLastZero).toBeGreaterThanOrEqual(1.944 - EPS);
+    expect(v.dxRampStart - xLastZero).toBeLessThan(1.944 + S);
     const kFlat = Math.floor(x1 / S + EPS);                 // échantillons 1..kFlat en x ≤ x1
     expect(kFlat).toBeGreaterThan(0);
     expect(p.heights.slice(0, kFlat).every((h) => h === 0)).toBe(true);
@@ -188,8 +192,12 @@ describe('rampe-volcan : géométrie du profil', () => {
       expect(h).toBeGreaterThan(0);
       expect(h).toBeCloseTo(arc(x), 9);
     }
-    // Au droit de l'ancien pli, le sol est relevé de R − √(R² − (R tan(θ/2))²) ≈ 0,19 m.
-    expect(arc(v.dxRampStart)).toBeCloseTo(0.191, 3);
+    // Au droit de l'ancien pli, le sol du profil (interpolé entre deux échantillons) est relevé de
+    // R − √(R² − (R tan(θ/2))²) ≈ 0,19 m.
+    const k = Math.floor(v.dxRampStart / S + EPS);          // échantillon en k × S ≤ xRampStart < (k + 1) × S
+    const w = v.dxRampStart / S - k;
+    const hFoot = (1 - w) * p.heights[k - 1] + w * p.heights[k];
+    expect(hFoot).toBeCloseTo(0.191, 2);
   });
 
   test('premier point de rampe : sur l\'arc du congé, au-dessus de l\'ancienne rampe rectiligne', () => {

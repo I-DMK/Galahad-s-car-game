@@ -134,7 +134,7 @@ export function rampeVolcan(cfg: Config): SliceProfile {
   const s = cfg.TRACK_POINT_SPACING;
   const tanR = Math.tan(cfg.RAMP_ANGLE);
   const tanM = Math.tan(cfg.MAX_SLOPE);
-  const dxRampStart = g.lLancement + g.lElan;              // fin des plats de lancement et d'élan
+  const dxRampStart = g.lLancement + g.lElan;              // pied nominal de la rampe rectiligne ; le congé relève le plat d'élan dès xFoot0 (≈ 1,94 m avant)
   const dxLip = dxRampStart + g.rampRun;
   const R = cfg.RAMP_FOOT_RADIUS;
   const xFoot0 = dxRampStart - R * Math.tan(cfg.RAMP_ANGLE / 2);   // tangence avec le plat d'élan

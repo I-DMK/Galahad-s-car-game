@@ -44,6 +44,12 @@ const RUN_SECONDS = 20;
  * posé jusqu'à 11,44 m/s (la voiture rebondissait au pied et décollait trop à plat, tâche 5c).
  * Tableau (a) avec le congé : cas 1 en lave jusqu'à L_ELAN 7,5 m, puis passe de 7,75 à 12 m sauf à
  * 9,25 m (lave) ; avant : issue chaotique dès 7,5 m.
+ * Tableau (b) sur les 43 volcans des graines 0 à 9, au pas de 0,05 s (tests/slow/phases.test.ts,
+ * PHASES_PARTS=releases) : doigt levé toléré au sens strict (plus grand T dont tous les T' ≤ T passent),
+ * médiane / moyenne 1,25 / 1,32 s avec le congé, 1,45 / 1,42 s avec l'ancien pli ; plafond 1,65 → 1,70 s
+ * (premier T où aucun volcan ne passe : 1,70 s avec le congé, 1,65 s sans) ; frontière chaotique
+ * (T = 1,30 s ne passe que 11 volcans sur 43 sous congé, alors que 1,35 s en passe 43). Le congé ne
+ * rend pas le jeu plus facile : la règle reste « pas plus d'≈ 1,3 s de doigt levé avant un volcan ».
  */
 const BAND_TOLERANCE = 0.5;
 /**

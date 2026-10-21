@@ -8,8 +8,16 @@
 //    doigt posé tout du long ;
 //  - « motif » : départ arrêté ≈ 40 m en amont, doigt levé par tranches de 0,25 s (tirage par graine,
 //    volcan et échantillon), doigt posé pour de bon dès xOn ∈ [xLancement − 15, xLancement] ;
-//  - « turbo » : comme « motif », plus un turbo (étoile) pris en un x tiré de [xLancement − 50,
-//    xElanStart − STAR_ELAN_OFFSET] : turbo actif, ou qui s'arrête, n'importe où sur l'approche.
+//  - « turbo » : comme « motif », plus un turbo (étoile) pris en un x tiré de [max(x0, xLancement − 50),
+//    xElanStart − STAR_ELAN_OFFSET] (toujours après le départ, voiture déjà en route) : turbo actif, ou
+//    qui s'arrête, n'importe où sur l'approche ;
+//  - « turbo dense » (tests/slow/phases-dense.test.ts) : lancée à V_MAX en xLancement − d, d ∈
+//    DENSE_LAUNCHES, doigt posé tout du long, turbo pris en chaque mètre de [xLancement − DENSE_FROM,
+//    xLancement − DENSE_TO] : la fin du turbo balaie la fin du plat de lancement, l'élan, le pied, la rampe
+//    et le sommet. C'est le pire cas mesuré : en fin de turbo, applyDrive ramène d'un coup ω à omegaMax,
+//    les roues freinent et la voiture arrive au pied à ≈ 11,3 m/s ; lancée en xLancement − 45, turbo
+//    pris à xLancement − 26 (fin au pied) : garde 0,63 m (g0 v2 et g8 v3). La garde dépend aussi de
+//    l'écart départ–turbo (même turbo, lancée en − 50 : 2,06 m), d'où plusieurs départs.
 // Mécanisme mesuré (sonde de la tâche 5c, chutes à 11,18 et 11,31 m/s au sommet) : la roue avant tape
 // le pli 0° → 22° du pied de rampe à V_MAX (14 → 12 m/s en deux pas, direction de la vitesse ≈ 29°),
 // la voiture décolle dès le pied et survole toute la rampe (écart roue–sol 0,3 à 0,4 m) sans la
@@ -51,20 +59,31 @@ export const LIFT_SLICE = 0.25;
 export const LIFT_SHARE = 0.4;
 /** Le doigt est posé pour de bon en xOn, tiré dans [xLancement − ON_BEFORE_MAX, xLancement]. */
 export const ON_BEFORE_MAX = 15;
-/** Turbo pris en un x tiré de [xLancement − TURBO_FROM, xElanStart − STAR_ELAN_OFFSET]. */
+/** Turbo pris en un x tiré de [max(x0, xLancement − TURBO_FROM), xElanStart − STAR_ELAN_OFFSET]. */
 export const TURBO_FROM = 50;
+/** Turbo dense : départs lancés à V_MAX en xLancement − d (d ∈ DENSE_LAUNCHES), turbo pris en xLancement − DENSE_FROM + j × DENSE_STEP ≤ xLancement − DENSE_TO. */
+export const DENSE_LAUNCHES = [40, 45, 50];
+export const DENSE_FROM = 40;
+export const DENSE_TO = 5;
+export const DENSE_STEP = 1;
+/** Garde minimale exigée au-dessus du capteur de lave (m), tous historiques (décision du papa, tâche 5c : 0,63 m mesurée, gardée). */
+export const MIN_CLEARANCE = 0.3;
 /** Taille par défaut de l'échantillon, par volcan. */
-export const DEFAULT_SIZES: SampleSizes = { perWindow: 8, motifs: 40, turbos: 12 };
+export const DEFAULT_SIZES: SampleSizes = { perWindow: 8, motifs: 40, turbos: 12, dense: false };
+/** Famille turbo dense seule (tests/slow/phases-dense.test.ts). */
+export const DENSE_SIZES: SampleSizes = { perWindow: 0, motifs: 0, turbos: 0, dense: true };
 /** Vitesse au sommet au-delà de laquelle une chute est « à grande vitesse » (vérification du protocole). */
 export const FAST_FALL_LIP_SPEED = 10.5;
 const RUN_SECONDS = 30;
+const EPS = 1e-9;
 /** Fenêtre du monde rogné autour d'un volcan (m). */
-const CROP_BEFORE = APPROACH + STAGGER_WINDOWS[1] + 15;
+const CROP_BEFORE = Math.max(APPROACH + STAGGER_WINDOWS[1], ...DENSE_LAUNCHES) + 15;
 const CROP_AFTER = 15;
 
-export interface SampleSizes { perWindow: number; motifs: number; turbos: number }
-export type Family = 'échelonné' | 'motif' | 'turbo';
-export const FAMILIES: Family[] = ['échelonné', 'motif', 'turbo'];
+/** `dense` : avec ou sans la famille « turbo dense ». */
+export interface SampleSizes { perWindow: number; motifs: number; turbos: number; dense: boolean }
+export type Family = 'échelonné' | 'motif' | 'turbo' | 'turbo dense';
+export const FAMILIES: Family[] = ['échelonné', 'motif', 'turbo', 'turbo dense'];
 
 // ——— Candidats ———
 
@@ -144,7 +163,7 @@ function admissible(track: Track, v: Volcano, x0: number): boolean {
 
 /**
  * Historiques du volcan d'indice `vi` : `perWindow` départs échelonnés par fenêtre, `motifs` motifs de
- * doigt, `turbos` motifs avec turbo. Un départ dans la zone d'un volcan précédent est décalé vers
+ * doigt, `turbos` motifs avec turbo, puis la famille « turbo dense » si `dense`. Un départ dans la zone d'un volcan précédent est décalé vers
  * l'aval par pas de 1 m jusqu'à être admissible (écarté s'il dépasse xLancement).
  */
 export function historiesFor(seed: number, vi: number, track: Track, cfg: Config, n: SampleSizes): History[] {
@@ -165,16 +184,25 @@ export function historiesFor(seed: number, vi: number, track: Track, cfg: Config
   }
   const patterned = (family: Family, fi: number, count: number) => {
     for (let k = 0; k < count; k++) {
-      const rng = mulberry32(sampleSeed(seed, vi, fi, k));
+      let rng = mulberry32(sampleSeed(seed, vi, fi, k));
       const x0 = fix(v.xLancement - APPROACH - k * STAGGER_STEP);
       if (x0 === null) continue;
       const xOn = v.xLancement - rng() * ON_BEFORE_MAX;
+      const turboFrom = Math.max(x0, v.xLancement - TURBO_FROM);
       const turboAt = family === 'turbo'
-        ? v.xLancement - TURBO_FROM + rng() * (v.xElanStart - cfg.STAR_ELAN_OFFSET - v.xLancement + TURBO_FROM)
+        ? turboFrom + rng() * (v.xElanStart - cfg.STAR_ELAN_OFFSET - turboFrom)
         : undefined;
-      const lifted: boolean[] = [];
+      // Les tranches de doigt sont tirées à la suite de xOn et turboAt ; état remis à zéro au premier pas
+      // (t = 0) : l'historique est rejouable à l'identique (tests/observer.test.ts).
+      const draws = turboAt === undefined ? 1 : 2;
+      let lifted: boolean[] = [];
       let on = false;
       const throttle = (t: number, x: number): boolean => {
+        if (t === 0) {
+          rng = mulberry32(sampleSeed(seed, vi, fi, k));
+          for (let d = 0; d < draws; d++) rng();
+          lifted = []; on = false;
+        }
         if (on || x >= xOn) { on = true; return true; }
         const slice = Math.floor(t / LIFT_SLICE);
         while (lifted.length <= slice) lifted.push(rng() < LIFT_SHARE);
@@ -187,6 +215,20 @@ export function historiesFor(seed: number, vi: number, track: Track, cfg: Config
   };
   patterned('motif', 1, n.motifs);
   patterned('turbo', 2, n.turbos);
+  const launches = n.dense ? [...new Set(DENSE_LAUNCHES.map((d) => fix(v.xLancement - d)))] : [];
+  let kd = 0;
+  for (const xDense of launches) {
+    if (xDense === null) continue;
+    for (let j = 0; v.xLancement - DENSE_FROM + j * DENSE_STEP <= v.xLancement - DENSE_TO + EPS; j++) {
+      const turboAt = v.xLancement - DENSE_FROM + j * DENSE_STEP;
+      if (turboAt <= xDense) continue;
+      out.push({
+        family: 'turbo dense', k: kd++, x0: xDense,
+        label: `turbo dense : lancée à V_MAX en xLancement − ${(v.xLancement - xDense).toFixed(2)}, doigt posé, turbo à xLancement − ${(v.xLancement - turboAt).toFixed(0)}`,
+        opts: { ...base, throttle: () => true, turboAt, launchSpeed: cfg.V_MAX },
+      });
+    }
+  }
   return out;
 }
 
@@ -286,7 +328,32 @@ export function samplePhases(seed: number, variant: Variant, n: SampleSizes = DE
   return out;
 }
 
-// ——— Cas 1 à 7 de la tâche 4, tableau (b), rampes-saut, sous un candidat ———
+// ——— Assertions ———
+
+/**
+ * Promesse (configuration actuelle) : tout historique passe le volcan et la garde au-dessus du capteur
+ * reste ≥ MIN_CLEARANCE. Une issue « autre » (pas d'atterrissage sur la réception, retournement,
+ * blocage, retombée sur le flanc ou dans la vallée) échoue aussi : jamais mesurée, elle contredirait la
+ * promesse autant qu'une chute. Renvoie l'échantillon de garde minimale.
+ */
+export function expectAllPass(samples: PhaseSample[], what: string): PhaseSample {
+  const bad = samples.filter((s) => s.outcome !== 'passe');
+  const finite = samples.filter((s) => Number.isFinite(s.clearance));
+  const worst = finite.reduce((a, s) => (s.clearance < a.clearance ? s : a), finite[0]);
+  console.log(`${what} : ${samples.length} runs, lave ${bad.filter((s) => s.outcome === 'lave').length}, autre ${bad.filter((s) => s.outcome === 'autre').length}`
+    + `${bad.length ? `\n  ${bad.map(describeSample).join('\n  ')}` : ''}\n  garde minimale : ${worst ? describeSample(worst) : '—'}`);
+  expect(samples.length).toBeGreaterThan(0);
+  expect(bad.map(describeSample)).toEqual([]);
+  // Une garde NaN = aucune pièce au-dessus du capteur après le sommet : impossible pour un run qui passe.
+  expect(samples.filter((s) => !Number.isFinite(s.clearance)).map(describeSample)).toEqual([]);
+  expect(worst.clearance, describeSample(worst)).toBeGreaterThanOrEqual(MIN_CLEARANCE);
+  return worst;
+}
+
+// ——— Outillage de mesure, à la demande (PHASES_PARTS) : rien n'y est asserté ———
+// Cas 1 à 7 de la tâche 4, tableau (b), rampes-saut, sous un candidat. Les assertions de ces cas sont
+// dans tests/volcans.test.ts, tests/slow/volcans-slow.test.ts, tests/rampes.test.ts et
+// tests/slow/finish.test.ts ; ici, seulement des tableaux imprimés pour comparer des candidats.
 
 export interface CaseRow { caseId: CaseId | 'i'; seed: number; vi: number; ok: boolean; lipSpeed: number; lava: boolean; detail: string; steps: number }
 
@@ -330,8 +397,13 @@ export function runCases(seed: number, variant: Variant): CaseRow[] {
   return rows;
 }
 
-/** Tableau (b) de la tâche 4 : lancée à V_MAX en xLancement, doigt levé T s à partir de xElanStart − 10, puis gaz. */
-export const RELEASE_SECONDS = [0, 0.5, 1, 1.25, 1.5, 1.75, 2, 2.5];
+/**
+ * Tableau (b) de la tâche 4 : lancée à V_MAX en xLancement, doigt levé T s à partir de xElanStart − 10,
+ * puis gaz ; T de 0 à 2,5 s au pas de 0,05 s (la grille au pas de 0,25 s de la phase 1 donnait une
+ * médiane de 1,5 s qui n'était qu'un artefact : relecture adversariale de la tâche 5c).
+ */
+export const RELEASE_STEP = 0.05;
+export const RELEASE_SECONDS = Array.from({ length: Math.round(2.5 / RELEASE_STEP) + 1 }, (_, i) => Math.round(i * RELEASE_STEP * 100) / 100);
 export interface ReleaseRow { seed: number; vi: number; T: number; ok: boolean; lava: boolean; lipSpeed: number }
 export function runReleases(seed: number, variant: Variant): ReleaseRow[] {
   const track = variantTrack(seed, variant);
@@ -439,10 +511,13 @@ export function summarize(samples: PhaseSample[]): string {
   for (const f of FAMILIES) {
     const fs = samples.filter((s) => s.family === f);
     const ff = fs.filter((s) => s.outcome === 'lave').length;
-    lines.push(`  ${f.padEnd(9)} : ${String(fs.length).padStart(5)} runs, lave ${String(ff).padStart(3)} (${pct(ff, fs.length)}), arrivée à xLancement ${dist(fs.map((s) => s.arrival))} m/s`);
+    if (!fs.length) continue;
+    lines.push(`  ${f.padEnd(11)} : ${String(fs.length).padStart(5)} runs, lave ${String(ff).padStart(3)} (${pct(ff, fs.length)}), arrivée à xLancement ${dist(fs.map((s) => s.arrival))} m/s, garde ${dist(fs.map((s) => s.clearance))} m`);
   }
   lines.push(`  volcans avec au moins une chute : ${new Set(falls.map((s) => `${s.seed}:${s.vi}`)).size} / ${volcanoes}`);
   lines.push(`  garde au-dessus du capteur de lave (m), tous runs : ${dist(samples.map((s) => s.clearance))}`);
+  const low = samples.filter((s) => Number.isFinite(s.clearance)).sort((a, b) => a.clearance - b.clearance).slice(0, 5);
+  if (low.length) lines.push(`  gardes les plus basses :\n    ${low.map(describeSample).join('\n    ')}`);
   lines.push('  par issue (min / p1 / p10 / médiane / p90 / max) :');
   for (const o of ['passe', 'lave', 'autre'] as Outcome[]) {
     const set = by(o);
@@ -513,8 +588,10 @@ export function variantReport(variant: Variant, shards: Shard[]): string {
       if (!rs.length) continue;
       const ko = rs.filter((c) => !c.ok);
       const margin = id === 1 || id === 'i' ? '' : `, sommet ≥ seuil + 1 : ${rs.filter((c) => c.lipSpeed >= LIP_SPEED_THRESHOLD + 1).length}/${rs.length}`;
-      const lo = Math.min(...rs.map((c) => c.lipSpeed));
-      const hi = Math.max(...rs.map((c) => c.lipSpeed));
+      // Les morceaux relus en JSON ont NaN et ±Infinity changés en null : on ne garde que les nombres finis.
+      const speeds = rs.map((c) => c.lipSpeed).filter(Number.isFinite);
+      const lo = Math.min(...speeds);
+      const hi = Math.max(...speeds);
       lines.push(`    cas ${String(id).padEnd(11)} : ${rs.length - ko.length}/${rs.length} tenus, sommet ${lo.toFixed(4)}–${hi.toFixed(4)} m/s (écart ${(hi - lo).toPrecision(2)})${margin}`
         + (ko.length ? ` ; NON TENUS : ${ko.map((c) => `g${c.seed} v${c.vi} ${c.detail} (sommet ${g2(c.lipSpeed)}, lave ${c.lava})`).join(' ; ')}` : ''));
     }
@@ -525,21 +602,26 @@ export function variantReport(variant: Variant, shards: Shard[]): string {
     lines.push('  tableau (b) : lancée à V_MAX, doigt levé T s depuis xElanStart − 10 (volcans passés / volcans) :');
     const volcanoes = [...new Set(releases.map((r) => `${r.seed}:${r.vi}`))];
     lines.push(`    ${RELEASE_SECONDS.map((T) => { const rs = releases.filter((r) => r.T === T); return `T ${T} s : ${rs.filter((r) => r.ok).length}/${rs.length}`; }).join(' ; ')}`);
-    const tolerated = volcanoes.map((key) => {
-      let tol = -1;
-      for (const T of RELEASE_SECONDS) {
-        const r = releases.find((x) => `${x.seed}:${x.vi}` === key && x.T === T)!;
-        if (!r.ok) break;
-        tol = T;
-      }
-      return tol;
+    const Ts = [...new Set(releases.map((r) => r.T))].sort((a, b) => a - b);
+    const per = volcanoes.map((key) => {
+      const rs = Ts.map((T) => releases.find((x) => `${x.seed}:${x.vi}` === key && x.T === T)!);
+      const firstKo = rs.findIndex((r) => !r.ok);
+      const strict = firstKo < 0 ? Ts[Ts.length - 1] : firstKo === 0 ? -1 : Ts[firstKo - 1];
+      const lastOk = Math.max(-1, ...rs.filter((r) => r.ok).map((r) => r.T));
+      return { key, strict, lastOk };
     });
-    lines.push(`    doigt levé toléré (plus grand T dont tous les T' ≤ T passent), par volcan : min ${Math.min(...tolerated)} s, médiane ${quantile(tolerated, 0.5)} s, max ${Math.max(...tolerated)} s`);
+    const strict = per.map((p) => p.strict);
+    const lastOk = per.map((p) => p.lastOk);
+    const mean = (xs: number[]) => xs.reduce((a, x) => a + x, 0) / xs.length;
+    lines.push(`    doigt levé toléré au sens strict (plus grand T dont tous les T' ≤ T passent), par volcan : min ${g2(Math.min(...strict))} / médiane ${g2(quantile(strict, 0.5))} / moyenne ${g2(mean(strict))} / max ${g2(Math.max(...strict))} s`);
+    lines.push(`    plus grand T qui passe (trous compris) : min ${g2(Math.min(...lastOk))} / médiane ${g2(quantile(lastOk, 0.5))} / moyenne ${g2(mean(lastOk))} / max ${g2(Math.max(...lastOk))} s ; `
+      + `volcans avec un trou (un T qui tombe sous un T qui passe) : ${per.filter((p) => p.lastOk > p.strict).map((p) => `${p.key} (${g2(p.strict)} → ${g2(p.lastOk)})`).join(', ') || 'aucun'}`);
   }
   if (ramps.length) {
     const ko = ramps.filter((r) => !r.ok);
-    lines.push(`  rampes-saut (scénarios de tests/rampes.test.ts) : ${ramps.length - ko.length}/${ramps.length} tenus, angle au contact max ${g2(Math.max(...ramps.map((r) => Math.abs(r.touchAngle))))}°, `
-      + `angle max après ${g2(Math.max(...ramps.map((r) => r.maxAngle)))}°, pas simulés ${ramps.reduce((a, r) => a + r.steps, 0)}`
+    const finiteMax = (xs: number[]) => Math.max(...xs.filter(Number.isFinite));
+    lines.push(`  rampes-saut (scénarios de tests/rampes.test.ts) : ${ramps.length - ko.length}/${ramps.length} tenus, angle au contact max ${g2(finiteMax(ramps.map((r) => Math.abs(r.touchAngle))))}°, `
+      + `angle max après ${g2(finiteMax(ramps.map((r) => r.maxAngle)))}°, pas simulés ${ramps.reduce((a, r) => a + r.steps, 0)}`
       + (ko.length ? ` ; NON TENUS : ${ko.map((r) => `g${r.seed} x ${r.x.toFixed(1)} ×${r.factor} ${r.scenario}`).join(' ; ')}` : ''));
   }
   if (races.length) {
