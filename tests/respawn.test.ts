@@ -136,15 +136,19 @@ describe('updateRespawnTimers', () => {
     expect(updateRespawnTimers(s, { ...all, onLava: false, speedMps: 10, y: 5 }, CONFIG)).toBe('flipped');
   });
 
-  describe('retournée dans l’élan ou sur la rampe (inElanZone) : flipped immédiat (addendum §1.6)', () => {
-    test('|angle| > SIDE_ANGLE au premier pas → flipped, sans délai', () => {
+  describe('retournée ou sur le flanc dans l’élan ou sur la rampe (inElanZone) : immédiat (addendum §1.6)', () => {
+    test('|angle| > FLIP_ANGLE au premier pas → flipped, sans délai', () => {
       expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 150 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
       expect(updateRespawnTimers(newState(), obs({ t: 10, angle: -150 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
-      // Sur le flanc (entre SIDE_ANGLE et FLIP_ANGLE) : aussi immédiat.
-      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 80 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
-      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: -80 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 180 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
       // L'angle est normalisé (−200° compte comme 160°).
       expect(updateRespawnTimers(newState(), obs({ t: 10, angle: -200 * DEG, inElanZone: true }), CONFIG)).toBe('flipped');
+    });
+
+    test('SIDE_ANGLE < |angle| ≤ FLIP_ANGLE au premier pas → side, sans délai (la raison reste vraie)', () => {
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: 80 * DEG, inElanZone: true }), CONFIG)).toBe('side');
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: -80 * DEG, inElanZone: true }), CONFIG)).toBe('side');
+      expect(updateRespawnTimers(newState(), obs({ t: 10, angle: CONFIG.FLIP_ANGLE, inElanZone: true }), CONFIG)).toBe('side');
     });
 
     test('|angle| ≤ SIDE_ANGLE dans l’élan → rien', () => {
@@ -164,11 +168,13 @@ describe('updateRespawnTimers', () => {
       expect(updateRespawnTimers(s2, obs({ t: 2.05, angle: 80 * DEG, inElanZone: false }), CONFIG)).toBe('side');
     });
 
-    test('la lave et la vitesse gardent la priorité sur le flipped immédiat', () => {
-      const all = obs({ t: 5, angle: 150 * DEG, inElanZone: true, onLava: true, speedMps: 100 });
+    test('priorité : lava > speed > underground > flipped immédiat', () => {
+      const all = obs({ t: 5, angle: 180 * DEG, inElanZone: true, onLava: true, speedMps: 100, y: 0, groundY: 5 });
       expect(updateRespawnTimers(newState(), all, CONFIG)).toBe('lava');
       expect(updateRespawnTimers(newState(), { ...all, onLava: false }, CONFIG)).toBe('speed');
-      expect(updateRespawnTimers(newState(), { ...all, onLava: false, speedMps: 10 }, CONFIG)).toBe('flipped');
+      expect(updateRespawnTimers(newState(), { ...all, onLava: false, speedMps: 10 }, CONFIG)).toBe('underground');
+      expect(updateRespawnTimers(newState(), { ...all, onLava: false, speedMps: 10, y: 5 }, CONFIG)).toBe('flipped');
+      expect(updateRespawnTimers(newState(), { ...all, onLava: false, speedMps: 10, y: 5, angle: 80 * DEG }, CONFIG)).toBe('side');
     });
   });
 });

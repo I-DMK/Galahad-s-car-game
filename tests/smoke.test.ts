@@ -35,6 +35,7 @@ describe('CONFIG', () => {
 
   it('points sûrs et respawn v2 (tâche 3) : marge de lancement, recul en fin de réception ; ELAN_SAFE_FRACTION retirée', () => {
     expect(CONFIG.SAFE_LANCEMENT_MARGIN).toBe(5);
+    expect(CONFIG.LANCEMENT_LENGTH).toBe(CONFIG.D_LANCE + CONFIG.SAFE_LANCEMENT_MARGIN);
     expect(CONFIG.RESPAWN_AFTER_VOLCANO_BACK).toBe(10);
     expect('ELAN_SAFE_FRACTION' in CONFIG).toBe(false);
   });

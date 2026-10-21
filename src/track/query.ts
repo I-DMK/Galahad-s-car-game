@@ -56,3 +56,12 @@ export function volcanoAhead(track: Track, x: number): Volcano | undefined {
 export function nearestVolcanoZone(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => x >= v.xLancement && x < v.xEnd);
 }
+
+/**
+ * Vrai si x est sur le plat d'élan ou la rampe d'un volcan, [xElanStart, xLip] bornes incluses
+ * (zone de réapparition immédiate d'une voiture retournée, addendum §1.6 ; au-delà du sommet,
+ * c'est la lave qui tranche).
+ */
+export function inElanZone(track: Track, x: number): boolean {
+  return track.volcanoes.some((v) => x >= v.xElanStart && x <= v.xLip);
+}

@@ -18,7 +18,7 @@ import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
 import { createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
-import { heightAt, slopeAt } from '../track/query';
+import { heightAt, inElanZone, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 
 export type SimEvent =
@@ -172,8 +172,7 @@ function observeAndRespawn(sim: RaceSim, throttle: boolean, onGround: [boolean, 
     groundY: heightAt(track, x),
     speedMps: carSpeedMps(car),
     onLava: sensorsTouching(world.engine, car.parts).some((b) => b.label === 'lava'),
-    // Plat d'élan et rampe seulement : au-delà du sommet, c'est la lave qui tranche.
-    inElanZone: track.volcanoes.some((v) => x >= v.xElanStart && x <= v.xLip),
+    inElanZone: inElanZone(track, x),
   }, cfg);
   if (reason === null) return;
   const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg);

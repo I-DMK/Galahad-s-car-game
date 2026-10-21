@@ -128,7 +128,10 @@ test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible pa
 });
 
 describe('voiture retournée (inElanZone calculé par le pas de course)', () => {
-  /** Voiture posée à l'envers (châssis à 180°, roues en l'air) en x, vitesses nulles. */
+  /**
+   * Voiture posée à l'envers (châssis à 180°, roues en l'air) en x, vitesses nulles. Pose
+   * volontairement grossière : seule l'orientation du châssis compte (les roues retombent ensuite).
+   */
   function placeFlipped(sim: RaceSim, x: number): void {
     placeCar(sim.car, x, h(track0), 0, CONFIG);
     const ground = heightAt(track0, x);
@@ -159,14 +162,16 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
     ['plat de lancement', (v: Volcano) => v.xLancement + 2],
     ['vallée (fond, pente nulle)', (v: Volcano) => v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5],
     ['hors volcan (plat de départ)', (_v: Volcano) => track0.xStart - 1],
-  ])('%s : pas de réapparition « flipped » avant FLIP_SECONDS', (_name, xOf) => {
+  ])('%s : réapparition seulement après ≥ FLIP_SECONDS, raison flipped ou side (délais inchangés)', (_name, xOf) => {
+    // La pose à l'envers ne tient pas > FLIP_ANGLE une seconde (les roues retombent) : en pratique
+    // 'side' à ≈ 2 s ; seule l'absence de réapparition immédiate est asservie ici.
     const sim = createRaceSim(track0, CONFIG);
     placeFlipped(sim, xOf(v0));
     const t0 = sim.time;
     const e = stepUntilRespawn(sim, false, Math.ceil(3 / DT));
     expect(e).toBeDefined();
     expect(['flipped', 'side']).toContain(e!.reason);
-    expect(e!.t - t0).toBeGreaterThan(CONFIG.FLIP_SECONDS - 1e-9);
+    expect(e!.t - t0).toBeGreaterThanOrEqual(CONFIG.FLIP_SECONDS);
   });
 });
 
