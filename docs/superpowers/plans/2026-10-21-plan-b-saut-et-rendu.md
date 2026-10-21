@@ -2,10 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. À chaque tâche : implémenteur frais, puis relecture standard + relecture adversariale par sous-agents frais **et** le skill `code-review` sur le diff de la tâche ; tours de correction (≤ 5) ; validation du papa ; passation mise à jour et commitée ; push.
 
-**Statut :** v1.2.
+**Statut :** v1.3.
 - v1 (04d458a) : brouillon.
 - v1.1 : tour de relecture 1 (standard, adversariale avec calculs physiques, rulings du coordinateur).
 - v1.2 : décisions du papa intégrées (registre 567ee13) et constats de la re-relecture.
+- v1.3 : vérification finale, sections 5e et 6.
+  - Placement des étoiles hautes revu : plats voisins fusionnés, élan et atterrissage autorisés hors du plat.
+  - Cible réaliste ≈ 1 étoile haute par course, seuil fixé sur mesure.
+  - Gain d'un saut sur pente chiffré.
+  - Fichiers complétés.
 
 En attente de la validation du papa sur le plan.
 
@@ -38,14 +43,14 @@ En attente de la validation du papa sur le plan.
 
 | # | Question | Décision | Effet dans le plan |
 |---|---|---|---|
-| P1 | Étoiles hautes : combien, et où ? | **En plus** des étoiles du curseur, seulement sur les plats éligibles. Les étoiles basses ne changent pas. | `STAR_HIGH_PER_RACE` (interrupteur, 0 = comme avant au bit près). Cible : 2 à 3 par course. Le nombre est validé par le papa avec le tableau de calibration. |
+| P1 | Étoiles hautes : combien, et où ? | **En plus** des étoiles du curseur, seulement sur les plats éligibles. Les étoiles basses ne changent pas. | `STAR_HIGH_PER_RACE` (interrupteur, 0 = comme avant au bit près). Le nombre par course est mesuré : la cible réaliste est ≈ 1 par course, pas 2 à 3, car les plats ne mesurent que 20 à 40 m. Le papa le valide avec le tableau de calibration. |
 | P2 | Un appui un peu trop tôt compte-t-il ? | **Oui**, mémoire de 0,1 s. | `JUMP_BUFFER: 0.1`, `CarState.jumpRequestedAt`. |
-| P3 | Sauter dans une montée : plus haut, ou pareil ? | **Même hauteur partout** : environ 2,5 m de plus que sans saut, quelle que soit la pente. | Formule d'`applyJump` ci-dessous ; l'addendum §1 est amendé. |
+| P3 | Sauter dans une montée : plus haut, ou pareil ? | **Même hauteur partout** : environ 2,5 m de plus que sans saut, quelle que soit la pente. | Formule d'`applyJump` ci-dessous ; l'addendum §1 est amendé. À dire au papa : au milieu d'une rampe-saut, le gain **ressenti** n'est que d'environ 1,5 m (2,5 − Δy·cos²θ), parce que la voiture sans saut aurait déjà décollé du tremplin. |
 | P4 | Caractère des copains pour sauter | **Tableau des traits gardé.** | Tâche 6. |
 | P5 | Montrer qu'un copain a pris une étoile ? | **Rien à l'écran.** | 5d : on dessine l'état vu par Galahad, sans signe. |
 
 Restent soumis au papa pendant l'exécution :
-- le tableau de calibration de la hauteur des étoiles hautes (5e, Step 8) ;
+- le tableau de calibration de la hauteur des étoiles hautes (5e, Step 9) ;
 - le nombre d'étoiles hautes par course (même tableau) ;
 - les validations de fin de tâche.
 
@@ -60,7 +65,7 @@ Toutes celles du plan v2.1 restent valables :
 En plus :
 
 - **Typecheck et `npm test` verts à chaque commit.** `tsconfig.json` inclut `tests/`, et `deploy.yml` lance `npm run typecheck` puis `npm test`. **Jamais de `.skip`.** Une API n'est retirée que dans le commit qui migre son dernier consommateur.
-- **Budget CI.** `npm test` reste sous 6 min mur sur le runner (≈ 3 min 05 ici, 329 tests). Simulations de course complète à 5 voitures, balayages et calibrations vont dans `tests/slow/` (`npm run test:slow`).
+- **Budget CI.** `npm test` reste sous 6 min mur sur le runner (≈ 3 min 05 ici, 331 tests). Simulations de course complète à 5 voitures, balayages et calibrations vont dans `tests/slow/` (`npm run test:slow`).
   - Chaque fichier lent a un budget écrit en tête, **moins de 30 min mur**.
   - On scinde les fichiers plutôt que de les allonger, puisque Vitest parallélise par fichier.
 - **Déterminisme.** Toute décision aléatoire vient d'un `mulberry32` dérivé d'une graine :
@@ -319,14 +324,16 @@ Le rejeu appelle **les mêmes** `runFrame`, `cameraTarget` et `Camera` que `Game
 - Modify (tests, **consommateurs de `CAT.CAR`**) :
   - `tests/car.test.ts:66-67` (catégorie et masque d'une pièce) et `:340-350` (masque invulnérable) ;
   - `tests/fantomes.test.ts:32-34` (`carBits`, `SOLID`) ;
-  - `tests/respawn-e2e.test.ts:178`, `:193` et `:254` (`masks`).
+  - `tests/respawn-e2e.test.ts:178`, `:193` et `:254` (`masks`) ;
+  - `tests/simulate.test.ts:125` (bit voiture du masque après la grille) ;
+  - `tests/world.test.ts:18`, **migration obligatoire** (corps de test filtré `category: CAT.CAR`) ;
+  - le commentaire de `src/sim/simulate.ts:227` (« toutes filtrées CAT.CAR »).
 
   Les tests qui lisent le bit « voiture » lisent désormais `& CAT.ALL_CARS` ; ceux qui lisent la catégorie lisent `carCategory(index)`.
 - Modify (tests, **consommateurs de l'état d'étoile**) :
   - `tests/turbo.test.ts` (l. 3 et 37–50, vers `isStarActiveFor`/`takeStarFor`/`newStarStates(…, n)`) ;
   - `tests/slow/stars-sim.test.ts` (l. 4 et 37–52, `takenAt[0]`) ;
   - `tests/simulate.test.ts` : en-tête « étoiles partagées » devient « étoiles par voiture ». **Le test l. 190, « une étoile prise par une voiture est inactive pour toutes : au même pas et au pas suivant », est inversé** en « … reste active pour les autres, inactive pour elle seule ».
-  - `tests/world.test.ts`, s'il lit les filtres du sol.
 - Modify (dépôt) : `.gitignore` gagne `tests/slow/out/`.
 - Test: `tests/stars-pour-tous.test.ts`, `tests/slow/rattrapage-0-23.test.ts`, `tests/slow/rattrapage-24-47.test.ts`, `tests/slow/race-invariants-*.test.ts` (relancés)
 
@@ -441,12 +448,12 @@ firstStar: { carId: string; t: number } | null;   // au même pas : la plus peti
     - en debug, `__game.jumps` et `__game.throttlePressed`.
   - `e2e/helpers.ts` : `tapJump`, `holdFingerAndTapJump`.
 - Modify (tests, **migration de `simulateRace` vers `src/sim/harness.ts`**, sans réexport, dans le même commit) :
-  - `tests/observer.test.ts:4`, `tests/simulate.test.ts`, `tests/race-smoke.test.ts`, `tests/fantomes.test.ts`, `tests/respawn-e2e.test.ts` ;
+  - `tests/observer.test.ts:4`, `tests/simulate.test.ts`, `tests/race-smoke.test.ts` ;
   - `tests/helpers/race.ts`, `runs.ts`, `phases.ts` ;
   - `tests/slow/*.test.ts`.
 - Modify (tests, **le type `Star` gagne `high`**) :
   - `tests/turbo.test.ts:38,43` : littéraux `Star` avec `high: false`.
-  - `tests/stars.test.ts` : filtrer `!s.high` aux l. 75, 100-103, 108-125, 198-208, 216-220 et 251-252 (« y − sol ≈ 0,6 », comptes 6 à 14, écarts du curseur, plancher). Les étoiles basses restent soumises à ces règles inchangées. La l. 204 (y d'une étoile d'élan) est couverte par le filtre de la l. 198.
+  - `tests/stars.test.ts` : filtrer `!s.high` aux l. 75, 100-103, 108-125, 130-134, 157, 198-208, 211, 216-220 et 251-252 (« y − sol ≈ 0,6 », comptes 6 à 14, écarts du curseur, plancher). Les étoiles basses restent soumises à ces règles inchangées. La l. 204 (y d'une étoile d'élan) est couverte par le filtre de la l. 198.
   - `tests/smoke.test.ts` : nouvelles constantes.
 
   Les bornes « 6 à 14 étoiles prises doigt posé » (`tests/race-smoke.test.ts:28-29`, `tests/helpers/phases.ts:485`, `tests/slow/finish.test.ts`) **ne changent pas** : les étoiles basses sont les mêmes et doigt posé ne prend jamais d'étoile haute.
@@ -465,8 +472,8 @@ JUMP_BUFFER: 0.1,                              // s : mémoire d'une demande pas
 JUMP_BUTTON_SIZE_PX: 150,                      // px CSS (≥ 140)
 STAR_HIGH_PER_RACE: 3,                         // au plus N étoiles hautes ajoutées par course ; 0 = étoiles d'avant la 5e, au bit près (décision P1)
 STAR_HIGH_Y: /* calibré au Step 8, départ 3,85 */,                 // m au-dessus du sol local (centre)
-STAR_HIGH_TAKEOFF_ROOM: /* calibré, départ 20 */,                  // m de plat éligible avant l'étoile (élan du saut)
-STAR_HIGH_LANDING_ROOM: /* calibré, départ 25 */,                  // m de plat éligible après l'étoile (atterrissage, turbo compris)
+STAR_HIGH_TAKEOFF_ROOM: /* calibré, départ 15 */,                  // m de terrain permis avant l'étoile (élan du saut), pas forcément du plat
+STAR_HIGH_LANDING_ROOM: /* calibré, départ 15 */,                  // m de terrain permis après l'étoile (atterrissage) ; le vol dure ≈ 2 s, soit ≈ 28 m à 14 m/s
 STAR_HIGH_GAP: 10,                                                 // m minimum entre une étoile haute et toute étoile basse
 STAR_HIGH_RAMP_CLEARANCE: /* calibré, départ 70 */,                // m après la fin d'une rampe-saut
 STAR_HIGH_BUMP_CLEARANCE: /* calibré, départ 12 */,                // m après la fin d'une bosses, double-bosse ou cratère
@@ -533,12 +540,26 @@ export function sensorHits(rec: { poses: CarPose[][] }, star: { x: number; y: nu
 
 **Étoiles hautes ajoutées (décision P1).** Étape 5 de `placeStars`, après l'étape 4 actuelle. Ses tirages viennent **après** tous les autres.
 
-1. **Segments éligibles.** On part des tranches `plat` hors plat de départ et hors plat d'arrivée, puis on retire :
+**Constat de la vérification finale** (calculé sur les graines 0 à 49) : une tranche `plat` mesure 20 à 40 m (`slices.ts:40`).
+
+| Règle d'élan et d'atterrissage | Étoiles hautes par course | Pistes avec au moins une étoile haute |
+|---|---|---|
+| 20 m d'élan + 25 m d'atterrissage, dans un seul plat | 0 | 0 / 50 |
+| Mêmes valeurs, plats voisins fusionnés | 0,36 | 16 / 50 |
+| 15 m + 15 m | 0,9 à 1,0 | 31 à 33 / 50 |
+| Élan et atterrissage permis hors du plat, hors rampes et dégagements | 1,1 à 1,4 | 34 à 40 / 50 |
+
+La règle retenue est la dernière. **La cible réaliste est donc ≈ 1 étoile haute par course**, pas 2 à 3. Le papa la valide au Step 9.
+
+1. **Segments éligibles (où l'étoile peut se trouver).** On part des tranches `plat` hors plat de départ et hors plat d'arrivée. **Les plats voisins sont fusionnés** en un seul segment. Puis on retire :
    - `STAR_HIGH_RAMP_CLEARANCE` après la fin de toute `rampe-saut` ;
    - `STAR_HIGH_BUMP_CLEARANCE` après la fin de toute `bosses`, `double-bosse` ou `cratère`. C'est le constat C2 : vols calculés de 3,6 m à 14 m/s, ≈ 8 m en turbo. Le cratère arrive en tâche 15.
 
    Les plats de lancement et de réception des volcans ne sont jamais des tranches `plat` : ils sont donc exclus d'office (ruling Q2).
-2. **Position candidate** : x tel que `[x − STAR_HIGH_TAKEOFF_ROOM, x + STAR_HIGH_LANDING_ROOM]` tient dans un segment éligible, et à au moins `STAR_HIGH_GAP` de toute étoile basse.
+2. **Position candidate.** x appartient à un segment éligible, à au moins `STAR_HIGH_GAP` de toute étoile basse, et `[x − STAR_HIGH_TAKEOFF_ROOM, x + STAR_HIGH_LANDING_ROOM]` est un **terrain permis**. Ce terrain peut déborder du plat sur une tranche voisine, sauf :
+   - une tranche `rampe-saut` ;
+   - une tranche `rampe-volcan` ;
+   - une zone de dégagement (clearance après une rampe-saut, une bosse, une double-bosse ou un cratère).
    - Par segment : une candidate au centre de l'intervalle admissible.
    - Si le centre est trop près d'une étoile basse : le point admissible le plus proche du centre.
    - Si aucun point n'est admissible : pas de candidate.
@@ -547,12 +568,12 @@ export function sensorHits(rec: { poses: CarPose[][] }, star: { x: number; y: nu
 
    Les ids des étoiles basses peuvent donc changer. Les tests repèrent les étoiles par `x` et par `high`, pas par `id`.
 
-**Tolérance du nombre par course** (cible 2 à 3, mesurée, validée par le papa au Step 8) :
+**Tolérance du nombre par course** (cible réaliste ≈ 1, mesurée, validée par le papa au Step 9) :
 - **par course** : 0 ≤ n ≤ `STAR_HIGH_PER_RACE` ;
-- **sur les graines 0 à 49** : moyenne dans [2 ; 3], au moins 45 pistes sur 50 avec au moins 1 étoile haute ;
+- **sur les graines 0 à 49** : moyenne et nombre minimal de pistes avec au moins une étoile haute, **seuils fixés au Step 9 à partir de la distribution mesurée et présentés au papa** ;
 - **étoiles basses** : x, y et nombre **identiques** à ceux de `STAR_HIGH_PER_RACE: 0`.
 
-Si la moyenne mesurée est sous 2, on présente au papa la distribution et les leviers (clearances, `TAKEOFF_ROOM`, `LANDING_ROOM`, `STAR_HIGH_GAP`). Rien n'est relâché en silence.
+Si la moyenne ou le nombre de pistes déçoit le papa, on lui présente la distribution et les leviers : clearances, `TAKEOFF_ROOM`, `LANDING_ROOM`, `STAR_HIGH_GAP`. Rien n'est relâché en silence.
 
 **Hauteur et fenêtre** (ordre de grandeur, relecture adversariale I9, calculé) :
 - Le châssis au repos est à ≈ sol + 0,70 m ; à l'apogée d'un saut depuis le plat, à ≈ sol + 3,2 m.
@@ -566,8 +587,8 @@ Conséquences :
 
 - [ ] **Step 0 : Décisions du papa consignées** (registre 567ee13) : P1 (b), P2 oui, P3 même hauteur partout. Rien à demander avant de commencer.
 - [ ] **Step 1 : Amender l'addendum** `docs/superpowers/specs/2026-10-21-bouton-saut-design.md`, avec des passages marqués « [plan] » :
-  - §1 : formule « même hauteur partout » ; mémoire `JUMP_BUFFER` de 0,1 s.
-  - §2 : étoiles hautes **ajoutées** (2 à 3 par course, au plus `STAR_HIGH_PER_RACE`), plats éligibles et clearances, étoiles basses inchangées. Le « environ 1 étoile du curseur sur 3 » et la ligne « Inchangés : nombre d'étoiles » sont réécrits.
+  - §1 : formule « même hauteur partout », avec la mention que le gain ressenti au milieu d'une rampe-saut n'est que d'≈ 1,5 m ; mémoire `JUMP_BUFFER` de 0,1 s.
+  - §2 : étoiles hautes **ajoutées** (≈ 1 par course, nombre validé sur mesure, au plus `STAR_HIGH_PER_RACE`), plats éligibles fusionnés, élan et atterrissage sur terrain permis, clearances, étoiles basses inchangées. Le « environ 1 étoile du curseur sur 3 » et la ligne « Inchangés : nombre d'étoiles » sont réécrits.
   - §4 : tests d'apogée sur pente, tolérance du nombre.
 
   Commit `docs: addendum bouton saut amendé (décisions du papa : étoiles hautes ajoutées, mémoire 0,1 s, même hauteur partout)`.
@@ -578,7 +599,7 @@ Conséquences :
       - Au pas du saut, on lit vy0 (vers le haut, > 0) et y0.
       - Attendu : `max(y) − y0 − vy0² / (2 g)` ∈ [2,25 ; 2,75], soit 2,5 m ± 10 % au-dessus du vol sans saut.
       - Contrôle : l'apogée mesuré est **très en dessous** de celui que donnerait « s'ajoute » (vy0 + JUMP_VY).
-    - **descente** : voiture sur la descente à 10° d'une `rampe-saut` (vy0 < 0). Attendu : `max(y) − y0` ∈ [2,25 ; 2,75].
+    - **descente** : voiture sur la descente à 10° d'une `rampe-saut`, à **vitesse lente imposée** (≈ 3 m/s, posée puis plafonnée par `speedCapUntil`) pour qu'elle reste au sol avant le saut (vy0 < 0). Attendu : `max(y) − y0` ∈ [2,25 ; 2,75].
     - **vx gardée** : à 14 m/s, vx avant = vx après `applyJump`, à 1e-9 près.
     - **au sol seulement (I4)** :
       - une demande 0,7 s après le décollage ne déclenche aucun `'jump'` et laisse vy inchangée ;
@@ -622,10 +643,11 @@ Conséquences :
   - `tests/helpers/recorded.ts` : `recordRace`, `sensorHits`.
   - Option `jump` de `simulateRace`.
   - `tests/high-stars-window.test.ts` commence par vérifier `flatJumpTrajectory` : apogée cohérent avec le Step 3, à 1 cm près.
-- [ ] **Step 7 : Tests de placement** (ROUGE, puis implémentation, puis VERT). Fichier `tests/high-stars.test.ts`, en CI, statique, graines 0 à 49, pistes de 1 680 m :
-  - tolérance ci-dessus ;
+- [ ] **Step 7 : Tests de placement** (ROUGE, puis implémentation, puis VERT). Fichier `tests/high-stars.test.ts`, en CI, statique, graines 0 à 49, pistes de 1 680 m. **Aucun seuil sur le nombre d'étoiles hautes à ce stade** : la moyenne et le nombre de pistes sont seulement imprimés, et leurs assertions arrivent au Step 10, après la calibration.
+  - 0 ≤ n ≤ `STAR_HIGH_PER_RACE` par piste ;
+  - plats voisins fusionnés : une étoile haute peut se trouver à cheval sur deux tranches `plat` consécutives (fixture) ;
   - aucune étoile haute hors d'une tranche `plat` éligible, ni dans les clearances, ni à moins de `STAR_HIGH_GAP` d'une étoile basse ;
-  - `[x − TAKEOFF_ROOM, x + LANDING_ROOM]` éligible pour chaque étoile haute ;
+  - `[x − TAKEOFF_ROOM, x + LANDING_ROOM]` est du terrain permis pour chaque étoile haute : ni rampe-saut, ni rampe-volcan, ni dégagement ;
   - aucune étoile haute dans `[xLancement, xLava]` ;
   - y = sol + `STAR_HIGH_Y` pour les hautes, sol + 0,6 pour les basses ;
   - déterminisme ;
@@ -640,7 +662,7 @@ Conséquences :
   |---|---|---|
   | `tests/slow/calibration-saut-sol.test.ts` | **(a) Garde au sol.** Galahad seul doigt posé, graines 0 à 9, une fois à `V_MAX`, une fois avec un turbo forcé 20 m avant chaque candidate (`turboBefore`). Pour chaque hauteur : distance minimale pièces–capteur, et prises. | < 10 min |
   | `tests/slow/calibration-saut-fenetres.test.ts` | **(b) Fenêtre.** Une trajectoire de saut sur le plat par vitesse (`flatJumpTrajectory` à 11,2 et 14 m/s ; 21 m/s pour information), puis fenêtre géométrique prédite pour chaque candidate des graines 0 à 9, puis **dichotomie des deux bords** en simulation réelle (`windowFor`, monde rogné `croppedWorld` de `tests/helpers/phases.ts`, ≈ 14 runs par étoile, par vitesse et par hauteur). On note la fenêtre (s), son centre en « temps avant l'étoile » (futur `JUMP_STAR_LEAD` de la tâche 6), et les respawns dans les 3 s après l'atterrissage. Hauteurs : 3,60 à 4,05 m au pas de 5 cm. | < 25 min |
-  | `tests/slow/calibration-saut-vols-0-11.test.ts`, `-12-23.test.ts` | **(c) Vols.** Une course enregistrée à 5 voitures, doigt posé, sans saut, par graine. Prises hors ligne pour chaque clearance candidate : rampe-saut {50, 60, 70, 80}, bosses {8, 12, 16}, `LANDING_ROOM` {20, 25, 30}. Nombre d'étoiles hautes par course pour chaque jeu de clearances. | < 25 min chacun |
+  | `tests/slow/calibration-saut-vols-0-11.test.ts`, `-12-23.test.ts` | **(c) Vols.** Une course enregistrée à 5 voitures, doigt posé, sans saut, par graine. Prises hors ligne pour chaque jeu candidat : rampe-saut {50, 60, 70, 80}, bosses {8, 12, 16}, `STAR_HIGH_TAKEOFF_ROOM` {10, 15, 20}, `STAR_HIGH_LANDING_ROOM` {10, 15, 20, 25}. Le placement est statique : il est recalculé pour chaque jeu, sans nouvelle simulation. Pour chaque jeu : nombre d'étoiles hautes par course (moyenne, minimum, maximum) et nombre de pistes sur 50 avec au moins une étoile haute. | < 25 min chacun |
 
   Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/calibration-saut-sol.test.ts tests/slow/calibration-saut-fenetres.test.ts tests/slow/calibration-saut-vols-0-11.test.ts tests/slow/calibration-saut-vols-12-23.test.ts`.
 - [ ] **Step 9 : Tableaux pour le papa**, qui choisit la hauteur et valide le nombre d'étoiles hautes par course.
@@ -649,14 +671,18 @@ Conséquences :
   |---|---|---|---|---|---|---|---|
   | 3,60 … 4,05 | | | | | | | |
 
-  | Jeu de clearances (rampe / bosse / atterrissage) | prises sans saut | étoiles hautes par course (moy., min, max) | pistes sans étoile haute |
-  |---|---|---|---|
+  | Jeu (rampe / bosse / élan / atterrissage, m) | prises sans saut | fenêtre min (s) | étoiles hautes par course (moy., min, max) | pistes avec ≥ 1 étoile haute / 50 |
+  |---|---|---|---|---|
 
   Joindre une capture d'une étoile haute vue de la tablette.
 
+  **Message au papa** : une piste a des plats courts (20 à 40 m), et un saut vole ≈ 28 m. La cible réaliste est donc **≈ 1 étoile haute par course**, pas 2 à 3 ; certaines pistes n'en auront aucune. Le papa choisit le jeu de réglages. Si le nombre lui paraît trop faible, on revient vers lui avec les leviers, sans rien relâcher en silence.
+
   **Recommandation** :
   - hauteur : la plus haute valeur où **toutes** les étoiles ont une fenêtre d'au moins 0,3 s aux **deux** vitesses (ruling Q4), y compris à +5 cm, avec 0 prise sans saut ; viser ≈ 0,4 s ;
-  - clearances : les plus petites qui donnent 0 prise sans saut.
+  - jeu de dégagements et de places : le plus permissif qui garde 0 prise sans saut, une fenêtre ≥ 0,3 s et 0 respawn à l'atterrissage.
+
+  **Seuils** : moyenne minimale et nombre minimal de pistes avec ≥ 1 étoile haute, fixés à partir de la distribution mesurée pour le jeu choisi (par exemple le 10e centile), validés par le papa.
 
   Les valeurs choisies vont dans `config.ts` avec un commentaire (mesures, sensibilité, recalibrage) et sont consignées au registre.
 - [ ] **Step 10 : Acceptation.**
@@ -664,7 +690,8 @@ Conséquences :
     - doigt posé sans saut, turbo compris, 5 voitures, graines 0 à 23 : **0** `'star'` sur une étoile haute (`highStarsByCar`), confirmé en simulation réelle et pas seulement hors ligne ;
     - même chose pour Galahad seul en turbo forcé, graines 0 à 9 ;
     - pour chaque étoile haute des graines 0 à 9 : fenêtre d'au moins 0,3 s à 11,2 et à 14 m/s, sans respawn (`windowFor`).
-  - `tests/high-stars-window.test.ts` (CI) : graine 1, première étoile haute, deux vitesses, fenêtre d'au moins 0,3 s.
+  - `tests/high-stars-window.test.ts` (CI) : graine 1 (ou la première graine 0 à 9 qui a une étoile haute), deux vitesses, fenêtre d'au moins 0,3 s.
+  - `tests/high-stars.test.ts` (CI) reçoit **les seuils validés au Step 9** (moyenne, pistes avec ≥ 1 étoile haute sur les graines 0 à 49).
   - `tests/slow/saut-volcan.test.ts` (< 15 min) :
     - doigt posé sans saut : 0 chute de Galahad (rappel de `race-invariants-*`) ;
     - **un saut mal placé peut faire tomber** : Galahad doigt posé depuis `xLancement`, saut demandé à chaque x de [xElanStart − 10, xLip] au pas de 0,5 m, premiers volcans des graines 0 à 4. Le test imprime la part de lave par position, et au moins une position doit tomber (saut §4).
@@ -788,7 +815,7 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 
 **Puissance des mesures (I7)** :
 - **Comparaison appariée par graine** : chaque graine est jouée deux fois, une fois avec les traits de saut de Pablo pour les 4 copains, une fois avec ceux de Timothée. Seul le trait change.
-- **Tentatives attendues** : avec 2 à 3 étoiles hautes par course, 4 copains et 48 graines, ≈ 300 à 450 tentatives en bras « Pablo » et ≈ 115 à 170 en bras « Timothée ».
+- **Tentatives attendues** : avec ≈ 1 étoile haute par course (5e, Step 9), 4 copains et 48 graines, on compte ≈ 150 tentatives dans le bras « Pablo » (4 × 48 × 0,8) et ≈ 58 dans le bras « Timothée » (4 × 48 × 0,3). C'est au-dessus du seuil de 40 : la mesure est valable.
 - **Seuil** : au moins 40 tentatives exigées par bras, sinon on passe à 96 graines (4 fichiers).
 
 - [ ] **Step 0 : Décisions du papa consignées** (registre 567ee13). Le tableau des traits est gardé (P4).
