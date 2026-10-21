@@ -42,6 +42,16 @@ sans le contexte de celle-ci.
   série, `LANCEMENT_LENGTH = D_LANCE + SAFE_LANCEMENT_MARGIN`. Trois
   relectures approuvées après deux tours ; 256/256 tests, e2e 5/5.
   **Validée par le papa**, poussée.
+- **Tâche 5a faite** (pilotes : `3f1f2c4`, `0df3b30`, `ae6d2f1`) :
+  `src/cars/pilots.ts` (6 copains, `GALAHAD`, `drawPilots(graine, 4)`
+  déterministe sans doublon, graine entière dans [0, 2³²) sinon
+  `RangeError`, entrées gelées). Palette : Pablo rouge, Matthis jaune
+  (fonceurs), Diego vert, Malo orange (moyens), Timothée blanc, Liam rose
+  (prudents) ; casques = nuance de la carrosserie (spec §7 « assorti »),
+  aucun copain bleu/cyan/violet (Galahad = « la voiture bleue »), contraste
+  ≥ 3:1 sur le ciel `#0a1030`. Trois relectures + `code-review`, deux tours
+  de correction ; 286/286 tests. **Validée par le papa** (couleurs et
+  caractères gardés), poussée.
 - Consignes de conteneur apprises : le push passe quand la session est en
   mode « accepter les modifications » (le mode auto le classe comme
   déploiement) ; vérifier `git status -sb` avant un push (HEAD détaché au
@@ -49,8 +59,8 @@ sans le contexte de celle-ci.
   sous-agent travaille dans l'arbre partagé.
 - Branche : `ccr-5b6fabc4-n96ofo` (branche par défaut, déploiement
   automatique à chaque push). Commits signés par le git config local du dépôt
-  (`Claude <noreply@anthropic.com>`) avec les trailers `Co-Authored-By:
-  Claude Fable 5.1` et `Claude-Session` de la session courante.
+  (`Claude <noreply@anthropic.com>`) avec les trailers `Co-Authored-By` et
+  `Claude-Session` fournis par la session courante.
 
 ## Réponses de Galahad encore à recueillir (ne bloquent pas)
 
@@ -68,7 +78,7 @@ sans le contexte de celle-ci.
 | 2 étoiles v2 (curseur global, étoiles d'élan, plancher 6, pas 60–100) | **faite, validée**, poussée |
 | 3 points sûrs et respawn v2 | **faite, validée**, poussée |
 | 4 simulations d'acceptation, suites lentes, balayage de dosage | **faite, validée, poussée** → gate tablette **fait** : « un peu facile », L_ELAN 6 conservé |
-| 5a pilotes | à faire |
+| 5a pilotes | **faite, validée**, poussée |
 | 5b course à 5 voitures, grille, chocs, respawn groupé | à faire → mesure fps du papa |
 | 6 conduite des robots | à faire |
 | 7 élastique (+ suite `test:slow:race`) | à faire |
@@ -101,8 +111,15 @@ sans le contexte de celle-ci.
   `npm run test:slow:race` (≈ 25 min).
 - Playwright 1.56.1, Chromium pré-installé (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`),
   `playwright.config.ts` existant (webServer `npm run dev`).
-- Les skills `superpowers:*` ne sont pas installés dans le conteneur : on en
-  applique la méthode telle que décrite ici et dans les plans.
+- Les skills `superpowers:*` et `code-review` étaient disponibles dans la
+  2e session du 2026-10-21 ; s'ils manquent, appliquer la méthode telle que
+  décrite ici et dans les plans.
+- Clone frais : `npm ci` d'abord. Le clone est superficiel (`--depth 1`) :
+  `git fetch origin ccr-5b6fabc4-n96ofo` avant un push.
+- Registre de travail des sous-agents (briefs, rapports, paquets de
+  relecture) : `.superpowers/sdd/2026-10-21-plan-b-copains-et-finitions/`
+  (ignoré par git, perdu avec le conteneur) ; ce qui compte est recopié dans
+  `sdd-ledger-plan-b.md`.
 
 ## Retour du test tablette (gate après la tâche 4)
 
@@ -113,7 +130,7 @@ après la tâche 5b : durcir `ENGINE_BRAKE` (levier continu, voir registre
 tâche 4) et, si le défi manque encore, proposer au papa d'avancer une part du
 plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 
-## Leçons de la session du 2026-10-21 (tâches 1 à 4)
+## Leçons des sessions du 2026-10-21 (tâches 1 à 5a)
 
 - Push : passe quand la session est en mode « accepter les modifications »
   (le mode auto le classe comme déploiement). Vérifier `git status -sb`
@@ -129,14 +146,33 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
   de relancer (le commit peut être fait).
 - Les sous-agents laissent des sondes `tests/zz-probe-*.test.ts` le temps de
   leur travail ; le hook d'arrêt les signale, c'est normal.
+- Le hook d'arrêt réclame aussi un push à chaque commit local : on ne pousse
+  qu'après la validation du papa (chaque push redéploie le site).
+- Couleurs (tâche 5a) : le critère du plan « ≥ 120 sur une composante RGB »
+  ne suffit pas à la lisibilité ; un aperçu rendu (PNG) des voitures a permis
+  au papa de trancher en un coup d'œil.
 
 ## Prochaine action précise
 
 1. Nouvelle session : lire cette passation, puis `sdd-ledger-plan-b.md`
-   (Progression, tâches 1 à 4 et gate), le registre du plan A (« Décisions
+   (Progression, tâches 1 à 5a et gate), le registre du plan A (« Décisions
    prises hors plan »), l'addendum v3.1 amendé [tâche 2] [tâche 4], le plan
    v2.1.
-2. Dispatcher la **tâche 5a** (pilotes) à un implémenteur frais (brief :
-   plan tâche 5a, addendum §2, contraintes globales, registres), puis
-   relectures standard + adversariale + `code-review`, tours de correction,
-   validation du papa, passation, push. Puis 5b (mesure fps du papa).
+2. Dispatcher la **tâche 5b** (course à 5 voitures, grille, chocs, respawn
+   groupé) à un implémenteur frais (brief : plan tâche 5b, addendum §2 et
+   §1.6, contraintes globales, registres), en lui portant les décisions de la
+   tâche 5a (registre, « Task 5a: à porter en 5b ») :
+   - le rendu dessine le casque en `helmet` (aujourd'hui `accent`,
+     `src/render/car.ts:31`) : ajouter `helmet` à `CarView` ;
+   - l'état de Galahad est construit depuis `GALAHAD` (source unique ;
+     `simulate.ts` lit aujourd'hui `cfg.GALAHAD_COLOR`) ;
+   - `pilotSeed` = entier de [0, 2³²) dérivé indépendamment de la graine de
+     piste (ex. `(seed ^ 0x9e3779b9) >>> 0`), sinon `drawPilots` lève ;
+   - l'index i de `drawPilots` est le robot de rang i + 1 (Galahad rang 0) ;
+   - `count = 4` : `ROBOT_COUNT` en CONFIG si la grille et le HUD en ont
+     besoin ;
+   - juger au rendu le contraste carrosserie/sol (orange, rose, vert, rouge).
+   Puis relectures standard + adversariale + `code-review`, tours de
+   correction, validation du papa, passation, push ; **le papa mesure le fps
+   à 5 voitures** (`?debug=1`) → décide la tâche 9, et rejuge la difficulté
+   (`ENGINE_BRAKE`, plan C).
