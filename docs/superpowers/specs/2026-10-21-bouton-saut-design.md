@@ -290,25 +290,27 @@ Les quatre contraintes :
   - hors de [15 %, 90 %] de la longueur cible ;
   - juste après un autre volcan (tremplin ou fosse) ;
   - juste après une **rampe-saut** (option (a) de la tâche 1 ; pour une fosse, c'est aussi la contrainte (a) : vol de 61 m à 21 m/s) ;
+  - juste après une **double-bosse**, pour un **tremplin** seulement (décision du papa, tour 1 de la 5g ; `TREMPLIN_AFTER_DOUBLE_BOSSE` = 0). Motif (relecture adversariale, MESURÉ) : un turbo pris ≈ 32 m avant la double-bosse finit pendant son vol, la voiture arrive au tremplin à ≈ 11,2 m/s au sommet et tombe doigt posé (3 chutes sur 1 568 runs, une seule trajectoire). Le type du volcan suivant est connu avant le tirage (alternance par rang, ci-dessus) : une fosse reste permise après une double-bosse ;
   - ces refus regardent la **dernière tranche tirée**, pas un plat étoile intercalé (§6.6) : sans cela, un plat étoile posé entre une rampe-saut et un volcan changerait les tirages suivants.
-- **Bosses et double-bosses avant une fosse** : permises. Le plat de garde de 20 m absorbe leur vol en turbo (§6.2 (a), mesuré). Pas de refus de plus, donc pas de tirage de plus.
+- **Bosses et double-bosses avant une fosse** : permises. Le plat de garde de 20 m absorbe leur vol en turbo (§6.2 (a), mesuré). Pas de refus de plus pour une fosse.
 - **Effet sur les pistes** (CALCULÉ, prototype, graines 0 à 49, 1 680 m, avec les 3 plats étoile du §6.6) :
   - volcans par course : 4,22 (2 à 6) aujourd'hui → **3,62 (2 à 5)**, dont 1,82 fosses (1 à 3) et 1,80 tremplins (1 à 3). Graines 0 à 19 : 3,70 (2 à 5). La baisse vient des 171 m de plats étoile, pris sur la fin de piste à longueur constante ;
   - tranches avant une fosse : bosses 37, double-bosse 26, plat 24, plat étoile 4 (91 fosses) ;
   - le test « 3 à 7 volcans par piste, graines 0 à 19 » devient « 2 à 7 volcans, dont au moins 1 fosse et au moins 1 tremplin dès 2 volcans ». Levier si le papa veut plus de volcans : le poids de tirage (3 → 4 donne 4,08, CALCULÉ), au prix d'un terrain plus changé. À dire au papa, sans question.
+  - avec « pas de tremplin juste après une double-bosse » (MESURÉ, `generateTrack`, graines 0 à 49) : volcans **3,16 (2 à 4)** au lieu de 3,64 (2 à 5), dont 1,60 fosses (1 à 2) et 1,56 tremplins (1 à 2) ; graines 0 à 19 : 3,15 (2 à 4). Un tremplin refusé est souvent remplacé par une autre tranche, et le volcan suivant arrive plus loin. Même levier (poids de tirage) si le papa veut revenir vers 3,6.
 
 ### 6.4 Points sûrs, respawn, fantômes
 
-- **Zone interdite aux points sûrs** : `forbiddenZone(v)` = [`xLancement + SAFE_LANCEMENT_MARGIN`, `xReception`) pour les deux types, sans changement de formule. Pour une fosse : de 5 m après le début de l'approche jusqu'au bord aval. Le plat de garde accepte les points sûrs.
+- **Zone interdite aux points sûrs** : `forbiddenZone(v)` = [`xLancement + SAFE_LANCEMENT_MARGIN`, fin) ; fin = `xReception` pour un tremplin, et pour une fosse **`xReception + WHEEL_BASE/2 + WHEEL_RADIUS + 0,3`** (≈ 1,5 m après le bord aval ; tour 1 de la 5g, relecture adversariale MESURÉE : un châssis posé entre le bord aval et + 1,25 m a sa roue arrière dans le capteur de lave, d'où une boucle de réapparitions ou une 2e chute comptée pour le volcan suivant). Pour une fosse : de 5 m après le début de l'approche jusqu'à ≈ 1,5 m après le bord aval. Vaut pour tous les appelants (points sûrs, `shiftTarget`, réapparitions groupées). Le plat de garde accepte les points sûrs.
 - **1re chute** : respawn au point sûr, à l'arrêt. Le pire point sûr laisse `D_LANCE` = 27,35 m de plat : (c) donne une fenêtre de 0,87 s (W = 8). Le retour au bord prend ≈ 3,6 s (CALCULÉ : 27,35 m depuis l'arrêt).
-- **Série** : `chooseRespawnTarget` est inchangé ; `volcanoAhead` trouve aussi les fosses (champ `xLava`). Seules les chutes dans la lave comptent ; toute autre raison remet la série à zéro (ruling de la tâche 3). Il y a donc **au plus 2 chutes par série**, pas « par fosse » : un retournement entre deux chutes ouvre une nouvelle série (jamais vu en 64 cas, MESURÉ (relecture)).
+- **Série** : comptée sur la lave **réellement touchée** (`nearestVolcanoZone` au x de la chute, sinon `volcanoAhead` ; tour 1 de la 5g), pas sur le volcan devant le point sûr ; `volcanoAhead` trouve aussi les fosses (champ `xLava`). Seules les chutes dans la lave comptent ; toute autre raison remet la série à zéro (ruling de la tâche 3). Il y a donc **au plus 2 chutes par série**, pas « par fosse » : un retournement entre deux chutes ouvre une nouvelle série (jamais vu en 64 cas, MESURÉ (relecture)).
 - **2e chute de suite : option B, choisie par le papa (Q-F2).** La voiture est posée à **bord aval + `FOSSE_RESPAWN_AFTER`** (5 m), à l'arrêt, au sol local, juste de l'autre côté.
   - Coût en temps d'une fosse ratée deux fois, contre un saut réussi :
     - option B : **≈ 4,3 à 4,6 s** (MESURÉ (relecture) sur le plat ; ma sonde : 4,77 s à + 3 m) ;
     - option A écartée, règle des tremplins (`xEnd − RESPAWN_AFTER_VOLCANO_BACK`, bord aval + 54,8 m) : ≈ 0,8 à 1,05 s sur le plat, et **≈ 2 s par fosse en course** (MESURÉ (relecture), 5 voitures, graines 1 et 4 : 6,2 s pour 3 fosses, 3,4 s pour 2), parce que la voiture posée loin saute aussi les étoiles de la réception.
   - Le respawn groupé de cette cible **avance** de 1,5 × `CAR_LENGTH` par voiture déjà posée, au lieu de reculer : reculer la ramènerait vers la lave. Même plafond de 4 décalages que `shiftTarget`.
   - Les tremplins gardent `xEnd − RESPAWN_AFTER_VOLCANO_BACK`.
-- **Respawn groupé** au point sûr : inchangé (`shiftTarget` recule, hors zone interdite et hors cratère).
+- **Respawn groupé** au point sûr : inchangé (`shiftTarget` recule, hors zone interdite et hors cratère). La zone interdite prolongée garantit qu'une cible posée après une fosse n'est jamais ramenée vers sa lave : elle reste au-delà du bord aval + 1,5 m, ou recule avant l'approche. Le sens « avance » ne sert qu'à l'option B.
 - **Fantômes** : `inGhostZone` vaut pour les deux types.
   - Tremplin : châssis dans [`xLancement`, `xReception` + `WHEEL_BASE/2` + `WHEEL_RADIUS`], inchangé.
   - **Fosse** : châssis dans [`xLancement`, bord aval + `FOSSE_GHOST_AFTER`], avec `FOSSE_GHOST_AFTER` = 40 m. C'est l'atterrissage le plus long mesuré (31,6 m ; 31,9 m MESURÉ (relecture)) plus une marge.
@@ -326,11 +328,13 @@ Les quatre contraintes :
 - **Pas d'étoile haute dans une tranche `fosse`**, ni au-dessus de la lave. `highStarTerrain` traite une fosse comme une `rampe-volcan` : ni étoile, ni élan, ni atterrissage d'un saut d'étoile.
   - Motif : à 3,90 m, une étoile au-dessus d'une fosse demande un saut à la fois parfait pour l'étoile (0,57 s) et pour la fosse. Rater l'un, c'est la lave. Elle pourrait servir de guide visuel « saute ici » : à proposer au plan C, après le test tablette.
 - **Pas d'étoile haute juste avant une fosse** : le plat étoile qui précède une fosse finit par ses 25 m d'atterrissage, et la fosse commence par 20 m de garde. Un saut d'étoile retombe donc avant l'approche (atterrissage au plus 27 m après l'étoile, en turbo).
+- **Pas d'étoile basse avant l'atterrissage, sur les réceptions** (demande du papa, 5g) : une étoile au début d'une réception était survolée doigt posé. Critère : aucune étoile basse du curseur avant l'atterrissage le plus long doigt posé, turbo compris, plus une marge. Le curseur ne compte la réception d'un tremplin qu'à partir de `xReception + STAR_TREMPLIN_LANDING` (55 m après le pied de la descente aval ; il reste ≈ 9,3 m), et celle d'une fosse qu'à partir de `xReception + STAR_FOSSE_LANDING` (22 m après le bord aval ; le trou de ± 5 m autour de l'étoile de réception porte le début à 30 m) ; l'étoile de réception (25 m) est au-delà. MESURÉ (5 voitures doigt posé, graines 0 à 23) : contact le plus loin 49,0 m (tremplin) et 17,1 m (fosse), 64 étoiles de réception sur 64 prises.
 - **Nombre d'étoiles basses** (graines 0 à 49) :
   - aujourd'hui : **9,02** (6 à 13 ; `PRE_5E_STARS` = 451 étoiles sur 50 pistes, MESURÉ) ;
   - fin de la 5e (plats étoile seuls), au pas **[55, 90]** : **8,72** (MESURÉ (relecture), prototype vérifié identique à `generateTrack`) ; au pas actuel [60, 100], 8,10 avec 1 piste sous le plancher (CALCULÉ) ;
   - 5g (fosses, étoile de réception, plats étoile), au pas **[50, 85]** : **8,52** (6 à 12, MESURÉ (relecture)) ; au pas [60, 100], 4 pistes sous le plancher (CALCULÉ).
-  - Choix : **[55, 90] en fin de 5e, puis [50, 85] en 5g**. C'est la règle de l'addendum plan B §1.5 : le pas bouge, la cible 8 à 12 et le test 6 à 14 restent.
+  - 5g avec les dégagements de réception : au pas [50, 85], 6,50 (4 à 9) ; au pas **[35, 58]**, **8,50** (5 à 12 ; graines 0 à 19 : 6 à 12), MESURÉ ; puis, avec « pas de tremplin juste après une double-bosse » (moins de volcans, donc moins d'étoiles d'élan et de réception), **8,12** (5 à 12 ; graines 0 à 19 : 8,35, 6 à 12), MESURÉ, pas gardé.
+  - Choix : **[55, 90] en fin de 5e, puis [35, 58] en 5g** (ruling du Step 7). C'est la règle de l'addendum plan B §1.5 : le pas bouge, la cible 8 à 12 et le test 6 à 14 restent.
   - Les valeurs finales sont celles que mesurent les vrais tests. Le trou de ± 5 m autour de l'étoile de réception les baisse un peu : on remesure et, si besoin, ruling.
 
 ### 6.6 Plats étoile
@@ -372,17 +376,17 @@ Les quatre contraintes :
 ### 6.7 Rendu : comment l'enfant voit une fosse
 
 - **Lave à ras bord.** La fosse est remplie : surface de lave à 0,1 m sous le sol, orange vif, bulles (les bulles de `effects.ts` valent telles quelles, `rimY` = 0). Des **langues de feu** animées montent jusqu'à 0,3 m au-dessus du sol, la hauteur du capteur. Une roue qui touche la lave touche donc du feu dessiné : la reprise ne paraît pas injuste. Pour le tremplin, la bande invisible de 0,45 m relevée en tâche 1 ne change pas.
-- **Halo.** Lueur orange au-dessus de la fosse, jusqu'à ≈ 3 m, qui pulse au temps de simulation. Visible dès que la fosse entre dans l'écran, ≈ 1,4 s avant le bord à 14 m/s. C'est la lave qui brille tout le temps, pas un signal d'approche : rien ne s'allume quand la voiture arrive (Q-F5).
+- **Halo.** Lueur orange au-dessus de la fosse, jusqu'à ≈ 3 m, qui pulse au temps de simulation. Dégradé radial étiré (fondu vers le haut et sur les côtés, sans bord net), large de la lave plus `FOSSE_HALO_SIDE_M` (2 m) de chaque côté ; la fosse est dessinée dès que cette étendue entre dans la vue (tour 1 de la 5g). Visible dès que la fosse entre dans l'écran, ≈ 1,4 s avant le bord à 14 m/s. C'est la lave qui brille tout le temps, pas un signal d'approche : rien ne s'allume quand la voiture arrive (Q-F5).
 - **Panneau.** Un poteau et un triangle jaune portant **le ressort du bouton saut**, planté au début de l'approche (`xLancement`, 32 m avant le bord). Il est visible ≈ 3,7 s avant le bord à 14 m/s (CALCULÉ). Le même dessin que le bouton relie le panneau au geste. Pas de panneau devant un tremplin : il suffit d'y garder le doigt.
 - **Plots** : pas de plot lumineux au-dessus de la lave (règle d'aujourd'hui, `lavaWidth` compris).
 - **Plat étoile** : rien de plus que l'étoile haute. Elle est visible ≈ 1,4 s avant (19,6 m), et la fenêtre s'ouvre ≈ 1,3 s avant l'étoile : l'enfant la voit à temps.
 - **Aide (Q-F5)** : un bouton saut qui pulse à l'approche d'une fosse n'est **pas retenu** pour le premier test (décision du papa). Il sera rejugé si Galahad oublie de sauter.
-- **Captures** : `e2e/screenshots/fosse.png` (fosse, halo et panneau à l'écran) et `plat-etoile.png`.
+- **Captures** (e2e, graine 31) : deux captures de la fosse, `e2e/screenshots/fosse-panneau.png` (le panneau, au début de l'approche) et `fosse.png` (lave, halo, langues de feu) : la vue fait ≈ 22 m de large, le panneau est 32 m avant le bord, ils ne tiennent pas sur une seule image. Plus `plat-etoile.png`.
 
 ### 6.8 Copains (tâche 6)
 
 - **Ils sautent toutes les fosses** : pas de tirage `jumpTry`, ne pas sauter serait tomber à coup sûr.
-- **Instant visé, centré à chaque vitesse** (Q-F3). Le copain demande le saut dès que (`xBord − x`) / max(v, 1) ≤ `fosseJumpLead(v)` + e, avec `fosseJumpLead(v)` = `FOSSE_JUMP_AIM` − `FOSSE_WIDTH` / (2v) et `FOSSE_JUMP_AIM` = 1,00 s.
+- **Instant visé, centré à chaque vitesse** (Q-F3). Le copain demande le saut dès que (`xBord − x`) / max(v, 1) ≤ `fosseJumpLead(v)` + e, avec `fosseJumpLead(v)` = max(`FOSSE_JUMP_MIN_DISTANCE` / v, `FOSSE_JUMP_AIM` − `FOSSE_WIDTH` / (2v)), `FOSSE_JUMP_AIM` = 1,00 s et `FOSSE_JUMP_MIN_DISTANCE` = 2 m (tour 1 de la 5g : sous ≈ 4 m/s, la formule seule donnait un instant ≤ 0, et sous ≈ 6 m/s elle visait plus près du bord que la lave ne reprend la voiture, ≈ 1,15 m ; un copain lent ne sautait jamais). Il ne demande plus quand la mémoire de la demande (`JUMP_BUFFER`) l'emmènerait au-delà du bord : (`xBord − x`) / max(v, 1) > `JUMP_BUFFER`.
   - CALCULÉ : le bord au plus tard est à ≈ 1,2 m + 0,06 s × v, le bord au plus tôt à ≈ 1,96 s × v − W − 1,2 m ; leur milieu, divisé par v, donne la formule.
   - Comparé aux centres mesurés (§6.2, avec tolérance) :
 
@@ -428,22 +432,25 @@ Les quatre contraintes :
 | `STAR_FLATS_PER_RACE` | 3 | plats étoile par course ; 0 = aucun |
 | `STAR_FLAT_LENGTH` | 57 (dérivée) | dégagement d'entrée + élan + atterrissage |
 | `STAR_FLAT_SPACING` | 400 | m de piste par plat étoile (pistes courtes) |
-| `STAR_STEP_MIN`, `STAR_STEP_MAX` | 55 / 90 (fin de 5e), puis 50 / 85 (5g) | pas du curseur ; 8,72 puis 8,52 étoiles basses, MESURÉ (relecture) |
+| `STAR_STEP_MIN`, `STAR_STEP_MAX` | 55 / 90 (fin de 5e), puis 35 / 58 (5g, ruling du Step 7) | pas du curseur ; 8,72 puis 8,12 étoiles basses (5 à 12), MESURÉ (§6.5) |
+| `STAR_TREMPLIN_LANDING`, `STAR_FOSSE_LANDING` | 55, 22 | m sans étoile basse du curseur après `xReception` d'un tremplin (pied de la descente aval), d'une fosse (bord aval) (demande du papa, §6.5) |
 | `FOSSE_PERIOD` | 2 | 1 volcan sur 2 est une fosse ; 0 = aucune |
 | `FOSSE_WIDTH` | 8 | m de lave (Q-F1) |
 | `FOSSE_GUARD` | 20 | m de plat de garde avant l'approche |
 | `FOSSE_STAR_AFTER` | 25 | m entre le bord aval et l'étoile de réception |
-| `FOSSE_JUMP_AIM` | 1,00 | s : `fosseJumpLead(v)` = `FOSSE_JUMP_AIM` − `FOSSE_WIDTH` / (2v), centre de la fenêtre (§6.8) |
+| `FOSSE_JUMP_AIM` | 1,00 | s : `fosseJumpLead(v)` = max(`FOSSE_JUMP_MIN_DISTANCE` / v, `FOSSE_JUMP_AIM` − `FOSSE_WIDTH` / (2v)), centre de la fenêtre (§6.8) |
+| `FOSSE_JUMP_MIN_DISTANCE` | 2 | m : instant visé au moins 2 m avant le bord (copains lents, tour 1 de la 5g) |
+| `TREMPLIN_AFTER_DOUBLE_BOSSE` | 0 | pas de tremplin juste après une double-bosse (décision du papa, §6.3) ; 1 = permis (pistes d'avant) |
 | `FOSSE_RESPAWN_AFTER` | 5 | m : 2e chute de suite, posée à bord aval + 5 (Q-F2, option B) |
 | `FOSSE_GHOST_AFTER` | 40 | m : zone fantôme d'une fosse jusqu'à bord aval + 40 (atterrissage le plus long ≈ 32 m, plus une marge) |
 | `FOSSE_SKILL_FACTOR` | 2,5 | tâche 6 (Q-F3) |
 
 Réutilisées sans changement : `LANCEMENT_LENGTH` (approche), `CRATER_DEPTH` (fond), `LAVA_SENSOR_ABOVE_RIM` (capteur), `SAFE_LANCEMENT_MARGIN`, `RESPAWN_AFTER_VOLCANO_BACK` (tremplins).
 
-**Pistes d'avant, au bit près.** `{ STAR_FLATS_PER_RACE: 0, FOSSE_PERIOD: 0, STAR_HIGH_PER_RACE: 0, STAR_STEP_MIN: 60, STAR_STEP_MAX: 100 }` redonne au bit près les pistes de e02dcae **sans étoiles hautes** (`PRE_5E_STARS`). C'est l'helper de test `ANCIENNES_PISTES`.
+**Pistes d'avant, au bit près.** `{ STAR_FLATS_PER_RACE: 0, FOSSE_PERIOD: 0, STAR_HIGH_PER_RACE: 0, STAR_STEP_MIN: 60, STAR_STEP_MAX: 100, STAR_TREMPLIN_LANDING: 0, TREMPLIN_AFTER_DOUBLE_BOSSE: 1 }` redonne au bit près les pistes de e02dcae **sans étoiles hautes** (`PRE_5E_STARS`). C'est l'helper de test `ANCIENNES_PISTES`.
 - Avec lui, l'empreinte figée, `PLAN_A_TRACE`, `PRE_5E_STARS` et les mesures de référence (phases, dosage, calibration) restent comparables.
 - Le rattrapage mesuré sur ces pistes n'est qu'un **contrôle de non-régression** ; l'effet des plats étoile et des fosses se mesure sur `CONFIG`.
-- Avec `CONFIG`, les pistes changent deux fois, en fin de 5e (plats étoile) puis en 5g (fosses). Chaque fois, l'empreinte de Galahad seul est **recapturée par un ruling** consigné au registre (hash, commit, raison), jamais en silence.
+- Avec `CONFIG`, les pistes changent trois fois : en fin de 5e (plats étoile), en 5g (fosses, dégagements de réception, pas [35, 58]), puis au tour 1 de la 5g (pas de tremplin juste après une double-bosse). Chaque fois, l'empreinte de Galahad seul est **recapturée par un ruling** (R-F10) consigné au registre (hash, commit, raison), jamais en silence.
 - La tolérance de sol ne joue que sur une demande de saut : doigt posé sans saut, l'empreinte ne bouge pas.
 
 ### 6.10 Questions pour le papa

@@ -917,12 +917,13 @@ La tolérance de sol (P11) est déjà en place (5e, Step 11).
   - `tests/helpers/fosses.ts` :
     - `fossePiste` : piste plate à une fosse, avec en option des tranches avant (recette de saut §6.2 (a)) ;
     - `fosseRun` : Galahad seul, lancé à v ou arrêté, doigt posé, turbo forcé à un x, appui au pas k par le vrai `stepRace` ; il renvoie la lave, le passage, le x du saut et de l'atterrissage, la plus petite garde des roues au-dessus du capteur ;
-    - `fosseWindow` : fenêtre par balayage de **chaque pas des 1,6 s qui précèdent la chute de la course témoin sans saut**, soit ≈ [bord − 1,6 s × v, bord] et 98 runs (pas de dichotomie : la continuité est vérifiée partout). Le premier pas balayé doit échouer, sinon la fenêtre déborde du balayage et le helper échoue (MESURÉ : elle s'ouvre au plus 1,47 s avant la chute, à 21 m/s tenus). Les morceaux plus tôt (sauts 35 à 54 m trop tôt, sauvés par un rebond) sont hors du balayage, ni exigés ni interdits ;
+    - `fosseWindow` : fenêtre par balayage de **chaque pas des 1,6 s qui précèdent la chute de la course témoin sans saut**, soit ≈ [bord − 1,6 s × v, bord] et 98 runs (pas de dichotomie : la continuité est vérifiée partout). Le premier pas balayé doit échouer, sinon la fenêtre déborde du balayage et le helper échoue (MESURÉ : elle s'ouvre au plus 1,47 s avant la chute, à 21 m/s tenus). Tour 1 : s'il passe, le balayage recule par blocs de 0,4 s, jusqu'à 2,8 s avant la chute (un turbo qui finit dans la fenêtre la fait durer jusqu'à 1,85 s, MESURÉ) ; Les morceaux plus tôt (sauts 35 à 54 m trop tôt, sauvés par un rebond) sont hors du balayage, ni exigés ni interdits ;
     - `fosseBlock` : pour la CI, le bloc de 0,4 s centré sur k*, premier pas où `fosseJumpWanted` est vrai sur la course témoin : 25 appuis, un par pas de [k* − 12, k* + 12] ;
     - `sauteurParfait(track, cfg)` : option `jump` de `simulateRace`, par `fosseJumpWanted`.
-  - `tests/fosses.test.ts` (CI) ; `tests/slow/fosses-a.test.ts`, `tests/slow/fosses-fenetres-0-4.test.ts`, `tests/slow/fosses-fenetres-5-9.test.ts`, `tests/slow/race-sans-saut-0-11.test.ts`, `tests/slow/race-sans-saut-12-23.test.ts` ; `e2e/fosse.spec.ts`.
+  - `tests/fosses.test.ts` (CI) ; `tests/slow/fosses-a.test.ts`, `tests/slow/fosses-fenetres-0-4.test.ts`, `tests/slow/fosses-fenetres-5-9.test.ts` (remplacés au tour 1 par `fosses-fenetres-vitesses`, `-terrain-0-7` et `-terrain-8-15`, Step 6), `tests/slow/race-sans-saut-0-11.test.ts`, `tests/slow/race-sans-saut-12-23.test.ts` ; `e2e/fosse.spec.ts`.
 - Modify (code) :
-  - `src/config.ts` : `FOSSE_PERIOD` 2, `FOSSE_WIDTH` 8, `FOSSE_GUARD` 20, `FOSSE_STAR_AFTER` 25, `FOSSE_JUMP_AIM` (Step 1), `FOSSE_RESPAWN_AFTER` 5, `FOSSE_GHOST_AFTER` 40 ; `STAR_STEP_MIN/MAX` 50 / 85 (Step 7).
+  - `src/config.ts` : `FOSSE_PERIOD` 2, `FOSSE_WIDTH` 8, `FOSSE_GUARD` 20, `FOSSE_STAR_AFTER` 25, `FOSSE_JUMP_AIM` (Step 1), `FOSSE_RESPAWN_AFTER` 5, `FOSSE_GHOST_AFTER` 40 ; `STAR_TREMPLIN_LANDING` 55 et `STAR_FOSSE_LANDING` 22 (demande du papa : pas d'étoile basse avant l'atterrissage sur les réceptions) ; `STAR_STEP_MIN/MAX` **35 / 58** (Step 7, ruling ; 50 / 85 au plan) ; tour 1 : `FOSSE_JUMP_MIN_DISTANCE` 2 et `TREMPLIN_AFTER_DOUBLE_BOSSE` 0 (décision du papa : pas de tremplin juste après une double-bosse).
+  - `src/cars/safepoint.ts` (tour 1) : `forbiddenZone` d'une fosse prolongée jusqu'à `xReception + WHEEL_BASE/2 + WHEEL_RADIUS + 0,3` (≈ 1,5 m après le bord aval), pour tous les appelants : un châssis posé juste après le bord aval avait sa roue arrière dans le capteur.
   - `src/track/types.ts` : `'fosse'` ; `Volcano = Tremplin | Fosse` (champ `kind`, `xBord`).
   - `src/track/slices.ts` : `fosseGeometry`, `fosse` ; `SliceProfile.volcano` devient lui aussi une union.
   - `src/track/generate.ts` : phase tirée dans un `mulberry32` dédié, alternance, `kind` posé à l'ajout.
@@ -966,9 +967,9 @@ export function fosse(cfg: Config): SliceProfile;   // hauteur 0 sauf ]xBord, xB
 export function tremplins(track: Track): Tremplin[];
 export function nextFosse(track: Track, x: number): Fosse | undefined;   // première fosse dont xBord > x
 // src/cars/jump.ts (pur)
-/** Centre de la fenêtre, en s avant le bord amont, à la vitesse v : FOSSE_JUMP_AIM − FOSSE_WIDTH / (2 max(v, 1)) (saut §6.8). */
+/** Centre de la fenêtre, en s avant le bord amont, à la vitesse v : max(FOSSE_JUMP_MIN_DISTANCE / v, FOSSE_JUMP_AIM − FOSSE_WIDTH / (2 max(v, 1))) (saut §6.8 ; plancher au tour 1). */
 export function fosseJumpLead(v: number, cfg: Config): number;
-/** x dans [xLancement, xBord[ de la prochaine fosse et (xBord − x) / max(v, 1) ≤ fosseJumpLead(v). */
+/** x dans [xLancement, xBord[ de la prochaine fosse et JUMP_BUFFER < (xBord − x) / max(v, 1) ≤ fosseJumpLead(v) (tour 1 : la demande ne déborde pas le bord). */
 export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config): boolean;
 // tests/helpers/fosses.ts
 export function fosseRun(world: World, opts: { x0: number; v: number | 'arrêt'; pressAtStep: number | null; turboAtX?: number; cfg?: Config }):
@@ -985,7 +986,7 @@ export function fosseBlock(world: World, f: Fosse, v: number | 'arrêt', opts?: 
 - **Générateur** : une `'rampe-volcan'` tirée et acceptée devient une fosse si (rang du volcan + phase) mod `FOSSE_PERIOD` = `FOSSE_PERIOD` − 1. Le rang compte tous les volcans, dans l'ordre de la piste.
   - La phase est tirée une fois par piste dans `mulberry32((seed ^ 0x6a09e667) >>> 0)`, seulement si `FOSSE_PERIOD` > 0 : avec 0, aucun appel.
   - Le `rng` principal ne voit aucun tirage de plus ; `fosse(cfg).length === rampeVolcan(cfg).length` est assertée.
-  - Refus (saut §6.3) : jugés sur la dernière tranche tirée ; un volcan ne suit jamais une rampe-saut ni un autre volcan, quel que soit son type.
+  - Refus (saut §6.3) : jugés sur la dernière tranche tirée ; un volcan ne suit jamais une rampe-saut ni un autre volcan, quel que soit son type ; un **tremplin** ne suit jamais une double-bosse (tour 1, décision du papa ; le type du volcan suivant est connu avant le tirage, par l'alternance), une fosse le peut. Clé `TREMPLIN_AFTER_DOUBLE_BOSSE: 1` dans `ANCIENNES_PISTES`.
 - **Capteur** : `buildLava` inchangé ; une fosse porte `rimY` = 0.
 - **Copains provisoires** : demande de saut **à chaque pas** tant que `fosseJumpWanted` est vrai. `wantsJump` et `canJump` filtrent, comme pour Galahad, avec la tolérance de sol. Ce saut n'a pas d'erreur. La tâche 6 le remplace par le driver.
 - **Galahad dans `Game`** : rien ne change, c'est l'enfant qui saute.
@@ -1061,7 +1062,7 @@ export function fosseBlock(world: World, f: Fosse, v: number | 'arrêt', opts?: 
     - le cône sombre reste réservé aux tremplins.
   - `tests/effects.test.ts` : bulles d'une fosse au ras du sol.
   - `e2e/fosse.spec.ts` (`?seed=<graine figée dans le test, dont la 1re fosse est la plus proche du départ>&debug=1`) :
-    - doigt tenu jusqu'à la fosse, capture `e2e/screenshots/fosse.png` (fosse, halo et panneau à l'écran) ;
+    - doigt tenu jusqu'à la fosse, deux captures : `e2e/screenshots/fosse-panneau.png` (le panneau, au début de l'approche) et `fosse.png` (lave, halo, langues de feu) ; la vue fait ≈ 22 m de large et le panneau est 32 m avant le bord : une seule image ne les montre pas ensemble ;
     - sans saut, `__game.respawns` reçoit deux réapparitions de raison `'lava'` ; la 2e pose Galahad après la fosse, et la course continue ;
     - pas d'assertion sur l'instant exact d'un saut à la main (Playwright n'est pas assez régulier) : le saut juste est couvert par (b) et (c).
   - Commande : `npm run e2e`.
@@ -1070,13 +1071,14 @@ export function fosseBlock(world: World, f: Fosse, v: number | 'arrêt', opts?: 
   | Fichier | Contenu | Budget |
   |---|---|---|
   | `tests/slow/fosses-a.test.ts` | Chaque fosse des graines 0 à 19, Galahad lancé à V_MAX 100 m avant la tranche précédente, turbo pris tous les 2 m de 80 m avant cette tranche jusqu'à `xLancement`, sans saut : **100 % de lave** (≈ 3 400 runs, ≈ 14 min MESURÉ (relecture)). Le cas (a') de la v1.5 (double-bosse puis fosse, turbo) y est compris, sur les vraies pistes ; le mutant `FOSSE_GUARD` 0 y est mesuré et consigné. **Témoin vivant** : sur les pistes k = 6 et k = 14 de la recette (saut §6.2 (a)), sans garde et à W = 6, le même balayage en t retrouve au moins un survol (sonde : t = −20 m et t = +8 m ; ≈ 130 runs, ≈ 0,5 min). Sinon, le balayage ne prouve rien. | < 20 min |
-  | `tests/slow/fosses-fenetres-0-4.test.ts`, `-5-9.test.ts` | Chaque fosse des graines 0 à 4, puis 5 à 9 (≈ 9 fosses par fichier), par `fosseWindow` : (b) à 11,2 et 14 m/s, (c) départ arrêté au pire point sûr, (d) turbo pris 40 m avant le bord. Fenêtre principale ≥ 0,4 s d'un seul tenant, morceaux imprimés ; minimum, médiane et centre ; `fosseJumpLead(v)` à moins de 0,05 s du centre mesuré à 11,2 et 14 m/s (vitesse tenue ; au départ arrêté et en turbo, l'écart d'≈ 0,1 s est imprimé, saut §6.8) ; (d) tout saut qui passe atterrit avant `xEnd − 10`. ≈ 9 × 4 × 98 ≈ 3 500 runs à 0,06 s, ≈ 3,5 min chacun. | < 10 min chacun |
+  | `tests/slow/fosses-fenetres-vitesses.test.ts`, `-terrain-0-7.test.ts`, `-terrain-8-15.test.ts` (tour 1 ; remplacent `fosses-fenetres-0-4` et `-5-9`, dont les 18 fosses n'étaient que 4 trajectoires) | **Une seule fosse** (`fossePiste`), par `fosseWindow`, en faisant varier ce qui change la trajectoire : (b) 8, 11,2, 14, 17,5 et 21 m/s tenus, (c) départ arrêté au pire point sûr, (d) turbo pris 50 à 95 m avant le bord (pas de 5 m), saut d'étoile haute 80 et 90 m avant le bord (11,2, 14 m/s, turbo) ; puis la tranche d'avant prise en turbo, k = 0 à 15 de la recette du saut §6.2 (a), turbo 75 et 95 m avant le bord. Fenêtre principale ≥ 0,4 s d'un seul tenant, morceaux imprimés ; `fosseJumpLead(v)` à moins de 0,05 s du centre mesuré à vitesse tenue ; tout saut qui passe en turbo atterrit avant `xEnd − 10` ; le saut d'étoile haute retombe avant la fenêtre. 22 + 16 + 16 cas × 98 runs. | < 10 min chacun |
   | `tests/slow/race-invariants-*.test.ts` (migrés au Step 2) | 5 voitures, graines 0 à 23, Galahad doigt posé **avec** `sauteurParfait` : `lavaByCar.galahad === 0`, aucune chute propre, chutes classées par type de volcan. | inchangé |
   | `tests/slow/race-sans-saut-0-11.test.ts`, `-12-23.test.ts` | Galahad doigt posé **sans** saut, graines 0 à 23 : **seul** (saut §4) puis à **5 voitures**. Lave de Galahad = 2 × nombre de fosses, au plus 2 par série, 0 au tremplin, arrivée < 240 s ; copains provisoires 0 chute. Temps perdu par fosse imprimé, contre la même course avec `sauteurParfait` (attendu ≈ 4,3 à 4,6 s, option B). | < 15 min chacun |
-  | `tests/slow/volcans-slow.test.ts` (complété) | Scénario (ii) : double-bosse puis tremplin, turbo à 21 m/s, doigt posé : 0 chute (sonde de la spec : 189 / 189). Scénario (iii) : rampe-saut, plat, puis fosse, turbo : lave sans saut, passage avec `sauteurParfait`. | + 5 min |
+  | `tests/slow/volcans-slow.test.ts` (complété) | Scénario (ii) : double-bosse puis tremplin, turbo à 21 m/s, doigt posé : 0 chute (sonde de la spec : 189 / 189). Tour 1 (plus de tremplin juste après une double-bosse) : double-bosse, une tranche, puis tremplin, turbo tous les 2 m de 80 m avant la double-bosse à sa fin : **0 chute, sans tolérance** ; témoin sur les pistes à règle levée (graine 7, turbo 31,8 m avant la double-bosse) : chute. Scénario (iii) : rampe-saut, plat, puis fosse, turbo : lave sans saut, passage avec `sauteurParfait`. | + 5 min |
 
-  Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/fosses-a.test.ts tests/slow/fosses-fenetres-0-4.test.ts tests/slow/fosses-fenetres-5-9.test.ts tests/slow/race-sans-saut-0-11.test.ts tests/slow/race-sans-saut-12-23.test.ts`, puis `npm run test:slow`.
+  Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/fosses-a.test.ts tests/slow/fosses-fenetres-*.test.ts tests/slow/race-sans-saut-0-11.test.ts tests/slow/race-sans-saut-12-23.test.ts`, puis `npm run test:slow`.
 - [ ] **Step 7 : Étoiles basses.** Pas [50, 85] (MESURÉ (relecture) : 8,52, de 6 à 12). On remesure avec le trou de ± 5 m autour de l'étoile de réception ; si la moyenne sort de [8, 12] ou si le minimum passe sous 6 : ruling au registre.
+  - Fait (ruling du Step 7) : avec les dégagements de réception demandés par le papa (`STAR_TREMPLIN_LANDING` 55, `STAR_FOSSE_LANDING` 22), le pas [50, 85] donnait 6,50 (4 à 9) ; pas retenu **[35, 58]** : 8,50 (5 à 12 ; graines 0 à 19 : 6 à 12). Tour 1 (pas de tremplin juste après une double-bosse, moins de volcans) : 8,12 (5 à 12 ; graines 0 à 19 : 8,35, 6 à 12), pas gardé.
 - [ ] **Step 8 : Non-régression et empreinte.**
   - `ANCIENNES_PISTES` : empreinte, `PLAN_A_TRACE` et sha1 des pistes **inchangés**.
   - `CONFIG` : nouveaux hash dans `FROZEN_CONFIG`, ruling R-F10 (2e recapture, même contenu qu'en 5e).
@@ -1403,7 +1405,7 @@ Légende des migrations :
   | Fichier | Contenu | Coût attendu | Budget |
   |---|---|---|---|
   | `fosses-a` | ≈ 3 400 runs ; témoin vivant sur 2 pistes de la recette, ≈ 130 runs | ≈ 14,5 min (MESURÉ (relecture)) | 20 min |
-  | `fosses-fenetres-0-4`, `-5-9` | ≈ 9 fosses × 4 cas × 98 runs ≈ 3 500 runs chacun | ≈ 3,5 min chacun (CALCULÉ, 0,06 s par run) | 10 min chacun |
+  | `fosses-fenetres-vitesses`, `-terrain-0-7`, `-terrain-8-15` (tour 1 ; remplacent `-0-4` et `-5-9`) | 22, 16 et 16 cas × 98 runs (122 quand la fenêtre dépasse 1,6 s) | 7,6, 6,4 et 6,6 min (MESURÉ, en parallèle) | 10 min chacun |
   | `race-sans-saut-0-11`, `-12-23` | 12 courses à 5 voitures et 12 de Galahad seul chacun | ≈ 12 × (13,7 + 13,1) s ≈ 5,5 min chacun | 15 min chacun |
   | `saut-volcan-0-4` | 23 tremplins × 4 cas × 28 sauts = 2 576 sauts | ≈ 5,6 min (MESURÉ) | 15 min |
   | `saut-volcan-5-9` | 20 tremplins, ≈ 2 240 sauts | ≈ 4,9 min | 15 min |
@@ -1453,7 +1455,8 @@ Chacun est à confirmer par les relectures de la v1.6 ; « coût si faux » comm
 - **R-F5 — Les refus de volcan regardent la dernière tranche tirée**, plats étoile ignorés. La suite tirée reste celle d'aujourd'hui. Coût si faux : nul.
 - **R-F6 — Étoiles autour d'une fosse.**
   - Aucune étoile basse sur la garde ni sur l'approche ; une étoile de réception à bord aval + 25 m ; plancher par élan ou réception.
-  - Le pas du curseur est ajusté sur mesure, la cible ne bouge pas.
+  - Dégagements de réception (demande du papa, 5g) : pas d'étoile basse du curseur avant `xReception + STAR_TREMPLIN_LANDING` (55 m) sur un tremplin, ni avant `xReception + STAR_FOSSE_LANDING` (22 m) sur une fosse ; `STAR_TREMPLIN_LANDING: 0` dans `ANCIENNES_PISTES`.
+  - Le pas du curseur est ajusté sur mesure, la cible ne bouge pas : **[35, 58]** (Step 7).
   - Coût si faux : quelques étoiles.
 - **R-F7 — Jeu de la 5e : 50 / 12 / 20 / 25.** C'est le plus permissif des 4 jeux à 0 prise sans saut à 3,90 m (calibration de la 5e). Coût si faux : 4 constantes.
 - **R-F8 — Plat étoile.**
@@ -1463,7 +1466,7 @@ Chacun est à confirmer par les relectures de la v1.6 ; « coût si faux » comm
 - **R-F9 — Copains provisoires en 5g** : ils redemandent le saut à chaque pas de leur fenêtre, sans erreur, au centre `fosseJumpLead(v)`, jusqu'à la tâche 6. Sans cela, les invariants à 5 voitures n'auraient plus de sens entre la 5g et la 6. Coût si faux : nul (code retiré en tâche 6).
 - **R-F10 — Empreinte.**
   - `ANCIENNES_PISTES` garde les hash figés sur la 5c.
-  - `FROZEN_CONFIG` est recapturé en fin de 5e et en 5g. Chaque fois, le registre reçoit les anciens et les nouveaux hash, le commit, la raison (P10) et la preuve que l'empreinte `ANCIENNES_PISTES` n'a pas bougé.
+  - `FROZEN_CONFIG` est recapturé en fin de 5e, en 5g, puis au tour 1 de la 5g (pas de tremplin juste après une double-bosse). Chaque fois, le registre reçoit les anciens et les nouveaux hash, le commit, la raison (P10, puis la décision du papa) et la preuve que l'empreinte `ANCIENNES_PISTES` n'a pas bougé.
   - Toute autre variation de l'empreinte reste un défaut.
 - **R-F11 — Chute « fosse »** : dans les invariants, une chute dans une fosse sans saut est attendue. Elle n'est ni « choc » ni « propre ». Une chute propre à un tremplin reste un échec.
 - **R-F12 — Copains catapultés** : une étoile haute prise sans saut par un copain n'est tolérée que dans les 2 s après un contact entre voitures ; elle est comptée. Pour Galahad, aucune tolérance.
@@ -1476,5 +1479,5 @@ Chacun est à confirmer par les relectures de la v1.6 ; « coût si faux » comm
 - **R-F16 — Zone fantôme d'une fosse jusqu'à bord aval + 40 m**, quelle que soit l'option : les sauteurs atterrissent jusqu'à ≈ 32 m, et une voiture posée à + 5 m y attend. Coût si faux : des voitures qui se traversent 40 m de plus. À revérifier en tâche 7 (copains sous élastique : ≈ 44 m).
 - **R-F17 — Fenêtres des fosses : bloc central en CI, balayage entier en suite lente** (v1.6).
   - La CI prouve l'exigence elle-même : 0,4 s d'un seul tenant autour de l'instant visé par les copains, 25 appuis par cas.
-  - La suite lente balaie chaque pas des 1,6 s avant le bord, sur toutes les fosses des graines 0 à 9. La fenêtre principale y tient entière (au plus 1,47 s, MESURÉ).
+  - La suite lente balaie chaque pas des 1,6 s avant le bord. Tour 1 : sur une seule fosse, en faisant varier vitesse, turbo, tranche d'avant et saut d'étoile haute (les fosses des graines 0 à 9 ne donnaient que 4 trajectoires) ; le balayage recule par blocs de 0,4 s si la fenêtre déborde. La fenêtre principale y tient entière (au plus 1,47 s à vitesse tenue, 1,85 s quand le turbo finit dedans, MESURÉ).
   - Coût si faux : un bord de fenêtre qui recule n'est vu qu'en suite lente.
