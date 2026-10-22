@@ -196,7 +196,7 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
     }
   });
 
-  test('longueur STAR_FLAT_LENGTH (57 m) à une maille près, hauteur 0, jamais juste après une rampe-saut', () => {
+  test('longueur STAR_FLAT_LENGTH (57 m) à une maille près, hauteur 0, jamais juste après une rampe-saut ni un volcan', () => {
     expect(CONFIG.STAR_FLAT_LENGTH).toBe(CONFIG.STAR_HIGH_BUMP_CLEARANCE + CONFIG.STAR_HIGH_TAKEOFF_ROOM + CONFIG.STAR_HIGH_LANDING_ROOM);
     expect(CONFIG.STAR_FLAT_LENGTH).toBe(57);
     for (const [seed, len] of CASES) {
@@ -205,12 +205,14 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
         if (s.type !== 'plat-étoile') return;
         expect(Math.abs(s.xEnd - s.xStart - CONFIG.STAR_FLAT_LENGTH), `graine ${seed}`).toBeLessThanOrEqual(S + 1e-9);
         expect(t.slices[i - 1].type, `graine ${seed}, plat étoile en ${s.xStart}`).not.toBe('rampe-saut');
+        // Ruling de la tâche 5e (Step 14) : pas juste après un volcan (chocs à la sortie des réceptions).
+        expect(t.slices[i - 1].type, `graine ${seed}, plat étoile en ${s.xStart}`).not.toBe('rampe-volcan');
         expect(t.points.filter((p) => p.x >= s.xStart - 1e-9 && p.x <= s.xEnd + 1e-9 && p.y !== 0)).toEqual([]);
       });
     }
   });
 
-  test('le k-ième plat étoile commence à la première frontière ≥ a_k permise (frontières sautées : après une rampe-saut seulement)', () => {
+  test('le k-ième plat étoile commence à la première frontière ≥ a_k permise (frontières sautées : après une rampe-saut ou un volcan seulement)', () => {
     for (const [seed, len] of CASES) {
       const t = track(seed, len);
       const x0 = t.slices[0].xEnd;
@@ -221,9 +223,9 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
         const a = x0 + ((k + 0.5) * (limit - x0)) / n;
         const where = `graine ${seed}, ${len} m, plat étoile ${k} en ${f.xStart.toFixed(1)} (ancre ${a.toFixed(1)})`;
         expect(f.xStart, where).toBeGreaterThanOrEqual(a - 1e-9);
-        // Toute frontière de [a_k, début du plat étoile[ suit une rampe-saut (frontière refusée).
+        // Toute frontière de [a_k, début du plat étoile[ suit une rampe-saut ou un volcan (frontière refusée).
         const skipped = t.slices.filter((s) => s.xEnd >= a - 1e-9 && s.xEnd < f.xStart - 1e-9);
-        for (const s of skipped) expect(s.type, where).toBe('rampe-saut');
+        for (const s of skipped) expect(['rampe-saut', 'rampe-volcan'], where).toContain(s.type);
       });
     }
   });

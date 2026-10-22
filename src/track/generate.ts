@@ -93,15 +93,17 @@ export function generateTrack(
   append(plat(rng, cfg, cfg.START_LENGTH));
   const limit = targetLength - cfg.FINISH_PLAT_BEFORE - cfg.AFTER_FINISH;
   // Plats étoile (tâche 5e, saut §6.6) : N ancres régulières entre la fin du plat de départ et la limite ; avant chaque
-  // tirage, si x a passé l'ancre suivante, si la dernière tranche tirée n'est pas une rampe-saut et si le plat étoile
-  // tient avant la limite, il est posé (sans tirage). S'il ne tient plus, les suivants sont abandonnés.
+  // tirage, si x a passé l'ancre suivante, si la dernière tranche tirée n'est ni une rampe-saut ni un volcan et si le
+  // plat étoile tient avant la limite, il est posé (sans tirage). S'il ne tient plus, les suivants sont abandonnés.
+  // Pas juste après un volcan (ruling de la tâche 5e, Step 14) : à la sortie d'une réception, les voitures se
+  // rattrapent et se cognent ; un choc arrière y a catapulté Galahad à 4,75 m au-dessus de l'étoile (graine 7).
   const x0 = xNow();
   const nFlats = opts.onlyPlat ? 0 : Math.max(0, Math.min(cfg.STAR_FLATS_PER_RACE, Math.floor((limit - x0) / cfg.STAR_FLAT_SPACING)));
   const anchors = Array.from({ length: nFlats }, (_, k) => x0 + ((k + 0.5) * (limit - x0)) / nFlats);
   let nextFlat = 0;
   let lastDrawn: SliceType = slices[slices.length - 1].type;
   for (;;) {
-    if (nextFlat < anchors.length && xNow() >= anchors[nextFlat] - 1e-9 && lastDrawn !== 'rampe-saut') {
+    if (nextFlat < anchors.length && xNow() >= anchors[nextFlat] - 1e-9 && lastDrawn !== 'rampe-saut' && lastDrawn !== 'rampe-volcan') {
       const flat = platEtoile(cfg);
       if (xNow() + flat.length <= limit + 1e-9) {
         append(flat);

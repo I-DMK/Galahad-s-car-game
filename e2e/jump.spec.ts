@@ -72,11 +72,48 @@ test('HUD de debug sous le bouton : boîtes disjointes, bouton dans la vue ; cap
   expect(b.x + b.width / 2).toBeLessThan(640);
   expect(b.y + b.height / 2).toBeGreaterThan(400);
   // Capture en plein saut : le bouton est grisé en l'air, à partir de JUMP_GROUND_GRACE (0,35 s) après le dernier
-  // contact de jeu (tolérance de sol, tâche 5e Step 11) ; 0,8 s de course après le saut, il l'est.
+  // contact de jeu (tolérance de sol, tâche 5e Step 11). Saut une fois les 4 copains passés (15 m devant) : au départ,
+  // un copain qui arrive par derrière heurte Galahad en l'air, et un toit compte comme du sol. Instant lu dans le
+  // jeu, dans la même évaluation que la classe : délai de 0,5 s écoulé et tolérance dépassée de 0,05 s (un instant
+  // lu après le tap arrive ≈ 0,3 s en retard).
+  await page.waitForFunction(() => {
+    const g = (window as any).__game;
+    const ids: string[] = g.pilots.map((p: { id: string }) => p.id);
+    return ids.slice(1).every((id) => g.progress(id) > g.progress(ids[0]) + 15);
+  }, undefined, { timeout: 30_000 });
   await tapJump(page);
-  await page.waitForFunction(() => (window as any).__game.jumps >= 1);
-  const tJump = (await gameState(page)).time;
-  await waitForRaceTime(page, tJump + 0.8);
-  await expect(button).toHaveClass(/is-waiting/);
+  const s = (await (await page.waitForFunction(() => {
+    const g = (window as any).__game;
+    const c = g.sim.cars[0];
+    const t: number = g.sim.time;
+    const lastJ: number | null = c.state.lastJumpAt;
+    if (g.jumps < 1 || lastJ === null || t < lastJ + 0.55) return false;
+    if (!c.grounded && c.lastGroundedAt !== null && t < c.lastGroundedAt + 0.4) return false;
+    const waiting = document.querySelector('.jump-button')!.classList.contains('is-waiting');
+    return { t, lastJ, lastG: c.lastGroundedAt as number | null, grounded: c.grounded as boolean, waiting };
+  })).jsonValue()) as { t: number; lastJ: number; lastG: number | null; grounded: boolean; waiting: boolean };
+  expect(s.grounded, `en l'air : ${JSON.stringify(s)}`).toBe(false);
+  expect(s.waiting, `grisé : ${JSON.stringify(s)}`).toBe(true);
   await page.screenshot({ path: `${SHOTS}/bouton-saut.png`, fullPage: true });
+});
+
+test('plat étoile : l’étoile haute du 1er plat étoile à l’écran ; capture plat-etoile.png', async ({ page }) => {
+  await page.goto('/?seed=1&debug=1');
+  await waitForGame(page);
+  // Étoile du 1er plat étoile (tâche 5e) : x lu dans la piste du jeu (?debug=1).
+  const x = await page.evaluate(() => {
+    const t = (window as any).__game.sim.track;
+    const flat = t.slices.find((s: { type: string }) => s.type === 'plat-étoile');
+    return t.stars.find((s: { high: boolean; x: number }) => s.high && s.x >= flat.xStart && s.x <= flat.xEnd).x as number;
+  });
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 400, id: 0 }] });
+    await page.waitForFunction((xx) => (window as any).__game.progress('galahad') >= xx - 16, x, { timeout: 60_000 });
+    await page.screenshot({ path: `${SHOTS}/plat-etoile.png`, fullPage: true });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await cdp.detach();
+  }
+  expect((await gameState(page)).progress).toBeGreaterThan(x - 20);
 });

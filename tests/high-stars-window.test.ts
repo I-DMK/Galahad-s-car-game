@@ -1,9 +1,13 @@
 // Garde CI de la fenêtre des étoiles hautes (plan B, tâche 5e). Step 6 : la trajectoire de saut sur le plat du
 // harnais (`flatJumpTrajectory`) a l'apogée mesuré au Step 3 (tests/jump.test.ts), à 1 cm près ; elle sert à
-// prédire la fenêtre géométrique de chaque étoile haute. La fenêtre d'au moins 0,3 s (graine 1, deux vitesses)
-// s'ajoute au Step 10, après la calibration de la hauteur (Step 9).
+// prédire la fenêtre géométrique de chaque étoile haute. Step 14 : garde de la fenêtre réelle sur l'étoile du
+// premier plat étoile de la graine 1 (au moins 0,4 s à 11,2 et à 14 m/s, au moins 0,3 s à STAR_HIGH_Y + 5 cm ; saut
+// §6.6). Elle échoue si JUMP_VY, la gravité, la suspension ou les roues changent sans recalibrer STAR_HIGH_Y.
 import { CONFIG } from '../src/config';
-import { flatJumpTrajectory, predictedWindow } from './helpers/jump-runs';
+import { heightAt } from '../src/track/query';
+import { flatJumpTrajectory, predictedWindow, RUN_UP, windowFor } from './helpers/jump-runs';
+import { croppedWorld } from './helpers/phases';
+import { trackFor } from './helpers/runs';
 
 /** Apogée du châssis (m) au-dessus de sa hauteur au saut, sur le plat, mesuré au Step 3 (à l'arrêt et à 14 m/s). */
 const STEP3_APEX = 2.459;
@@ -35,5 +39,23 @@ describe('flatJumpTrajectory (harnais de saut)', () => {
     expect(w(3.6)).toBeGreaterThan(0.3);
     expect(w(3.9)).toBeLessThan(w(3.6));
     expect(w(6)).toBe(0);
+  });
+});
+
+describe('fenêtre réelle de l’étoile du 1er plat étoile de la graine 1 (garde CI)', () => {
+  const track = trackFor(1);
+  const flat = track.slices.find((sl) => sl.type === 'plat-étoile')!;
+  const star = track.stars.find((st) => st.high && st.x >= flat.xStart && st.x <= flat.xEnd)!;
+  const world = croppedWorld(track, CONFIG, star.x - RUN_UP - 15, star.x + 14 * 9 + 30);
+
+  test.each([CONFIG.V_CRUISE, CONFIG.V_MAX])('à %f m/s : au moins 0,4 s, et au moins 0,3 s à STAR_HIGH_Y + 5 cm, sans réapparition', (v) => {
+    expect(star.y - heightAt(track, star.x)).toBeCloseTo(CONFIG.STAR_HIGH_Y, 9);
+    const w = windowFor(world, star, v, CONFIG);
+    const up = windowFor(world, { ...star, y: star.y + 0.05 }, v, CONFIG);
+    console.log(`fenêtre, graine 1, étoile du 1er plat étoile (x = ${star.x.toFixed(1)}) à ${v.toFixed(1)} m/s : ${w.seconds.toFixed(3)} s `
+      + `(centre ${w.centreLead.toFixed(2)} s avant l'étoile), ${up.seconds.toFixed(3)} s à + 5 cm`);
+    expect(w.seconds).toBeGreaterThanOrEqual(0.4);
+    expect(up.seconds).toBeGreaterThanOrEqual(0.3);
+    expect(w.respawnSeen || up.respawnSeen).toBe(false);
   });
 });
