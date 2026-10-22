@@ -30,6 +30,9 @@ export function cfgFor(j: Jeu, y: number = CONFIG.STAR_HIGH_Y): Config {
   return {
     ...withAnciennesPistes(CONFIG), STAR_HIGH_PER_RACE: 3, STAR_HIGH_RAMP_CLEARANCE: j.ramp, STAR_HIGH_BUMP_CLEARANCE: j.bump,
     STAR_HIGH_TAKEOFF_ROOM: j.takeoff, STAR_HIGH_LANDING_ROOM: j.landing, STAR_HIGH_Y: y,
+    // Dérivée, comme dans config.ts : `generateTrack` refuse une longueur de plat étoile incohérente (relectures de la
+    // 5e) ; sans plat étoile sur les pistes d'avant, elle ne change rien d'autre.
+    STAR_FLAT_LENGTH: j.bump + j.takeoff + j.landing,
   };
 }
 
