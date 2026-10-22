@@ -10,7 +10,7 @@ import { Camera } from './render/camera';
 import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
 import { presentFrame, stepOutcome } from './sim/present';
-import { createRaceSim, posesOf, rebuildCars, stepRace, type RaceSim, type SimEvent } from './sim/simulate';
+import { createRaceSim, GALAHAD_INDEX, posesOf, rebuildCars, stepRace, type RaceSim, type SimEvent } from './sim/simulate';
 import { generateTrack } from './track/generate';
 import { heightAt } from './track/query';
 import { Hud } from './ui/hud';
@@ -133,7 +133,7 @@ export class Game {
     try {
       stepRace(sim, pressed);
       events.push(...sim.events);
-      const galahad = sim.cars[0].state;
+      const galahad = sim.cars[GALAHAD_INDEX].state;
       if (this.finishTime === null && sim.events.some((e) => e.type === 'finish' && e.carId === galahad.id)) {
         this._state = 'finished';
         this.finishTime = galahad.finishedAt;
@@ -158,7 +158,7 @@ export class Game {
    */
   private present(now: number, elapsed: number, events: SimEvent[], frame: { poses: CarPose[]; alpha: number }): void {
     const { sim } = this;
-    const galahad = sim.cars[0];
+    const galahad = sim.cars[GALAHAD_INDEX];
     const scene = presentFrame(sim, frame, this.camera, elapsed);
     const half = this.renderer.visibleHalfWidthM(this.camera);
     // Effets de Galahad, et des copains seulement à l'écran (spec §9).

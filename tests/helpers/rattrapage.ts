@@ -6,7 +6,7 @@
 //
 // Une ligne JSON par course dans tests/slow/out/rattrapage-<étape>.jsonl (étape : RATTRAPAGE_ETAPE, défaut
 // « courant »), marquée du commit mesuré : RATTRAPAGE_COMMIT, sinon `git rev-parse --short HEAD`, suffixé
-// « -modifié » si l'arbre a des modifications suivies. Les deux fichiers lents écrivent en parallèle dans le
+// « -modifié-<sha1 du diff> » si l'arbre a des modifications suivies. Les deux fichiers lents écrivent en parallèle dans le
 // même fichier (ajout ligne à ligne) ; une ligne illisible (tronquée) est ignorée avec un avertissement.
 // Un seul rapport, après les deux fichiers (`globalSetup` tests/helpers/rattrapage-rapport.ts) : courses
 // de l'étape au commit courant, comparées à l'étape de référence (RATTRAPAGE_REF, défaut « avant ») au
@@ -22,12 +22,14 @@ interface NodeFs {
   readFileSync(path: string, encoding: 'utf8'): string;
   existsSync(path: string): boolean;
 }
-interface NodeChildProcess { execSync(cmd: string, opts: { encoding: 'utf8'; stdio: string[] }): string }
+interface NodeChildProcess { execSync(cmd: string, opts: { encoding: 'utf8'; stdio: string[]; maxBuffer?: number }): string }
+interface NodeCrypto { createHash(alg: 'sha1'): { update(s: string): { digest(enc: 'hex'): string } } }
 const nodeProcess = (globalThis as unknown as {
   process: {
     env: Record<string, string | undefined>;
     getBuiltinModule(id: 'node:fs'): NodeFs;
     getBuiltinModule(id: 'node:child_process'): NodeChildProcess;
+    getBuiltinModule(id: 'node:crypto'): NodeCrypto;
   };
 }).process;
 const fs = (): NodeFs => nodeProcess.getBuiltinModule('node:fs');
@@ -43,7 +45,11 @@ export const ETAPE = nodeProcess.env.RATTRAPAGE_ETAPE ?? 'courant';
 export const REF = nodeProcess.env.RATTRAPAGE_REF ?? 'avant';
 export const outFile = (etape: string): string => `${OUT_DIR}/rattrapage-${etape}.jsonl`;
 
-/** Commit mesuré : RATTRAPAGE_COMMIT, sinon HEAD (court), « -modifié » si l'arbre a des modifications suivies ; « inconnu » hors dépôt. */
+/**
+ * Commit mesuré : RATTRAPAGE_COMMIT, sinon HEAD (court) ; si l'arbre a des modifications suivies, HEAD suivi de
+ * « -modifié- » et des 8 premiers caractères du sha1 du diff (`git diff HEAD`) : deux arbres sales différents sur
+ * le même HEAD ne partagent jamais d'étiquette, donc jamais de lignes. « inconnu » hors dépôt.
+ */
 export function currentCommit(): string {
   const fromEnv = nodeProcess.env.RATTRAPAGE_COMMIT;
   if (fromEnv) return fromEnv;
@@ -51,7 +57,10 @@ export function currentCommit(): string {
     const cp = nodeProcess.getBuiltinModule('node:child_process');
     const run = (cmd: string) => cp.execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     const head = run('git rev-parse --short HEAD');
-    return run('git status --porcelain --untracked-files=no') === '' ? head : `${head}-modifié`;
+    if (run('git status --porcelain --untracked-files=no') === '') return head;
+    const crypto = nodeProcess.getBuiltinModule('node:crypto');
+    const diff = cp.execSync('git diff HEAD', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 });
+    return `${head}-modifié-${crypto.createHash('sha1').update(diff).digest('hex').slice(0, 8)}`;
   } catch {
     return 'inconnu';
   }
@@ -163,7 +172,7 @@ function indicators(label: string, rs: RattrapageRow[]): string {
   const lava = rs.reduce((a, r) => a + r.lava[0], 0);
   return `${label}, ${n} courses : vainqueur = première étoile ${pct(rs.filter(winnerTookFirst).length, n)}, `
     + `égalités à la première étoile ${rs.filter(tie).length} ; Galahad gagne ${pct(rs.filter((r) => r.winner === 'galahad').length, n)}, `
-    + `place moyenne ${place.toFixed(2)}, chutes dans la lave ${lava} ; étoiles par rang de grille (Galahad, rangs 1 à 4) ${stars.join('/')}`;
+    + `place moyenne ${place.toFixed(2)}, chutes de Galahad dans la lave ${lava} ; étoiles par rang de grille (Galahad, rangs 1 à 4) ${stars.join('/')}`;
 }
 
 function indicatorBlock(rows: RattrapageRow[]): string[] {
