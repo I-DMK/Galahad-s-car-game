@@ -39,9 +39,9 @@ import { physToWorld } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
 import { simulateRace } from '../../src/sim/harness';
 import { generateTrack } from '../../src/track/generate';
-import { heightAt, nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
+import { heightAt, nearestVolcanoZone, tremplins, volcanoAhead } from '../../src/track/query';
 import { mulberry32 } from '../../src/track/rng';
-import type { Track, Volcano } from '../../src/track/types';
+import type { Track, Tremplin, Volcano } from '../../src/track/types';
 import { ALL_CASES, passesVolcano, scenariosFor, type CaseId } from './cases';
 import {
   DEG, JumpTracker, LIP_SPEED_THRESHOLD, STEPS_PER_SECOND, TRACK_LENGTH, freshCar, launch, liftedPattern, newContact,
@@ -144,7 +144,7 @@ export function cropFor(seed: number, variant: Variant, x0: number, x1: number):
 }
 /** Monde rogné autour du volcan d'indice `vi`. */
 export function volcanoWorld(seed: number, vi: number, variant: Variant): World {
-  const v = variantTrack(seed, variant).volcanoes[vi];
+  const v = tremplins(variantTrack(seed, variant))[vi];
   return cropFor(seed, variant, v.xLancement - CROP_BEFORE, v.xEnd + CROP_AFTER);
 }
 
@@ -169,7 +169,7 @@ function admissible(track: Track, v: Volcano, x0: number): boolean {
  * l'aval par pas de 1 m jusqu'à être admissible (écarté s'il dépasse xLancement).
  */
 export function historiesFor(seed: number, vi: number, track: Track, cfg: Config, n: SampleSizes): History[] {
-  const v = track.volcanoes[vi];
+  const v = tremplins(track)[vi];
   const out: History[] = [];
   const base = { maxSeconds: RUN_SECONDS, cfg, volcano: v };
   const fix = (x0: number): number | null => {
@@ -264,7 +264,7 @@ export interface PhaseSample {
 const PART_NAMES = ['châssis', 'roue arrière', 'roue avant'];
 
 /** Joue l'historique `h` sur le monde `world` (volcan `v`) et mesure la phase de la suspension. */
-export function phaseRun(world: World, v: Volcano, h: History, seed: number, vi: number, cfg: Config): PhaseSample {
+export function phaseRun(world: World, v: Tremplin, h: History, seed: number, vi: number, cfg: Config): PhaseSample {
   const R = cfg.WHEEL_RADIUS;
   const lavaBody = world.lava.find((b) => (b.plugin as { volcano?: Volcano }).volcano === v);
   const sensorTop = v.rimY + cfg.LAVA_SENSOR_ABOVE_RIM;
@@ -323,7 +323,7 @@ export function phaseRun(world: World, v: Volcano, h: History, seed: number, vi:
 export function samplePhases(seed: number, variant: Variant, n: SampleSizes = DEFAULT_SIZES): PhaseSample[] {
   const track = variantTrack(seed, variant);
   const out: PhaseSample[] = [];
-  track.volcanoes.forEach((v, vi) => {
+  tremplins(track).forEach((v, vi) => {
     const world = volcanoWorld(seed, vi, variant);
     for (const h of historiesFor(seed, vi, track, variant.cfg, n)) out.push(phaseRun(world, v, h, seed, vi, variant.cfg));
   });
@@ -368,7 +368,7 @@ export interface CaseRow { caseId: CaseId | 'i'; seed: number; vi: number; ok: b
 export function runCases(seed: number, variant: Variant): CaseRow[] {
   const track = variantTrack(seed, variant);
   const rows: CaseRow[] = [];
-  track.volcanoes.forEach((v, vi) => {
+  tremplins(track).forEach((v, vi) => {
     const world = volcanoWorld(seed, vi, variant);
     for (const caseId of ALL_CASES) {
       for (const sc of scenariosFor(caseId, track, v, variant.cfg)) {
@@ -384,8 +384,8 @@ export function runCases(seed: number, variant: Variant): CaseRow[] {
   const { slices } = track;
   for (let i = 0; i + 2 < slices.length; i++) {
     if (slices[i].type !== 'rampe-saut' || slices[i + 1].type !== 'plat' || slices[i + 2].type !== 'rampe-volcan') continue;
-    const vi = track.volcanoes.findIndex((vv) => vv.xLancement === slices[i + 2].xStart);
-    const v = track.volcanoes[vi];
+    const vi = tremplins(track).findIndex((vv) => vv.xLancement === slices[i + 2].xStart);
+    const v = tremplins(track)[vi];
     for (const before of [20, 40, 60]) {
       const turboAt = slices[i].xStart - before;
       let x0 = Math.max(1, turboAt - 40);
@@ -410,7 +410,7 @@ export interface ReleaseRow { seed: number; vi: number; T: number; ok: boolean; 
 export function runReleases(seed: number, variant: Variant): ReleaseRow[] {
   const track = variantTrack(seed, variant);
   const rows: ReleaseRow[] = [];
-  track.volcanoes.forEach((v, vi) => {
+  tremplins(track).forEach((v, vi) => {
     const world = volcanoWorld(seed, vi, variant);
     for (const T of RELEASE_SECONDS) {
       const xRelease = v.xElanStart - 10;

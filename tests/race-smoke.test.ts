@@ -9,16 +9,19 @@ import { simulateRace } from '../src/sim/harness';
 import { createRaceSim, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { heightAt } from '../src/track/query';
 import { expectRaceInvariants, fiveCarRace } from './helpers/race';
-import { FINISH_MAX_SECONDS, FINISH_MIN_SECONDS, describeRespawns, f2, firstVolcano, trackFor } from './helpers/runs';
+import { sauteurParfait } from './helpers/fosses';
+import { FINISH_MAX_SECONDS, FINISH_MIN_SECONDS, describeRespawns, f2, firstTremplin, trackFor } from './helpers/runs';
 
 type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 
 const SEED = 1;
 const MAX_SECONDS = 180;
 
-test(`cas 6, seed ${SEED} : course doigt posé sans réapparition, arrivée entre ${FINISH_MIN_SECONDS} et ${FINISH_MAX_SECONDS} s, 6 à 14 étoiles prises`, () => {
+// Tâche 5g : Galahad saute au centre de chaque fosse (`sauteurParfait`), sans quoi il y tombe deux fois (saut §6.1).
+test(`cas 6, seed ${SEED} : course doigt posé avec le saut parfait aux fosses, sans réapparition, arrivée entre ${FINISH_MIN_SECONDS} et ${FINISH_MAX_SECONDS} s, 6 à 14 étoiles prises`, () => {
   const track = trackFor(SEED);
-  const r = simulateRace(track, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG }); // défaut : Galahad seul (plan A)
+  // Défaut : Galahad seul (plan A).
+  const r = simulateRace(track, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG, jump: sauteurParfait(track) });
   const summary = `finishedAt=${r.finishedAt?.toFixed(1)} stars=${r.starsTaken.length}/${track.stars.length} respawns=${r.respawns.length} `
     + `maxStuck=${r.maxStuckSeconds.toFixed(2)} [${describeRespawns(r.respawns).join(' ; ')}]`;
   console.log(`cas 6 seed ${SEED} : ${summary}`);
@@ -53,8 +56,8 @@ function overlapsWith(sim: RaceSim, carId: string): string[] {
     .map((c) => `${carId}/${c.state.id} à t = ${sim.time.toFixed(3)}`);
 }
 
-test('5 dans la lave au même pas, même point sûr (xLancement + 1) : 5 respawns en file sans chevauchement, aucun garde-fou de vitesse', () => {
-  const { track, v } = firstVolcano();
+test('5 dans la lave d’un tremplin au même pas, même point sûr (xLancement + 1) : 5 respawns en file sans chevauchement, aucun garde-fou de vitesse', () => {
+  const { track, v } = firstTremplin();
   const h = (x: number) => heightAt(track, x);
   const sim = createRaceSim(track, CONFIG, { robots: true });
   // Doigt posé pour tous dès le respawn : pas de délai de grille dans ce scénario (t = 0).

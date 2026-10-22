@@ -10,7 +10,7 @@ import { worldToPhys } from '../src/physics/units';
 import { CAT, carCategory } from '../src/physics/world';
 import { createRaceSim, stepRace, type RaceSim, type RespawnEvent } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
-import { heightAt } from '../src/track/query';
+import { heightAt, tremplins } from '../src/track/query';
 import { trackFor } from './helpers/runs';
 
 const STEPS = (s: number): number => Math.round(s / CONFIG.PHYSICS_DT);
@@ -68,10 +68,12 @@ describe('le vol d’un saut ne compte pas comme un blocage', () => {
     }
   });
 
-  test('graine 9 : lave en 1 035, retour au point sûr, rafale d’appuis juste après : 0 « stuck », la 2e chute de suite pose la voiture après le volcan', () => {
+  // Tâche 5g : le volcan de la graine 9 dont la lave était en 1 035 est devenu une fosse ; le scénario vise maintenant le
+  // premier tremplin de la graine 9 (les deux chutes de suite à une fosse : tests/fosses.test.ts).
+  test('graine 9 : lave au premier tremplin, retour au point sûr, rafale d’appuis juste après : 0 « stuck », la 2e chute de suite pose la voiture après le volcan', () => {
     const track = trackFor(9);
-    const v = track.volcanoes.find((w) => Math.abs(w.xLava - 1035) < 5)!;
-    expect(v, 'volcan de la graine 9 dont la lave est en 1 035').toBeDefined();
+    const v = tremplins(track)[0];
+    expect(v, 'premier tremplin de la graine 9').toBeDefined();
     const sim = createRaceSim(track, CONFIG);
     const g = sim.cars[0];
     const respawns: RespawnEvent[] = [];
@@ -93,8 +95,9 @@ describe('le vol d’un saut ne compte pas comme un blocage', () => {
     }
     expect(respawns.map((e) => e.reason)).toEqual(['lava', 'lava']);
     const [first, second] = respawns;
-    expect(first.x).toBeCloseTo(1035, -1);
-    expect(first.target.x).toBeLessThan(v.xLancement);
+    expect(Math.abs(first.x - v.xLava)).toBeLessThan(10);
+    // Point sûr : avant la zone interdite (au plus les 5 premiers mètres du plat de lancement).
+    expect(first.target.x).toBeLessThan(v.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN);
     // Option B : deuxième chute de suite dans la même lave → posée en fin de réception, après le volcan.
     expect(second.target.x).toBeCloseTo(v.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK, 9);
   });

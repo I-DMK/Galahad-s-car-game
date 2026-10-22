@@ -4,7 +4,8 @@
 // de [L − 6, L + JUMP_GROUND_GRACE] (28 sauts). Galahad seul, vrai `stepRace` (`jumpRun`), monde rogné.
 import { CONFIG } from '../../src/config';
 import type { World } from '../../src/physics/world';
-import type { Slice, Track, Volcano } from '../../src/track/types';
+import { tremplins } from '../../src/track/query';
+import type { Slice, Track, Tremplin, Volcano } from '../../src/track/types';
 import { jumpRun, lastGroundedBefore, type JumpRunResult } from './jump-runs';
 import { croppedWorld } from './phases';
 import { trackFor } from './runs';
@@ -19,7 +20,7 @@ export const RAMP_RUN = CONFIG.RAMP_LENGTH * Math.cos(CONFIG.RAMP_ANGLE);
 export interface Arrival { id: string; x0: number; v: number; factor?: number; turboAtX?: number[] }
 
 /** Les 4 arrivées d'un tremplin (saut §6.2). */
-export function tremplinArrivals(v: Volcano): Arrival[] {
+export function tremplinArrivals(v: Tremplin): Arrival[] {
   return [
     { id: 'doigt posé depuis xLancement', x0: v.xLancement, v: 0 },
     { id: 'turbo de l’étoile d’élan', x0: v.xLancement, v: 0, turboAtX: [v.xElanStart - CONFIG.STAR_ELAN_OFFSET] },
@@ -98,7 +99,7 @@ export const MISPLACED_BEFORE = 10;
  * passe x, pour x de xElanStart − 10 à xLip tous les 2 m ; arrêt à la première chute. Rend le x de la première chute,
  * null si aucune position ne fait tomber.
  */
-export function firstMisplacedFall(world: World, v: Volcano): number | null {
+export function firstMisplacedFall(world: World, v: Tremplin): number | null {
   const pilot = jumpRun(world, { x0: v.xLancement, v: 0, jumpAtStep: null, maxSeconds: 14, stopAtX: v.xLip + 40 });
   for (let x = v.xElanStart - MISPLACED_BEFORE; x <= v.xLip + 1e-9; x += MISPLACED_STEP) {
     const k = pilot.xs.findIndex((xx) => xx >= x);
@@ -123,7 +124,8 @@ export function registerSautVolcan(seeds: readonly number[]): void {
     const misplaced: { seed: number; vi: number; x: number | null; rel: number }[] = [];
     for (const seed of seeds) {
       const track = trackFor(seed);
-      track.volcanoes.forEach((v, vi) => {
+      // Tâche 5g : tremplins seuls (les fosses ont leurs fenêtres, tests/slow/fosses-fenetres-*.test.ts).
+      tremplins(track).forEach((v, vi) => {
         const world = worldAround(track, v.xLancement, v.xEnd, 60, 120);
         for (const a of tremplinArrivals(v)) rows.push(tremplinRow(seed, vi, v, sweepSummit(world, v.xLip, a, 14)));
         const x = firstMisplacedFall(world, v);
@@ -131,7 +133,7 @@ export function registerSautVolcan(seeds: readonly number[]): void {
       });
     }
     const by = (id: string) => rows.filter((r) => r.arrival === id);
-    const lines = tremplinArrivals(trackFor(seeds[0]).volcanoes[0]).map(({ id }) => {
+    const lines = tremplinArrivals(tremplins(trackFor(seeds[0]))[0]).map(({ id }) => {
       const rs = by(id);
       return `${id} : ${rs.length} tremplins, ${rs.reduce((s, r) => s + r.jumps, 0)} sauts, lave ${rs.reduce((s, r) => s + r.lava, 0)}, `
         + `autres réapparitions ${rs.reduce((s, r) => s + r.other, 0)}, marge min avant xEnd ${f1(Math.min(...rs.map((r) => r.minMarginToEnd)))} m `

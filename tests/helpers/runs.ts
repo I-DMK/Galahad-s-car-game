@@ -14,9 +14,9 @@ import { mpsToPxPerStep, physToWorld, toPx } from '../../src/physics/units';
 import { createWorld, sensorsTouching, stepWorld, type World } from '../../src/physics/world';
 import type { SimEvent } from '../../src/sim/simulate';
 import { generateTrack } from '../../src/track/generate';
-import { heightAt, slopeAt, volcanoAhead } from '../../src/track/query';
+import { fosses, heightAt, slopeAt, tremplins } from '../../src/track/query';
 import { mulberry32 } from '../../src/track/rng';
-import type { Track, Volcano } from '../../src/track/types';
+import type { Fosse, Track, Tremplin, Volcano } from '../../src/track/types';
 
 const { Body, Composite } = Matter;
 
@@ -74,13 +74,24 @@ export function trackFor(seed: number, cfg: Config = CONFIG): Track {
   return t;
 }
 
-/** Première piste (graines 1, 0, 2, …) ayant un volcan, et ce volcan. */
-export function firstVolcano(): { track: Track; v: Volcano } {
+/** Première piste (graines 1, 0, 2, …) ayant un volcan à tremplin, et ce tremplin (tâche 5g : tremplins seuls). */
+export function firstTremplin(cfg: Config = CONFIG): { track: Track; v: Tremplin } {
   for (const seed of [1, 0, 2, 3, 4, 5, 6, 7]) {
-    const track = trackFor(seed);
-    if (track.volcanoes.length > 0) return { track, v: track.volcanoes[0] };
+    const track = trackFor(seed, cfg);
+    const v = tremplins(track)[0];
+    if (v) return { track, v };
   }
-  throw new Error('aucune piste avec volcan');
+  throw new Error('aucune piste avec tremplin');
+}
+
+/** Première piste (graines 1, 0, 2, …) ayant une fosse, et cette fosse (tâche 5g). */
+export function firstFosse(cfg: Config = CONFIG): { track: Track; v: Fosse } {
+  for (const seed of [1, 0, 2, 3, 4, 5, 6, 7]) {
+    const track = trackFor(seed, cfg);
+    const v = fosses(track)[0];
+    if (v) return { track, v };
+  }
+  throw new Error('aucune piste avec fosse');
 }
 
 const worlds = new WeakMap<Config, Map<number, World>>();
@@ -212,8 +223,8 @@ export interface RunOptions {
   stopAtLip?: boolean;
   /** Lancée initiale (m/s, `launch` le long de la pente locale) ; départ arrêté par défaut. */
   launchSpeed?: number;
-  /** Volcan visé (xRampStart, xLip, xReception) ; par défaut le premier dont la lave est devant x0. */
-  volcano?: Volcano;
+  /** Tremplin visé (xRampStart, xLip, xReception) ; par défaut le premier tremplin dont la lave est devant x0. */
+  volcano?: Tremplin;
   maxSeconds: number;
   /** Configuration de la voiture (celle de la piste du monde) ; CONFIG par défaut. */
   cfg?: Config;
@@ -246,14 +257,14 @@ export interface RunResult {
 }
 
 /**
- * Voiture neuve à l'arrêt en x0 (ou lancée à `launchSpeed`), conduite selon `throttle(t)` vers le premier volcan dont la lave
- * est devant x0 (`volcanoAhead`), jusqu'à la lave, 1 s après l'atterrissage deux roues sur le plat
+ * Voiture neuve à l'arrêt en x0 (ou lancée à `launchSpeed`), conduite selon `throttle(t)` vers le premier tremplin dont la
+ * lave est devant x0 (tâche 5g : les fosses ont leur harnais, tests/helpers/fosses.ts), jusqu'à la lave (de tout volcan), 1 s après l'atterrissage deux roues sur le plat
  * de réception (x ≥ xReception), ou maxSeconds. Un atterrissage avant la réception (vallée, flanc)
  * est enregistré mais ne termine pas le run : la lave ou le temps tranchent.
  */
 export function runFrom(world: World, x0: number, opts: RunOptions): RunResult {
   const cfg = opts.cfg ?? CONFIG;
-  const v = opts.volcano ?? volcanoAhead(world.track, x0);
+  const v = opts.volcano ?? tremplins(world.track).find((w) => w.xLava > x0);
   const car = freshCar(world, x0, cfg);
   if (opts.launchSpeed !== undefined) launch(world, car, x0, opts.launchSpeed, cfg);
   const contact = newContact();

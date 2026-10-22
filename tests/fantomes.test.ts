@@ -9,11 +9,11 @@ import { CAT } from '../src/physics/world';
 import { carPairsTouching } from '../src/sim/harness';
 import { chassisX, createRaceSim, stepRace, type CarSim, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { heightAt, inGhostZone, slopeAt } from '../src/track/query';
-import { firstVolcano } from './helpers/runs';
+import { firstTremplin } from './helpers/runs';
 
 type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 
-const { track, v } = firstVolcano();
+const { track, v } = firstTremplin();
 const h = (x: number) => heightAt(track, x);
 const place = (car: CarSim, x: number): void => placeCar(car.body, x, h, slopeAt(track, x), CONFIG);
 

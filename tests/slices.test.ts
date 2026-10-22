@@ -2,8 +2,8 @@ import { CONFIG } from '../src/config';
 import { jumpRange } from '../src/track/ballistics';
 import { mulberry32 } from '../src/track/rng';
 import {
-  bosses, doubleBosse, plat, platEtoile, rampeSaut, rampeVolcan, volcanoGeometry,
-  type SliceProfile,
+  bosses, doubleBosse, fosse, fosseGeometry, plat, platEtoile, rampeSaut, rampeVolcan, volcanoGeometry,
+  type SliceProfile, type VolcanoProfile,
 } from '../src/track/slices';
 
 // Config figée : les valeurs de référence ci-dessous en dépendent (la calibration peut rejouer LAVA_MARGIN / L_ELAN).
@@ -22,6 +22,7 @@ function profiles(): Record<string, SliceProfile> {
     'rampe-saut': rampeSaut(rng, PINNED),
     'double-bosse': doubleBosse(rng, PINNED),
     'rampe-volcan': rampeVolcan(PINNED),
+    fosse: fosse(PINNED),
   };
 }
 
@@ -54,7 +55,7 @@ describe.each(Object.entries(profiles()))('profil %s', (name, p) => {
       expect(i).toBeGreaterThanOrEqual(0);
       expect(i).toBeLessThan(p.heights.length);
     }
-    const max: Record<string, number> = { 'rampe-saut': 1, 'rampe-volcan': 2 };
+    const max: Record<string, number> = { 'rampe-saut': 1, 'rampe-volcan': 2, fosse: 2 };
     expect(p.exemptIndices.length).toBeLessThanOrEqual(max[name] ?? 0);
   });
 });
@@ -147,14 +148,22 @@ describe('volcanoGeometry (CONFIG réelle : formules)', () => {
   });
 });
 
+/** Volcan d'un profil de tremplin (le test échoue si le profil n'en porte pas). */
+function tremplinOf(p: SliceProfile): Extract<VolcanoProfile, { kind: 'tremplin' }> {
+  if (p.volcano?.kind !== 'tremplin') throw new Error(`profil ${p.type} sans tremplin`);
+  return p.volcano;
+}
+
 describe('rampe-volcan : géométrie du profil', () => {
   const p = rampeVolcan(PINNED);
-  const v = p.volcano!;
+  const v = tremplinOf(p);
   const g = volcanoGeometry(PINNED);
   const at = (x: number) => p.heights[Math.round(x / S) - 1];
   const tanM = Math.tan(PINNED.MAX_SLOPE);
 
   test('infos de volcan cohérentes avec volcanoGeometry (depuis le début de tranche)', () => {
+    expect(v.kind).toBe('tremplin');
+    expect(v.dxLancement).toBe(0);
     expect(v.dxElanStart).toBeCloseTo(g.lLancement, 9);
     expect(v.dxRampStart).toBeCloseTo(g.lLancement + g.lElan, 9);
     expect(v.dxLip).toBeCloseTo(g.lLancement + g.lElan + g.rampRun, 9);
@@ -318,6 +327,69 @@ test('bosses : pente ≤ MAX_SLOPE pour de nombreuses graines', () => {
       prev = h;
     }
   }
+});
+
+describe('fosse (tâche 5g, saut §6.2, ruling R-F2)', () => {
+  const p = fosse(CONFIG);
+  const g = fosseGeometry(CONFIG);
+  const v = p.volcano;
+  if (v?.kind !== 'fosse') throw new Error('fosse sans volcan de sorte fosse');
+  /** Hauteur de l'échantillon en x (x sur la maille, x > 0). */
+  const at = (x: number): number => p.heights[Math.round(x / S) - 1];
+  const onGrid = (x: number): boolean => Math.abs(x / S - Math.round(x / S)) < 1e-6;
+
+  test('longueur égale à celle de la rampe-volcan (125,2 m), type « fosse », sans tirage', () => {
+    expect(p.type).toBe('fosse');
+    expect(p.length).toBeCloseTo(rampeVolcan(CONFIG).length, 9);
+    expect(g.length).toBeCloseTo(p.length, 9);
+    expect(p.length).toBeCloseTo(125.2, 9);
+    expect(fosse(CONFIG)).toEqual(p);
+  });
+
+  test('garde de 20 m, approche LANCEMENT_LENGTH (à la maille supérieure), lave de 8 m, réception ≥ 60 m (64,8 m)', () => {
+    expect(g.guard).toBeCloseTo(CONFIG.FOSSE_GUARD, 9);
+    expect(g.approach).toBeGreaterThanOrEqual(CONFIG.LANCEMENT_LENGTH - 1e-9);
+    expect(g.approach).toBeLessThan(CONFIG.LANCEMENT_LENGTH + S);
+    expect(g.width).toBeCloseTo(CONFIG.FOSSE_WIDTH, 9);
+    expect(g.reception).toBeGreaterThanOrEqual(60);
+    expect(g.reception).toBeCloseTo(64.8, 9);
+    expect(g.guard + g.approach + g.width + g.reception).toBeCloseTo(g.length, 9);
+    expect(v.dxLancement).toBeCloseTo(g.guard, 9);
+    expect(v.dxBord).toBeCloseTo(g.guard + g.approach, 9);
+    expect(v.dxLava).toBeCloseTo(v.dxBord + g.width / 2, 9);
+    expect(v.lavaWidth).toBeCloseTo(g.width, 9);
+    expect(v.rimY).toBe(0);
+    expect(v.dxReception).toBeCloseTo(v.dxBord + g.width, 9);
+    expect(v.dxEnd).toBeCloseTo(p.length, 9);
+  });
+
+  test('bords sur la maille', () => {
+    for (const x of [v.dxLancement, v.dxBord, v.dxReception, v.dxEnd]) expect(onGrid(x), `x = ${x}`).toBe(true);
+  });
+
+  test('hauteur 0 sur [début, xBord] et sur [xReception, xEnd] (aucune lèvre, aucune pente), −CRATER_DEPTH dans la fosse', () => {
+    const bad: number[] = [];
+    p.heights.forEach((h, k) => {
+      const x = (k + 1) * S;
+      const inside = x > v.dxBord + 1e-9 && x < v.dxReception - 1e-9;
+      if (inside ? Math.abs(h + CONFIG.CRATER_DEPTH) > 1e-12 : h !== 0) bad.push(x);
+    });
+    expect(bad).toEqual([]);
+    expect(at(v.dxBord)).toBe(0);
+    expect(at(v.dxBord + S)).toBe(-CONFIG.CRATER_DEPTH);
+    expect(at(v.dxReception - S)).toBe(-CONFIG.CRATER_DEPTH);
+    expect(at(v.dxReception)).toBe(0);
+  });
+
+  test('deux parois verticales exemptées, exactement (segments qui arrivent en xBord + maille et en xReception)', () => {
+    expect([...p.exemptIndices].sort((a, b) => a - b)).toEqual([Math.round(v.dxBord / S), Math.round(v.dxReception / S) - 1]);
+  });
+
+  test('lance si la réception tombe sous 60 m', () => {
+    expect(() => fosseGeometry({ ...CONFIG, FOSSE_WIDTH: 14 })).toThrow(/réception/);
+    expect(() => fosse({ ...CONFIG, FOSSE_GUARD: 30 })).toThrow(/réception/);
+    expect(() => fosseGeometry({ ...CONFIG, FOSSE_WIDTH: 10 })).not.toThrow();
+  });
 });
 
 describe('plat étoile (tâche 5e, saut §6.6)', () => {

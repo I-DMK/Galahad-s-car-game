@@ -1,7 +1,9 @@
 // Budget : < 25 min mur (mesuré au Step 14 : (i) 5,4 min, (iii) 1,8 min, ≈ 8 min en tout avec (ii) et (iv)).
 // Acceptation des étoiles hautes des plats étoile (plan B, tâche 5e, Step 14 ; addendum « bouton saut » §4 et §6.6,
 // ruling R-F12) :
-// (i) 5 voitures doigt posé sans saut, turbo compris, graines 0 à 23 : 0 étoile haute prise par Galahad ; un copain ne
+// (i) 5 voitures doigt posé sans saut d'étoile, turbo compris, graines 0 à 23 (tâche 5g : Galahad et les copains sautent
+//     au centre de chaque fosse, `sauteurParfait` et driver provisoire ; ces sauts n'atteignent aucun plat étoile, jamais
+//     juste après un volcan) : 0 étoile haute prise par Galahad ; un copain ne
 //     la prend sans saut que dans les 2 s après un contact entre voitures (« catapulte », observateur
 //     `carPairsTouching`) : ces prises sont comptées et imprimées ; une prise sans contact échoue ;
 // (ii) Galahad seul, turbo forcé tous les 5 m de [x★ − 80, x★ − 20], graines 0 à 9 : 0 prise ;
@@ -14,6 +16,7 @@ import { carPairsTouching, simulateRace } from '../../src/sim/harness';
 import type { Star, Track } from '../../src/track/types';
 import { jumpRun, RUN_UP, windowFor, flatJumpTrajectory } from '../helpers/jump-runs';
 import { croppedWorld } from '../helpers/phases';
+import { sauteurParfait } from '../helpers/fosses';
 import { trackFor } from '../helpers/runs';
 
 /** s : une prise d'étoile haute sans saut par un copain n'est tolérée que dans cette durée après un contact (R-F12). */
@@ -30,7 +33,7 @@ test('(i) 5 voitures doigt posé sans saut, graines 0 à 23 : 0 étoile haute pr
     const highIds = new Set(flatStars(track).map((s) => s.id));
     const lastContact = new Map<string, number>();
     const r = simulateRace(track, {
-      throttle: () => true, maxSeconds: 240, cfg: CONFIG, robots: true,
+      throttle: () => true, maxSeconds: 240, cfg: CONFIG, robots: true, jump: sauteurParfait(track),
       onStep: (sim) => {
         for (const [a, b] of carPairsTouching(sim)) { lastContact.set(a, sim.time); lastContact.set(b, sim.time); }
         for (const e of sim.events) {

@@ -1,12 +1,14 @@
-import { CONFIG } from '../src/config';
+import { CONFIG, type Config } from '../src/config';
 import { defaultTrackLength, generateTrack, parseTrackOptions } from '../src/track/generate';
 import { plat } from '../src/track/slices';
 import { mulberry32 } from '../src/track/rng';
-import type { Slice, Track } from '../src/track/types';
+import type { Slice, SliceType, Track } from '../src/track/types';
 import { AP } from './helpers/anciennes-pistes';
 
 /** Tranches tirées : sans les plats étoile, posés sans tirage (tâche 5e, ruling R-F5). */
 const drawn = (t: Track): Slice[] => t.slices.filter((s) => s.type !== 'plat-étoile');
+/** Tranche volcan : tremplin (`rampe-volcan`) ou fosse (tâche 5g). */
+const isVolcano = (type: SliceType): boolean => type === 'rampe-volcan' || type === 'fosse';
 
 const S = CONFIG.TRACK_POINT_SPACING;
 const SEEDS = Array.from({ length: 50 }, (_, i) => i);
@@ -75,19 +77,31 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
     }
   });
 
-  test('jamais deux rampe-volcan consécutives (plats étoile ignorés) ; volcanoes cohérents avec les tranches', () => {
+  test('jamais deux volcans consécutifs, tremplin ou fosse (plats étoile ignorés) ; volcanoes cohérents avec les tranches', () => {
     for (const [seed, len] of CASES) {
       const t = track(seed, len);
       const d = drawn(t);
       for (let i = 1; i < d.length; i++) {
-        expect(d[i].type === 'rampe-volcan' && d[i - 1].type === 'rampe-volcan').toBe(false);
+        expect(isVolcano(d[i].type) && isVolcano(d[i - 1].type), `seed ${seed} len ${len}, tranche tirée ${i}`).toBe(false);
       }
-      const vs = t.slices.filter((s) => s.type === 'rampe-volcan');
+      const vs = t.slices.filter((s) => isVolcano(s.type));
       expect(t.volcanoes).toHaveLength(vs.length);
       vs.forEach((s, k) => {
         const v = t.volcanoes[k];
-        expect(v.xLancement).toBe(s.xStart);
+        expect(v.kind).toBe(s.type === 'fosse' ? 'fosse' : 'tremplin');
         expect(v.xEnd).toBeCloseTo(s.xEnd, 9);
+        if (v.kind === 'fosse') {
+          // Fosse : garde de FOSSE_GUARD, approche, lave de FOSSE_WIDTH au ras du sol, réception.
+          expect(v.xLancement - s.xStart).toBeCloseTo(CONFIG.FOSSE_GUARD, 9);
+          expect(v.xBord).toBeGreaterThan(v.xLancement);
+          expect(v.xLava - v.xBord).toBeCloseTo(CONFIG.FOSSE_WIDTH / 2, 9);
+          expect(v.xReception - v.xBord).toBeCloseTo(CONFIG.FOSSE_WIDTH, 9);
+          expect(v.lavaWidth).toBeCloseTo(CONFIG.FOSSE_WIDTH, 9);
+          expect(v.rimY).toBe(0);
+          expect(v.xReception).toBeLessThan(v.xEnd);
+          return;
+        }
+        expect(v.xLancement).toBe(s.xStart);
         expect(v.xElanStart - v.xLancement).toBeCloseTo(CONFIG.LANCEMENT_LENGTH, 9);
         expect(v.xRampStart - v.xElanStart).toBeCloseTo(CONFIG.L_ELAN, 9);
         expect(v.xLancement).toBeLessThan(v.xElanStart);
@@ -142,11 +156,13 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
     }
   });
 
-  test('aucun volcan n’est précédé d’une rampe-saut, plats étoile ignorés (graines 0 à 49, 1 680 m)', () => {
+  test('aucun volcan (tremplin ou fosse) n’est précédé d’une rampe-saut ni d’un volcan, plats étoile ignorés (graines 0 à 49, 1 680 m)', () => {
     for (const seed of SEEDS) {
       const d = drawn(track(seed, 1680));
       for (let i = 1; i < d.length; i++) {
-        if (d[i].type === 'rampe-volcan') expect(d[i - 1].type, `seed ${seed}, tranche tirée ${i}`).not.toBe('rampe-saut');
+        if (!isVolcano(d[i].type)) continue;
+        expect(d[i - 1].type, `seed ${seed}, tranche tirée ${i}`).not.toBe('rampe-saut');
+        expect(isVolcano(d[i - 1].type), `seed ${seed}, tranche tirée ${i}`).toBe(false);
       }
     }
   });
@@ -174,7 +190,7 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
   test('chaque type de tranche et les volcans apparaissent sur les longues pistes', () => {
     const types = new Set<string>();
     for (const seed of SEEDS) for (const s of track(seed, 6000).slices) types.add(s.type);
-    expect([...types].sort()).toEqual(['bosses', 'double-bosse', 'plat', 'plat-étoile', 'rampe-saut', 'rampe-volcan']);
+    expect([...types].sort()).toEqual(['bosses', 'double-bosse', 'fosse', 'plat', 'plat-étoile', 'rampe-saut', 'rampe-volcan']);
   });
 
   test('longueur non multiple de la maille : longueur à moins d une maille de la cible', () => {
@@ -210,7 +226,7 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
   const refusedAt = (t: Track, x: number): boolean => {
     const before = drawn(t).filter((s) => s.xEnd <= x + 1e-9);
     const last = before[before.length - 1];
-    if (last.type === 'rampe-saut' || last.type === 'rampe-volcan') return true;
+    if (last.type === 'rampe-saut' || isVolcano(last.type)) return true;
     const r = lastRampSautEnd(t, x);
     return r !== null && takeoffAt(x) < r + CONFIG.STAR_HIGH_RAMP_CLEARANCE - 1e-9;
   };
@@ -240,7 +256,7 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
         expect(Math.abs(s.xEnd - s.xStart - CONFIG.STAR_FLAT_LENGTH), `graine ${seed}`).toBeLessThanOrEqual(S + 1e-9);
         expect(t.slices[i - 1].type, `graine ${seed}, plat étoile en ${s.xStart}`).not.toBe('rampe-saut');
         // Décision du papa (relectures de la 5e) : pas juste après un volcan (chocs à la sortie des réceptions).
-        expect(t.slices[i - 1].type, `graine ${seed}, plat étoile en ${s.xStart}`).not.toBe('rampe-volcan');
+        expect(isVolcano(t.slices[i - 1].type), `graine ${seed}, plat étoile en ${s.xStart}`).toBe(false);
         expect(t.points.filter((p) => p.x >= s.xStart - 1e-9 && p.x <= s.xEnd + 1e-9 && p.y !== 0)).toEqual([]);
       });
     }
@@ -257,7 +273,7 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
       // Frontières refusées par la seule règle de l'élan (rampe-saut puis plat court) : la règle sert.
       for (const s of drawn(t)) {
         const last = drawn(t).filter((d) => d.xEnd <= s.xEnd + 1e-9).pop()!;
-        if (last.type !== 'rampe-saut' && last.type !== 'rampe-volcan' && refusedAt(t, s.xEnd)) refusedByRule++;
+        if (last.type !== 'rampe-saut' && !isVolcano(last.type) && refusedAt(t, s.xEnd)) refusedByRule++;
       }
     }
     expect(refusedByRule).toBeGreaterThan(0);
@@ -295,7 +311,9 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
       const now = drawn(track(seed, 1680));
       const before = generateTrack(seed, 1680, AP).slices;
       let k = 0;
-      while (k < now.length && k < before.length && now[k].type === before[k].type
+      // Une fosse est une rampe-volcan typée par l'alternance (tâche 5g) : même tirage.
+      const same = (a: SliceType, b: SliceType): boolean => (a === 'fosse' ? 'rampe-volcan' : a) === b;
+      while (k < now.length && k < before.length && same(now[k].type, before[k].type)
         && Math.abs((now[k].xEnd - now[k].xStart) - (before[k].xEnd - before[k].xStart)) < 1e-6) k++;
       return k;
     });
@@ -308,6 +326,72 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
       const t = generateTrack(seed, 1680, CONFIG, { onlyPlat: true });
       expect(flats(t)).toEqual([]);
       expect(t.volcanoes).toEqual([]);
+    }
+  });
+});
+
+describe('fosses (tâche 5g, saut §6.3, rulings R-F2, R-F3, R-F5)', () => {
+  /** Mêmes pistes sans fosse (FOSSE_PERIOD 0) : la suite tirée doit être la même, à l'échange tremplin / fosse près. */
+  const NO_FOSSE: Config = { ...CONFIG, FOSSE_PERIOD: 0 };
+
+  test('alternance : deux volcans consécutifs de la piste sont de sortes différentes ; au moins une fosse et un tremplin dès 2 volcans', () => {
+    expect(CONFIG.FOSSE_PERIOD).toBe(2);
+    for (const [seed, len] of CASES) {
+      const vs = track(seed, len).volcanoes;
+      for (let i = 1; i < vs.length; i++) expect(vs[i].kind, `seed ${seed} len ${len}, volcan ${i}`).not.toBe(vs[i - 1].kind);
+      if (vs.length >= 2) {
+        expect(vs.some((v) => v.kind === 'fosse'), `seed ${seed} len ${len}`).toBe(true);
+        expect(vs.some((v) => v.kind === 'tremplin'), `seed ${seed} len ${len}`).toBe(true);
+      }
+    }
+  });
+
+  test('les deux phases existent (premier volcan tremplin ou fosse), à peu près à parts égales (graines 0 à 49, 1 680 m)', () => {
+    const firsts = SEEDS.map((seed) => track(seed, 1680).volcanoes[0]?.kind);
+    const nf = firsts.filter((k) => k === 'fosse').length;
+    const nt = firsts.filter((k) => k === 'tremplin').length;
+    console.log(`premier volcan (graines 0 à 49) : fosse ${nf}, tremplin ${nt}`);
+    expect(nf).toBeGreaterThanOrEqual(10);
+    expect(nt).toBeGreaterThanOrEqual(10);
+  });
+
+  test('même suite de tranches tirées et mêmes x qu’avec FOSSE_PERIOD 0, à l’échange tremplin / fosse près (le rng de la piste n’est pas touché)', () => {
+    for (const [seed, len] of CASES) {
+      const a = track(seed, len);
+      const b = generateTrack(seed, len, NO_FOSSE);
+      expect(b.volcanoes.every((v) => v.kind === 'tremplin')).toBe(true);
+      expect(a.slices.map((s) => (s.type === 'fosse' ? 'rampe-volcan' : s.type)), `seed ${seed} len ${len}`).toEqual(b.slices.map((s) => s.type));
+      a.slices.forEach((s, i) => {
+        expect(s.xStart, `seed ${seed} len ${len}, tranche ${i}`).toBe(b.slices[i].xStart);
+        expect(s.xEnd, `seed ${seed} len ${len}, tranche ${i}`).toBe(b.slices[i].xEnd);
+      });
+    }
+  });
+
+  test('volcans par piste de 1 680 m (graines 0 à 49) : fosses et tremplins comptés ; 15 % à 90 % de la cible', () => {
+    const counts = SEEDS.map((seed) => track(seed, 1680).volcanoes);
+    const fosses = counts.reduce((n, vs) => n + vs.filter((v) => v.kind === 'fosse').length, 0);
+    const tremplins = counts.reduce((n, vs) => n + vs.filter((v) => v.kind === 'tremplin').length, 0);
+    console.log(`volcans par course (graines 0 à 49) : ${((fosses + tremplins) / 50).toFixed(2)} [${Math.min(...counts.map((c) => c.length))}, ${Math.max(...counts.map((c) => c.length))}], `
+      + `fosses ${(fosses / 50).toFixed(2)}, tremplins ${(tremplins / 50).toFixed(2)}`);
+    expect(fosses).toBeGreaterThan(60);
+    expect(tremplins).toBeGreaterThan(60);
+  });
+
+  test('FOSSE_PERIOD invalide : erreur explicite ; FOSSE_PERIOD 0 : aucune fosse', () => {
+    expect(() => generateTrack(0, 1680, { ...CONFIG, FOSSE_PERIOD: -1 })).toThrow(/FOSSE_PERIOD/);
+    expect(() => generateTrack(0, 1680, { ...CONFIG, FOSSE_PERIOD: 1.5 })).toThrow(/FOSSE_PERIOD/);
+    for (const seed of SEEDS.slice(0, 10)) expect(generateTrack(seed, 1680, NO_FOSSE).slices.some((s) => s.type === 'fosse')).toBe(false);
+    // FOSSE_PERIOD 1 : tous les volcans sont des fosses.
+    for (const seed of SEEDS.slice(0, 10)) expect(generateTrack(seed, 1680, { ...CONFIG, FOSSE_PERIOD: 1 }).volcanoes.every((v) => v.kind === 'fosse')).toBe(true);
+  });
+
+  test('plats étoile : jamais juste après une fosse non plus (décision du papa)', () => {
+    for (const [seed, len] of CASES) {
+      const t = track(seed, len);
+      t.slices.forEach((s, i) => {
+        if (s.type === 'plat-étoile') expect(t.slices[i - 1].type, `seed ${seed} len ${len}`).not.toBe('fosse');
+      });
     }
   });
 });

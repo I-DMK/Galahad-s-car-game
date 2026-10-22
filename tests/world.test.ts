@@ -165,6 +165,33 @@ test('lave : le capteur monte à rimY + LAVA_SENSOR_ABOVE_RIM et descend au plan
   expect(sensorsTouching(world.engine, [high])).toEqual([]);
 });
 
+test('fosse (tâche 5g, saut §6.2) : capteur sur [xBord, xBord + W], du plancher à 0,3 m au-dessus du sol ; une roue au sol avant le bord ou sur la réception n’y est pas', () => {
+  const track = generateTrack(0, 1680, CONFIG);
+  const k = track.volcanoes.findIndex((v) => v.kind === 'fosse');
+  expect(k).toBeGreaterThanOrEqual(0);
+  const f = track.volcanoes[k];
+  if (f.kind !== 'fosse') throw new Error('fosse attendue');
+  const world = createWorld(track, CONFIG);
+  const ppm = CONFIG.PIXELS_PER_METER;
+  const b = world.lava[k].bounds;
+  expect(-b.min.y / ppm).toBeCloseTo(CONFIG.LAVA_SENSOR_ABOVE_RIM, 6);
+  expect(b.max.y).toBeCloseTo(world.floorY, 6);
+  expect(b.min.x / ppm).toBeCloseTo(f.xBord, 6);
+  expect(b.max.x / ppm).toBeCloseTo(f.xBord + CONFIG.FOSSE_WIDTH, 6);
+  expect(world.lava[k].plugin.volcano).toBe(f);
+  const bottom = addWheel(world, f.xLava, -CONFIG.CRATER_DEPTH + R);
+  const low = addWheel(world, f.xLava + 1, 0.15 + R);
+  const high = addWheel(world, f.xLava - 1, CONFIG.LAVA_SENSOR_ABOVE_RIM + 0.15 + R);
+  const before = addWheel(world, f.xBord - 1, R);
+  const after = addWheel(world, f.xReception + 1, R);
+  stepWorld(world);
+  expect(sensorsTouching(world.engine, [bottom]).map((x) => x.label)).toEqual(['lava']);
+  expect(sensorsTouching(world.engine, [low]).map((x) => x.label)).toEqual(['lava']);
+  expect(sensorsTouching(world.engine, [high])).toEqual([]);
+  expect(sensorsTouching(world.engine, [before])).toEqual([]);
+  expect(sensorsTouching(world.engine, [after])).toEqual([]);
+});
+
 test('mur : un corps lancé vers xWall est arrêté avant xWall + 1', () => {
   const track = generateTrack(1, CONFIG.TRACK_MIN_LENGTH, CONFIG);
   const world = createWorld(track, CONFIG);

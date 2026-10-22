@@ -20,7 +20,7 @@ export const CONFIG = {
   TURBO_FACTOR: 1.5,
   TURBO_SECONDS: 3,
   STAR_RESPAWN_SECONDS: 5,
-  STAR_STEP_MIN: 55, STAR_STEP_MAX: 90,    // m : pas du curseur global d'étoiles (addendum §1.5, cible 8 à 12) ; [60, 100] jusqu'à la tâche 5e (≈ 9,02 étoiles basses ; [80, 130] donnait 7,3) ; [55, 90] avec les plats étoile (tâche 5e, saut §6.5), qui prennent ≈ 171 m de plats par course : voir le registre
+  STAR_STEP_MIN: 35, STAR_STEP_MAX: 58,    // m : pas du curseur global d'étoiles (addendum §1.5, cible 8 à 12) ; [60, 100] jusqu'à la tâche 5e (≈ 9,02 étoiles basses ; [80, 130] donnait 7,3) ; [55, 90] avec les plats étoile (tâche 5e, saut §6.5), qui prennent ≈ 171 m de plats par course ; [35, 58] en 5g (ruling du Step 7) : fosses, et plus d'étoile basse avant l'atterrissage sur les réceptions (STAR_TREMPLIN_LANDING, STAR_FOSSE_LANDING) : au pas [50, 85] du plan, 6,50 étoiles basses (4 à 9) ; à [35, 58], 8,50 (5 à 12 ; graines 0 à 19 : 6 à 12) : voir le registre
   STAR_MIN_COUNT: 6,            // plancher : étoiles d'élan ajoutées aux volcans sans étoile, dans l'ordre de la piste ; plancher non garanti sans volcan (une piste sans volcan ou `?len=300` peut en avoir moins, jusqu'à 0)
   STAR_ELAN_OFFSET: 2,          // m : étoile d'élan à xElanStart − 2 (turbo encore actif au sommet)
   STAR_ELAN_GAP: 5,             // m : le curseur s'arrête à xElanStart − 5 sur le plat de lancement (≥ 3 m avant l'étoile d'élan)
@@ -96,5 +96,23 @@ export const CONFIG = {
   STAR_FLATS_PER_RACE: 3,       // plats étoile par course ; 0 = aucun (pistes d'avant)
   STAR_FLAT_SPACING: 400,       // m de piste par plat étoile (pistes courtes : 1 à 600 m, 0 à 300 m)
   STAR_FLAT_LENGTH: STAR_HIGH_BUMP_CLEARANCE + STAR_HIGH_TAKEOFF_ROOM + STAR_HIGH_LANDING_ROOM,   // 57 m : dégagement d'entrée + élan + atterrissage
+  // Fosses de lave (plan B, tâche 5g ; décisions P8, Q-F1, Q-F2 du papa ; saut §6.2 à §6.5 et §6.9) : une rampe-volcan
+  // tirée sur FOSSE_PERIOD devient une fosse (alternance, phase sur un mulberry32 à part), même longueur (125,2 m) :
+  // garde, approche (LANCEMENT_LENGTH), lave de FOSSE_WIDTH au ras du sol, réception.
+  FOSSE_PERIOD: 2,              // 1 volcan sur 2 est une fosse ; 0 = aucune (pistes d'avant)
+  FOSSE_WIDTH: 8,               // m de lave (Q-F1) : franchissable à doigt posé, pas sous ≈ 6 m/s
+  FOSSE_GUARD: 20,              // m de plat de garde avant l'approche : absorbe le vol d'une bosse ou double-bosse prise en turbo (R-F4)
+  FOSSE_STAR_AFTER: 25,         // m entre le bord aval et l'étoile de réception (tirée 1 fosse sur 2, comme l'étoile d'élan)
+  FOSSE_JUMP_AIM: 1,            // s : fosseJumpLead(v) = FOSSE_JUMP_AIM − FOSSE_WIDTH / (2v), centre de la fenêtre (saut §6.8)
+  FOSSE_RESPAWN_AFTER: 5,       // m : 2e chute de suite dans une fosse → posée à bord aval + 5 (Q-F2, option B)
+  FOSSE_GHOST_AFTER: 40,        // m : zone fantôme d'une fosse jusqu'à bord aval + 40 (atterrissage le plus long ≈ 32 m, R-F16)
+  // Étoiles basses des réceptions (tâche 5g, demande du papa : une étoile au tout début d'une réception était survolée
+  // doigt posé, graine 14 : toutes les voitures en turbo en ratent une sur un tremplin). Aucune étoile basse du curseur
+  // avant xReception + ces dégagements : atterrissage le plus long doigt posé (turbo compris), plus une marge.
+  // Mesuré (5 voitures et Galahad seul, graines 0 à 23, Galahad avec un saut au centre de chaque fosse) : tremplin,
+  // premier contact jusqu'à 49,4 m après xReception (sommet à 19,5 m/s en turbo ; ≈ 50,7 m CALCULÉ à 21 m/s) ; fosse,
+  // jusqu'à 17,6 m après le bord aval (sauts au centre, turbo compris). Voir le registre, tâche 5g.
+  STAR_TREMPLIN_LANDING: 55,    // m après le pied de la descente aval d'un tremplin sans étoile basse (reste ≈ 9,3 m de réception)
+  STAR_FOSSE_LANDING: 22,       // m après le bord aval d'une fosse sans étoile basse du curseur ; l'étoile de réception (FOSSE_STAR_AFTER) est au-delà
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

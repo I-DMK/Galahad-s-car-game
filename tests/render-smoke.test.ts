@@ -5,6 +5,7 @@ import { drawCar } from '../src/render/car';
 import type { CarView } from '../src/render/renderer';
 import { drawStar, drawTrack } from '../src/render/track';
 import { generateTrack } from '../src/track/generate';
+import { fosses, tremplins } from '../src/track/query';
 
 /** Appel de méthode du contexte, avec le fillStyle courant au moment de l'appel. */
 type Call = { name: string; args: unknown[]; fillStyle?: unknown };
@@ -84,4 +85,49 @@ test('drawStar ne lève pas', () => {
   const { ctx, calls } = fakeCtx();
   drawStar(ctx, 100, 100, 2, 85.7);
   expect(calls.filter((c) => c.name === 'lineTo')).toHaveLength(9);
+});
+
+describe('fosses (tâche 5g, saut §6.7)', () => {
+  /** Piste de 1 680 m avec un tremplin et une fosse, et la première fosse, le premier tremplin. */
+  const seed = [0, 1, 2, 3, 4, 5].find((s) => {
+    const t = generateTrack(s, 1680, CONFIG);
+    return fosses(t).length > 0 && tremplins(t).length > 0;
+  })!;
+  const track = generateTrack(seed, 1680, CONFIG);
+  const f = fosses(track)[0];
+  const tr = tremplins(track)[0];
+  const draw = (x: number) => {
+    const cam = new Camera(CONFIG);
+    cam.update(x, 2, 0, 1 / 60);
+    const { ctx, calls } = fakeCtx();
+    drawTrack(ctx, track, cam, view, 3.7);
+    return { cam, calls };
+  };
+
+  test('une fosse et son panneau se dessinent sans erreur : halo (dégradé), lave, langues de feu ; triangle jaune à xLancement', () => {
+    const atFosse = draw(f.xLava).calls;
+    expect(atFosse.some((c) => c.name === 'createLinearGradient')).toBe(true);
+    expect(atFosse.some((c) => c.name === 'fill' && (c.fillStyle === '#ff7a1a' || c.fillStyle === '#ffd23f'))).toBe(true);
+    // Le panneau est 32 m avant le bord : hors de la vue de la fosse (≈ 22 m de large), dans celle de l'approche.
+    const sign = (calls: Call[]) => calls.some((c) => c.name === 'fill' && c.fillStyle === '#ffd400');
+    expect(sign(atFosse)).toBe(false);
+    expect(sign(draw(f.xLancement).calls)).toBe(true);
+    // Pas de panneau devant un tremplin.
+    expect(sign(draw(tr.xLancement).calls)).toBe(false);
+  });
+
+  test('aucun plot lumineux au-dessus de la lave d’une fosse', () => {
+    const { cam, calls } = draw(f.xLava);
+    const ppm = cam.pxPerMeter(view.h);
+    const [a, b] = [f.xBord - 0.3, f.xReception + 0.3].map((x) => cam.worldToScreen({ x, y: 0 }, view.w, view.h).x);
+    const posts = calls.filter((c) => c.name === 'fillRect' && c.fillStyle === '#e8ffff').map((c) => (c.args[0] as number) + 0.04 * ppm);
+    expect(posts.length).toBeGreaterThan(0);
+    for (const x of posts) expect(x > a && x < b, `plot en ${x} px, lave sur [${a}, ${b}] px`).toBe(false);
+  });
+
+  test('le cône sombre reste réservé aux tremplins', () => {
+    const cone = (calls: Call[]) => calls.some((c) => c.name === 'fill' && c.fillStyle === '#5a4a4a');
+    expect(cone(draw(f.xLava).calls)).toBe(false);
+    expect(cone(draw(tr.xLava).calls)).toBe(true);
+  });
 });

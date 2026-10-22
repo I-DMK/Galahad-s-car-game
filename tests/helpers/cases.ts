@@ -22,7 +22,8 @@
 //    tous les volcans, en CI comme en lent.
 import { CONFIG, type Config } from '../../src/config';
 import type { World } from '../../src/physics/world';
-import type { SliceType, Track, Volcano } from '../../src/track/types';
+import { tremplins } from '../../src/track/query';
+import type { SliceType, Track, Tremplin, Volcano } from '../../src/track/types';
 import {
   LANDING_MAX_ANGLE, LIP_SPEED_THRESHOLD, describeRun, f2, runFrom, trackFor, worldFor, worstSafePoint,
   type RunOptions, type RunResult,
@@ -58,7 +59,7 @@ export const CASE_TITLES: Record<CaseId, string> = {
 };
 
 /** Scénarios (départ, options) du cas pour un volcan ; vide quand le motif n'existe pas (cas 3). */
-export function scenariosFor(caseId: CaseId, track: Track, v: Volcano, cfg: Config = CONFIG): Scenario[] {
+export function scenariosFor(caseId: CaseId, track: Track, v: Tremplin, cfg: Config = CONFIG): Scenario[] {
   const base: RunOptions = { throttle: always, maxSeconds: RUN_SECONDS, cfg, volcano: v };
   switch (caseId) {
     case 1:
@@ -126,7 +127,7 @@ function record(stats: LipStats, r: RunResult, v: Volcano): void {
 }
 
 /**
- * Joue le cas sur les rampe-volcan de la piste du monde (tous si `allVolcanoes`, le premier sinon,
+ * Joue le cas sur les tremplins de la piste du monde (tous si `allVolcanoes`, le premier sinon,
  * y compris pour un cas à trajectoire unique : la demande de l'appelant est honorée) et vérifie
  * chaque run à 100 %.
  * Renvoie les statistiques de vitesse au sommet.
@@ -134,7 +135,8 @@ function record(stats: LipStats, r: RunResult, v: Volcano): void {
 export function runCase(caseId: CaseId, seed: number, world: World, allVolcanoes = false, cfg: Config = CONFIG): LipStats {
   const stats = newStats();
   const { track } = world;
-  const volcanoes = allVolcanoes ? track.volcanoes : track.volcanoes.slice(0, 1);
+  // Tâche 5g : les cas des volcans visent les tremplins (les fosses ont tests/fosses.test.ts).
+  const volcanoes = allVolcanoes ? tremplins(track) : tremplins(track).slice(0, 1);
   for (const v of volcanoes) {
     const scenarios = scenariosFor(caseId, track, v, cfg);
     if (scenarios.length) stats.volcanoes++;
@@ -167,7 +169,7 @@ export function registerVolcanoCases(seedsByCase: Record<CaseId, number[]>, allV
     describe(CASE_TITLES[caseId], () => {
       test.each(seeds)('seed %i', (seed) => {
         const world = worldFor(seed);
-        expect(world.track.volcanoes.length).toBeGreaterThan(0);
+        expect(tremplins(world.track).length).toBeGreaterThan(0);
         const s = runCase(caseId, seed, world, allVolcanoes.includes(caseId));
         runsBySeed[caseId].set(seed, s.runs);
         const t = totals[caseId];
@@ -181,7 +183,7 @@ export function registerVolcanoCases(seedsByCase: Record<CaseId, number[]>, allV
         test(`au moins un volcan précédé de ${CASE3_PREVIOUS.join(' ou ')} sur les graines ${seeds.join(', ')}`, () => {
           const perSeed = seeds.map((seed) => {
             const track = trackFor(seed);
-            const vs = allVolcanoes.includes(3) ? track.volcanoes : track.volcanoes.slice(0, 1);
+            const vs = allVolcanoes.includes(3) ? tremplins(track) : tremplins(track).slice(0, 1);
             return vs.reduce((n, v) => n + scenariosFor(3, track, v).length, 0);
           });
           expect(perSeed.reduce((a, b) => a + b, 0), `motifs par graine : ${perSeed.join(', ')}`).toBeGreaterThan(0);

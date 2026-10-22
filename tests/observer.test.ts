@@ -2,6 +2,7 @@
 // simulateRace : l'observateur de la course à 5 (contacts entre voitures, classement des chutes) ;
 // runFrom : l'observateur de l'échantillonnage des phases (phaseRun : positions, contacts avec la lave).
 import { simulateRace, type SimulateResult } from '../src/sim/harness';
+import { tremplins } from '../src/track/query';
 import { REFERENCE, historiesFor, phaseRun, variantTrack, volcanoWorld } from './helpers/phases';
 import { fiveCarOptions, fiveCarRace } from './helpers/race';
 import { runFrom } from './helpers/runs';
@@ -18,14 +19,14 @@ function comparable(r: SimulateResult): unknown {
 test(`simulateRace à 5 voitures, graine ${SEED}, 12 s : même résultat avec et sans l'observateur de fiveCarRace`, () => {
   const track = variantTrack(SEED, REFERENCE);
   const observed = fiveCarRace(SEED, { maxSeconds: 12 }).r;
-  const plain = simulateRace(track, fiveCarOptions({ maxSeconds: 12 }));
+  const plain = simulateRace(track, fiveCarOptions({ maxSeconds: 12 }, track));
   expect(observed.time).toBeGreaterThan(11);
   expect(comparable(observed)).toEqual(comparable(plain));
 });
 
 test(`runFrom, graine ${SEED}, premier volcan : même run avec et sans l'observateur de phaseRun`, () => {
   const track = variantTrack(SEED, REFERENCE);
-  const v = track.volcanoes[0];
+  const v = tremplins(track)[0];
   const world = volcanoWorld(SEED, 0, REFERENCE);
   const hs = historiesFor(SEED, 0, track, REFERENCE.cfg, { perWindow: 1, motifs: 1, turbos: 1, dense: true });
   for (const h of [hs[0], hs.find((x) => x.family === 'turbo')!, hs.find((x) => x.family === 'turbo dense')!]) {

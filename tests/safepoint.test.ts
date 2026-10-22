@@ -2,20 +2,22 @@ import { CONFIG } from '../src/config';
 import { forbiddenZone, isSafePointCandidate } from '../src/cars/safepoint';
 import { newCarState } from '../src/cars/state';
 import { generateTrack } from '../src/track/generate';
-import { sliceAt } from '../src/track/query';
+import { fosses, sliceAt, tremplins } from '../src/track/query';
 import type { Track } from '../src/track/types';
 
 const DEG = Math.PI / 180;
 
+/** Piste avec un tremplin et une fosse (tâche 5g). */
 function makeTrack(): Track {
   for (let seed = 0; seed < 10; seed++) {
     const t = generateTrack(seed, 1680, CONFIG);
-    if (t.volcanoes.length >= 1) return t;
+    if (tremplins(t).length >= 1 && fosses(t).length >= 1) return t;
   }
-  throw new Error('aucune piste avec volcan');
+  throw new Error('aucune piste avec tremplin et fosse');
 }
 const track = makeTrack();
-const v = track.volcanoes[0];
+const v = tremplins(track)[0];
+const f = fosses(track)[0];
 const [zoneStart, zoneEnd] = forbiddenZone(v, CONFIG);
 
 function state() {
@@ -36,6 +38,24 @@ describe('forbiddenZone', () => {
     expect(zoneStart).toBeLessThan(v.xElanStart);
     // D_LANCE de plat garanti après le pire point sûr (V_MAX avant l'élan).
     expect(v.xElanStart - zoneStart).toBeCloseTo(CONFIG.D_LANCE, 9);
+  });
+
+  test('fosse : [xLancement + 5, bord aval) ; la garde accepte les points sûrs ; D_LANCE de plat (et la maille) avant le bord', () => {
+    const [a, b] = forbiddenZone(f, CONFIG);
+    expect(a).toBeCloseTo(f.xLancement + 5, 9);
+    expect(b).toBe(f.xReception);
+    expect(f.xBord - a).toBeGreaterThanOrEqual(CONFIG.D_LANCE - 1e-9);
+    expect(f.xBord - a).toBeLessThan(CONFIG.D_LANCE + CONFIG.TRACK_POINT_SPACING);
+    const guard = f.xLancement - CONFIG.FOSSE_GUARD;
+    expect(isSafePointCandidate({ ...ok, x: guard + 1 }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: f.xLancement - 0.01 }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: f.xLancement + 4.99 }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: f.xLancement + 5 }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: f.xBord - 1 }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: f.xLava }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: f.xReception - 0.01 }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: f.xReception }, state(), track, CONFIG)).toBe(true);
+    expect(isSafePointCandidate({ ...ok, x: f.xReception + CONFIG.FOSSE_RESPAWN_AFTER }, state(), track, CONFIG)).toBe(true);
   });
 
   test('graines 0 à 19 : même règle pour chaque volcan', () => {

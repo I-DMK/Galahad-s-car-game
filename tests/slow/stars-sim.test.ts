@@ -1,16 +1,18 @@
 // Étoiles et turbo dans le pas de course (tâche 12) : seed 1, 1680 m, doigt toujours posé. Galahad
-// seul (défaut `robots: false` de createRaceSim et simulateRace, comme au plan A).
+// seul (défaut `robots: false` de createRaceSim et simulateRace, comme au plan A). Tâche 5g : il saute au centre de
+// chaque fosse (`sauteurParfait`), sans quoi il y tombe deux fois.
 import { CONFIG } from '../../src/config';
 import { isStarActiveFor } from '../../src/cars/stars';
 import { simulateRace } from '../../src/sim/harness';
 import { createRaceSim, sceneOf, stepRace, carView, type StarEvent } from '../../src/sim/simulate';
 import { generateTrack } from '../../src/track/generate';
+import { sauteurParfait } from '../helpers/fosses';
 
 const TRACK = generateTrack(1, 1680, CONFIG);
 const MAX_SECONDS = 240;
 
 test('course complète : étoiles prises tôt, turbo au-delà de V_MAX, arrivée sans aucune réapparition', () => {
-  const r = simulateRace(TRACK, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG });
+  const r = simulateRace(TRACK, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG, jump: sauteurParfait(TRACK) });
   const stars = r.starsTaken;
   const summary = `stars=${stars.length} first=${stars[0]?.t.toFixed(2)} maxSpeed=${r.maxSpeed.toFixed(2)} finishedAt=${r.finishedAt?.toFixed(2)} respawns=${r.respawns.length}`;
   expect(stars.length, summary).toBeGreaterThanOrEqual(1);

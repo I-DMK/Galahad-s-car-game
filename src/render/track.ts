@@ -1,9 +1,9 @@
-// Dessin de la piste : sol lunaire, cratères décoratifs, plots, volcans et lave, départ, arrivée, mur.
+// Dessin de la piste : sol lunaire, cratères décoratifs, plots, volcans (tremplins et fosses) et lave, départ, arrivée, mur.
 // Monde en mètres (y vers le haut) → écran via camera.worldToScreen (y vers le bas).
 // Seule la portion visible est parcourue : x ∈ [camera.x − demi-largeur − 5, camera.x + demi-largeur + 5].
 import { heightAt } from '../track/query';
 import { mulberry32 } from '../track/rng';
-import type { Track } from '../track/types';
+import type { Fosse, Track } from '../track/types';
 import type { BackingSize, Camera } from './camera';
 
 const MARGIN_M = 5;
@@ -13,6 +13,15 @@ const POST_EVERY_M = 10;
 const LAVA_BELOW_RIM_M = 0.15;
 /** Hauteur (m) sous la surface où flottent les bulles. */
 const BUBBLE_DEPTH_M = 0.3;
+/** Fosse (tâche 5g, saut §6.7) : surface de lave à 0,1 m sous le sol (fosse pleine, « à ras bord »). */
+const FOSSE_LAVA_BELOW_M = 0.1;
+/** Langues de feu d'une fosse : jusqu'à la hauteur du haut du capteur (LAVA_SENSOR_ABOVE_RIM au-dessus du sol). */
+const FOSSE_FLAMES_PER_M = 1.5;
+/** Halo d'une fosse : lueur orange jusqu'à ≈ 3 m au-dessus du sol, pulsée au temps de simulation. */
+const FOSSE_HALO_M = 3;
+/** Panneau d'une fosse, planté à xLancement : poteau de 1,6 m, triangle jaune de 1,1 m de côté portant le ressort. */
+const SIGN_POLE_M = 1.6;
+const SIGN_SIDE_M = 1.1;
 
 type Ctx = CanvasRenderingContext2D;
 interface Pt { x: number; y: number }
@@ -31,8 +40,14 @@ export function drawTrack(ctx: Ctx, track: Track, camera: Camera, view: BackingS
   fillDown(ctx, surface.map((p) => S(p.x, p.y)), view.h, '#8b8b8b');
   drawCraters(ctx, track, xMin, xMax, ppm, S);
 
-  // Cônes de volcan, plus sombres, puis lave animée au fond du cratère.
+  // Tremplins : cône plus sombre, puis lave animée au fond du cratère. Fosses (tâche 5g) : halo, lave à ras bord,
+  // langues de feu ; leur panneau est dessiné après le liseré.
   for (const v of track.volcanoes) {
+    if (v.kind === 'fosse') {
+      if (v.xReception + FOSSE_HALO_M < xMin || v.xBord - FOSSE_HALO_M > xMax) continue;
+      drawFosse(ctx, v, heightAt(track, v.xLava), t, ppm, S);
+      continue;
+    }
     if (v.xReception < xMin || v.xLip > xMax) continue;
     const cone = surface.filter((p) => p.x >= v.xLip && p.x <= v.xReception);
     if (cone.length >= 2) fillDown(ctx, cone.map((p) => S(p.x, p.y)), view.h, '#5a4a4a');
@@ -62,6 +77,11 @@ export function drawTrack(ctx: Ctx, track: Track, camera: Camera, view: BackingS
     ctx.beginPath();
     ctx.arc(base.x, base.y - 0.3 * ppm, 0.07 * ppm, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // Panneau « saute » au début de l'approche de chaque fosse (pas devant un tremplin : il suffit d'y garder le doigt).
+  for (const v of track.volcanoes) {
+    if (v.kind === 'fosse' && inRange(v.xLancement, xMin, xMax)) drawFosseSign(ctx, S(v.xLancement, heightAt(track, v.xLancement)), ppm);
   }
 
   if (inRange(track.xStart, xMin, xMax)) drawStartLine(ctx, S(track.xStart, heightAt(track, track.xStart)), ppm);
@@ -152,6 +172,84 @@ function drawLava(
     ctx.arc(p.x, p.y, (0.08 + 0.03 * i) * ppm, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+/**
+ * Fosse (tâche 5g, saut §6.7) : halo orange pulsé (au temps de simulation `t`) jusqu'à ≈ 3 m au-dessus de la fosse,
+ * lave à ras bord (surface 0,1 m sous le sol) avec ses bulles, et langues de feu animées qui montent jusqu'au haut du
+ * capteur (0,3 m au-dessus du sol) : une roue qui touche la lave touche du feu dessiné. La lave brille tout le temps :
+ * rien ne s'allume quand une voiture arrive (Q-F5).
+ */
+function drawFosse(ctx: Ctx, f: Fosse, floorY: number, t: number, ppm: number, S: (x: number, y: number) => Pt): void {
+  const xA = f.xBord;
+  const xB = f.xReception;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 2.5);
+  // Halo : dégradé vertical du sol vers le ciel, un peu plus large que la fosse.
+  const top = S(xA - 1, f.rimY + FOSSE_HALO_M);
+  const bottom = S(xB + 1, f.rimY);
+  const halo = ctx.createLinearGradient(0, bottom.y, 0, top.y);
+  halo.addColorStop(0, `rgba(255, 120, 20, ${(0.35 + 0.2 * pulse).toFixed(3)})`);
+  halo.addColorStop(1, 'rgba(255, 120, 20, 0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
+  drawLava(ctx, xA, xB, floorY, f.rimY - FOSSE_LAVA_BELOW_M, t, ppm, S);
+  // Langues de feu : triangles qui ondulent, du dessus de la lave jusqu'à 0,3 m au-dessus du sol au plus haut.
+  const n = Math.max(3, Math.round((xB - xA) * FOSSE_FLAMES_PER_M));
+  const w = (xB - xA) / n;
+  const base = f.rimY - FOSSE_LAVA_BELOW_M;
+  for (let i = 0; i < n; i++) {
+    const x0 = xA + i * w;
+    const flicker = 0.5 + 0.5 * Math.sin(t * 7 + i * 1.7);
+    const tip = base + (FOSSE_LAVA_BELOW_M + 0.3) * (0.55 + 0.45 * flicker);
+    ctx.fillStyle = i % 2 === 0 ? '#ff7a1a' : '#ffd23f';
+    ctx.beginPath();
+    const a = S(x0, base);
+    const b = S(x0 + w / 2 + 0.15 * w * Math.sin(t * 5 + i), tip);
+    const c = S(x0 + w, base);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.lineTo(c.x, c.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+/** Panneau d'une fosse : poteau et triangle jaune portant le ressort du bouton saut (même dessin que le bouton). */
+function drawFosseSign(ctx: Ctx, base: Pt, ppm: number): void {
+  const pole = SIGN_POLE_M * ppm;
+  const side = SIGN_SIDE_M * ppm;
+  ctx.fillStyle = '#dddddd';
+  ctx.fillRect(base.x - 0.05 * ppm, base.y - pole, 0.1 * ppm, pole);
+  // Triangle pointe en haut, posé sur le haut du poteau.
+  const h = (side * Math.sqrt(3)) / 2;
+  const cx = base.x;
+  const by = base.y - pole;
+  ctx.fillStyle = '#ffd400';
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = Math.max(1, 0.06 * ppm);
+  ctx.beginPath();
+  ctx.moveTo(cx, by - h);
+  ctx.lineTo(cx + side / 2, by);
+  ctx.lineTo(cx - side / 2, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Ressort sous une flèche (icône du bouton saut, viewBox 64 → 0,45 m), centré dans le bas du triangle.
+  const k = (0.45 * ppm) / 64;
+  const ox = cx - 32 * k;
+  const oy = by - h * 0.62 - 32 * k;
+  const P = (x: number, y: number): [number, number] => [ox + x * k, oy + y * k];
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = Math.max(1, 5 * k);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(...P(32, 6)); ctx.lineTo(...P(20, 18));
+  ctx.moveTo(...P(32, 6)); ctx.lineTo(...P(44, 18));
+  ctx.moveTo(...P(32, 6)); ctx.lineTo(...P(32, 26));
+  ctx.moveTo(...P(16, 34));
+  for (const [x, y] of [[48, 34], [16, 42], [48, 42], [16, 50], [48, 50], [16, 58], [48, 58]] as const) ctx.lineTo(...P(x, y));
+  ctx.stroke();
 }
 
 function drawStartLine(ctx: Ctx, base: Pt, ppm: number): void {

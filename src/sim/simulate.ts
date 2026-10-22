@@ -4,7 +4,7 @@
 // départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B).
 import Matter from 'matter-js';
 import type { Config } from '../config';
-import { canJump, wantsJump } from '../cars/jump';
+import { canJump, fosseJumpWanted, wantsJump } from '../cars/jump';
 import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
 import {
   applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
@@ -72,8 +72,9 @@ export interface CarSim {
   /** Collisions avec les autres voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
   invulnerable: boolean;
   /**
-   * Fantôme : châssis dans la zone [xLancement, xReception] d'un volcan (`inGhostZone`), ou sorti de la
-   * zone mais encore engagé dans une autre voiture (`updateGhost`). Les voitures se traversent.
+   * Fantôme : châssis dans la zone [xLancement, xReception] d'un volcan (`inGhostZone` ; fosse : jusqu'au bord aval +
+   * FOSSE_GHOST_AFTER, tâche 5g), ou sorti de la zone mais encore engagé dans une autre voiture (`updateGhost`). Les
+   * voitures se traversent.
    */
   ghost: boolean;
   /** Pilote automatique d'un robot ; null pour Galahad (doigt de l'enfant, argument de `stepRace`). */
@@ -195,8 +196,10 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
     const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
     detectLanding(sim, car, grounded[0] || grounded[1]);
     applyAirLevel(body, grounded, cfg);
-    // Robots : leur driver demandera le saut en tâche 6.
-    updateJump(sim, car, car.driver ? false : galahadJump, onTrack(car.contact, t));
+    // Robots (tâche 5g, ruling R-F9) : saut provisoire aux fosses, demandé à chaque pas tant que `fosseJumpWanted` est
+    // vrai, sans erreur, au centre `fosseJumpLead(v)` ; la tâche 6 le remplace par leur driver.
+    const jump = car.driver ? fosseJumpWanted(track, chassisX(car), carSpeedMps(body), cfg) : galahadJump;
+    updateJump(sim, car, jump, onTrack(car.contact, t));
     return grounded;
   });
   stepWorld(world);
@@ -361,7 +364,8 @@ function releaseInvulnerability(sim: RaceSim, car: CarSim): void {
  * Après le pas physique (t = instant du pas) : mémorise un point sûr si la position s'y prête,
  * met à jour les chronomètres de réapparition et, si l'un d'eux se déclenche, repose la voiture
  * aussitôt (entre deux pas physiques), invulnérable, et émet l'événement 'respawn'. La cible est
- * décalée vers l'amont si un autre châssis l'occupe (respawn groupé, `shiftTarget`) ; les voitures
+ * décalée vers l'amont si un autre châssis l'occupe (respawn groupé, `shiftTarget`), vers l'aval pour la cible
+ * d'après une fosse (2e chute de suite, tâche 5g) ; les voitures
  * déjà replacées pendant ce pas comptent (ordre des index).
  */
 function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolean]): void {
@@ -389,8 +393,8 @@ function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolea
     inElanZone: inElanZone(track, x),
   }, cfg);
   if (reason === null) return;
-  const { point, lavaX, consecutive } = chooseRespawnTarget(state, track, cfg, reason);
-  const target = shiftTarget(point, otherCars(sim, car).map(chassisX), track, cfg);
+  const { point, lavaX, consecutive, direction } = chooseRespawnTarget(state, track, cfg, reason);
+  const target = shiftTarget(point, otherCars(sim, car).map(chassisX), track, cfg, direction);
   placeInvulnerable(sim, car, target, lavaX, consecutive);
   sim.events.push({ type: 'respawn', carId: state.id, t, reason, x, target: { ...target } });
 }

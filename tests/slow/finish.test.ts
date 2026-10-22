@@ -2,9 +2,11 @@
 // de l'addendum §1.7 : course complète doigt posé, graines 0 à 4 : chrono figé à l'arrivée, frein,
 // arrêt sur le plat avant le mur de fin, 0 réapparition, jamais bloqué, arrivée entre
 // FINISH_MIN_SECONDS et FINISH_MAX_SECONDS, 6 à 14 étoiles prises. Suite lente (npm run test:slow) ;
-// la seule graine 1 tourne en CI dans tests/race-smoke.test.ts.
+// la seule graine 1 tourne en CI dans tests/race-smoke.test.ts. Tâche 5g : Galahad saute au centre de chaque fosse
+// (`sauteurParfait`), sans quoi il y tombe deux fois (saut §6.1) ; sans saut : tests/slow/race-sans-saut-*.test.ts.
 import { CONFIG } from '../../src/config';
 import { simulateRace } from '../../src/sim/harness';
+import { sauteurParfait } from '../helpers/fosses';
 import { FINISH_MAX_SECONDS, FINISH_MIN_SECONDS, describeRespawns, trackFor } from '../helpers/runs';
 
 const SEEDS = [0, 1, 2, 3, 4];
@@ -17,7 +19,7 @@ describe('doigt toujours posé (cas 6)', () => {
   test.each(SEEDS)(`seed %i : arrivée entre ${FINISH_MIN_SECONDS} et ${FINISH_MAX_SECONDS} s, détectée au bon pas, arrêt avant le mur, 0 réapparition, jamais bloqué, 6 à 14 étoiles`, (seed) => {
     const track = trackFor(seed);
     // Galahad seul (défaut `robots: false`, plan A) ; course prolongée 10 s après la ligne (arrêt vérifié à finishedAt + 10).
-    const r = simulateRace(track, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG, stopAfterFinish: STOP_AFTER_FINISH });
+    const r = simulateRace(track, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG, stopAfterFinish: STOP_AFTER_FINISH, jump: sauteurParfait(track) });
     const summary = `seed ${seed} : finishedAt=${r.finishedAt?.toFixed(1)} stars=${r.starsTaken.length}/${track.stars.length} `
       + `respawns=${r.respawns.length} maxStuck=${r.maxStuckSeconds.toFixed(2)} [${describeRespawns(r.respawns).join(' ; ')}]`;
     console.log(`cas 6 ${summary}`);

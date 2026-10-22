@@ -25,6 +25,8 @@ function tracksSha1(tracks: Track[]): string {
     h.update(f64(t.exemptPointIndices));
     for (const sl of t.slices) { h.update(text(sl.type)); h.update(f64([sl.xStart, sl.xEnd])); }
     for (const v of t.volcanoes) {
+      // Pistes d'avant : que des tremplins (FOSSE_PERIOD 0) ; une fosse ferait échouer le sha1 par ce marqueur.
+      if (v.kind !== 'tremplin') { h.update(text(`fosse ${v.xBord}`)); continue; }
       h.update(f64([v.xLancement, v.xElanStart, v.xRampStart, v.xLip, v.lipY, v.xLava, v.lavaWidth, v.rimY, v.xReception, v.xEnd]));
     }
     h.update(f64(t.stars.flatMap((s) => [s.id, s.x, s.y, s.high ? 1 : 0])));

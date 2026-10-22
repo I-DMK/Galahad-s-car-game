@@ -1,7 +1,7 @@
 import type { Config } from '../config';
 import { mulberry32, pickWeighted } from './rng';
 import { placeStars, starFlatStarX } from './stars';
-import { bosses, doubleBosse, plat, platEtoile, rampeSaut, rampeVolcan, type SliceProfile } from './slices';
+import { bosses, doubleBosse, fosse, plat, platEtoile, rampeSaut, rampeVolcan, type SliceProfile } from './slices';
 import type { Slice, SliceType, Track, TrackPoint, Volcano } from './types';
 
 const WEIGHTS: { item: SliceType; weight: number }[] = [
@@ -34,9 +34,14 @@ export function parseTrackOptions(search: string, cfg: Config): TrackOptions {
   return { seed, length, debug: q.get('debug') === '1' };
 }
 
+/** Une tranche volcan, tremplin ou fosse (tâche 5g). */
+const isVolcanoSlice = (type: SliceType): boolean => type === 'rampe-volcan' || type === 'fosse';
+
 /**
  * Tire une tranche. `previous` est la dernière tranche TIRÉE (un plat étoile intercalé est ignoré, ruling R-F5) :
- * les refus des volcans ne dépendent pas des plats étoile, et la suite des tirages reste celle d'avant.
+ * les refus des volcans ne dépendent pas des plats étoile, et la suite des tirages reste celle d'avant. Une fosse est
+ * une rampe-volcan tirée puis typée par l'alternance (`buildTrack`) : un volcan ne suit jamais un autre volcan, quel
+ * que soit son type (saut §6.3).
  */
 function draw(
   rng: () => number, cfg: Config, x: number, target: number, previous: SliceType, onlyPlat: boolean,
@@ -48,7 +53,7 @@ function draw(
     // Jamais après une rampe-saut : abordée avec un turbo, elle lançait la voiture à 19–21 m/s sur l'élan ou la
     // rampe (atterrissage à +32…+38 m de xLancement), rebond, lave (relecture adversariale de la tâche 1).
     const refused = x < 0.15 * target || x + profile.length > 0.9 * target
-      || previous === 'rampe-volcan' || previous === 'rampe-saut';
+      || isVolcanoSlice(previous) || previous === 'rampe-saut';
     if (!refused) return profile;
     type = pickWeighted(rng, WEIGHTS_NO_VOLCANO);
   }
@@ -107,13 +112,35 @@ function buildTrack(
     slices.push({ type: p.type, xStart, xEnd: xNow() });
     if (p.volcano) {
       const v = p.volcano;
-      volcanoes.push({
-        xLancement: xStart, xElanStart: xStart + v.dxElanStart, xRampStart: xStart + v.dxRampStart,
-        xLip: xStart + v.dxLip, lipY: v.lipY,
-        xLava: xStart + v.dxLava, lavaWidth: v.lavaWidth, rimY: v.rimY,
+      const base = {
+        xLancement: xStart + v.dxLancement, xLava: xStart + v.dxLava, lavaWidth: v.lavaWidth, rimY: v.rimY,
         xReception: xStart + v.dxReception, xEnd: xStart + v.dxEnd,
-      });
+      };
+      volcanoes.push(v.kind === 'tremplin'
+        ? {
+          kind: 'tremplin', ...base, xElanStart: xStart + v.dxElanStart, xRampStart: xStart + v.dxRampStart,
+          xLip: xStart + v.dxLip, lipY: v.lipY,
+        }
+        : { kind: 'fosse', ...base, xBord: xStart + v.dxBord });
     }
+  };
+
+  // Fosses (tâche 5g, saut §6.3, ruling R-F3) : le volcan de rang r (tous les volcans, dans l'ordre de la piste) est une
+  // fosse si (r + phase) mod FOSSE_PERIOD = FOSSE_PERIOD − 1. La phase est tirée une fois par piste sur un mulberry32 à
+  // part, et seulement si FOSSE_PERIOD > 0 : le rng de la piste ne voit aucun tirage de plus (FOSSE_PERIOD 0 : pistes
+  // d'avant au bit près).
+  const period = cfg.FOSSE_PERIOD;
+  if (!Number.isInteger(period) || period < 0) throw new Error(`generateTrack : FOSSE_PERIOD ${period} doit être un entier ≥ 0`);
+  const phase = period > 0 ? Math.floor(mulberry32((seed ^ 0x6a09e667) >>> 0)() * period) : 0;
+  let volcanoRank = 0;
+  /** Le volcan tiré (rampe-volcan) devient une fosse selon l'alternance ; même longueur (ruling R-F2). */
+  const typed = (p: SliceProfile): SliceProfile => {
+    if (p.type !== 'rampe-volcan') return p;
+    const rank = volcanoRank++;
+    if (period === 0 || (rank + phase) % period !== period - 1) return p;
+    const f = fosse(cfg);
+    if (Math.abs(f.length - p.length) > 1e-9) throw new Error(`generateTrack : fosse de ${f.length} m ≠ rampe-volcan de ${p.length} m`);
+    return f;
   };
 
   append(plat(rng, cfg, cfg.START_LENGTH));
@@ -141,8 +168,9 @@ function buildTrack(
       }
       nextFlat = anchors.length;
     }
-    const profile = draw(rng, cfg, xNow(), targetLength, lastDrawn, !!opts.onlyPlat);
-    if (xNow() + profile.length > limit + 1e-9) break;
+    const drawnProfile = draw(rng, cfg, xNow(), targetLength, lastDrawn, !!opts.onlyPlat);
+    if (xNow() + drawnProfile.length > limit + 1e-9) break;
+    const profile = typed(drawnProfile);
     append(profile);
     lastDrawn = profile.type;
     if (profile.type === 'rampe-saut') lastRampSautEnd = xNow();
@@ -167,13 +195,13 @@ function buildTrack(
 
 /**
  * Un plat étoile peut-il commencer en `x` (tâche 5e, ruling R-F8) ? Jamais juste après une rampe-saut ni juste après
- * un volcan (décision du papa : à la sortie d'une réception, les voitures se rattrapent et se cognent ; un choc
+ * un volcan, tremplin ou fosse (décision du papa : à la sortie d'une réception, les voitures se rattrapent et se cognent ; un choc
  * arrière y a catapulté Galahad à 4,75 m au-dessus de l'étoile, graine 7), et jamais avec l'élan de son étoile
  * ([x★ − STAR_HIGH_TAKEOFF_ROOM, x★]) dans les STAR_HIGH_RAMP_CLEARANCE après la fin de la dernière rampe-saut
  * (rampe-saut puis plat court : la voiture qui en sort vole encore).
  */
 function starFlatAllowed(x: number, lastDrawn: SliceType, lastRampSautEnd: number | null, cfg: Config): boolean {
-  if (lastDrawn === 'rampe-saut' || lastDrawn === 'rampe-volcan') return false;
+  if (lastDrawn === 'rampe-saut' || isVolcanoSlice(lastDrawn)) return false;
   const takeoff = starFlatStarX({ xStart: x }, cfg) - cfg.STAR_HIGH_TAKEOFF_ROOM;
   return lastRampSautEnd === null || takeoff >= lastRampSautEnd + cfg.STAR_HIGH_RAMP_CLEARANCE - 1e-9;
 }

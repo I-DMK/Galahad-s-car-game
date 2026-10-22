@@ -1,5 +1,5 @@
 import type { Config } from '../config';
-import type { Slice, Track, Volcano } from './types';
+import type { Fosse, Slice, Track, Tremplin, Volcano } from './types';
 
 /** Indice i (1 ≤ i ≤ n − 1) du premier point d'abscisse ≥ x (x supposé dans l'intervalle des points). */
 function upperIndex(track: Track, x: number): number {
@@ -48,7 +48,22 @@ export function sliceAt(track: Track, x: number): Slice {
   return sl[lo];
 }
 
-/** Premier volcan (dans l'ordre de la piste) dont la lave est strictement devant x. */
+/** Volcans à tremplin de la piste, dans l'ordre (tâche 5g : les champs du tremplin ne valent que pour eux). */
+export function tremplins(track: Track): Tremplin[] {
+  return track.volcanoes.filter((v): v is Tremplin => v.kind === 'tremplin');
+}
+
+/** Fosses de la piste, dans l'ordre (tâche 5g). */
+export function fosses(track: Track): Fosse[] {
+  return track.volcanoes.filter((v): v is Fosse => v.kind === 'fosse');
+}
+
+/** Première fosse (dans l'ordre de la piste) dont le bord amont est strictement devant x (tâche 5g). */
+export function nextFosse(track: Track, x: number): Fosse | undefined {
+  return fosses(track).find((f) => f.xBord > x);
+}
+
+/** Premier volcan (tremplin ou fosse, dans l'ordre de la piste) dont la lave est strictement devant x. */
 export function volcanoAhead(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => v.xLava > x);
 }
@@ -59,22 +74,27 @@ export function nearestVolcanoZone(track: Track, x: number): Volcano | undefined
 }
 
 /**
- * Vrai si x est sur le plat d'élan ou la rampe d'un volcan, [xElanStart, xLip] bornes incluses
+ * Vrai si x est sur le plat d'élan ou la rampe d'un volcan à tremplin, [xElanStart, xLip] bornes incluses
  * (zone de réapparition immédiate d'une voiture retournée, addendum §1.6 ; au-delà du sommet,
- * c'est la lave qui tranche).
+ * c'est la lave qui tranche). Jamais sur une fosse (tâche 5g, saut §6.4) : sur son approche plate, les délais
+ * FLIP_SECONDS et SIDE_SECONDS s'appliquent.
  */
 export function inElanZone(track: Track, x: number): boolean {
-  return track.volcanoes.some((v) => x >= v.xElanStart && x <= v.xLip);
+  return tremplins(track).some((v) => x >= v.xElanStart && x <= v.xLip);
 }
 
 /**
- * Vrai si la voiture dont le châssis est en `chassisX` est dans la zone fantôme d'un volcan : du début
+ * Vrai si la voiture dont le châssis est en `chassisX` est dans la zone fantôme d'un volcan. Tremplin : du début
  * du plat de lancement (châssis ≥ xLancement) jusqu'à ce que la voiture entière ait passé la réception
- * (roue arrière, WHEEL_BASE/2 + WHEEL_RADIUS derrière le châssis, au-delà de xReception). Les voitures
- * s'y traversent, pour qu'aucun choc ne fasse tomber une voiture dans la lave (décision du papa,
- * tâche 5b) ; partout ailleurs, elles se cognent.
+ * (roue arrière, WHEEL_BASE/2 + WHEEL_RADIUS derrière le châssis, au-delà de xReception). Fosse (tâche 5g, ruling
+ * R-F16) : du début de l'approche jusqu'au bord aval + FOSSE_GHOST_AFTER (les sauteurs atterrissent jusqu'à ≈ 32 m, et
+ * une voiture posée à bord aval + FOSSE_RESPAWN_AFTER y attend). Les voitures s'y traversent, pour qu'aucun choc ne
+ * fasse tomber une voiture dans la lave (décision du papa, tâche 5b) ; partout ailleurs, elles se cognent.
  */
-export function inGhostZone(track: Track, chassisX: number, cfg: Pick<Config, 'WHEEL_BASE' | 'WHEEL_RADIUS'>): boolean {
+export function inGhostZone(
+  track: Track, chassisX: number, cfg: Pick<Config, 'WHEEL_BASE' | 'WHEEL_RADIUS' | 'FOSSE_GHOST_AFTER'>,
+): boolean {
   const rear = cfg.WHEEL_BASE / 2 + cfg.WHEEL_RADIUS;
-  return track.volcanoes.some((v) => chassisX >= v.xLancement && chassisX <= v.xReception + rear);
+  return track.volcanoes.some((v) => chassisX >= v.xLancement
+    && chassisX <= v.xReception + (v.kind === 'fosse' ? cfg.FOSSE_GHOST_AFTER : rear));
 }

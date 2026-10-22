@@ -41,6 +41,8 @@ export class Game {
   private readonly jumpInput: JumpInput;
   /** Sauts de Galahad depuis le départ (événements 'jump', `?debug=1` : `jumps`). */
   private jumpCount = 0;
+  /** Réapparitions de Galahad depuis le départ (`?debug=1` : `respawns`, e2e des fosses, tâche 5g). */
+  private readonly respawnLog: { reason: string; t: number; x: number; targetX: number }[] = [];
   private _state: GameState = 'racing';
   /** Reste de l'accumulateur et poses des deux derniers pas (rendu interpolé, tâche 5f). */
   private readonly loop: FrameState = { acc: 0, history: new PoseHistory() };
@@ -79,6 +81,11 @@ export class Game {
   get frameSteps(): StepCounts { return { ...this.stepStats.last }; }
   /** Sauts de Galahad depuis le départ (debug, e2e). */
   get jumps(): number { return this.jumpCount; }
+  /**
+   * Réapparitions de Galahad (debug, e2e, tâche 5g) : raison, instant (s), x du châssis avant la téléportation et x de
+   * la cible ; copies.
+   */
+  get respawns(): { reason: string; t: number; x: number; targetX: number }[] { return this.respawnLog.map((r) => ({ ...r })); }
   /** Doigt de gaz posé (debug, e2e : un tap sur le bouton saut n'en est jamais un). */
   get throttlePressed(): boolean { return this.throttle.pressed; }
 
@@ -162,7 +169,11 @@ export class Game {
       if (jump) this.jumpInput.clear();
       events.push(...sim.events);
       const galahad = sim.cars[GALAHAD_INDEX].state;
-      for (const e of sim.events) if (e.type === 'jump' && e.carId === galahad.id) this.jumpCount++;
+      for (const e of sim.events) {
+        if (e.carId !== galahad.id) continue;
+        if (e.type === 'jump') this.jumpCount++;
+        else if (e.type === 'respawn') this.respawnLog.push({ reason: e.reason, t: e.t, x: e.x, targetX: e.target.x });
+      }
       if (this.finishTime === null && sim.events.some((e) => e.type === 'finish' && e.carId === galahad.id)) {
         this._state = 'finished';
         this.finishTime = galahad.finishedAt;

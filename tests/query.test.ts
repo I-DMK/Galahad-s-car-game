@@ -1,16 +1,21 @@
 import { CONFIG } from '../src/config';
 import { generateTrack } from '../src/track/generate';
-import { heightAt, inElanZone, inGhostZone, nearestVolcanoZone, sliceAt, slopeAt, volcanoAhead } from '../src/track/query';
+import {
+  fosses, heightAt, inElanZone, inGhostZone, nearestVolcanoZone, nextFosse, sliceAt, slopeAt, tremplins, volcanoAhead,
+} from '../src/track/query';
 import type { Track } from '../src/track/types';
 
+/** Piste de 3 000 m avec au moins deux tremplins et deux fosses (tâche 5g). */
 function makeTrack(): Track {
   for (let seed = 0; seed < 200; seed++) {
     const t = generateTrack(seed, 3000, CONFIG);
-    if (t.volcanoes.length >= 2) return t;
+    if (tremplins(t).length >= 2 && fosses(t).length >= 2) return t;
   }
-  throw new Error('aucune piste avec deux volcans');
+  throw new Error('aucune piste avec deux tremplins et deux fosses');
 }
 const track = makeTrack();
+const [t0, t1] = tremplins(track);
+const [f0, f1] = fosses(track);
 
 describe('heightAt', () => {
   test('exact aux points, interpolé entre deux points', () => {
@@ -30,13 +35,13 @@ describe('heightAt', () => {
 
 describe('slopeAt', () => {
   test('≈ RAMP_ANGLE au milieu de la rampe, positive en montée', () => {
-    const v = track.volcanoes[0];
+    const v = t0;
     const x = (v.xRampStart + v.xLip) / 2;
     expect(slopeAt(track, x)).toBeCloseTo(CONFIG.RAMP_ANGLE, 3);
   });
 
   test('négative en descente, 0 sur le plat, clampée aux extrémités', () => {
-    const v = track.volcanoes[0];
+    const v = t0;
     expect(slopeAt(track, v.xLip + 1)).toBeLessThan(0);
     expect(slopeAt(track, v.xElanStart + 1)).toBeCloseTo(0, 9);
     expect(slopeAt(track, -10)).toBeCloseTo(0, 9);
@@ -71,48 +76,93 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
     expect(volcanoAhead(track, track.length)).toBeUndefined();
   });
 
+  test('volcanoAhead trouve aussi les fosses (champ xLava)', () => {
+    expect(volcanoAhead(track, f0.xLancement)).toBe(f0);
+    expect(volcanoAhead(track, f0.xBord)).toBe(f0);
+    expect(volcanoAhead(track, f0.xLava + 0.01)).not.toBe(f0);
+  });
+
   test('nearestVolcanoZone : [xLancement, xEnd)', () => {
     expect(nearestVolcanoZone(track, v0.xLancement - 0.01)).toBeUndefined();
     expect(nearestVolcanoZone(track, v0.xLancement)).toBe(v0);
-    expect(nearestVolcanoZone(track, v0.xElanStart)).toBe(v0);
+    expect(nearestVolcanoZone(track, (v0.xLancement + v0.xLava) / 2)).toBe(v0);
     expect(nearestVolcanoZone(track, v0.xLava)).toBe(v0);
     expect(nearestVolcanoZone(track, v0.xEnd - 0.01)).toBe(v0);
     expect(nearestVolcanoZone(track, v0.xEnd)).toBeUndefined();
     expect(nearestVolcanoZone(track, v1.xLava)).toBe(v1);
     expect(nearestVolcanoZone(track, 0)).toBeUndefined();
+    // Fosse : de l'approche (xLancement, après le plat de garde) à la fin de la réception.
+    expect(nearestVolcanoZone(track, f0.xLancement - 0.01)).toBeUndefined();
+    expect(nearestVolcanoZone(track, f0.xLancement)).toBe(f0);
+    expect(nearestVolcanoZone(track, f0.xReception)).toBe(f0);
+    expect(nearestVolcanoZone(track, f0.xEnd - 0.01)).toBe(f0);
   });
 
-  test('inElanZone : [xElanStart, xLip], bornes incluses, plat d’élan et rampe seulement', () => {
-    expect(inElanZone(track, v0.xElanStart - 0.01)).toBe(false);
-    expect(inElanZone(track, v0.xElanStart)).toBe(true);
-    expect(inElanZone(track, v0.xRampStart)).toBe(true);
-    expect(inElanZone(track, (v0.xRampStart + v0.xLip) / 2)).toBe(true);
-    expect(inElanZone(track, v0.xLip)).toBe(true);
-    expect(inElanZone(track, v0.xLip + 0.01)).toBe(false);
-    expect(inElanZone(track, v0.xLava)).toBe(false);
-    expect(inElanZone(track, v0.xReception)).toBe(false);
-    expect(inElanZone(track, v0.xLancement)).toBe(false);
-    expect(inElanZone(track, v1.xElanStart + 1)).toBe(true);
+  test('tremplins, fosses : par sorte, dans l’ordre de la piste', () => {
+    expect([...tremplins(track), ...fosses(track)].sort((a, b) => a.xLancement - b.xLancement)).toEqual(track.volcanoes);
+    expect(tremplins(track).every((v) => v.kind === 'tremplin')).toBe(true);
+    expect(fosses(track).every((v) => v.kind === 'fosse')).toBe(true);
+  });
+
+  test('nextFosse : première fosse dont le bord amont est strictement devant x', () => {
+    expect(nextFosse(track, 0)).toBe(f0);
+    expect(nextFosse(track, f0.xLancement)).toBe(f0);
+    expect(nextFosse(track, f0.xBord - 0.01)).toBe(f0);
+    expect(nextFosse(track, f0.xBord)).toBe(f1);
+    expect(nextFosse(track, f0.xReception)).toBe(f1);
+    const last = fosses(track)[fosses(track).length - 1];
+    expect(nextFosse(track, last.xBord)).toBeUndefined();
+  });
+
+  test('inElanZone : [xElanStart, xLip] d’un tremplin, bornes incluses, plat d’élan et rampe seulement', () => {
+    expect(inElanZone(track, t0.xElanStart - 0.01)).toBe(false);
+    expect(inElanZone(track, t0.xElanStart)).toBe(true);
+    expect(inElanZone(track, t0.xRampStart)).toBe(true);
+    expect(inElanZone(track, (t0.xRampStart + t0.xLip) / 2)).toBe(true);
+    expect(inElanZone(track, t0.xLip)).toBe(true);
+    expect(inElanZone(track, t0.xLip + 0.01)).toBe(false);
+    expect(inElanZone(track, t0.xLava)).toBe(false);
+    expect(inElanZone(track, t0.xReception)).toBe(false);
+    expect(inElanZone(track, t0.xLancement)).toBe(false);
+    expect(inElanZone(track, t1.xElanStart + 1)).toBe(true);
     expect(inElanZone(track, 0)).toBe(false);
   });
 
-  test('inGhostZone : châssis dans [xLancement, xReception + WHEEL_BASE/2 + WHEEL_RADIUS] (voiture entière avant la réception)', () => {
+  test('inElanZone : faux sur toute une fosse (tâche 5g : délais FLIP_SECONDS / SIDE_SECONDS sur son approche)', () => {
+    const slice = track.slices.find((s) => s.type === 'fosse' && s.xEnd > f0.xLancement)!;
+    for (let x = slice.xStart; x <= slice.xEnd; x += 0.1) expect(inElanZone(track, x), `x = ${x}`).toBe(false);
+  });
+
+  test('inGhostZone : tremplin, châssis dans [xLancement, xReception + WHEEL_BASE/2 + WHEEL_RADIUS] (voiture entière avant la réception)', () => {
     // La roue arrière dépasse de WHEEL_BASE/2 + WHEEL_RADIUS = 1,2 m derrière le châssis.
     const rear = CONFIG.WHEEL_BASE / 2 + CONFIG.WHEEL_RADIUS;
     expect(rear).toBeCloseTo(1.2, 9);
-    expect(inGhostZone(track, v0.xLancement - 0.01, CONFIG)).toBe(false);
-    expect(inGhostZone(track, v0.xLancement, CONFIG)).toBe(true);
-    expect(inGhostZone(track, v0.xElanStart, CONFIG)).toBe(true);
-    expect(inGhostZone(track, v0.xLip, CONFIG)).toBe(true);
-    expect(inGhostZone(track, v0.xLava, CONFIG)).toBe(true);
-    expect(inGhostZone(track, v0.xReception, CONFIG)).toBe(true);
-    expect(inGhostZone(track, v0.xReception + 1, CONFIG)).toBe(true);
-    expect(inGhostZone(track, v0.xReception + rear, CONFIG)).toBe(true);
-    expect(inGhostZone(track, v0.xReception + rear + 0.01, CONFIG)).toBe(false);
-    expect(inGhostZone(track, v0.xEnd - 0.01, CONFIG)).toBe(false);
-    expect(inGhostZone(track, v1.xLancement + 1, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xLancement - 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, t0.xLancement, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xElanStart, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xLip, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xLava, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xReception, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xReception + 1, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xReception + rear, CONFIG)).toBe(true);
+    expect(inGhostZone(track, t0.xReception + rear + 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, t0.xEnd - 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, t1.xLancement + 1, CONFIG)).toBe(true);
     expect(inGhostZone(track, 0, CONFIG)).toBe(false);
     expect(inGhostZone(track, track.xStart, CONFIG)).toBe(false);
+  });
+
+  test('inGhostZone : fosse, châssis dans [xLancement, bord aval + FOSSE_GHOST_AFTER] (ruling R-F16), garde exclue', () => {
+    expect(CONFIG.FOSSE_GHOST_AFTER).toBe(40);
+    expect(inGhostZone(track, f0.xLancement - 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, f0.xLancement - CONFIG.FOSSE_GUARD + 1, CONFIG)).toBe(false);
+    expect(inGhostZone(track, f0.xLancement, CONFIG)).toBe(true);
+    expect(inGhostZone(track, f0.xBord, CONFIG)).toBe(true);
+    expect(inGhostZone(track, f0.xReception, CONFIG)).toBe(true);
+    expect(inGhostZone(track, f0.xReception + CONFIG.FOSSE_RESPAWN_AFTER, CONFIG)).toBe(true);
+    expect(inGhostZone(track, f0.xReception + 40, CONFIG)).toBe(true);
+    expect(inGhostZone(track, f0.xReception + 40.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, f0.xEnd - 0.01, CONFIG)).toBe(false);
   });
 
   test('piste sans volcan', () => {

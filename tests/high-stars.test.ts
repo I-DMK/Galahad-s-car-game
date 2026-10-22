@@ -122,6 +122,7 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
         expect(i, where).toBeGreaterThan(0);
         // Décision du papa (relectures de la 5e) : pas sur un plat juste après un volcan, comme les plats étoile.
         expect(t.slices[i - 1].type, where).not.toBe('rampe-volcan');
+        expect(t.slices[i - 1].type, where).not.toBe('fosse');
         expect(sl.xEnd, where).toBeLessThan(t.xFinish - 1e-9);
         for (const c of cl) expect(inOpen(s.x, c), `${where} dans le dégagement [${c[0].toFixed(1)}, ${c[1].toFixed(1)}]`).toBe(false);
         for (const b of lows) expect(Math.abs(s.x - b.x), `${where}, étoile basse ${b.x.toFixed(2)}`).toBeGreaterThanOrEqual(CONFIG.STAR_HIGH_GAP - 1e-9);
@@ -133,7 +134,7 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
   // Les étoiles des plats étoile suivent la règle d'insertion du plat étoile (§6.6 : 12 m d'entrée, jamais juste après une
   // rampe-saut, tests/generate.test.ts), pas celle des dégagements des plats ordinaires : graine 5, l'élan de l'étoile en
   // 863,8 chevauche les 50 m de dégagement d'une rampe-saut finie 64,8 m avant (portée mesurée à 21 m/s : 36,6 m).
-  test('plats ordinaires (plafond 5) : [x − TAKEOFF_ROOM, x + LANDING_ROOM] est du terrain permis, après la zone de départ (xStart + D_LANCE), ni rampe-saut, ni rampe-volcan, ni dégagement', () => {
+  test('plats ordinaires (plafond 5) : [x − TAKEOFF_ROOM, x + LANDING_ROOM] est du terrain permis, après la zone de départ (xStart + D_LANCE), ni rampe-saut, ni rampe-volcan, ni fosse, ni dégagement', () => {
     for (const t of tracks5) {
       const cl = clearances(t);
       for (const s of ordinary(t)) {
@@ -143,7 +144,7 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
         for (let p = a + 1e-6; p <= b - 1e-6; p += Math.min(0.1, b - 1e-6 - p) || 0.1) {
           const type = sliceAt(t, p).type;
           const where = `graine ${t.seed}, étoile haute x = ${s.x.toFixed(2)}, terrain en ${p.toFixed(2)} (${type})`;
-          expect(type === 'rampe-saut' || type === 'rampe-volcan', where).toBe(false);
+          expect(type === 'rampe-saut' || type === 'rampe-volcan' || type === 'fosse', where).toBe(false);
           for (const c of cl) expect(inOpen(p, c), `${where} dans le dégagement [${c[0].toFixed(1)}, ${c[1].toFixed(1)}]`).toBe(false);
           if (p >= b - 1e-6) break;
         }
@@ -157,6 +158,18 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
         for (const v of t.volcanoes) expect(s.x >= v.xLancement && s.x <= v.xLava, `graine ${t.seed} x = ${s.x}`).toBe(false);
       }
     }
+  });
+
+  test('aucune étoile haute dans une tranche fosse (garde, approche, fosse, réception ; tâche 5g, saut §6.5)', () => {
+    let fosses = 0;
+    for (const t of [...tracks, ...tracks5]) {
+      const fs = t.slices.filter((sl) => sl.type === 'fosse');
+      fosses += fs.length;
+      for (const s of high(t.stars)) {
+        for (const sl of fs) expect(s.x >= sl.xStart && s.x <= sl.xEnd, `graine ${t.seed} x = ${s.x}`).toBe(false);
+      }
+    }
+    expect(fosses).toBeGreaterThan(100);
   });
 
   test('y = sol + STAR_HIGH_Y pour les hautes, sol + 0,6 pour les basses ; ids 0..n−1 dans l’ordre des x', () => {
@@ -219,7 +232,7 @@ describe('pistes courtes (graines 0 à 199) : étoiles hautes de repli sur les p
         for (const s of ordinary(t)) {
           const sl = t.slices.find((x) => x.type === 'plat' && s.x >= x.xStart - 1e-9 && s.x <= x.xEnd + 1e-9)!;
           const i = t.slices.indexOf(sl);
-          expect(t.slices[i - 1].type, `graine ${t.seed}, ${len} m, étoile haute x = ${s.x.toFixed(1)}`).not.toBe('rampe-volcan');
+          expect(t.slices[i - 1].type, `graine ${t.seed}, ${len} m, étoile haute x = ${s.x.toFixed(1)}`).not.toMatch(/^(rampe-volcan|fosse)$/);
         }
         hs.forEach((s, k) => {
           if (k > 0) expect(s.x - hs[k - 1].x, `graine ${t.seed}, ${len} m`).toBeGreaterThanOrEqual(away - 1e-9);

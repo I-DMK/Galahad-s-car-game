@@ -77,6 +77,9 @@ function buildGround(track: Track, ppm: number, floorY: number): Matter.Body[] {
  * (lancée à V_MAX, turbo pris à xLancement − 26 ; g0 v2 et g8 v3) ; 1,72 m hors fin de turbo (2 924 +
  * 4 601 historiques, congé du pied de rampe, tâche 5c du plan B ; garde ≥ 0,3 m assertée).
  * Le rendu de la lave, lui, s'arrête sous le rebord.
+ * Fosse (tâche 5g, saut §6.2) : même capteur, sans changement de code ; `rimY` = 0, donc sur [xBord, xBord + W], du
+ * plancher jusqu'à 0,3 m au-dessus du sol. Une roue qui roule (bas de roue au sol) le touche dès que son centre est à
+ * ≈ 0,4 m du bord : la voiture est reprise avant de basculer (sans sauter, on tombe toujours).
  */
 function buildLava(track: Track, cfg: Config, floorY: number): Matter.Body[] {
   const ppm = cfg.PIXELS_PER_METER;

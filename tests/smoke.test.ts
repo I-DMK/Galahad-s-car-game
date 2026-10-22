@@ -26,8 +26,9 @@ describe('CONFIG', () => {
 
   it('étoiles v2 (tâche 2) : pas du curseur, plancher, étoile d’élan ; STAR_EXCLUSION_BEFORE_LAVA retirée', () => {
     // Tâche 5e (Step 13) : [55, 90] avec les plats étoile (saut §6.5) ; [60, 100] reste celui des pistes d'avant.
-    expect(CONFIG.STAR_STEP_MIN).toBe(55);
-    expect(CONFIG.STAR_STEP_MAX).toBe(90);
+    // Tâche 5g (ruling du Step 7) : [35, 58] avec les fosses et les réceptions sans étoile avant l'atterrissage.
+    expect(CONFIG.STAR_STEP_MIN).toBe(35);
+    expect(CONFIG.STAR_STEP_MAX).toBe(58);
     expect(CONFIG.STAR_MIN_COUNT).toBe(6);
     expect(CONFIG.STAR_ELAN_OFFSET).toBe(2);
     expect(CONFIG.STAR_ELAN_GAP).toBe(5);
@@ -71,6 +72,22 @@ describe('CONFIG', () => {
     expect(CONFIG.STAR_HIGH_LANDING_ROOM).toBe(25);
     expect(CONFIG.STAR_HIGH_RAMP_CLEARANCE).toBe(50);
     expect(CONFIG.STAR_HIGH_BUMP_CLEARANCE).toBe(12);
+  });
+
+  it('fosses (tâche 5g, saut §6.9) : 1 volcan sur 2, 8 m, garde 20 m, étoile de réception à 25 m, visée 1 s, posée à + 5 m, fantôme jusqu’à + 40 m', () => {
+    expect(CONFIG.FOSSE_PERIOD).toBe(2);
+    expect(CONFIG.FOSSE_WIDTH).toBe(8);
+    expect(CONFIG.FOSSE_GUARD).toBe(20);
+    expect(CONFIG.FOSSE_STAR_AFTER).toBe(25);
+    expect(CONFIG.FOSSE_JUMP_AIM).toBe(1);
+    expect(CONFIG.FOSSE_RESPAWN_AFTER).toBe(5);
+    expect(CONFIG.FOSSE_GHOST_AFTER).toBe(40);
+  });
+
+  it('étoiles basses des réceptions (tâche 5g, demande du papa) : aucune avant l’atterrissage le plus long doigt posé', () => {
+    expect(CONFIG.STAR_TREMPLIN_LANDING).toBe(55);
+    expect(CONFIG.STAR_FOSSE_LANDING).toBe(22);
+    expect(CONFIG.FOSSE_STAR_AFTER).toBeGreaterThanOrEqual(CONFIG.STAR_FOSSE_LANDING);
   });
 
   it('plats étoile (tâche 5e, Step 13) : 3 par course, un par 400 m au plus, 57 m = dégagement + élan + atterrissage', () => {

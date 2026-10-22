@@ -1,7 +1,8 @@
-// Effets de particules : logique pure sous node (aucun DOM, `draw` n'est pas appelé).
+// Effets de particules : logique pure sous node (aucun DOM ; `draw` n'est appelé que sur un faux contexte).
 import { CONFIG } from '../src/config';
 import { Effects, MAX_PARTICLES } from '../src/render/effects';
 import { generateTrack } from '../src/track/generate';
+import { fosses, tremplins } from '../src/track/query';
 import type { Track } from '../src/track/types';
 
 const emptyTrack = { volcanoes: [] } as unknown as Track;
@@ -61,4 +62,30 @@ test('un grand dt unique produit aussi des particules de lave', () => {
   fx.update(3, track, track.volcanoes[0].xLava, 20);
   expect(fx.count).toBeGreaterThan(0);
   expect(fx.count).toBeLessThanOrEqual(MAX_PARTICLES);
+});
+
+test('fosse (tâche 5g) : bulles et fumée au ras du sol (rimY 0, sans changement de code) ; tremplin : au rebord', () => {
+  /** y (m) des particules dessinées, en coordonnées du monde (toScreen identité). */
+  const ys = (fx: Effects): number[] => {
+    const out: number[] = [];
+    const ctx = new Proxy({}, {
+      get: (_t, prop: string) => (prop === 'arc' ? (_x: number, y: number) => { out.push(y); } : () => {}),
+      set: () => true,
+    }) as unknown as CanvasRenderingContext2D;
+    fx.draw(ctx, (p) => p, 1);
+    return out;
+  };
+  const track = generateTrack(3, 1680, CONFIG);
+  const one = (v: Track['volcanoes'][number]) => ({ volcanoes: [v] }) as unknown as Track;
+  const f = fosses(track)[0];
+  const tr = tremplins(track)[0];
+  const atFosse = new Effects(CONFIG);
+  atFosse.update(0.51, one(f), f.xLava, 20);
+  const yF = ys(atFosse);
+  expect(yF.length).toBeGreaterThan(0);
+  for (const y of yF) expect(y).toBeCloseTo(f.rimY - 0.15, 9);
+  expect(f.rimY).toBe(0);
+  const atTremplin = new Effects(CONFIG);
+  atTremplin.update(0.51, one(tr), tr.xLava, 20);
+  for (const y of ys(atTremplin)) expect(y).toBeCloseTo(CONFIG.RIM_HEIGHT - 0.15, 9);
 });

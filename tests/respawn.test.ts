@@ -9,7 +9,7 @@ import {
 } from '../src/cars/respawn';
 import { newCarState } from '../src/cars/state';
 import { generateTrack } from '../src/track/generate';
-import { heightAt, slopeAt } from '../src/track/query';
+import { fosses, heightAt, slopeAt, tremplins } from '../src/track/query';
 import type { Slice, Track, Volcano } from '../src/track/types';
 
 const DEG = Math.PI / 180;
@@ -181,23 +181,72 @@ describe('updateRespawnTimers', () => {
 });
 
 describe('chooseRespawnTarget / applyRespawnToState', () => {
+  /** Piste de 3 000 m avec deux tremplins et une fosse au moins (tâche 5g). */
   function twoVolcanoTrack(): Track {
     for (let seed = 0; seed < 200; seed++) {
       const t = generateTrack(seed, 3000, CONFIG);
-      if (t.volcanoes.length >= 2) return t;
+      if (tremplins(t).length >= 2 && fosses(t).length >= 1) return t;
     }
-    throw new Error('aucune piste avec deux volcans');
+    throw new Error('aucune piste avec deux tremplins et une fosse');
   }
   const track = twoVolcanoTrack();
-  const [V1, V2] = track.volcanoes;
+  const [V1, V2] = tremplins(track);
+  const F = fosses(track)[0];
 
-  test('1er respawn : point sûr, consecutive 1, lavaX du volcan', () => {
+  test('1er respawn : point sûr, consecutive 1, lavaX du volcan, recul vers l’amont', () => {
     const s = newState();
     s.safePoint = { x: V1.xElanStart - 5, y: heightAt(track, V1.xElanStart - 5), angle: 0 };
     const r = chooseRespawnTarget(s, track, CONFIG, 'lava');
     expect(r.point).toEqual(s.safePoint);
     expect(r.consecutive).toBe(1);
     expect(r.lavaX).toBe(V1.xLava);
+    expect(r.direction).toBe(-1);
+  });
+
+  test('fosse (tâche 5g, option B, Q-F2) : 1re chute au point sûr, 2e de suite posée à bord aval + 5, respawn groupé vers l’aval ; série remise à 0 (au plus 2 par série)', () => {
+    expect(CONFIG.FOSSE_RESPAWN_AFTER).toBe(5);
+    const s = newState();
+    const S1 = { x: F.xLancement + 1, y: heightAt(track, F.xLancement + 1), angle: 0 };
+    s.safePoint = S1;
+    const r1 = chooseRespawnTarget(s, track, CONFIG, 'lava');
+    expect(r1.point).toEqual(S1);
+    expect(r1.lavaX).toBe(F.xLava);
+    expect(r1.consecutive).toBe(1);
+    expect(r1.direction).toBe(-1);
+    applyRespawnToState(s, r1.point, r1.lavaX, r1.consecutive, 10, CONFIG);
+    const r2 = chooseRespawnTarget(s, track, CONFIG, 'lava');
+    expect(r2.point.x).toBeCloseTo(F.xReception + 5, 9);
+    expect(r2.point.y).toBeCloseTo(heightAt(track, F.xReception + 5), 9);
+    expect(r2.point.angle).toBeCloseTo(0, 9);
+    expect(r2.lavaX).toBeNull();
+    expect(r2.consecutive).toBe(0);
+    expect(r2.direction).toBe(1);
+    applyRespawnToState(s, r2.point, r2.lavaX, r2.consecutive, 20, CONFIG);
+    // Série close : une chute plus loin (autre volcan, ou la même fosse reprise par derrière) recommence à 1.
+    const r3 = chooseRespawnTarget(s, track, CONFIG, 'lava');
+    expect(r3.consecutive).toBe(1);
+  });
+
+  test('fosses des graines 0 à 19 : cible de 2e chute à bord aval + 5, sur le plat de réception, dans la zone fantôme', () => {
+    let n = 0;
+    for (let seed = 0; seed < 20; seed++) {
+      const t = generateTrack(seed, 1680, CONFIG);
+      for (const f of fosses(t)) {
+        n++;
+        const s = newState();
+        s.lastRespawnLavaX = f.xLava;
+        s.consecutiveRespawns = 1;
+        s.safePoint = { x: f.xLancement + 1, y: 0, angle: 0 };
+        const r = chooseRespawnTarget(s, t, CONFIG, 'lava');
+        const where = `seed ${seed}, fosse en x = ${f.xBord.toFixed(1)}`;
+        expect(r.point.x, where).toBeCloseTo(f.xReception + CONFIG.FOSSE_RESPAWN_AFTER, 9);
+        expect(r.point.y, where).toBe(0);
+        expect(Math.abs(r.point.angle), where).toBeLessThan(1e-9);
+        expect(r.direction, where).toBe(1);
+        expect(r.point.x + 4 * 1.5 * CONFIG.CAR_LENGTH, where).toBeLessThan(f.xReception + CONFIG.FOSSE_GHOST_AFTER);
+      }
+    }
+    expect(n).toBeGreaterThan(20);
   });
 
   test('sans volcan devant : lavaX null, consecutive 1, point sûr', () => {
@@ -248,11 +297,11 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     expect(r3.point).toEqual(S3);
   });
 
-  test('graines 0 à 19 : la cible de 2e chute xEnd − 10 est ≥ xReception + 10 sur chaque volcan', () => {
+  test('graines 0 à 19 : la cible de 2e chute xEnd − 10 est ≥ xReception + 10 sur chaque tremplin', () => {
     let volcanoes = 0;
     for (let seed = 0; seed < 20; seed++) {
       const t = generateTrack(seed, 1680, CONFIG);
-      for (const w of t.volcanoes) {
+      for (const w of tremplins(t)) {
         volcanoes++;
         const s = newState();
         s.lastRespawnLavaX = w.xLava;
@@ -268,7 +317,7 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
         expect(Math.abs(r.point.angle), where).toBeLessThan(1e-9);
       }
     }
-    expect(volcanoes).toBeGreaterThan(50);
+    expect(volcanoes).toBeGreaterThan(30);
   });
 
   test.each(['side', 'flipped', 'stuck', 'underground', 'speed'] as const)(
@@ -399,7 +448,7 @@ describe('shiftTarget : respawn groupé (addendum §1.6)', () => {
 
   test('refuse la zone interdite d’un volcan [xLancement + 5, xReception[ et une tranche cratère', () => {
     const v: Volcano = {
-      xLancement: 90, xElanStart: 91, xRampStart: 92, xLip: 93, lipY: 1, xLava: 95, lavaWidth: 1, rimY: 0,
+      kind: 'tremplin', xLancement: 90, xElanStart: 91, xRampStart: 92, xLip: 93, lipY: 1, xLava: 95, lavaWidth: 1, rimY: 0,
       xReception: 97, xEnd: 99,
     };
     const withVolcano = synthetic(() => 0, [], [v]);
@@ -433,6 +482,24 @@ describe('shiftTarget : respawn groupé (addendum §1.6)', () => {
     const r = shiftTarget(at(flat, 6), [6], flat, CONFIG);
     expect(r.x).toBeCloseTo(6 - GAP, 9);
     expect(shiftTarget(at(flat, 6), [6, 6 - GAP], flat, CONFIG).x).toBeCloseTo(6 - GAP, 9);
+  });
+
+  test('vers l’aval (cible d’après une fosse, ruling R-F15) : avance de 3,3 m par voiture déjà posée, 4 fois au plus, au sol local', () => {
+    const p = at(flat, 100);
+    const occupied: number[] = [];
+    for (let k = 1; k <= 5; k++) {
+      occupied.push(100 + (k - 1) * GAP);
+      const r = shiftTarget(p, occupied, flat, CONFIG, 1);
+      expect(r.x, `${k} occupant(s)`).toBeCloseTo(100 + Math.min(k, 4) * GAP, 9);
+      expect(r.y).toBe(heightAt(flat, r.x));
+    }
+    // Pente raide juste après : la cible continue vers l'aval jusqu'au premier sol doux.
+    const track = synthetic((x) => (x < 102 ? 0 : x < 104.5 ? (x - 102) * ramp : 2.5 * ramp));
+    const r = shiftTarget(at(track, 100), [100], track, CONFIG, 1);
+    expect(Math.abs(slopeAt(track, r.x))).toBeLessThan(CONFIG.SAFE_POINT_MAX_SLOPE);
+    expect(r.x).toBeGreaterThanOrEqual(104.5 - 1e-9);
+    // Jamais au-delà du mur de fin (xWall − CAR_LENGTH).
+    expect(shiftTarget(at(flat, LENGTH - 3), [LENGTH - 3], flat, CONFIG, 1).x).toBe(LENGTH - 3);
   });
 
   test('pur : l’entrée n’est pas modifiée', () => {

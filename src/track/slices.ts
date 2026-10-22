@@ -12,13 +12,18 @@ export interface SliceProfile {
   length: number;
   /** Indices (0-based dans `heights`) dont le segment d'arrivée peut dépasser MAX_SLOPE. */
   exemptIndices: number[];
-  /** Rampe-volcan uniquement ; tous les dx* sont mesurés depuis le début de la tranche. */
-  volcano?: {
-    dxElanStart: number; dxRampStart: number; dxLip: number; lipY: number;
-    dxLava: number; lavaWidth: number; rimY: number;
-    dxReception: number; dxEnd: number;
-  };
+  /** Rampe-volcan et fosse uniquement ; tous les dx* sont mesurés depuis le début de la tranche. */
+  volcano?: VolcanoProfile;
 }
+
+/** Champs communs d'un volcan de tranche (ruling R-F1), depuis le début de la tranche. */
+interface VolcanoProfileBase {
+  dxLancement: number; dxLava: number; lavaWidth: number; rimY: number; dxReception: number; dxEnd: number;
+}
+/** Volcan d'une tranche : tremplin (`rampe-volcan`) ou fosse (`fosse`, tâche 5g). */
+export type VolcanoProfile =
+  | (VolcanoProfileBase & { kind: 'tremplin'; dxElanStart: number; dxRampStart: number; dxLip: number; lipY: number })
+  | (VolcanoProfileBase & { kind: 'fosse'; dxBord: number });
 
 const EPS = 1e-9;
 
@@ -178,6 +183,8 @@ export function rampeVolcan(cfg: Config): SliceProfile {
     length,
     exemptIndices: [kWallA - 1, kWallB - 1],
     volcano: {
+      kind: 'tremplin',
+      dxLancement: 0,
       dxElanStart: g.lLancement,
       dxRampStart,
       dxLip,
@@ -186,6 +193,85 @@ export function rampeVolcan(cfg: Config): SliceProfile {
       lavaWidth: cfg.LAVA_WIDTH,
       rimY: cfg.RIM_HEIGHT,
       dxReception: g.dxReception,
+      dxEnd: length,
+    },
+  };
+}
+
+/** Géométrie d'une fosse (tâche 5g, saut §6.2), en m depuis le début de la tranche ; bords sur la maille. */
+export interface FosseGeometry {
+  /** Plat de garde (FOSSE_GUARD) : de 0 au début de l'approche (xLancement). */
+  guard: number;
+  /** Plat d'approche, de xLancement au bord amont : LANCEMENT_LENGTH arrondi à la maille supérieure. */
+  approach: number;
+  /** Largeur de lave (FOSSE_WIDTH à la maille). */
+  width: number;
+  /** Plat de réception, du bord aval à la fin de la tranche. */
+  reception: number;
+  /** Longueur de la tranche = celle de la rampe-volcan (ruling R-F2). */
+  length: number;
+}
+
+/** m : réception minimale d'une fosse (saut §6.2) : atterrissage en turbo ≈ 32 m, plus `xEnd − 10` et une marge. */
+const FOSSE_MIN_RECEPTION = 60;
+
+/** Indices de maille (k × TRACK_POINT_SPACING) du début de l'approche, du bord amont, du bord aval et de la fin. */
+function fosseGrid(cfg: Config): { kLancement: number; kBord: number; kAval: number; n: number } {
+  const s = cfg.TRACK_POINT_SPACING;
+  const n = Math.round(rampeVolcan(cfg).length / s);
+  const kLancement = Math.ceil(cfg.FOSSE_GUARD / s - EPS);
+  const kBord = kLancement + Math.ceil(cfg.LANCEMENT_LENGTH / s - EPS);
+  const kAval = kBord + Math.round(cfg.FOSSE_WIDTH / s);
+  return { kLancement, kBord, kAval, n };
+}
+
+/**
+ * Géométrie d'une fosse : garde, approche, lave, réception ; longueur de la rampe-volcan (le terrain ne change que par
+ * le type, ruling R-F2), bords sur la maille. Lance si la réception fait moins de 60 m ou si la lave est vide.
+ */
+export function fosseGeometry(cfg: Config): FosseGeometry {
+  const s = cfg.TRACK_POINT_SPACING;
+  const { kLancement, kBord, kAval, n } = fosseGrid(cfg);
+  const g: FosseGeometry = {
+    guard: kLancement * s, approach: (kBord - kLancement) * s, width: (kAval - kBord) * s,
+    reception: (n - kAval) * s, length: n * s,
+  };
+  if (!(g.width > 0) || g.reception < FOSSE_MIN_RECEPTION - EPS) {
+    throw new Error(
+      `fosse impossible : lave de ${g.width.toFixed(2)} m, réception de ${g.reception.toFixed(2)} m (au moins ${FOSSE_MIN_RECEPTION} m exigés)`,
+    );
+  }
+  return g;
+}
+
+/**
+ * Fosse (tâche 5g, saut §6.2) : hauteur 0 partout (garde, approche, réception : rebords au ras du sol, ni lèvre ni
+ * pente, pour qu'une voiture qui roule ne décolle jamais du bord), sauf ]xBord, xBord + W[ à −CRATER_DEPTH ; deux
+ * parois verticales d'un pas, exemptées du test de pente. Pas de tirage.
+ */
+export function fosse(cfg: Config): SliceProfile {
+  const g = fosseGeometry(cfg);
+  const s = cfg.TRACK_POINT_SPACING;
+  const { kBord, kAval } = fosseGrid(cfg);
+  const { heights, length } = sample(cfg, g.length, (x) => {
+    const k = Math.round(x / s);
+    return k > kBord && k < kAval ? -cfg.CRATER_DEPTH : 0;
+  });
+  const xBord = kBord * s;
+  return {
+    type: 'fosse',
+    heights,
+    length,
+    // Paroi amont : segment qui arrive au premier échantillon au fond (k = kBord + 1) ; aval : segment qui arrive au bord aval (k = kAval).
+    exemptIndices: [kBord, kAval - 1],
+    volcano: {
+      kind: 'fosse',
+      dxLancement: g.guard,
+      dxBord: xBord,
+      dxLava: xBord + g.width / 2,
+      lavaWidth: g.width,
+      rimY: 0,
+      dxReception: kAval * s,
       dxEnd: length,
     },
   };

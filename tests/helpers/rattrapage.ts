@@ -15,7 +15,8 @@
 //
 // Pistes (tâche 5e, Step 10) : RATTRAPAGE_PISTES=anciennes mesure sur les pistes d'avant (`withAnciennesPistes`) :
 // contrôle de non-régression, identique à la mesure de la 5d course par course ; sinon (défaut) sur CONFIG : effet
-// des plats étoile (et des fosses en 5g), nouvelle référence, non appariée.
+// des plats étoile (et des fosses en 5g), nouvelle référence, non appariée. Tâche 5g : Galahad saute au centre de
+// chaque fosse (`sauteurParfait`), sauf avec RATTRAPAGE_SAUT=jamais.
 import { CONFIG } from '../../src/config';
 import { AP } from './anciennes-pistes';
 import { fiveCarRace } from './race';
@@ -52,6 +53,11 @@ export const REF = nodeProcess.env.RATTRAPAGE_REF ?? 'avant';
 export const outFile = (etape: string): string => `${OUT_DIR}/rattrapage-${etape}.jsonl`;
 /** Pistes mesurées : celles d'avant (`anciennes`) ou celles de CONFIG (défaut). */
 export const PISTES: 'anciennes' | 'config' = nodeProcess.env.RATTRAPAGE_PISTES === 'anciennes' ? 'anciennes' : 'config';
+/**
+ * Saut de Galahad aux fosses (tâche 5g) : 'parfait' (défaut, `sauteurParfait`) ou 'jamais' (RATTRAPAGE_SAUT=jamais :
+ * doigt posé sans saut, 2 chutes par fosse). Sans effet sur les pistes d'avant (aucune fosse).
+ */
+export const SAUT: 'parfait' | 'jamais' = nodeProcess.env.RATTRAPAGE_SAUT === 'jamais' ? 'jamais' : 'parfait';
 
 /**
  * Commit mesuré : RATTRAPAGE_COMMIT, sinon HEAD (court) ; si l'arbre a des modifications suivies, HEAD suivi de
@@ -108,7 +114,7 @@ export interface RattrapageRow {
 /** Course (graine, motif) à 5 voitures, mesurée et ajoutée au fichier de l'étape. */
 export function runRattrapage(seed: number, motif: Motif): RattrapageRow {
   const cfg = PISTES === 'anciennes' ? AP : CONFIG;
-  const race = fiveCarRace(seed, motif === 'levé' ? { throttle: liftedPattern(seed, LIFTED_P), cfg } : { cfg });
+  const race = fiveCarRace(seed, motif === 'levé' ? { throttle: liftedPattern(seed, LIFTED_P), cfg, jump: SAUT } : { cfg, jump: SAUT });
   const { r } = race;
   const ids = Object.keys(r.respawnsByCar);
   const row: RattrapageRow = {

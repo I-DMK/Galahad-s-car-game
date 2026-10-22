@@ -30,7 +30,7 @@ export const RUN_UP = 45;
 const hex = (n: number): string => `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
 
 /** Galahad seul posé à l'arrêt en x0 dans `world`, avec les capteurs des étoiles `stars` (ôtés par `disposeSolo`). */
-function soloSim(world: World, x0: number, stars: Star[], cfg: Config): RaceSim {
+export function soloSim(world: World, x0: number, stars: Star[], cfg: Config): RaceSim {
   const track = world.track;
   const body = createCar(world, GALAHAD.id, 0, x0, cfg);
   placeCar(body, x0, (x) => heightAt(track, x), slopeAt(track, x0), cfg);
@@ -43,7 +43,7 @@ function soloSim(world: World, x0: number, stars: Star[], cfg: Config): RaceSim 
   return { track, world, cars: [car], time: 0, events: [], stars: newStarStates(stars, 1), starBodies, cfg, pilotSeed: 0 };
 }
 
-function disposeSolo(sim: RaceSim): void {
+export function disposeSolo(sim: RaceSim): void {
   Composite.remove(sim.world.engine.world, sim.cars[0].body.composite);
   for (const b of sim.starBodies) Composite.remove(sim.world.engine.world, b);
 }
@@ -52,7 +52,7 @@ function disposeSolo(sim: RaceSim): void {
  * Toutes les pièces à v m/s le long de la pente locale, roues en roulement sans glissement ; vitesse tenue doigt posé
  * par le facteur de la voiture (`factor`, défaut v / V_MAX, ou 1 pour un départ arrêté).
  */
-function launchSolo(sim: RaceSim, x: number, v: number, cfg: Config, factor?: number): void {
+export function launchSolo(sim: RaceSim, x: number, v: number, cfg: Config, factor?: number): void {
   const car = sim.cars[0];
   const a = slopeAt(sim.track, x);
   const vel = { x: mpsToPxPerStep(v * Math.cos(a)), y: -mpsToPxPerStep(v * Math.sin(a)) };

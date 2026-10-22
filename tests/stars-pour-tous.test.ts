@@ -19,13 +19,15 @@ const DT = CONFIG.PHYSICS_DT;
 const CARS = [0, 1, 2, 3, 4];
 const STARS = [{ id: 4, x: 100, y: 1, high: false }, { id: 9, x: 200, y: 2, high: false }];
 /**
- * Graine 1, 1 680 m : sa première étoile basse (x ≈ 504,9 m depuis les plats étoile de la 5e) est sur un plat, hors
- * zone fantôme. Repérée par `high` (une étoile haute la précède : celle du 1er plat étoile, en 340 m) ; STAR_INDEX est
- * son rang dans `track.stars`, `sim.stars` et la scène.
+ * Graine 1, 1 680 m : sa première étoile basse (x ≈ 192,9 m depuis le pas [35, 58] de la 5g ; ≈ 504,9 m en 5e) est sur
+ * un plat, hors zone fantôme, avant tout volcan (le premier, un tremplin, commence en 601,6 m : ni Galahad ni le copain
+ * ne passent de fosse avant elle). Repérée par `high` ; STAR_INDEX est son rang dans `track.stars`, `sim.stars` et la
+ * scène.
  */
 const TRACK = trackFor(1);
 const STAR_INDEX = TRACK.stars.findIndex((s) => !s.high);
 const STAR = TRACK.stars[STAR_INDEX];
+if (TRACK.volcanoes.some((v) => v.xLancement - CONFIG.FOSSE_GUARD < STAR.x)) throw new Error('graine 1 : un volcan précède la première étoile basse');
 
 const activeFor = (s: Parameters<typeof isStarActiveFor>[0], t: number): boolean[] => CARS.map((k) => isStarActiveFor(s, k, t, CONFIG));
 const place = (car: CarSim, x: number): void => placeCar(car.body, x, (xx) => heightAt(TRACK, xx), slopeAt(TRACK, x), CONFIG);

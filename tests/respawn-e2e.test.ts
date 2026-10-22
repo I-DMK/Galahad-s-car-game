@@ -8,9 +8,9 @@ import { placeCar } from '../src/physics/car';
 import { physToWorld, worldToPhys } from '../src/physics/units';
 import { CAT } from '../src/physics/world';
 import { createRaceSim, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
-import { heightAt, slopeAt } from '../src/track/query';
-import type { Track, Volcano } from '../src/track/types';
-import { firstVolcano, trackFor } from './helpers/runs';
+import { heightAt, slopeAt, tremplins } from '../src/track/query';
+import type { Track, Tremplin } from '../src/track/types';
+import { firstTremplin, trackFor } from './helpers/runs';
 
 type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 
@@ -30,12 +30,15 @@ function stepUntilRespawn(sim: RaceSim, throttle: boolean, maxSteps: number): Re
 const h = (track: Track) => (x: number) => heightAt(track, x);
 const chassisX = (sim: RaceSim) => physToWorld(sim.cars[0].body.chassis.position).x;
 
-/** Seeds des scénarios ciblés : le premier seed de 0..4 ayant un volcan, et le seed 1. */
-const VOLCANO_SEEDS = [...new Set([SEEDS.find((s) => trackFor(s).volcanoes.length > 0)!, 1])];
+/**
+ * Seeds des scénarios ciblés : le premier seed de 0..4 ayant un tremplin, et le seed 1 (tâche 5g : tremplins seuls ;
+ * les chutes dans une fosse sont dans tests/fosses.test.ts).
+ */
+const VOLCANO_SEEDS = [...new Set([SEEDS.find((s) => tremplins(trackFor(s)).length > 0)!, 1])];
 
-describe.each(VOLCANO_SEEDS)('seed %i, premier volcan, voiture à l’arrêt puis doigt posé', (seed) => {
+describe.each(VOLCANO_SEEDS)('seed %i, premier tremplin, voiture à l’arrêt puis doigt posé', (seed) => {
   const track = trackFor(seed);
-  const v = track.volcanoes[0];
+  const v = tremplins(track)[0];
 
   test('flanc amont (rebord − 0,8 m, 27°) : réapparition (lave ou bloqué) en ≤ 2,1 s, ramenée avant la lave', () => {
     const x = v.xLava - v.lavaWidth / 2 - 0.8;
@@ -73,7 +76,7 @@ describe.each(VOLCANO_SEEDS)('seed %i, premier volcan, voiture à l’arrêt pui
 });
 
 test('deux chutes de suite dans la lave sans nouveau point sûr : la 2e cible passe le volcan (xEnd − 10)', () => {
-  const { track, v } = firstVolcano();
+  const { track, v } = firstTremplin();
   const sim = createRaceSim(track, CONFIG);
   const xSafe = v.xLancement + 1;
   sim.cars[0].state.safePoint = { x: xSafe, y: heightAt(track, xSafe), angle: 0 };
@@ -114,11 +117,11 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
     });
     for (const p of sim.cars[0].body.parts) { Matter.Body.setVelocity(p, { x: 0, y: 0 }); Matter.Body.setAngularVelocity(p, 0); }
   }
-  const { track: track0, v: v0 } = firstVolcano();
+  const { track: track0, v: v0 } = firstTremplin();
 
   test.each([
-    ['plat d’élan', (v: Volcano) => v.xElanStart + 1],
-    ['rampe', (v: Volcano) => (v.xRampStart + v.xLip) / 2],
+    ['plat d’élan', (v: Tremplin) => v.xElanStart + 1],
+    ['rampe', (v: Tremplin) => (v.xRampStart + v.xLip) / 2],
   ])('%s : flipped au premier pas', (_name, xOf) => {
     const sim = createRaceSim(track0, CONFIG);
     placeFlipped(sim, xOf(v0));
@@ -129,9 +132,9 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
   });
 
   test.each([
-    ['plat de lancement', (v: Volcano) => v.xLancement + 2],
-    ['vallée (fond, pente nulle)', (v: Volcano) => v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5],
-    ['hors volcan (plat de départ)', (_v: Volcano) => track0.xStart - 1],
+    ['plat de lancement', (v: Tremplin) => v.xLancement + 2],
+    ['vallée (fond, pente nulle)', (v: Tremplin) => v.xLip + v.lipY / Math.tan(CONFIG.MAX_SLOPE) + 0.5],
+    ['hors volcan (plat de départ)', (_v: Tremplin) => track0.xStart - 1],
   ])('%s : réapparition seulement après ≥ FLIP_SECONDS, raison flipped ou side (délais inchangés)', (_name, xOf) => {
     // La pose à l'envers ne tient pas > FLIP_ANGLE une seconde (les roues retombent) : en pratique
     // 'side' à ≈ 2 s ; seule l'absence de réapparition immédiate est asservie ici.
@@ -179,7 +182,7 @@ describe('invulnérabilité après une réapparition', () => {
   const masks = (sim: RaceSim) => sim.cars[0].body.parts.map((p) => (p.collisionFilter.mask ?? 0) & CAT.ALL_CARS);
 
   test('RESPAWN_INVULN s sans autre voiture : collisions entre voitures coupées puis rétablies', () => {
-    const { track, v } = firstVolcano();
+    const { track, v } = firstTremplin();
     const sim = createRaceSim(track, CONFIG);
     placeCar(sim.cars[0].body, v.xLava, h(track), 0, CONFIG);
     const e = stepUntilRespawn(sim, false, 5);
@@ -195,7 +198,7 @@ describe('invulnérabilité après une réapparition', () => {
   });
 
   test('roue d’une autre voiture dans une roue, châssis séparés : invulnérable jusqu’au plafond (toutes les pièces comptent)', () => {
-    const { track, v } = firstVolcano();
+    const { track, v } = firstTremplin();
     const sim = createRaceSim(track, CONFIG, { robots: true });
     for (const robot of sim.cars.slice(1)) robot.driver = () => false;
     const g = sim.cars[0];
@@ -226,7 +229,7 @@ describe('invulnérabilité après une réapparition', () => {
   });
 
   test('autre châssis superposé : invulnérable jusqu’à invulnerableUntil + (RESPAWN_INVULN_MAX − RESPAWN_INVULN)', () => {
-    const { track, v } = firstVolcano();
+    const { track, v } = firstTremplin();
     // 5 voitures : le copain de rang 1 sert de châssis superposé ; les copains restent à l'arrêt sur la grille.
     const sim = createRaceSim(track, CONFIG, { robots: true });
     for (const robot of sim.cars.slice(1)) robot.driver = () => false;

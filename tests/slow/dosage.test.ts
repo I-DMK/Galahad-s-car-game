@@ -18,7 +18,8 @@
 import { CONFIG, type Config } from '../../src/config';
 import { AP } from '../helpers/anciennes-pistes';
 import type { World } from '../../src/physics/world';
-import type { Volcano } from '../../src/track/types';
+import { tremplins } from '../../src/track/query';
+import type { Tremplin, Volcano } from '../../src/track/types';
 import { expectFalls, expectPasses, passesVolcano, scenariosFor, type CaseId } from '../helpers/cases';
 import {
   LIP_SPEED_THRESHOLD, buildWorld, f1, f2, runFrom, worldFor, type RunResult,
@@ -65,9 +66,10 @@ const outcome = (r: RunResult, v: Volcano): string => (r.lava ? 'lave ' : passes
 const cell = (r: RunResult, v: Volcano): string =>
   `pied ${f2(r.rampSpeed)} sommet ${f2(r.lipSpeed)} → ${outcome(r, v)} atterrissage ${f1(r.landX)}`;
 
-const firstVolcano = (world: World): Volcano => {
-  const v = world.track.volcanoes[0];
-  if (!v) throw new Error(`graine ${world.track.seed} sans volcan`);
+/** Premier tremplin (pistes d'avant : tous les volcans sont des tremplins). */
+const firstVolcano = (world: World): Tremplin => {
+  const v = tremplins(world.track)[0];
+  if (!v) throw new Error(`graine ${world.track.seed} sans tremplin`);
   return v;
 };
 
@@ -133,7 +135,7 @@ describe('bissection du seuil de franchissement au sommet (LIP_SPEED_THRESHOLD)'
     const lines: string[] = [];
     for (const seed of SEEDS) {
       const world = worldFor(seed, AP);
-      for (const v of world.track.volcanoes) {
+      for (const v of tremplins(world.track)) {
         for (const c of [2, '2-lancement'] as CaseId[]) {
           for (const sc of scenariosFor(c, world.track, v)) case2.push(runFrom(world, sc.x0, { ...sc.opts, stopAtLip: true }).lipSpeed ?? NaN);
         }
