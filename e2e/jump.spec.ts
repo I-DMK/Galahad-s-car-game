@@ -71,10 +71,12 @@ test('HUD de debug sous le bouton : boîtes disjointes, bouton dans la vue ; cap
   // En bas à gauche.
   expect(b.x + b.width / 2).toBeLessThan(640);
   expect(b.y + b.height / 2).toBeGreaterThan(400);
-  // Capture en plein saut : le bouton est grisé tant que Galahad est en l'air.
+  // Capture en plein saut : le bouton est grisé en l'air, à partir de JUMP_GROUND_GRACE (0,35 s) après le dernier
+  // contact de jeu (tolérance de sol, tâche 5e Step 11) ; 0,8 s de course après le saut, il l'est.
   await tapJump(page);
   await page.waitForFunction(() => (window as any).__game.jumps >= 1);
-  await page.waitForTimeout(500);
+  const tJump = (await gameState(page)).time;
+  await waitForRaceTime(page, tJump + 0.8);
   await expect(button).toHaveClass(/is-waiting/);
   await page.screenshot({ path: `${SHOTS}/bouton-saut.png`, fullPage: true });
 });

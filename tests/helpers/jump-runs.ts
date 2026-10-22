@@ -7,9 +7,10 @@ import Matter from 'matter-js';
 import { GALAHAD } from '../../src/cars/pilots';
 import { newStarStates } from '../../src/cars/stars';
 import { newCarState } from '../../src/cars/state';
+import { activateTurbo } from '../../src/cars/turbo';
 import { CONFIG, type Config } from '../../src/config';
 import type { CarPose } from '../../src/loop/interpolation';
-import { createCar, placeCar } from '../../src/physics/car';
+import { carAngle, createCar, placeCar } from '../../src/physics/car';
 import { createStarBodies } from '../../src/physics/stars';
 import { mpsToPxPerStep, toPx } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
@@ -36,7 +37,7 @@ function soloSim(world: World, x0: number, stars: Star[], cfg: Config): RaceSim 
   const state = newCarState(GALAHAD.id, GALAHAD.name, hex(GALAHAD.color), hex(GALAHAD.accent), { x: x0, y: heightAt(track, x0), angle: 0 });
   const car: CarSim = {
     pilot: GALAHAD, body, state, contact: { groundedUntil: [-1, -1] }, airborneSince: null, grounded: false,
-    invulnerable: false, ghost: false, driver: null, factor: 1, throttle: false,
+    lastGroundedAt: null, invulnerable: false, ghost: false, driver: null, factor: 1, throttle: false,
   };
   const starBodies = createStarBodies(world, stars, cfg);
   return { track, world, cars: [car], time: 0, events: [], stars: newStarStates(stars, 1), starBodies, cfg, pilotSeed: 0 };
@@ -47,14 +48,17 @@ function disposeSolo(sim: RaceSim): void {
   for (const b of sim.starBodies) Composite.remove(sim.world.engine.world, b);
 }
 
-/** Toutes les pièces à v m/s le long de la pente locale, roues en roulement sans glissement ; vitesse tenue doigt posé. */
-function launchSolo(sim: RaceSim, x: number, v: number, cfg: Config): void {
+/**
+ * Toutes les pièces à v m/s le long de la pente locale, roues en roulement sans glissement ; vitesse tenue doigt posé
+ * par le facteur de la voiture (`factor`, défaut v / V_MAX, ou 1 pour un départ arrêté).
+ */
+function launchSolo(sim: RaceSim, x: number, v: number, cfg: Config, factor?: number): void {
   const car = sim.cars[0];
   const a = slopeAt(sim.track, x);
   const vel = { x: mpsToPxPerStep(v * Math.cos(a)), y: -mpsToPxPerStep(v * Math.sin(a)) };
   for (const p of car.body.parts) Body.setVelocity(p, vel);
   for (const w of car.body.wheels) Body.setAngularVelocity(w, mpsToPxPerStep(v) / toPx(cfg.WHEEL_RADIUS));
-  car.factor = v / cfg.V_MAX;
+  car.factor = factor ?? (v > 0 ? v / cfg.V_MAX : 1);
 }
 
 export interface JumpRunResult {
@@ -72,6 +76,34 @@ export interface JumpRunResult {
   xs: number[];
   /** Pas du saut, null sans saut. */
   jumpStep: number | null;
+  /** Contact de jeu (débouncé) de la voiture à chaque pas, tel que le pas l'a utilisé (`CarSim.grounded`). */
+  grounded: boolean[];
+  /** Réapparitions du run (raison, instant, x du châssis). */
+  respawns: { reason: string; t: number; x: number }[];
+  /** Premier atterrissage (événement 'landing') après le saut : x du châssis et angle (rad), null sans atterrissage. */
+  landingX: number | null;
+  landingAngle: number;
+  /** |angle du châssis| a dépassé FLIP_ANGLE après le saut. */
+  flippedAfterJump: boolean;
+}
+
+export interface JumpRunOptions {
+  x0: number;
+  /** Lancée (m/s) le long de la pente locale ; 0 = départ arrêté. */
+  v: number;
+  /** Pas où le saut est demandé (null : jamais). */
+  jumpAtStep: number | null;
+  maxSeconds: number;
+  cfg?: Config;
+  stars?: Star[];
+  /** Facteur de vitesse tenu doigt posé (défaut v / V_MAX, ou 1 pour un départ arrêté) ; 1,5 = turbo permanent. */
+  factor?: number;
+  /** Turbo (TURBO_SECONDS) lancé au premier pas où le châssis passe ces x (une fois chacun). */
+  turboAtX?: number[];
+  /** Turbo lancé au premier pas où le temps du run atteint ces instants (s). */
+  turboAtSeconds?: number[];
+  /** Arrêt du run quand le châssis dépasse ce x (sans saut ; par défaut, aucun). */
+  stopAtX?: number;
 }
 
 /**
@@ -79,36 +111,72 @@ export interface JumpRunResult {
  * jamais ; la demande vit JUMP_BUFFER comme en jeu). Capteurs des étoiles `stars`. S'arrête
  * AFTER_LANDING_SECONDS après l'atterrissage qui suit le saut, ou à `maxSeconds`.
  */
-export function jumpRun(
-  world: World,
-  opts: { x0: number; v: number; jumpAtStep: number | null; maxSeconds: number; cfg?: Config; stars?: Star[] },
-): JumpRunResult {
+export function jumpRun(world: World, opts: JumpRunOptions): JumpRunResult {
   const cfg = opts.cfg ?? CONFIG;
   const sim = soloSim(world, opts.x0, opts.stars ?? [], cfg);
   try {
-    launchSolo(sim, opts.x0, opts.v, cfg);
+    launchSolo(sim, opts.x0, opts.v, cfg, opts.factor);
     const out: JumpRunResult = {
       jumped: false, starTaken: [], respawnWithin3s: false, apexY: NaN, trace: [], xs: [], jumpStep: null,
+      grounded: [], respawns: [], landingX: null, landingAngle: NaN, flippedAfterJump: false,
     };
+    const car = sim.cars[0];
+    const turboX = [...(opts.turboAtX ?? [])].sort((a, b) => a - b);
+    const turboT = [...(opts.turboAtSeconds ?? [])].sort((a, b) => a - b);
     const dt = cfg.PHYSICS_DT;
     let stopAt = Infinity;
     for (let i = 0; i < Math.round(opts.maxSeconds / dt) && sim.time < stopAt - 1e-9; i++) {
-      out.xs.push(sim.cars[0].state.progress);
+      const x = car.state.progress;
+      if (opts.stopAtX !== undefined && x > opts.stopAtX) break;
+      while (turboX.length > 0 && x >= turboX[0]) { turboX.shift(); activateTurbo(car.state, sim.time, cfg); }
+      while (turboT.length > 0 && sim.time >= turboT[0] - 1e-9) { turboT.shift(); activateTurbo(car.state, sim.time, cfg); }
+      out.xs.push(x);
       stepRace(sim, true, i === opts.jumpAtStep);
+      out.grounded.push(car.grounded);
       const pose = posesOf(sim)[0];
       out.trace.push(pose);
       for (const e of sim.events) {
         if (e.type === 'jump') { out.jumped = true; out.jumpStep = i; out.apexY = pose.chassis.y; }
         else if (e.type === 'star') out.starTaken.push(e.id);
-        else if (e.type === 'landing' && out.jumped && stopAt === Infinity) stopAt = e.t + AFTER_LANDING_SECONDS;
-        else if (e.type === 'respawn' && out.jumped) out.respawnWithin3s = true;
+        else if (e.type === 'landing' && out.jumped && stopAt === Infinity) {
+          stopAt = e.t + AFTER_LANDING_SECONDS;
+          out.landingX = e.x;
+          out.landingAngle = carAngle(car.body);
+        } else if (e.type === 'respawn') {
+          out.respawns.push({ reason: e.reason, t: e.t, x: e.x });
+          if (out.jumped) out.respawnWithin3s = true;
+        }
       }
-      if (out.jumped) out.apexY = Math.max(out.apexY, pose.chassis.y);
+      if (out.jumped) {
+        out.apexY = Math.max(out.apexY, pose.chassis.y);
+        if (Math.abs(carAngle(car.body)) > cfg.FLIP_ANGLE) out.flippedAfterJump = true;
+      }
     }
     return out;
   } finally {
     disposeSolo(sim);
   }
+}
+
+/**
+ * Dernier pas d'un run dont le contact de jeu est vrai avec le châssis au plus à `xMax` (décollage d'un sommet :
+ * dernier contact avant le vol), −1 si aucun.
+ */
+export function lastGroundedBefore(r: JumpRunResult, xMax: number): number {
+  let last = -1;
+  r.grounded.forEach((g, i) => { if (g && r.xs[i] <= xMax) last = i; });
+  return last;
+}
+
+/** Première rampe-saut (graines 0 à 19, `cfg`) précédée d'un plat d'au moins 20 m, sur sa piste sans étoile. */
+export function rampSautTrack(cfg: Config = CONFIG): { track: Track; ramp: Track['slices'][number]; seed: number } {
+  for (let seed = 0; seed < 20; seed++) {
+    const t = generateTrack(seed, 1680, cfg);
+    const i = t.slices.findIndex((s, k) => s.type === 'rampe-saut' && k > 1
+      && t.slices[k - 1].type === 'plat' && t.slices[k - 1].xEnd - t.slices[k - 1].xStart >= 20);
+    if (i >= 0) return { track: { ...t, stars: [] }, ramp: t.slices[i], seed };
+  }
+  throw new Error('aucune rampe-saut précédée d’un plat de 20 m');
 }
 
 const flatWorlds = new Map<string, World>();

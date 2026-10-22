@@ -50,8 +50,13 @@ export interface CarSim {
   contact: GroundContact;
   /** Instant (s) où plus aucune roue ne touche le sol, null si au moins une roue touche. */
   airborneSince: number | null;
-  /** Au moins une roue au sol au dernier pas, au sens du contact de jeu débouncé (saut possible, tâche 5e). */
+  /** Au moins une roue au sol au dernier pas, au sens du contact de jeu débouncé (tâche 5e). */
   grounded: boolean;
+  /**
+   * Instant (s) du dernier pas où le contact de jeu était vrai ; null à la création et après une téléportation.
+   * Tolérance de sol du saut (décision P11) : `canJump` le compare à JUMP_GROUND_GRACE.
+   */
+  lastGroundedAt: number | null;
   /** Collisions avec les autres voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
   invulnerable: boolean;
   /**
@@ -124,7 +129,8 @@ function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cf
   const state = newCarState(pilot.id, pilot.name, colorHex(pilot.color), colorHex(pilot.accent), start);
   state.progress = physToWorld(body.chassis.position).x;
   return {
-    pilot, body, state, contact: newContact(), airborneSince: null, grounded: false, invulnerable: false, ghost: false,
+    pilot, body, state, contact: newContact(), airborneSince: null, grounded: false, lastGroundedAt: null,
+    invulnerable: false, ghost: false,
     driver: rank === 0 ? null : holdAfterStartDelay(rank, cfg), factor: 1, throttle: false,
   };
 }
@@ -201,22 +207,24 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
 }
 
 /**
- * Saut d'une voiture, après son contact au sol et avant le pas physique (tâche 5e) : une nouvelle demande
- * (`request`) est datée de t ; si elle est encore valable (`wantsJump`, mémoire JUMP_BUFFER) et que la voiture
- * peut sauter (`canJump` : au sol, délai écoulé, course pas finie pour elle), `applyJump`, événement 'jump' ;
- * une demande servie ou périmée est oubliée. Sans demande, rien ne touche la physique.
+ * Saut d'une voiture, après son contact au sol et avant le pas physique (tâche 5e) : le contact de jeu du pas date
+ * `lastGroundedAt` ; une nouvelle demande (`request`) est datée de t ; si elle est encore valable (`wantsJump`,
+ * mémoire JUMP_BUFFER) et que la voiture peut sauter (`canJump` : contact de jeu dans les JUMP_GROUND_GRACE
+ * précédentes, délai écoulé, course pas finie pour elle), `applyJump`, événement 'jump' ; une demande servie ou
+ * périmée est oubliée. Sans demande, rien ne touche la physique.
  */
 function updateJump(sim: RaceSim, car: CarSim, request: boolean, grounded: boolean): void {
   const { cfg, time: t } = sim;
   const { state, body } = car;
   car.grounded = grounded;
+  if (grounded) car.lastGroundedAt = t;
   if (request) state.jumpRequestedAt = t;
   if (state.jumpRequestedAt === null) return;
   if (!wantsJump(state.jumpRequestedAt, t, cfg)) {
     state.jumpRequestedAt = null;
     return;
   }
-  if (!canJump({ lastJumpAt: state.lastJumpAt, grounded, finished: state.finishedAt !== null, t }, cfg)) return;
+  if (!canJump({ lastJumpAt: state.lastJumpAt, lastGroundedAt: car.lastGroundedAt, finished: state.finishedAt !== null, t }, cfg)) return;
   applyJump(body, cfg);
   state.lastJumpAt = t;
   state.jumpRequestedAt = null;
@@ -224,14 +232,14 @@ function updateJump(sim: RaceSim, car: CarSim, request: boolean, grounded: boole
 }
 
 /**
- * Bouton prêt pour la voiture d'index `index` à l'instant du prochain pas : elle pourrait sauter (`canJump`
- * avec son contact au sol du dernier pas). Faux en l'air (à partir du 7e pas sans contact, contact
- * débouncé), pendant le délai JUMP_COOLDOWN et après son arrivée.
+ * Bouton prêt pour la voiture d'index `index` à l'instant du prochain pas : elle pourrait sauter (`canJump`).
+ * Faux en l'air au-delà de JUMP_GROUND_GRACE après le dernier contact de jeu, pendant le délai JUMP_COOLDOWN,
+ * après une téléportation jusqu'au premier contact, et après son arrivée.
  */
 export function jumpReady(sim: RaceSim, index: number): boolean {
   const car = sim.cars[index];
   const { state } = car;
-  return canJump({ lastJumpAt: state.lastJumpAt, grounded: car.grounded, finished: state.finishedAt !== null, t: sim.time }, sim.cfg);
+  return canJump({ lastJumpAt: state.lastJumpAt, lastGroundedAt: car.lastGroundedAt, finished: state.finishedAt !== null, t: sim.time }, sim.cfg);
 }
 
 /** Atterrissage : retour au sol après au moins LANDING_MIN_AIRTIME en l'air. */
@@ -373,8 +381,10 @@ function placeInvulnerable(sim: RaceSim, car: CarSim, target: SafePoint, lavaX: 
   applyRespawnToState(car.state, { ...target }, lavaX, consecutive, sim.time, cfg);
   car.contact.groundedUntil = [-1, -1];
   car.airborneSince = null;
-  // Une téléportation oublie la demande de saut en attente (tâche 5e) : pas de saut surprise au point sûr.
+  // Une téléportation oublie la demande de saut en attente et le contact d'avant (tâche 5e) : pas de saut surprise
+  // au point sûr, ni de saut de tolérance sur un contact d'avant la téléportation.
   car.state.jumpRequestedAt = null;
+  car.lastGroundedAt = null;
 }
 
 /**

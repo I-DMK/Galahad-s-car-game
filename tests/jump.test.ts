@@ -5,7 +5,7 @@
 import Matter from 'matter-js';
 import { canJump, wantsJump } from '../src/cars/jump';
 import { CONFIG, type Config } from '../src/config';
-import { applyJump, placeCar, wheelsOnGround } from '../src/physics/car';
+import { applyJump, placeCar } from '../src/physics/car';
 import { mpsToPxPerStep, physToWorld, toPx } from '../src/physics/units';
 import { createRaceSim, jumpReady, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
@@ -70,16 +70,6 @@ function apexAfter(sim: RaceSim, seconds: number, throttle = false): number {
   return maxY;
 }
 
-/** Contact brut ou écart roue–sol < GROUND_CONTACT_GAP d'une roue de Galahad, après le pas. */
-function touching(sim: RaceSim): boolean {
-  const { body } = galahad(sim);
-  const raw = wheelsOnGround(sim.world.engine, body);
-  return body.wheels.some((w, i) => {
-    const p = physToWorld(w.position);
-    return raw[i] || p.y - heightAt(sim.track, p.x) - CONFIG.WHEEL_RADIUS < CONFIG.GROUND_CONTACT_GAP;
-  });
-}
-
 describe('applyJump (même hauteur partout, décision P3)', () => {
   test('vy0 ≤ 0 : JUMP_VY sur le châssis et les deux roues ; vy0 > 0 : √(vy0² + JUMP_VY²) ; vx de chaque pièce inchangée à 1e-9', () => {
     expect(CONFIG.JUMP_VY).toBeCloseTo(Math.sqrt(2 * CONFIG.GRAVITY * CONFIG.JUMP_APEX), 1);
@@ -137,9 +127,10 @@ describe('apogée du saut (2,5 m ± 10 %)', () => {
   });
 
   // À 14 m/s, la roue avant rebondit sur le pli du pied de la rampe-saut (0° → 22°, sans congé) : la voiture
-  // survole le premier tiers de la montée (mesuré, graine 0 : en l'air de ≈ 1,2 à ≈ 4,0 m après le pied, plus de
-  // contact de jeu au milieu). Elle saute donc au premier pas où elle est au sol dans la seconde moitié de la
-  // montée (demande à chaque pas depuis le milieu), avant le sommet (ruling de la tâche 5e).
+  // survole le premier tiers de la montée (mesuré, graine 0 : en l'air de ≈ 1,2 à ≈ 4,0 m après le pied). Avec la
+  // tolérance de sol (P11, Step 11), le saut part maintenant EN L'AIR, à la première demande depuis le milieu de la
+  // montée (graine 0 : ≈ 2,9 m après le pied, ≈ 0,18 s après le dernier contact de jeu, gain ≈ 2,46 m, MESURÉ
+  // (relecture)) ; la demande reste faite à chaque pas jusqu'au saut, avant le sommet. Assertions inchangées.
   test(`sur une pente (P3) : à 14 m/s dans la seconde moitié de la montée d'une rampe-saut, max(y) − y0 − vy0²/(2g) ∈ [2,25 ; 2,75], très en dessous de « s'ajoute »`, () => {
     const { track, ramp, seed } = RAMP;
     const sim = simAt(track, ramp.xStart - 15);
@@ -198,28 +189,9 @@ describe('apogée du saut (2,5 m ± 10 %)', () => {
   });
 });
 
-describe('au sol seulement (I4)', () => {
-  test('une demande 0,7 s après le décollage (en l’air, délai écoulé) : aucun saut, vy inchangée', () => {
-    const a = createRaceSim(FLAT, CONFIG);
-    const b = createRaceSim(FLAT, CONFIG);
-    for (let i = 0; i < STEPS(1); i++) { stepRace(a, false); stepRace(b, false); }
-    stepRace(a, false, true);
-    stepRace(b, false, true);
-    expect(jumpsOf(a)).toHaveLength(1);
-    for (let i = 0; i < STEPS(0.7) - 1; i++) { stepRace(a, false); stepRace(b, false); }
-    expect(touching(a)).toBe(false);
-    stepRace(a, false, true);
-    stepRace(b, false);
-    expect(jumpsOf(a)).toEqual([]);
-    expect(vyOf(galahad(a).body.chassis)).toBe(vyOf(galahad(b).body.chassis));
-    for (let i = 0; i < STEPS(0.3); i++) {
-      stepRace(a, false);
-      stepRace(b, false);
-      expect(jumpsOf(a)).toEqual([]);
-      expect(stepFingerprint(a)).toBe(stepFingerprint(b));
-    }
-  });
-
+// « Au sol seulement » devient la tolérance de sol (P11, Step 11) : au décollage d'une rampe-saut, une demande 0,30 s
+// après le dernier contact de jeu donne un saut, à 0,40 et 0,7 s aucun (tests/jump-grace.test.ts).
+describe('jamais de saut sans contact de jeu (lastGroundedAt nul à la création)', () => {
   test('voiture lâchée de 2 m, demande à chaque pas : aucun saut avant le contact, saut au premier pas au sol', () => {
     const sim = simAt(FLAT, 100, CONFIG, 2);
     let first: number | null = null;
@@ -294,14 +266,17 @@ describe('délai entre deux sauts (I4)', () => {
 
 describe('canJump et wantsJump (table)', () => {
   test.each([
-    { lastJumpAt: null, grounded: true, finished: false, t: 0, ok: true },
-    { lastJumpAt: null, grounded: false, finished: false, t: 5, ok: false },
-    { lastJumpAt: null, grounded: true, finished: true, t: 5, ok: false },
-    { lastJumpAt: 10, grounded: true, finished: false, t: 10.49, ok: false },
-    { lastJumpAt: 10, grounded: true, finished: false, t: 10.5, ok: true },
-    { lastJumpAt: 10, grounded: false, finished: false, t: 11, ok: false },
-    { lastJumpAt: 10, grounded: true, finished: false, t: 11, ok: true },
-  ])('canJump($lastJumpAt, sol $grounded, arrivée $finished, t $t) = $ok', ({ ok, ...o }) => {
+    { lastJumpAt: null, lastGroundedAt: 0, finished: false, t: 0, ok: true },
+    { lastJumpAt: null, lastGroundedAt: null, finished: false, t: 5, ok: false },
+    { lastJumpAt: null, lastGroundedAt: 5 - 0.3, finished: false, t: 5, ok: true },
+    { lastJumpAt: null, lastGroundedAt: 5 - 0.35, finished: false, t: 5, ok: true },
+    { lastJumpAt: null, lastGroundedAt: 5 - 0.4, finished: false, t: 5, ok: false },
+    { lastJumpAt: null, lastGroundedAt: 5, finished: true, t: 5, ok: false },
+    { lastJumpAt: 10, lastGroundedAt: 10.49, finished: false, t: 10.49, ok: false },
+    { lastJumpAt: 10, lastGroundedAt: 10.5, finished: false, t: 10.5, ok: true },
+    { lastJumpAt: 10, lastGroundedAt: 10.6, finished: false, t: 11, ok: false },
+    { lastJumpAt: 10, lastGroundedAt: 11, finished: false, t: 11, ok: true },
+  ])('canJump($lastJumpAt, contact $lastGroundedAt, arrivée $finished, t $t) = $ok', ({ ok, ...o }) => {
     expect(canJump(o, CONFIG)).toBe(ok);
   });
 
@@ -330,32 +305,32 @@ describe('après l’arrivée, bouton prêt, déterminisme', () => {
     expect(jumpReady(sim, 0)).toBe(false);
   });
 
-  test('bouton grisé en l’air : jumpReady faux du 7e pas après le décollage jusqu’au retour au sol (vol d’une rampe-saut, sans saut)', () => {
+  test('bouton grisé en l’air : jumpReady vrai jusqu’à JUMP_GROUND_GRACE après le dernier contact de jeu, faux ensuite jusqu’au retour au sol (vol d’une rampe-saut, sans saut)', () => {
     const { track, ramp } = RAMP;
     const sim = simAt(track, ramp.xStart - 15);
     launch(sim, 14);
-    const contact: boolean[] = [];
+    const grounded: boolean[] = [];
     const ready: boolean[] = [];
     for (let i = 0; i < STEPS(5); i++) {
       stepRace(sim, true);
-      contact.push(touching(sim));
+      grounded.push(galahad(sim).grounded);
       ready.push(jumpReady(sim, 0));
     }
-    // Vol : plus longue suite de pas sans contact.
+    // Vol : plus longue suite de pas sans contact de jeu ; `last` = dernier pas avec contact avant le vol.
     let best = { from: -1, len: 0 };
-    for (let i = 0, run = 0; i < contact.length; i++) {
-      run = contact[i] ? 0 : run + 1;
+    for (let i = 0, run = 0; i < grounded.length; i++) {
+      run = grounded[i] ? 0 : run + 1;
       if (run > best.len) best = { from: i - run + 1, len: run };
     }
     expect(best.len * DT).toBeGreaterThan(1);
-    // Décollage : premier pas sans contact ; le contact de jeu tient encore GROUND_DEBOUNCE_SECONDS (6 pas ; le
-    // 6e dépend de l'arrondi de sim.time, somme de PHYSICS_DT). Retour au sol : premier pas avec contact, vu
-    // par le contact de jeu au pas suivant.
-    const takeoff = best.from;
+    const last = best.from - 1;
     const landing = best.from + best.len;
-    for (let i = takeoff - 1; i < takeoff + 6; i++) expect(ready[i], `pas ${i - takeoff} après le décollage`).toBe(true);
-    for (let i = takeoff + 7; i <= landing; i++) expect(ready[i], `pas ${i - takeoff} après le décollage`).toBe(false);
-    expect(ready[landing + 1]).toBe(true);
+    // `jumpReady` après le pas i se lit à t(i + 1) : prêt tant que t(i + 1) − t(last) ≤ 0,35 s (à 1e-9 près), soit
+    // i ≤ last + 20.
+    const grace = STEPS(CONFIG.JUMP_GROUND_GRACE);
+    for (let i = last; i < last + grace; i++) expect(ready[i], `pas ${i - last} après le dernier contact`).toBe(true);
+    for (let i = last + grace; i < landing; i++) expect(ready[i], `pas ${i - last} après le dernier contact`).toBe(false);
+    expect(ready[landing]).toBe(true);
   });
 
   test('bouton grisé pendant le délai : jumpReady faux jusqu’à JUMP_COOLDOWN après le saut, même au sol (JUMP_VY 0,5)', () => {

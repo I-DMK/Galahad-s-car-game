@@ -5,13 +5,14 @@ import type { Config } from '../config';
 const EPS = 1e-9;
 
 /**
- * Une voiture peut-elle sauter à l'instant t ? Au moins une roue au sol (contact de jeu débouncé), course
- * pas finie pour elle, et JUMP_COOLDOWN écoulé depuis son dernier saut (à EPS près).
+ * Une voiture peut-elle sauter à l'instant t ? Tolérance de sol (décision P11) : une roue a eu le contact de jeu
+ * (débouncé) au plus JUMP_GROUND_GRACE avant t (`lastGroundedAt`, null : jamais depuis la création ou la dernière
+ * téléportation) ; course pas finie pour elle ; JUMP_COOLDOWN écoulé depuis son dernier saut (à EPS près).
  */
 export function canJump(
-  o: { lastJumpAt: number | null; grounded: boolean; finished: boolean; t: number }, cfg: Config,
+  o: { lastJumpAt: number | null; lastGroundedAt: number | null; finished: boolean; t: number }, cfg: Config,
 ): boolean {
-  if (!o.grounded || o.finished) return false;
+  if (o.finished || o.lastGroundedAt === null || o.t - o.lastGroundedAt > cfg.JUMP_GROUND_GRACE + EPS) return false;
   return o.lastJumpAt === null || o.t - o.lastJumpAt >= cfg.JUMP_COOLDOWN - EPS;
 }
 
