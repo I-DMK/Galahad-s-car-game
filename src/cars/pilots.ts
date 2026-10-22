@@ -52,7 +52,7 @@ export const PILOTS: readonly Pilot[] = Object.freeze([
   // Moyen : vert, casque vert foncé, bandes crème.
   pilote({ id: 'diego', name: 'Diego', color: 0x2ecc40, accent: 0xfff096, helmet: 0x208f2d, base: 0.92, lift: 0.3 }),
   // Prudent : blanc, casque gris clair, bandes sarcelle.
-  pilote({ id: 'timothée', name: 'Timothée', color: 0xf5f5f5, accent: 0x00a8a0, helmet: 0xd0d0d0, base: 0.86, lift: 0.55 }),
+  pilote({ id: 'timothé', name: 'Timothé', color: 0xf5f5f5, accent: 0x00a8a0, helmet: 0xd0d0d0, base: 0.86, lift: 0.55 }),
   // Fonceur : jaune, casque jaune clair, bandes marron (abeille).
   pilote({ id: 'matthis', name: 'Matthis', color: 0xffff00, accent: 0x965a1e, helmet: 0xffff40, base: 0.96, lift: 0.1 }),
   // Moyen : orange, casque orange clair, bandes turquoise.

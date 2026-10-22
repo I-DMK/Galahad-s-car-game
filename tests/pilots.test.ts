@@ -2,7 +2,7 @@ import { CONFIG } from '../src/config';
 import { GALAHAD, PILOTS, drawPilots } from '../src/cars/pilots';
 import type { Pilot } from '../src/cars/pilots';
 
-const NOMS = ['Pablo', 'Diego', 'Timothée', 'Matthis', 'Malo', 'Liam'];
+const NOMS = ['Pablo', 'Diego', 'Timothé', 'Matthis', 'Malo', 'Liam'];
 /**
  * Arrêt le plus clair du dégradé du ciel (#000000 → #0a1030, prerenderSky dans
  * src/render/background.ts). Les couleurs testées sont plus claires que le ciel : le pire
@@ -54,7 +54,7 @@ function enDefaut(couples: readonly [Pilot, Pilot][], ok: (a: Pilot, b: Pilot) =
 const ids = (pilotes: readonly Pilot[]) => pilotes.map((p) => p.id);
 
 describe('PILOTS', () => {
-  test('6 pilotes, dans l’ordre Pablo, Diego, Timothée, Matthis, Malo, Liam', () => {
+  test('6 pilotes, dans l’ordre Pablo, Diego, Timothé, Matthis, Malo, Liam', () => {
     expect(PILOTS.map((p) => p.name)).toEqual(NOMS);
   });
 
@@ -173,7 +173,7 @@ describe('drawPilots', () => {
 
   test('tirage figé : les graines 0 et 1 donnent toujours ces pilotes, dans cet ordre', () => {
     // Valeurs de l’implémentation actuelle : si elles changent, les courses déjà jouées ne se rejouent plus à l’identique.
-    expect(ids(drawPilots(0))).toEqual(['diego', 'pablo', 'timothée', 'matthis']);
+    expect(ids(drawPilots(0))).toEqual(['diego', 'pablo', 'timothé', 'matthis']);
     expect(ids(drawPilots(1))).toEqual(['matthis', 'diego', 'malo', 'liam']);
   });
 

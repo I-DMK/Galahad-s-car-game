@@ -810,12 +810,12 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 | Matthis | fonceur | 0,75 | 0,15 | ≈ 18–32 % |
 | Diego | moyen | 0,55 | 0,10 | ≈ 5–13 % |
 | Malo | moyen | 0,50 | 0,09 | ≈ 3–10 % |
-| Timothée | prudent | 0,30 | 0,04 | ≈ 0 % |
+| Timothé | prudent | 0,30 | 0,04 | ≈ 0 % |
 | Liam | prudent | 0,30 | 0,05 | ≈ 0 % |
 
 **Puissance des mesures (I7)** :
-- **Comparaison appariée par graine** : chaque graine est jouée deux fois, une fois avec les traits de saut de Pablo pour les 4 copains, une fois avec ceux de Timothée. Seul le trait change.
-- **Tentatives attendues** : avec ≈ 1 étoile haute par course (5e, Step 9), 4 copains et 48 graines, on compte ≈ 150 tentatives dans le bras « Pablo » (4 × 48 × 0,8) et ≈ 58 dans le bras « Timothée » (4 × 48 × 0,3). C'est au-dessus du seuil de 40 : la mesure est valable.
+- **Comparaison appariée par graine** : chaque graine est jouée deux fois, une fois avec les traits de saut de Pablo pour les 4 copains, une fois avec ceux de Timothé. Seul le trait change.
+- **Tentatives attendues** : avec ≈ 1 étoile haute par course (5e, Step 9), 4 copains et 48 graines, on compte ≈ 150 tentatives dans le bras « Pablo » (4 × 48 × 0,8) et ≈ 58 dans le bras « Timothé » (4 × 48 × 0,3). C'est au-dessus du seuil de 40 : la mesure est valable.
 - **Seuil** : au moins 40 tentatives exigées par bras, sinon on passe à 96 graines (4 fichiers).
 
 - [ ] **Step 0 : Décisions du papa consignées** (registre 567ee13). Le tableau des traits est gardé (P4).
@@ -854,7 +854,7 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
     - ratés (saut sans étoile dans les 2,5 s) ;
     - respawns dans les 3 s.
 
-    Assertions : au moins 40 tentatives par bras, et taux de raté « Pablo » > taux de raté « Timothée ». On imprime aussi les chiffres du tirage normal, pilote par pilote.
+    Assertions : au moins 40 tentatives par bras, et taux de raté « Pablo » > taux de raté « Timothé ». On imprime aussi les chiffres du tirage normal, pilote par pilote.
   - **Déterminisme** : graine 3 jouée deux fois, même empreinte finale et même liste de `'jump'`.
   - **Invariants** :
     - au plus 3 respawns par robot ;

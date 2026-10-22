@@ -124,3 +124,4 @@ Task 5d: mesures (rattrapage, 64 courses appariées, avant 699bc13 / après) : v
 Task 5d: minor (deferred): latence d'un pas des capteurs d'étoile (antérieure) ; voitures superposées restées fantômes hors zone (règle 5b/5c) ; garde MAX_CARS de createRaceSim non testée (inatteignable avec 4 copains) ; les étoiles égalisent plus qu'elles ne font rattraper → Galahad recule (tâche 7, élastique)
 Task 5d: complete (commits 699bc13..da1166f) — VALIDÉE par le papa le 2026-10-22 ; fusionnée sur ccr-5b6fabc4-n96ofo et déployée
 TEST TABLETTE (papa, 2026-10-22, déploiement 699bc13) : 5c (tremplin) et 5f (tremblement) **OK**
+Correction du papa (2026-10-22) : le prénom s'écrit **Timothé** (sans e final) ; nom et id corrigés dans src/cars/pilots.ts, tests, plan et addendum bouton saut (les mentions « Timothée » des entrées plus anciennes du registre et des rapports restent historiques)
