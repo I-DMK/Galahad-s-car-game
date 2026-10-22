@@ -36,7 +36,7 @@ import { CONFIG, type Config } from '../../src/config';
 import { carAngle, carSpeedMps, wheelsBelowChassis, type CarBody } from '../../src/physics/car';
 import { physToWorld } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
-import { simulateRace } from '../../src/sim/simulate';
+import { simulateRace } from '../../src/sim/harness';
 import { generateTrack } from '../../src/track/generate';
 import { heightAt, nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
 import { mulberry32 } from '../../src/track/rng';

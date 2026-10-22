@@ -9,7 +9,8 @@ import { turboFactor } from '../src/cars/turbo';
 import { placeCar } from '../src/physics/car';
 import { createStarBodies, syncStarBodies } from '../src/physics/stars';
 import { CAT, carCategory, createWorld, sensorsTouching } from '../src/physics/world';
-import { GALAHAD_INDEX, createRaceSim, sceneOf, simulateRace, stepRace, type CarSim, type StarEvent } from '../src/sim/simulate';
+import { simulateRace } from '../src/sim/harness';
+import { GALAHAD_INDEX, createRaceSim, sceneOf, stepRace, type CarSim, type StarEvent } from '../src/sim/simulate';
 import { heightAt, slopeAt } from '../src/track/query';
 import { trackFor } from './helpers/runs';
 

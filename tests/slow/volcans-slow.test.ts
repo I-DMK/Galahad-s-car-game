@@ -9,7 +9,7 @@
 // registre « rampe-saut → plat → volcan avec turbo pris avant la rampe-saut » (le plat de lancement
 // absorbe le saut turbo, option (a) de la tâche 1).
 import { CONFIG } from '../../src/config';
-import { simulateRace } from '../../src/sim/simulate';
+import { simulateRace } from '../../src/sim/harness';
 import { nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
 import type { Volcano } from '../../src/track/types';
 import { registerVolcanoCases } from '../helpers/cases';

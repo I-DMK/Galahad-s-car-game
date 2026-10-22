@@ -5,7 +5,8 @@
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
-import { createRaceSim, simulateRace, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
+import { simulateRace } from '../src/sim/harness';
+import { createRaceSim, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { heightAt } from '../src/track/query';
 import { expectRaceInvariants, fiveCarRace } from './helpers/race';
 import { FINISH_MAX_SECONDS, FINISH_MIN_SECONDS, describeRespawns, f2, firstVolcano, trackFor } from './helpers/runs';

@@ -6,9 +6,8 @@ import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
 import { CAT } from '../src/physics/world';
-import {
-  carPairsTouching, chassisX, createRaceSim, stepRace, type CarSim, type RaceSim, type SimEvent,
-} from '../src/sim/simulate';
+import { carPairsTouching } from '../src/sim/harness';
+import { chassisX, createRaceSim, stepRace, type CarSim, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { heightAt, inGhostZone, slopeAt } from '../src/track/query';
 import { firstVolcano } from './helpers/runs';
 

@@ -7,8 +7,9 @@ import { isStarActiveFor } from '../src/cars/stars';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
 import { CAT, carCategory } from '../src/physics/world';
+import { simulateRace } from '../src/sim/harness';
 import {
-  carView, chassisX, createRaceSim, rebuildCars, sceneOf, simulateRace, stepRace, type RaceSim, type SimEvent,
+  carView, chassisX, createRaceSim, rebuildCars, sceneOf, stepRace, type RaceSim, type SimEvent,
 } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import type { Track } from '../src/track/types';

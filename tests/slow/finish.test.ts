@@ -4,7 +4,7 @@
 // FINISH_MIN_SECONDS et FINISH_MAX_SECONDS, 6 à 14 étoiles prises. Suite lente (npm run test:slow) ;
 // la seule graine 1 tourne en CI dans tests/race-smoke.test.ts.
 import { CONFIG } from '../../src/config';
-import { simulateRace } from '../../src/sim/simulate';
+import { simulateRace } from '../../src/sim/harness';
 import { FINISH_MAX_SECONDS, FINISH_MIN_SECONDS, describeRespawns, trackFor } from '../helpers/runs';
 
 const SEEDS = [0, 1, 2, 3, 4];

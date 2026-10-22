@@ -1,7 +1,7 @@
 // Les observateurs `onStep` des harnais (tâche 5c) sont sans effet : même course, même run, avec et sans.
 // simulateRace : l'observateur de la course à 5 (contacts entre voitures, classement des chutes) ;
 // runFrom : l'observateur de l'échantillonnage des phases (phaseRun : positions, contacts avec la lave).
-import { simulateRace, type SimulateResult } from '../src/sim/simulate';
+import { simulateRace, type SimulateResult } from '../src/sim/harness';
 import { REFERENCE, historiesFor, phaseRun, variantTrack, volcanoWorld } from './helpers/phases';
 import { fiveCarOptions, fiveCarRace } from './helpers/race';
 import { runFrom } from './helpers/runs';

@@ -2,7 +2,8 @@
 // seul (défaut `robots: false` de createRaceSim et simulateRace, comme au plan A).
 import { CONFIG } from '../../src/config';
 import { isStarActiveFor } from '../../src/cars/stars';
-import { createRaceSim, sceneOf, simulateRace, stepRace, carView, type StarEvent } from '../../src/sim/simulate';
+import { simulateRace } from '../../src/sim/harness';
+import { createRaceSim, sceneOf, stepRace, carView, type StarEvent } from '../../src/sim/simulate';
 import { generateTrack } from '../../src/track/generate';
 
 const TRACK = generateTrack(1, 1680, CONFIG);

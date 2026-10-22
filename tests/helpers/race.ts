@@ -6,7 +6,7 @@
 // graines 0 à 23 (quatre fichiers parallèles), classé la cause de chaque chute dans la lave et ajouté
 // « aucune chute propre, toutes voitures ».
 import { CONFIG } from '../../src/config';
-import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/simulate';
+import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/harness';
 import { nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
 import { describeRespawns, f1, f2, trackFor } from './runs';
 
