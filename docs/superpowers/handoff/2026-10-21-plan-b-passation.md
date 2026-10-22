@@ -67,7 +67,8 @@ sans le contexte de celle-ci.
   reste identique au bit près au plan A. 323/323 tests, e2e 6/6. **Validée
   par le papa**, poussée ; **fps OK sur la tablette** (tâche 9 inutile pour
   l'instant).
-- **Tâche 5c faite et VALIDÉE, NON DÉPLOYÉE** (décision du papa : déployer avec la 5f ; branche `wip-plan-b`) : `ee58194` (harnais de phases), `25ba33f` (congé de 10 m au pied de la rampe-volcan, `RAMP_FOOT_RADIUS`), `db037f3` (tour 1), `8d92584` (doc). 0 chute doigt posé sur 2 924 historiques + 4 601 en turbo dense, 0 chute à 5 voitures graines 0 à 23 ; garde minimale **0,63 m** en fin de turbo au pied (gardée par le papa, assertée ≥ 0,3 m), ≥ 1,72 m sinon ; doigt levé toléré inchangé (≈ 1,25–1,3 s, pas de levier de difficulté pour l'instant, décision du papa). npm test 331/331, test:slow 170/170.
+- **Tâche 5c faite, validée et déployée avec la 5f** : `ee58194` (harnais de phases), `25ba33f` (congé de 10 m au pied de la rampe-volcan, `RAMP_FOOT_RADIUS`), `db037f3` (tour 1), `8d92584` (doc). 0 chute doigt posé sur 2 924 historiques + 4 601 en turbo dense, 0 chute à 5 voitures graines 0 à 23 ; garde minimale **0,63 m** en fin de turbo au pied (gardée par le papa, assertée ≥ 0,3 m), ≥ 1,72 m sinon ; doigt levé toléré inchangé (≈ 1,25–1,3 s, pas de levier de difficulté pour l'instant, décision du papa). npm test 331/331, test:slow 170/170.
+- **Tâche 5f faite, validée et déployée** (rendu interpolé : `38b012f` empreinte figée, `e979930` feat, `9ecf7b2` tour 1, `7e05336` tour 2) : `loop/interpolation.ts` (PoseHistory, lerpAngle), `loop/frame.ts` (runFrame, cameraTarget), `loop/frame-stats.ts` (compteur d'images à 0 et 2+ pas, HUD en `?debug=1`), `sim/present.ts` (presentFrame, stepOutcome, partagés par `Game` et les tests), `tests/game-frame.test.ts` (vraie boucle de `Game` sous jsdom). Rejeu de 12 courses à 5 voitures : épisodes de tremblement sans / avec interpolation 75 / 0 (60,05 Hz), 90 / 0 (59,94 Hz), 13 / 0 (120 Hz), 3 / 1 (60,000 Hz, choc réel, masqué). Galahad seul identique au bit près (empreinte sha1 par pas). npm test 373/373, e2e 7/7, suite lente de l'interpolation 18/18. Non corrigé (choix) : effets, étoiles et flammes avec ≤ 1 pas d'avance sur la voiture dessinée ; stroboscope des roues à 60 Hz.
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
@@ -103,8 +104,8 @@ sans le contexte de celle-ci.
 | 4 simulations d'acceptation, suites lentes, balayage de dosage | **faite, validée, poussée** → gate tablette **fait** : « un peu facile », L_ELAN 6 conservé |
 | 5a pilotes | **faite, validée**, poussée |
 | 5b course à 5 voitures, grille, chocs, respawn groupé (+ fantômes près des volcans) | **faite, validée**, poussée → mesure fps du papa |
-| 5c (ajoutée) saut fiabilisé | **faite, validée** ; non déployée (sur `wip-plan-b`, déploiement avec la 5f) |
-| 5f (ajoutée) rendu interpolé (tremblement) | plan écrit (`2026-10-21-plan-b-saut-et-rendu.md` v1.2) ; à faire |
+| 5c (ajoutée) saut fiabilisé | **faite, validée**, déployée avec la 5f |
+| 5f (ajoutée) rendu interpolé (tremblement) | **faite, validée**, déployée → test tablette (tremplin + tremblement) |
 | 5d (ajoutée) étoiles pour tous | à faire (addendum bouton saut §2) |
 | 5e (ajoutée) bouton saut et étoiles hautes | à faire (addendum bouton saut §1–2) |
 | 6 conduite des robots (+ robots polis + sauts des copains) | à faire |
@@ -197,8 +198,7 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 
 ## Prochaine action précise
 
-Session 3 (2026-10-21) : 5c validée (non déployée) ; plan des tâches 5f, 5d, 5e, 6 écrit : `docs/superpowers/plans/2026-10-21-plan-b-saut-et-rendu.md` (v1.2, après relecture standard, adversariale, re-relecture ; décisions du papa Q-P1 à Q-P5 au registre). Tout le travail est sur `wip-plan-b` ; `ccr-5b6fabc4-n96ofo` (déployée) reste à 0a78392.
+Session 3 (2026-10-21/22) : 5c et 5f validées et déployées ensemble. Plan des tâches 5f, 5d, 5e, 6 : `docs/superpowers/plans/2026-10-21-plan-b-saut-et-rendu.md` (v1.3 : relectures standard, adversariale, deux re-relectures ; décisions du papa Q-P1 à Q-P5 au registre ; étoiles hautes réalistes ≈ 1 par course, seuil fixé à la calibration du Step 9 de la 5e et présenté au papa). La branche de sauvegarde `wip-plan-b` est gardée (décision du papa) et sert aux tâches non validées.
 
-1. Finir la validation du plan v1.2 (vérification finale, puis « ok » du papa).
-2. Exécuter **5f** sur `wip-plan-b` (méthode habituelle). À la validation de la 5f : `git checkout ccr-5b6fabc4-n96ofo && git merge --ff-only wip-plan-b`, push (déploiement de 5c + 5f), le papa teste le tremplin et le tremblement sur la tablette. Garder `wip-plan-b` (décision du papa).
-3. Puis **5d → 5e → 6 → 7**.
+1. Retour tablette du papa sur le tremplin (5c) et le tremblement (5f, compteur en `?debug=1`).
+2. Exécuter **5d** (étoiles pour tous) sur `wip-plan-b`, méthode habituelle ; puis **5e → 6 → 7**. À chaque validation : `git checkout ccr-5b6fabc4-n96ofo && git merge --ff-only wip-plan-b`, push.
