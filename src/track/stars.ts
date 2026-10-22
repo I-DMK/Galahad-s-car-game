@@ -138,14 +138,17 @@ export function highStarClearances(track: Track, cfg: Config): Interval[] {
 }
 
 /**
- * Terrain permis pour l'élan et l'atterrissage d'un saut vers une étoile haute : toute la piste [0, xWall] sauf les
- * tranches rampe-saut et rampe-volcan (plats de lancement et de réception compris) et les dégagements.
+ * Terrain permis pour l'élan et l'atterrissage d'un saut vers une étoile haute : la piste à partir de xStart +
+ * D_LANCE, jusqu'à xWall, sauf les tranches rampe-saut et rampe-volcan (plats de lancement et de réception compris)
+ * et les dégagements. Zone de départ exclue (ruling de la tâche 5e) : l'élan commence là où une voiture partie
+ * arrêtée de la grille a atteint V_MAX (D_LANCE), comme pour la fenêtre calibrée à 11,2 et 14 m/s ; sans elle,
+ * une étoile haute pouvait se trouver 10 m devant la pole (graine 7, x = 29,7 m).
  */
 export function highStarTerrain(track: Track, cfg: Config): Interval[] {
   const forbidden: Interval[] = track.slices
     .filter((sl) => sl.type === 'rampe-saut' || sl.type === 'rampe-volcan')
     .map((sl): Interval => [sl.xStart, sl.xEnd]);
-  return subtract([[0, track.xWall]], [...forbidden, ...highStarClearances(track, cfg)]);
+  return subtract([[track.xStart + cfg.D_LANCE, track.xWall]], [...forbidden, ...highStarClearances(track, cfg)]);
 }
 
 /**

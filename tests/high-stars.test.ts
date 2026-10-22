@@ -76,12 +76,13 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
     expect(seen).toBeGreaterThan(10);
   });
 
-  test('[x − TAKEOFF_ROOM, x + LANDING_ROOM] est du terrain permis : ni rampe-saut, ni rampe-volcan, ni dégagement', () => {
+  test('[x − TAKEOFF_ROOM, x + LANDING_ROOM] est du terrain permis : après la zone de départ (xStart + D_LANCE), ni rampe-saut, ni rampe-volcan, ni dégagement', () => {
     for (const t of tracks) {
       const cl = clearances(t);
       for (const s of high(t.stars)) {
         const a = s.x - CONFIG.STAR_HIGH_TAKEOFF_ROOM;
         const b = s.x + CONFIG.STAR_HIGH_LANDING_ROOM;
+        expect(a, `graine ${t.seed}, étoile haute x = ${s.x.toFixed(2)} : élan dans la zone de départ`).toBeGreaterThanOrEqual(t.xStart + CONFIG.D_LANCE - 1e-9);
         for (let p = a + 1e-6; p <= b - 1e-6; p += Math.min(0.1, b - 1e-6 - p) || 0.1) {
           const type = sliceAt(t, p).type;
           const where = `graine ${t.seed}, étoile haute x = ${s.x.toFixed(2)}, terrain en ${p.toFixed(2)} (${type})`;
