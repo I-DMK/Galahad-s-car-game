@@ -85,6 +85,15 @@ sans le contexte de celle-ci.
   `public/`, non servis) : 6 carrosseries renommées par pilote, roue, étoile, Terre,
   4 flammes (303 KB, réduits et quantifiés) et Fredoka 600/700 (40 KB), voir
   `assets/README.md` ; l'archive Grok elle-même n'est pas dans le dépôt.
+  **Prochaine session (décision du papa, 2026-10-22) : les sept sprites, ensemble.**
+  Le papa génère les images avec son outil (Claude ne génère pas d'images) ; la
+  session fournit le gabarit SVG des proportions (`docs/sprites-gabarit.svg`,
+  Step 0 de la 8b avancé), contrôle chaque PNG dessus, efface les roues s'il en
+  reste, réduit à 512 px dans le budget du §1.2 et range le résultat
+  (`assets/generated/` bruts, `assets/sprites/` réduits, en remplaçant les
+  sprites Grok de même nom). Pas de code de jeu dans cette session. À la fin,
+  la session indique la suite : reprise du plan B par la 5e (régime physique),
+  puis 6, 7, 8 et 8b. Prompt et méthode de génération dans `assets/README.md`.
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
