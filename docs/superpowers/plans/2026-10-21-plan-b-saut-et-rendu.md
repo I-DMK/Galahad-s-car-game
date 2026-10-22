@@ -859,7 +859,7 @@ Steps 1 à 8 faits (registre : commits 96556a2 à 4a414c6). Les Steps 9 à 14 de
 - [ ] **Step 14 : Acceptation.**
   - `tests/high-stars-window.test.ts` (CI) : étoile du 1er plat étoile de la graine 1, fenêtre ≥ **0,4 s** à 11,2 et à 14 m/s, ≥ 0,3 s à 3,95 m (MESURÉ sur un plat : 0,57 / 0,60 s, et 0,47 / 0,48 s à +5 cm).
   - `tests/slow/high-stars-sim.test.ts` (< 25 min) :
-    - **(i)** 5 voitures doigt posé sans saut, turbo compris, graines 0 à 23 : 0 étoile haute prise par Galahad. Un copain ne prend une étoile haute sans saut que dans les 2 s après un contact entre voitures (« catapulte », relevée par l'observateur `carPairsTouching`, comme les chutes « par choc ») : les prises sont imprimées, et une prise sans contact échoue (saut §4).
+    - **(i)** 5 voitures doigt posé sans saut, turbo compris, graines 0 à 23 : 0 étoile haute prise sans saut ni contact. Une voiture (Galahad compris depuis le tour 2 de la 5g, R-F12 amendé) ne prend une étoile haute sans saut que dans les 2 s après un contact entre voitures (« catapulte », relevée par l'observateur `carPairsTouching`, comme les chutes « par choc ») : les prises sont imprimées, et une prise sans contact échoue (saut §4).
     - **(ii)** Galahad seul, turbo forcé tous les 5 m de [x★ − 80, x★ − 20], graines 0 à 9 : 0 prise.
     - **(iii)** Pour chaque étoile de plat étoile des graines 0 à 9 : fenêtre ≥ 0,4 s à 11,2 et 14 m/s, ≥ 0,3 s à +5 cm, sans respawn (`windowFor`). Le centre est imprimé (futur `JUMP_STAR_LEAD`, mesuré ≈ 1,0 s).
     - **(iv)** Pour chaque plat étoile précédé de bosses ou d'une double-bosse (graines 0 à 49) : élan à 21 m/s sur la tranche précédente, 0 prise sans saut.
@@ -922,7 +922,7 @@ La tolérance de sol (P11) est déjà en place (5e, Step 11).
     - `sauteurParfait(track, cfg)` : option `jump` de `simulateRace`, par `fosseJumpWanted`.
   - `tests/fosses.test.ts` (CI) ; `tests/slow/fosses-a.test.ts`, `tests/slow/fosses-fenetres-0-4.test.ts`, `tests/slow/fosses-fenetres-5-9.test.ts` (remplacés au tour 1 par `fosses-fenetres-vitesses`, `-terrain-0-7` et `-terrain-8-15`, Step 6), `tests/slow/race-sans-saut-0-11.test.ts`, `tests/slow/race-sans-saut-12-23.test.ts` ; `e2e/fosse.spec.ts`.
 - Modify (code) :
-  - `src/config.ts` : `FOSSE_PERIOD` 2, `FOSSE_WIDTH` 8, `FOSSE_GUARD` 20, `FOSSE_STAR_AFTER` 25, `FOSSE_JUMP_AIM` (Step 1), `FOSSE_RESPAWN_AFTER` 5, `FOSSE_GHOST_AFTER` 40 ; `STAR_TREMPLIN_LANDING` 55 et `STAR_FOSSE_LANDING` 22 (demande du papa : pas d'étoile basse avant l'atterrissage sur les réceptions) ; `STAR_STEP_MIN/MAX` **35 / 58** (Step 7, ruling ; 50 / 85 au plan) ; tour 1 : `FOSSE_JUMP_MIN_DISTANCE` 2 et `TREMPLIN_AFTER_DOUBLE_BOSSE` 0 (décision du papa : pas de tremplin juste après une double-bosse).
+  - `src/config.ts` : `FOSSE_PERIOD` 2, `FOSSE_WIDTH` 8, `FOSSE_GUARD` 20, `FOSSE_STAR_AFTER` 25, `FOSSE_JUMP_AIM` (Step 1), `FOSSE_RESPAWN_AFTER` 5, `FOSSE_GHOST_AFTER` 40 ; `STAR_TREMPLIN_LANDING` 55 et `STAR_FOSSE_LANDING` 22 (demande du papa : pas d'étoile basse avant l'atterrissage sur les réceptions) ; `STAR_STEP_MIN/MAX` **35 / 58** (Step 7, ruling ; 50 / 85 au plan) ; tour 1 : `FOSSE_JUMP_MIN_DISTANCE` 2 et `TREMPLIN_AFTER_DOUBLE_BOSSE` 0 (décision du papa : pas de tremplin juste après une double-bosse) ; tour 2 : `VOLCANO_WEIGHT` 4 (décision du papa : ≈ 3,6 volcans par course ; 3 dans `ANCIENNES_PISTES`).
   - `src/cars/safepoint.ts` (tour 1) : `forbiddenZone` d'une fosse prolongée jusqu'à `xReception + WHEEL_BASE/2 + WHEEL_RADIUS + 0,3` (≈ 1,5 m après le bord aval), pour tous les appelants : un châssis posé juste après le bord aval avait sa roue arrière dans le capteur.
   - `src/track/types.ts` : `'fosse'` ; `Volcano = Tremplin | Fosse` (champ `kind`, `xBord`).
   - `src/track/slices.ts` : `fosseGeometry`, `fosse` ; `SliceProfile.volcano` devient lui aussi une union.
@@ -987,6 +987,7 @@ export function fosseBlock(world: World, f: Fosse, v: number | 'arrêt', opts?: 
   - La phase est tirée une fois par piste dans `mulberry32((seed ^ 0x6a09e667) >>> 0)`, seulement si `FOSSE_PERIOD` > 0 : avec 0, aucun appel.
   - Le `rng` principal ne voit aucun tirage de plus ; `fosse(cfg).length === rampeVolcan(cfg).length` est assertée.
   - Refus (saut §6.3) : jugés sur la dernière tranche tirée ; un volcan ne suit jamais une rampe-saut ni un autre volcan, quel que soit son type ; un **tremplin** ne suit jamais une double-bosse (tour 1, décision du papa ; le type du volcan suivant est connu avant le tirage, par l'alternance), une fosse le peut. Clé `TREMPLIN_AFTER_DOUBLE_BOSSE: 1` dans `ANCIENNES_PISTES`.
+  - Poids de tirage d'un volcan : `VOLCANO_WEIGHT` (tour 2, décision du papa : 4 ; 3 dans `ANCIENNES_PISTES`, pistes d'avant au bit près) : 3,62 volcans par course (1 à 5), graines 0 à 49.
 - **Capteur** : `buildLava` inchangé ; une fosse porte `rimY` = 0.
 - **Copains provisoires** : demande de saut **à chaque pas** tant que `fosseJumpWanted` est vrai. `wantsJump` et `canJump` filtrent, comme pour Galahad, avec la tolérance de sol. Ce saut n'a pas d'erreur. La tâche 6 le remplace par le driver.
 - **Galahad dans `Game`** : rien ne change, c'est l'enfant qui saute.
@@ -1078,7 +1079,7 @@ export function fosseBlock(world: World, f: Fosse, v: number | 'arrêt', opts?: 
 
   Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/fosses-a.test.ts tests/slow/fosses-fenetres-*.test.ts tests/slow/race-sans-saut-0-11.test.ts tests/slow/race-sans-saut-12-23.test.ts`, puis `npm run test:slow`.
 - [ ] **Step 7 : Étoiles basses.** Pas [50, 85] (MESURÉ (relecture) : 8,52, de 6 à 12). On remesure avec le trou de ± 5 m autour de l'étoile de réception ; si la moyenne sort de [8, 12] ou si le minimum passe sous 6 : ruling au registre.
-  - Fait (ruling du Step 7) : avec les dégagements de réception demandés par le papa (`STAR_TREMPLIN_LANDING` 55, `STAR_FOSSE_LANDING` 22), le pas [50, 85] donnait 6,50 (4 à 9) ; pas retenu **[35, 58]** : 8,50 (5 à 12 ; graines 0 à 19 : 6 à 12). Tour 1 (pas de tremplin juste après une double-bosse, moins de volcans) : 8,12 (5 à 12 ; graines 0 à 19 : 8,35, 6 à 12), pas gardé.
+  - Fait (ruling du Step 7) : avec les dégagements de réception demandés par le papa (`STAR_TREMPLIN_LANDING` 55, `STAR_FOSSE_LANDING` 22), le pas [50, 85] donnait 6,50 (4 à 9) ; pas retenu **[35, 58]** : 8,50 (5 à 12 ; graines 0 à 19 : 6 à 12). Tour 1 (pas de tremplin juste après une double-bosse, moins de volcans) : 8,12 (5 à 12 ; graines 0 à 19 : 8,35, 6 à 12), pas gardé. Tour 2 (poids de tirage des volcans 4) : 8,50 (6 à 13 ; graines 0 à 19 : 8,60, 6 à 12), pas gardé.
 - [ ] **Step 8 : Non-régression et empreinte.**
   - `ANCIENNES_PISTES` : empreinte, `PLAN_A_TRACE` et sha1 des pistes **inchangés**.
   - `CONFIG` : nouveaux hash dans `FROZEN_CONFIG`, ruling R-F10 (2e recapture, même contenu qu'en 5e).
@@ -1466,10 +1467,10 @@ Chacun est à confirmer par les relectures de la v1.6 ; « coût si faux » comm
 - **R-F9 — Copains provisoires en 5g** : ils redemandent le saut à chaque pas de leur fenêtre, sans erreur, au centre `fosseJumpLead(v)`, jusqu'à la tâche 6. Sans cela, les invariants à 5 voitures n'auraient plus de sens entre la 5g et la 6. Coût si faux : nul (code retiré en tâche 6).
 - **R-F10 — Empreinte.**
   - `ANCIENNES_PISTES` garde les hash figés sur la 5c.
-  - `FROZEN_CONFIG` est recapturé en fin de 5e, en 5g, puis au tour 1 de la 5g (pas de tremplin juste après une double-bosse). Chaque fois, le registre reçoit les anciens et les nouveaux hash, le commit, la raison (P10, puis la décision du papa) et la preuve que l'empreinte `ANCIENNES_PISTES` n'a pas bougé.
+  - `FROZEN_CONFIG` est recapturé en fin de 5e, en 5g, au tour 1 de la 5g (pas de tremplin juste après une double-bosse), puis au tour 2 (poids de tirage des volcans 4). Chaque fois, le registre reçoit les anciens et les nouveaux hash, le commit, la raison (P10, puis la décision du papa) et la preuve que l'empreinte `ANCIENNES_PISTES` n'a pas bougé.
   - Toute autre variation de l'empreinte reste un défaut.
 - **R-F11 — Chute « fosse »** : dans les invariants, une chute dans une fosse sans saut est attendue. Elle n'est ni « choc » ni « propre ». Une chute propre à un tremplin reste un échec.
-- **R-F12 — Copains catapultés** : une étoile haute prise sans saut par un copain n'est tolérée que dans les 2 s après un contact entre voitures ; elle est comptée. Pour Galahad, aucune tolérance.
+- **R-F12 — Voitures catapultées** : une étoile haute prise sans saut n'est tolérée que dans les 2 s après un contact entre voitures ; elle est comptée et imprimée. Jusqu'au tour 1 de la 5g, pour les copains seulement ; amendé au tour 2 (décision du papa) : pour Galahad aussi (graine 5, retombé sur le toit de Liam et catapulté sur l'étoile 1,15 s après). Une prise sans saut ni contact reste un échec, pour toute voiture.
 - **R-F13 — e2e** : pas d'assertion sur un saut à la main à l'instant juste (Playwright n'est pas régulier à 16 ms près). Le saut juste est couvert par les fenêtres (b) et (c) en simulation. Les réapparitions de Galahad sont exposées en `?debug=1` (`__game.respawns`).
 - **R-F14 — Tolérance de sol (P11) : comment on la teste.** Le test « 0 appui perdu » se calcule sur la suite « au sol / en l'air » d'une course sans saut, sans relancer la physique par appui.
   - Exigé : 0 à 11,2 et à 14 m/s, et avec un turbo pris à 14 m/s (MESURÉ : 0 sur 8 640 chacun).
