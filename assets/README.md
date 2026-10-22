@@ -46,22 +46,74 @@ Fredoka, graisses 600 et 700, sous-ensemble latin, `woff2`, tels que livrés par
 
 Déposer ici les PNG **tels que sortis du générateur** (≥ 1024 px de large, fond transparent),
 nommés `galahad.png`, `pablo.png`, `diego.png`, `timothée.png`, `matthis.png`, `malo.png`,
-`liam.png`. La tâche 8b les contrôle avec le gabarit SVG, efface les roues s'il y en a, les
-réduit à 512 px et les range dans `public/sprites/`. Un dossier dans le dépôt plutôt qu'une
-archive : une archive envoyée à une session disparaît avec elle.
+`liam.png` (par exemple sur GitHub, « Add file › Upload files » dans ce dossier, sur la branche
+de la session). Un dossier dans le dépôt plutôt qu'une archive : une archive envoyée à une
+session disparaît avec elle.
 
-Méthode : générer d'abord Galahad jusqu'à satisfaction, puis demander « la même voiture »
-dans chaque couleur, pour garder un seul style et un seul angle. Prompt de départ :
+### Gabarit
+
+- `docs/sprites-gabarit.svg` : le gabarit coté (tâche 8b, Step 0), dans le repère du châssis
+  physique. Roues de 0,90 m de diamètre à ±0,75 m du centre et 0,25 m dessous (suspension quasi
+  rigide : ±1 cm en course, mesuré sur 3 courses à 5 voitures), arches de 0,50 m de rayon, pilote
+  casqué au tiers arrière, cadre de 2,80 × 1,40 m centré sur le châssis.
+- `docs/sprites-gabarit-reference.png` : **l'image à joindre au générateur** (silhouette grise,
+  roues en pointillés, fond blanc, mêmes proportions que le cadre).
+
+Les carrosseries contrôlées font **512 × 256 px et couvrent exactement ce cadre** (183 px/m) : la
+tâche 8b les dessine dans le rectangle de 2,80 × 1,40 m centré sur le châssis, tourné de son angle.
+
+### Génération
+
+Générer d'abord Galahad jusqu'à satisfaction, puis demander « la même voiture » dans chaque
+couleur, pour garder un seul style, un seul angle et une seule taille. Prompt de départ, avec
+`sprites-gabarit-reference.png` en pièce jointe :
 
 ```
 Side view of a cartoon lunar racing buggy, facing right, strictly profile,
-transparent background, no wheels (empty wheel arches), low and long body
-(about 3 times longer than tall), large wheel arches sized for big wheels
-(wheel diameter larger than the body height), helmeted driver sitting in the
-rear third, bold flat colors with soft shading, kid-friendly, no text,
-no shadow on the ground. Body color: blue with red stripes, red helmet.
+transparent background. Follow the attached layout image exactly: the car
+body fills the grey silhouette (same length, same height, same wheel arch
+positions and sizes), the helmeted driver's head is on the grey circle, visor
+facing right. The dashed circles only show where the wheels will be added
+later: do NOT draw wheels, leave the wheel arches empty and transparent.
+Do not copy the grey color, the outlines or the dashed lines of the layout.
+Bold flat colors with soft shading, kid-friendly, no text, no shadow on the
+ground. Body color: blue (#1e5cff) with red (#e2231a) stripes, red helmet.
 ```
 
-Puis, pour chaque copain : « Same car, same angle, same style, body color red, matching red
-helmet » (vert, blanc, jaune, orange, rose de même ; casque assorti à la carrosserie, palette
-de la 5a).
+Puis, pour chaque copain : « Same car, same angle, same style, same size and position, only the
+colors change: » suivi de sa ligne (palette validée en 5a, `src/cars/pilots.ts`) :
+
+| Fichier | Couleurs |
+|---|---|
+| `pablo.png` | `bright red body (#c8001e), cream-gold stripes (#ffdc64), light red helmet (#d64056)` |
+| `diego.png` | `green body (#2ecc40), cream stripes (#fff096), dark green helmet (#208f2d)` |
+| `timothée.png` | `white body (#f5f5f5), teal stripes (#00a8a0), light grey helmet (#d0d0d0)` |
+| `matthis.png` | `yellow body (#ffff00), brown stripes (#965a1e), light yellow helmet (#ffff40)` |
+| `malo.png` | `orange body (#ff8000), turquoise stripes (#3cd2be), light orange helmet (#ffa040)` |
+| `liam.png` | `pink body (#ff77aa), lime green stripes (#bee63c), light pink helmet (#ffa0c4)` |
+
+Si le générateur dessine quand même les roues, ce n'est pas grave : le contrôle les efface
+(wheel.png les remplace en jeu). Ce qui compte : la taille et la place des arches, et rien de
+coupé par le cadre.
+
+### Contrôle (session)
+
+Outils dans `tools/sprites/` (Node + Playwright pour le rendu du gabarit, Python 3 avec Pillow et
+numpy pour le contrôle) :
+
+```
+node tools/sprites/rendu-gabarit.cjs calque calque.png
+python3 -I tools/sprites/controle.py assets/generated/<id>.png assets/sprites/<id>.png apercu-<id>.png calque.png assets/sprites/wheel.png
+```
+
+`controle.py` repère les deux arches (ou, à défaut, les roues dessinées), met l'image à l'échelle
+pour que leurs centres tombent sur les axes du gabarit, efface l'intérieur des arches, réduit à
+512 × 256 px (Lanczos sur alpha prémultiplié), quantifie en PNG-8 et imprime un rapport. Accepté si :
+arches de 0,47 à 0,55 m de rayon, centres à la même hauteur (±3 cm), pente ≤ 1,5°, rien d'opaque
+coupé par le cadre (hors roues effacées), ≤ 60 KB. L'aperçu montre la voiture sur le ciel du jeu
+avec ses roues, puis la même avec le calque du gabarit : c'est lui que le papa valide.
+
+Essais (2026-10-22) : la silhouette du gabarit elle-même est acceptée (arches à 49,5 cm, même
+emprise au pixel près que le rendu direct) ; avec des roues dessinées, elles sont effacées et
+l'arche mesurée à 50 cm ; le sprite Grok `galahad.png` est **refusé** comme l'annonçait le §1.3
+(arches de 0,26 m à notre échelle, carrosserie de 2,87 m coupée par le cadre).

@@ -94,6 +94,14 @@ sans le contexte de celle-ci.
   sprites Grok de même nom). Pas de code de jeu dans cette session. À la fin,
   la session indique la suite : reprise du plan B par la 5e (régime physique),
   puis 6, 7, 8 et 8b. Prompt et méthode de génération dans `assets/README.md`.
+  **Gabarit fait** (session sprites du 2026-10-22, branche `ccr-919aff50-6z5vz0` partie de
+  `claude/gifted-ritchie-ic81ct`) : `docs/sprites-gabarit.svg` (cotes du châssis ; suspension
+  mesurée quasi rigide, roues à (±0,75 ; −0,25) m à ±1 cm), `docs/sprites-gabarit-reference.png`
+  (image à joindre au générateur), outils `tools/sprites/` (rendu du gabarit, contrôle et réduction
+  à 512 × 256 px = cadre de 2,80 × 1,40 m centré sur le châssis, contrat de dessin pour la 8b).
+  Contrôle essayé : silhouette du gabarit acceptée, roues dessinées effacées, sprite Grok refusé
+  (arches 0,26 m). Prompt mis à jour (image de référence, couleurs exactes de la 5a, bandes
+  comprises). **En attente : les sept PNG du papa dans `assets/generated/`.**
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
@@ -225,5 +233,8 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 
 Session 3 (2026-10-21/22) : 5c et 5f validées et déployées ensemble. Plan des tâches 5f, 5d, 5e, 6 : `docs/superpowers/plans/2026-10-21-plan-b-saut-et-rendu.md` (v1.3 : relectures standard, adversariale, deux re-relectures ; décisions du papa Q-P1 à Q-P5 au registre ; étoiles hautes réalistes ≈ 1 par course, seuil fixé à la calibration du Step 9 de la 5e et présenté au papa). La branche de sauvegarde `wip-plan-b` est gardée (décision du papa) et sert aux tâches non validées.
 
+0. Sprites (session dédiée) : gabarit fait. Dès que les PNG sont dans `assets/generated/`,
+   lancer `tools/sprites/controle.py` sur chacun (`assets/README.md`, « Contrôle »), montrer les
+   aperçus au papa (une planche des sept), ranger les acceptés dans `assets/sprites/<id>.png`.
 1. Retour tablette du papa sur le tremplin (5c) et le tremblement (5f, compteur en `?debug=1`).
 2. 5d faite et déployée. Exécuter **5e** (bouton saut et étoiles hautes ; Step 9 : tableau de calibration et nombre d'étoiles hautes à faire valider par le papa) sur `wip-plan-b`, méthode habituelle ; puis **6 → 7** (l'élastique doit rendre l'avantage à Galahad : il gagne 52 % des courses doigt posé depuis la 5d). À chaque validation : `git checkout ccr-5b6fabc4-n96ofo && git merge --ff-only wip-plan-b`, push.
