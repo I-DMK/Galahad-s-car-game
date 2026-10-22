@@ -30,20 +30,26 @@ export function wantsJump(jumpRequestedAt: number | null, t: number, cfg: Config
 /**
  * Centre de la fenêtre de saut d'une fosse, en s avant le bord amont, à la vitesse v (m/s) : FOSSE_JUMP_AIM −
  * FOSSE_WIDTH / (2 max(v, 1)) (saut §6.8, CALCULÉ : milieu du bord au plus tard ≈ 1,2 m + 0,06 s × v et du bord au plus
- * tôt ≈ 1,96 s × v − W − 1,2 m, divisé par v). 0,50 s à 8 m/s, 0,64 s à 11,2, 0,71 s à 14, 0,81 s à 21.
+ * tôt ≈ 1,96 s × v − W − 1,2 m, divisé par v). 0,50 s à 8 m/s, 0,64 s à 11,2, 0,71 s à 14, 0,81 s à 21. Plancher
+ * en distance (tour 1 de la 5g) : au moins FOSSE_JUMP_MIN_DISTANCE (2 m) avant le bord, soit 2 / v : sous ≈ 6 m/s la
+ * formule visait plus près du bord que la lave ne reprend la voiture (châssis à ≈ 1,15 m) et un robot lent ne tentait
+ * jamais son saut (≤ 0 sous 4 m/s) ; il le tente (sans succès : sous ≈ 6 m/s, aucun saut ne passe).
  */
 export function fosseJumpLead(v: number, cfg: Config): number {
-  return cfg.FOSSE_JUMP_AIM - cfg.FOSSE_WIDTH / (2 * Math.max(v, 1));
+  const speed = Math.max(v, 1);
+  return Math.max(cfg.FOSSE_JUMP_MIN_DISTANCE / speed, cfg.FOSSE_JUMP_AIM - cfg.FOSSE_WIDTH / (2 * speed));
 }
 
 /**
  * Saut voulu devant une fosse (tâche 5g) : le châssis (x) est sur l'approche de la prochaine fosse, [xLancement,
- * xBord[, et le bord est à au plus `fosseJumpLead(v)` secondes à la vitesse v. Vrai à chaque pas de cette fin
+ * xBord[, et le bord est à au plus `fosseJumpLead(v)` secondes à la vitesse v, mais à plus de JUMP_BUFFER : une demande
+ * gardée en mémoire (0,1 s) partirait sinon au-dessus de la lave (tour 1 de la 5g). Vrai à chaque pas de cette fin
  * d'approche : le demandeur redemande tant qu'il ne s'est pas envolé (copains provisoires de la 5g, `sauteurParfait`
- * des tests).
+ * des tests). Parcourt les volcans sans allouer (appelé à chaque pas par chaque copain).
  */
 export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config): boolean {
   const f = nextFosse(track, x);
   if (!f || x < f.xLancement) return false;
-  return (f.xBord - x) / Math.max(v, 1) <= fosseJumpLead(v, cfg) + EPS;
+  const tte = (f.xBord - x) / Math.max(v, 1);
+  return tte <= fosseJumpLead(v, cfg) + EPS && tte > cfg.JUMP_BUFFER + EPS;
 }

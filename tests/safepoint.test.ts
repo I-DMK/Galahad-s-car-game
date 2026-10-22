@@ -40,10 +40,12 @@ describe('forbiddenZone', () => {
     expect(v.xElanStart - zoneStart).toBeCloseTo(CONFIG.D_LANCE, 9);
   });
 
-  test('fosse : [xLancement + 5, bord aval) ; la garde accepte les points sûrs ; D_LANCE de plat (et la maille) avant le bord', () => {
+  test('fosse : [xLancement + 5, bord aval + WHEEL_BASE/2 + WHEEL_RADIUS + 0,3) (tour 1 de la 5g) ; la garde accepte les points sûrs ; D_LANCE de plat (et la maille) avant le bord', () => {
     const [a, b] = forbiddenZone(f, CONFIG);
+    const exit = CONFIG.WHEEL_BASE / 2 + CONFIG.WHEEL_RADIUS + 0.3;
+    expect(exit).toBeCloseTo(1.5, 9);
     expect(a).toBeCloseTo(f.xLancement + 5, 9);
-    expect(b).toBe(f.xReception);
+    expect(b).toBeCloseTo(f.xReception + exit, 9);
     expect(f.xBord - a).toBeGreaterThanOrEqual(CONFIG.D_LANCE - 1e-9);
     expect(f.xBord - a).toBeLessThan(CONFIG.D_LANCE + CONFIG.TRACK_POINT_SPACING);
     const guard = f.xLancement - CONFIG.FOSSE_GUARD;
@@ -54,7 +56,10 @@ describe('forbiddenZone', () => {
     expect(isSafePointCandidate({ ...ok, x: f.xBord - 1 }, state(), track, CONFIG)).toBe(false);
     expect(isSafePointCandidate({ ...ok, x: f.xLava }, state(), track, CONFIG)).toBe(false);
     expect(isSafePointCandidate({ ...ok, x: f.xReception - 0.01 }, state(), track, CONFIG)).toBe(false);
-    expect(isSafePointCandidate({ ...ok, x: f.xReception }, state(), track, CONFIG)).toBe(true);
+    // Le bord aval est le bord de la lave : un châssis posé là aurait la roue arrière dans le capteur.
+    expect(isSafePointCandidate({ ...ok, x: f.xReception }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: b - 0.01 }, state(), track, CONFIG)).toBe(false);
+    expect(isSafePointCandidate({ ...ok, x: b }, state(), track, CONFIG)).toBe(true);
     expect(isSafePointCandidate({ ...ok, x: f.xReception + CONFIG.FOSSE_RESPAWN_AFTER }, state(), track, CONFIG)).toBe(true);
   });
 
@@ -63,7 +68,8 @@ describe('forbiddenZone', () => {
       for (const w of generateTrack(seed, 1680, CONFIG).volcanoes) {
         const [a, b] = forbiddenZone(w, CONFIG);
         expect(a).toBeCloseTo(w.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN, 9);
-        expect(b).toBe(w.xReception);
+        if (w.kind === 'tremplin') expect(b).toBe(w.xReception);
+        else expect(b).toBeCloseTo(w.xReception + CONFIG.WHEEL_BASE / 2 + CONFIG.WHEEL_RADIUS + 0.3, 9);
       }
     }
   });

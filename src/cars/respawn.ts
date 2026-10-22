@@ -1,6 +1,6 @@
 // Décision de réapparition : chronomètres de blocage et choix de la cible. Pur (ni DOM, ni matter-js).
 import type { Config } from '../config';
-import { heightAt, slopeAt, volcanoAhead } from '../track/query';
+import { heightAt, nearestVolcanoZone, slopeAt, volcanoAhead } from '../track/query';
 import type { Track } from '../track/types';
 import { normalizeAngle } from './angle';
 import { isSafeZone } from './safepoint';
@@ -76,7 +76,8 @@ export interface RespawnTarget {
 }
 
 /**
- * Choisit où réapparaître. Seules les chutes dans la lave comptent dans la série « même volcan » :
+ * Choisit où réapparaître, après une chute (ou un autre déclenchement) du châssis en `fallX`. Seules les chutes dans la
+ * lave comptent dans la série « même volcan » :
  * deuxième chute de suite dans la même lave → on passe le volcan, au lieu de reboucler sur le point sûr. Tremplin : en
  * fin de plat de réception (xEnd − RESPAWN_AFTER_VOLCANO_BACK, hors de la zone d'atterrissage des autres voitures ;
  * addendum §1.6). Fosse (tâche 5g, option B du papa, Q-F2) : juste après, au bord aval + FOSSE_RESPAWN_AFTER, et le
@@ -85,9 +86,13 @@ export interface RespawnTarget {
  * (deux chocs sur le flanc dans l'élan ne doivent pas faire passer le volcan sans l'avoir tenté). La série repart de 0
  * après le passage : au plus 2 chutes par série.
  */
-export function chooseRespawnTarget(state: CarState, track: Track, cfg: Config, reason: RespawnReason): RespawnTarget {
+export function chooseRespawnTarget(
+  state: CarState, track: Track, cfg: Config, reason: RespawnReason, fallX: number,
+): RespawnTarget {
   if (reason !== 'lava') return { point: state.safePoint, lavaX: null, consecutive: 0, direction: -1 };
-  const v = volcanoAhead(track, state.safePoint.x);
+  // La série compte la lave réellement touchée : le volcan dont la zone contient le châssis à la chute (tour 1 de la
+  // 5g ; avant, le premier volcan devant le point sûr, faux si le point sûr était déjà après la lave touchée).
+  const v = nearestVolcanoZone(track, fallX) ?? volcanoAhead(track, fallX);
   const lavaX: number | null = v?.xLava ?? null;
   const consecutive = lavaX !== null && lavaX === state.lastRespawnLavaX ? state.consecutiveRespawns + 1 : 1;
   if (consecutive >= 2 && v) {

@@ -103,9 +103,14 @@ export const CONFIG = {
   FOSSE_WIDTH: 8,               // m de lave (Q-F1) : franchissable à doigt posé, pas sous ≈ 6 m/s
   FOSSE_GUARD: 20,              // m de plat de garde avant l'approche : absorbe le vol d'une bosse ou double-bosse prise en turbo (R-F4)
   FOSSE_STAR_AFTER: 25,         // m entre le bord aval et l'étoile de réception (tirée 1 fosse sur 2, comme l'étoile d'élan)
-  FOSSE_JUMP_AIM: 1,            // s : fosseJumpLead(v) = FOSSE_JUMP_AIM − FOSSE_WIDTH / (2v), centre de la fenêtre (saut §6.8)
+  FOSSE_JUMP_AIM: 1,            // s : fosseJumpLead(v) = max(FOSSE_JUMP_MIN_DISTANCE / v, FOSSE_JUMP_AIM − FOSSE_WIDTH / (2v)), centre de la fenêtre (saut §6.8)
+  FOSSE_JUMP_MIN_DISTANCE: 2,   // m : fosseJumpLead(v) ≥ 2 / v (tour 1 de la 5g) : sous ≈ 6 m/s la formule visait plus près du bord que la lave ne reprend la voiture (≈ 1,15 m) et un robot lent ne tentait jamais son saut
   FOSSE_RESPAWN_AFTER: 5,       // m : 2e chute de suite dans une fosse → posée à bord aval + 5 (Q-F2, option B)
   FOSSE_GHOST_AFTER: 40,        // m : zone fantôme d'une fosse jusqu'à bord aval + 40 (atterrissage le plus long ≈ 32 m, R-F16)
+  // Décision du papa (relectures de la 5g, d1012c6) : pas de tremplin juste après une double-bosse (refusé dans le tirage,
+  // comme un volcan après une rampe-saut) : un turbo fini pendant le vol d'une double-bosse prise à ≈ 21 m/s faisait
+  // tomber doigt posé (3 chutes sur 1 568, tests/slow/volcans-slow.test.ts, scénario (ii)). 1 = permis (pistes d'avant).
+  TREMPLIN_AFTER_DOUBLE_BOSSE: 0,
   // Étoiles basses des réceptions (tâche 5g, demande du papa : une étoile au tout début d'une réception était survolée
   // doigt posé, graine 14 : toutes les voitures en turbo en ratent une sur un tremplin). Aucune étoile basse du curseur
   // avant xReception + ces dégagements : atterrissage le plus long doigt posé (turbo compris), plus une marge.

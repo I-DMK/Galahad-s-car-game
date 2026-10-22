@@ -8,6 +8,8 @@
 // R-F10 (registre : anciens et nouveaux hash, commit, raison P10, et `FROZEN` resté identique dans le même commit).
 // Tâche 5g (Step 8) : `FROZEN_CONFIG` RECAPTURÉ une 2e fois par le ruling R-F10 (pistes de CONFIG avec les fosses, les
 // étoiles de réception et le pas [35, 58] du curseur ; `FROZEN` resté identique dans le même commit, registre).
+// Tâche 5g, tour de correction 1 : `FROZEN_CONFIG` RECAPTURÉ une 3e fois par le ruling R-F10 (décision du papa « pas de
+// tremplin juste après une double-bosse » ; graine 0 seule ; `FROZEN` resté identique dans le même commit, registre).
 // Toute autre variation reste un défaut.
 import { CONFIG, type Config } from '../src/config';
 import { createRaceSim, stepRace } from '../src/sim/simulate';
@@ -31,10 +33,14 @@ const FROZEN: Record<number, string> = {
  *   pas [35, 58]) : les valeurs ci-dessous. Sur les 30 premières secondes (≈ 380 m), le terrain des graines 0 à 2 ne
  *   change pas (premier volcan en 254, 602 et 427 m : un tremplin chaque fois) ; ce sont les étoiles basses qui
  *   bougent (graine 0 : 324,4 → 268,4 et 283,9 m ; graine 1 : une étoile en 192,9 m ; graine 2 : une étoile de plus en
- *   400,7 m, donc des capteurs de plus dans le monde).
+ *   400,7 m, donc des capteurs de plus dans le monde) : 4352f5fd… / 1687479a… / 67b1a3bb… ;
+ * - tâche 5g, tour 1 (pas de tremplin juste après une double-bosse) : les valeurs ci-dessous. La règle ne touche le
+ *   terrain qu'au-delà des 30 s (graine 0 : 733,8 m ; graine 1 : 957,4 m ; graine 2 : jamais), mais le curseur des
+ *   étoiles tire sur le même rng après le terrain : graine 0, ses étoiles basses 268,4 et 283,9 m deviennent une seule
+ *   en 268,7 m ; graines 1 et 2 : mêmes étoiles sur les 30 s, empreinte inchangée.
  */
 const FROZEN_CONFIG: Record<number, string> = {
-  0: '4352f5fd3ef27b7bd89b0214fe497d9487fb8b5f',
+  0: '5b03e631d1b814771168228042666963d021644d',
   1: '1687479a837262528a04f5d429b6c6f265c08fcd',
   2: '67b1a3bbfc66fc4fcd7104d68b350fd68ec190a8',
 };

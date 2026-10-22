@@ -9,6 +9,7 @@ import { carSpeedMps } from '../../src/physics/car';
 import { physToWorld } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
 import { chassisX, GALAHAD_INDEX, stepRace, type RaceSim } from '../../src/sim/simulate';
+import { volcanoFromProfile } from '../../src/track/generate';
 import { fosses } from '../../src/track/query';
 import { fosse, plat, type SliceProfile } from '../../src/track/slices';
 import { mulberry32 } from '../../src/track/rng';
@@ -19,12 +20,18 @@ import { disposeSolo, launchSolo, soloSim } from './jump-runs';
 export const AFTER_LANDING_SECONDS = 3;
 /** s : balayage des fenêtres, chaque pas des 1,6 s qui précèdent la chute du témoin (suite lente). */
 export const WINDOW_SWEEP_SECONDS = 1.6;
+/**
+ * s : si le premier pas balayé passe, le balayage recule par blocs de 0,4 s jusqu'à un pas qui échoue, sans dépasser
+ * 2,8 s avant la chute (tour 1 de la 5g : un turbo qui finit dans la fenêtre la fait durer plus de 1,6 s).
+ */
+export const WINDOW_SWEEP_EXTEND_SECONDS = 0.4;
+export const WINDOW_SWEEP_MAX_SECONDS = 2.8;
 /** Pas de part et d'autre de k* du bloc central de la CI : 25 appuis, 0,4 s. */
 export const BLOCK_HALF_STEPS = 12;
 
 /**
  * Piste faite des profils donnés, bout à bout depuis (0, 0), sans étoile (même pose que `generateTrack` : x = indice ×
- * espacement, volcans repris des profils). xStart au début, arrivée 60 m avant la fin.
+ * espacement, volcans par `volcanoFromProfile`). xStart au début, arrivée 60 m avant la fin.
  */
 export function trackOf(profiles: SliceProfile[], cfg: Config = CONFIG, seed = 0): Track {
   const s = cfg.TRACK_POINT_SPACING;
@@ -38,16 +45,7 @@ export function trackOf(profiles: SliceProfile[], cfg: Config = CONFIG, seed = 0
     p.heights.forEach((h, k) => points.push({ x: (first + k) * s, y: h }));
     for (const e of p.exemptIndices) exemptPointIndices.push(first + e);
     slices.push({ type: p.type, xStart, xEnd: (points.length - 1) * s });
-    const v = p.volcano;
-    if (v) {
-      const base = {
-        xLancement: xStart + v.dxLancement, xLava: xStart + v.dxLava, lavaWidth: v.lavaWidth, rimY: v.rimY,
-        xReception: xStart + v.dxReception, xEnd: xStart + v.dxEnd,
-      };
-      volcanoes.push(v.kind === 'tremplin'
-        ? { kind: 'tremplin', ...base, xElanStart: xStart + v.dxElanStart, xRampStart: xStart + v.dxRampStart, xLip: xStart + v.dxLip, lipY: v.lipY }
-        : { kind: 'fosse', ...base, xBord: xStart + v.dxBord });
-    }
+    if (p.volcano) volcanoes.push(volcanoFromProfile(p.volcano, xStart));
   }
   const length = (points.length - 1) * s;
   return {
@@ -93,6 +91,11 @@ export interface FosseRunOptions {
   trace?: boolean;
   /** Arrêt du run (sans lave) quand le châssis dépasse ce x : survol d'une fosse sans saut (`fosses-a`). */
   stopAtX?: number;
+  /**
+   * Saut préalable (une demande, au premier pas où le châssis passe ce x) : saut d'étoile haute juste avant la fosse.
+   * Il ne compte pas comme le saut de la fosse (`jumpStep`, `landX`).
+   */
+  preJumpAtX?: number;
 }
 
 export interface FosseRunResult {
@@ -118,6 +121,9 @@ export interface FosseRunResult {
   speeds: number[];
   /** x maximal atteint par le châssis (m). */
   xMax: number;
+  /** Saut préalable (`preJumpAtX`) : x du châssis au saut et à l'atterrissage qui le suit, null sinon. */
+  preJumpX: number | null;
+  preLandX: number | null;
 }
 
 /**
@@ -136,9 +142,13 @@ export function fosseRun(world: World, opts: FosseRunOptions): FosseRunResult {
     const sensorTop = f.rimY + cfg.LAVA_SENSOR_ABOVE_RIM;
     const out: FosseRunResult = {
       lava: false, respawn: false, passed: false, jumpX: null, landX: null, minWheelGap: Infinity,
-      jumpStep: null, lavaStep: null, jumpSpeed: NaN, xs: [], speeds: [], xMax: -Infinity,
+      jumpStep: null, lavaStep: null, jumpSpeed: NaN, xs: [], speeds: [], xMax: -Infinity, preJumpX: null, preLandX: null,
     };
     let turboArmed = opts.turboAtX !== undefined;
+    let preArmed = opts.preJumpAtX !== undefined;
+    /** Pas à partir duquel un saut est celui de la fosse (après le saut préalable, s'il y en a un). */
+    let fosseFrom = opts.preJumpAtX === undefined ? 0 : Infinity;
+    let preJumpAt: number | null = null;
     let stopAt = Infinity;
     let xMax = -Infinity;
     const maxSteps = Math.round((opts.maxSeconds ?? 14) / cfg.PHYSICS_DT);
@@ -147,9 +157,11 @@ export function fosseRun(world: World, opts: FosseRunOptions): FosseRunResult {
       const v = carSpeedMps(car.body);
       if (opts.trace) { out.xs.push(x); out.speeds.push(v); }
       if (turboArmed && x >= opts.turboAtX!) { turboArmed = false; activateTurbo(car.state, sim.time, cfg); }
-      const press = opts.pressAtStep === 'voulu'
+      const pre = preArmed && x >= opts.preJumpAtX!;
+      if (pre) preArmed = false;
+      const press = pre || (opts.pressAtStep === 'voulu'
         ? fosseJumpWanted(world.track, x, v, cfg)
-        : opts.pressAtStep === i;
+        : opts.pressAtStep === i);
       stepRace(sim, true, press);
       for (const w of car.body.wheels) {
         const c = physToWorld(w.position);
@@ -158,8 +170,11 @@ export function fosseRun(world: World, opts: FosseRunOptions): FosseRunResult {
       xMax = Math.max(xMax, chassisX(car));
       let stop = false;
       for (const e of sim.events) {
-        if (e.type === 'jump' && out.jumpStep === null) { out.jumpStep = i; out.jumpX = e.x; out.jumpSpeed = v; }
+        if (e.type === 'jump' && out.jumpStep === null && i >= fosseFrom) { out.jumpStep = i; out.jumpX = e.x; out.jumpSpeed = v; }
+        else if (e.type === 'jump' && fosseFrom === Infinity) { preJumpAt = i; out.preJumpX = e.x; }
         else if (e.type === 'landing' && out.jumpStep !== null && out.landX === null) { out.landX = e.x; stopAt = e.t + AFTER_LANDING_SECONDS; }
+        // Retour au sol après le saut préalable : les sauts suivants sont ceux de la fosse.
+        else if (e.type === 'landing' && preJumpAt !== null && fosseFrom === Infinity) { fosseFrom = i + 1; out.preLandX = e.x; }
         else if (e.type === 'respawn') {
           if (e.reason === 'lava') { out.lava = true; out.lavaStep = i; } else out.respawn = true;
           stop = true;
@@ -198,29 +213,49 @@ export interface FosseWindow {
   /** Atterrissage le plus loin après le bord aval (m), sauts qui passent. */
   landMax: number;
   runs: number;
+  /** Course témoin : saut préalable (x au saut et à l'atterrissage, null sinon) et vitesse au premier pas balayé (m/s). */
+  preJumpX: number | null;
+  preLandX: number | null;
+  sweepSpeed: number;
 }
 
 /**
  * Fenêtre de saut d'une fosse (suite lente, ruling R-F17) : course témoin sans saut jusqu'à la chute (pas kFall), puis
- * un appui à chaque pas des WINDOW_SWEEP_SECONDS qui précèdent la chute. Le premier pas balayé doit échouer, sinon la
- * fenêtre déborde du balayage et le helper lève.
+ * un appui à chaque pas des WINDOW_SWEEP_SECONDS qui précèdent la chute. Le premier pas balayé doit échouer : sinon le
+ * balayage recule par blocs de WINDOW_SWEEP_EXTEND_SECONDS (au plus WINDOW_SWEEP_MAX_SECONDS avant la chute), et s'il
+ * passe encore, la fenêtre déborde du balayage et le helper lève. Options : départ `x0` (défaut `fosseStart`), turbo, saut préalable
+ * (`preJumpAtX`, saut d'étoile haute juste avant, dans le témoin comme dans chaque run).
  */
-export function fosseWindow(world: World, f: Fosse, v: number | 'arrêt', opts: { turboAtX?: number; cfg?: Config } = {}): FosseWindow {
+export function fosseWindow(
+  world: World, f: Fosse, v: number | 'arrêt', opts: { turboAtX?: number; cfg?: Config; x0?: number; preJumpAtX?: number } = {},
+): FosseWindow {
   const cfg = opts.cfg ?? CONFIG;
-  const x0 = fosseStart(f, v, cfg);
-  const base = { x0, v, turboAtX: opts.turboAtX, fosse: f, cfg };
+  const x0 = opts.x0 ?? fosseStart(f, v, cfg);
+  const base = { x0, v, turboAtX: opts.turboAtX, fosse: f, cfg, preJumpAtX: opts.preJumpAtX, maxSeconds: 14 + (f.xBord - x0) / 10 };
   const witness = fosseRun(world, { ...base, pressAtStep: null, trace: true });
   if (!witness.lava || witness.lavaStep === null) throw new Error(`fosseWindow : le témoin sans saut ne tombe pas (fosse en ${f.xBord.toFixed(1)}, v = ${v})`);
   const kFall = witness.lavaStep;
-  const k0 = Math.max(0, kFall - Math.round(WINDOW_SWEEP_SECONDS / cfg.PHYSICS_DT));
+  const dtSteps = (seconds: number): number => Math.round(seconds / cfg.PHYSICS_DT);
+  const kMin = Math.max(0, kFall - dtSteps(WINDOW_SWEEP_MAX_SECONDS));
+  let k0 = Math.max(0, kFall - dtSteps(WINDOW_SWEEP_SECONDS));
   const ok: boolean[] = [];
   const lands: number[] = [];
-  for (let k = k0; k <= kFall; k++) {
-    const r = fosseRun(world, { ...base, pressAtStep: k });
-    ok.push(r.passed);
-    if (r.passed && r.landX !== null) lands.push(r.landX - f.xReception);
+  const sweep = (from: number, to: number): boolean[] => {
+    const out: boolean[] = [];
+    for (let k = from; k <= to; k++) {
+      const r = fosseRun(world, { ...base, pressAtStep: k });
+      out.push(r.passed);
+      if (r.passed && r.landX !== null) lands.push(r.landX - f.xReception);
+    }
+    return out;
+  };
+  ok.push(...sweep(k0, kFall));
+  while (ok[0] && k0 > kMin) {
+    const from = Math.max(kMin, k0 - dtSteps(WINDOW_SWEEP_EXTEND_SECONDS));
+    ok.unshift(...sweep(from, k0 - 1));
+    k0 = from;
   }
-  if (ok[0]) throw new Error(`fosseWindow : le premier pas balayé passe (fenêtre plus longue que ${WINDOW_SWEEP_SECONDS} s), fosse en ${f.xBord.toFixed(1)}, v = ${v}`);
+  if (ok[0]) throw new Error(`fosseWindow : le premier pas balayé passe (fenêtre plus longue que ${WINDOW_SWEEP_MAX_SECONDS} s), fosse en ${f.xBord.toFixed(1)}, v = ${v}`);
   const pieces: { a: number; b: number }[] = [];
   ok.forEach((p, i) => {
     if (!p) return;
@@ -240,6 +275,9 @@ export function fosseWindow(world: World, f: Fosse, v: number | 'arrêt', opts: 
     centreLead: main ? (lead(main.a) + lead(main.b)) / 2 : NaN,
     landMax: lands.length ? Math.max(...lands) : NaN,
     runs: ok.length + 1,
+    preJumpX: witness.preJumpX,
+    preLandX: witness.preLandX,
+    sweepSpeed: witness.speeds[k0],
   };
 }
 

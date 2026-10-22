@@ -10,9 +10,10 @@ import { carPairsTouching } from '../src/sim/harness';
 import { chassisX, createRaceSim, stepRace, type CarSim, type RaceSim, type RespawnEvent } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import { fosses, heightAt, inGhostZone } from '../src/track/query';
-import { rampeVolcan } from '../src/track/slices';
+import { mulberry32 } from '../src/track/rng';
+import { fosse, plat, rampeVolcan } from '../src/track/slices';
 import type { Track } from '../src/track/types';
-import { BLOCK_HALF_STEPS, flatFosseWorld, fosseBlock, fosseRun } from './helpers/fosses';
+import { BLOCK_HALF_STEPS, flatFosseWorld, fosseBlock, fosseRun, trackOf } from './helpers/fosses';
 import { launchSolo } from './helpers/jump-runs';
 import { fiveCarRace, lavaSeries } from './helpers/race';
 import { trackFor } from './helpers/runs';
@@ -67,27 +68,40 @@ describe('fosses des pistes (graines 0 à 49, 1 680 m) : géométrie', () => {
 });
 
 describe('saut voulu devant une fosse (fonctions pures, saut §6.8)', () => {
-  test('fosseJumpLead : FOSSE_JUMP_AIM − FOSSE_WIDTH / (2v) ; 0,50 / 0,64 / 0,71 / 0,81 s à 8 / 11,2 / 14 / 21 m/s ; v < 1 compté 1', () => {
+  test('fosseJumpLead : FOSSE_JUMP_AIM − FOSSE_WIDTH / (2v), au moins FOSSE_JUMP_MIN_DISTANCE / v ; 0,50 / 0,64 / 0,71 / 0,81 s à 8 / 11,2 / 14 / 21 m/s ; v < 1 compté 1', () => {
     expect(CONFIG.FOSSE_JUMP_AIM).toBe(1);
+    expect(CONFIG.FOSSE_JUMP_MIN_DISTANCE).toBe(2);
     expect(fosseJumpLead(8, CONFIG)).toBeCloseTo(0.5, 9);
     expect(fosseJumpLead(11.2, CONFIG)).toBeCloseTo(1 - 8 / 22.4, 9);
     expect(fosseJumpLead(11.2, CONFIG)).toBeCloseTo(0.643, 3);
     expect(fosseJumpLead(14, CONFIG)).toBeCloseTo(0.714, 3);
     expect(fosseJumpLead(21, CONFIG)).toBeCloseTo(0.810, 3);
+    // Plancher en distance (tour 1 de la 5g) : 2 m avant le bord sous ≈ 6 m/s (la formule tombait sous 1,15 m, puis ≤ 0).
+    expect(fosseJumpLead(6, CONFIG)).toBeCloseTo(1 / 3, 9);
+    expect(fosseJumpLead(5, CONFIG)).toBeCloseTo(0.4, 9);
+    expect(fosseJumpLead(4, CONFIG)).toBeCloseTo(0.5, 9);
+    expect(fosseJumpLead(3, CONFIG)).toBeCloseTo(2 / 3, 9);
     expect(fosseJumpLead(0.5, CONFIG)).toBe(fosseJumpLead(1, CONFIG));
-    expect(fosseJumpLead(1, CONFIG)).toBeCloseTo(-3, 9);
+    expect(fosseJumpLead(1, CONFIG)).toBe(2);
+    for (const v of [1, 2, 3, 4, 5, 6, 8, 14, 21]) expect(fosseJumpLead(v, CONFIG) * v, `v = ${v}`).toBeGreaterThanOrEqual(2 - 1e-9);
   });
 
   const t = tracks.find((tr) => fosses(tr).length >= 2)!;
   const [f, g] = fosses(t);
 
-  test.each([8, 11.2, 14, 21])('fosseJumpWanted à %s m/s : vrai sur [xBord − lead × v, xBord[, faux avant (approche comprise) et après le bord', (v) => {
+  test.each([3, 8, 11.2, 14, 21])('fosseJumpWanted à %s m/s : vrai sur [xBord − lead × v, xBord − JUMP_BUFFER × v[, faux avant (approche comprise) et après', (v) => {
     const lead = fosseJumpLead(v, CONFIG);
     const xOpen = f.xBord - lead * v;
+    // Une demande gardée 0,1 s ne doit pas partir au-dessus de la lave (tour 1 de la 5g) : plus de demande dans les
+    // JUMP_BUFFER dernières secondes avant le bord.
+    const xClose = f.xBord - CONFIG.JUMP_BUFFER * Math.max(v, 1);
     expect(xOpen).toBeGreaterThan(f.xLancement);
+    expect(xClose).toBeGreaterThan(xOpen);
     expect(fosseJumpWanted(t, xOpen - 0.01, v, CONFIG)).toBe(false);
     expect(fosseJumpWanted(t, xOpen + 1e-6, v, CONFIG)).toBe(true);
-    expect(fosseJumpWanted(t, f.xBord - 0.01, v, CONFIG)).toBe(true);
+    expect(fosseJumpWanted(t, xClose - 0.01, v, CONFIG)).toBe(true);
+    expect(fosseJumpWanted(t, xClose + 1e-6, v, CONFIG)).toBe(false);
+    expect(fosseJumpWanted(t, f.xBord - 0.01, v, CONFIG)).toBe(false);
     expect(fosseJumpWanted(t, f.xBord, v, CONFIG)).toBe(false);
     expect(fosseJumpWanted(t, f.xLava, v, CONFIG)).toBe(false);
     expect(fosseJumpWanted(t, f.xReception + 1, v, CONFIG)).toBe(false);
@@ -97,8 +111,15 @@ describe('saut voulu devant une fosse (fonctions pures, saut §6.8)', () => {
     expect(fosseJumpWanted(t, g.xBord - lead * v + 0.01, v, CONFIG)).toBe(true);
   });
 
-  test('lente (≤ 4 m/s) : le centre visé tombe avant l’approche, jamais de demande ; piste sans fosse : jamais', () => {
-    for (let x = f.xLancement - 30; x < f.xReception + 30; x += 0.25) expect(fosseJumpWanted(t, x, 3, CONFIG), `x = ${x}`).toBe(false);
+  test('à 40 m/s (relecture standard M1) : le centre visé tombe avant l’approche, la garde x < xLancement coupe la demande', () => {
+    const v = 40;
+    expect(f.xBord - fosseJumpLead(v, CONFIG) * v).toBeLessThan(f.xLancement);
+    expect(fosseJumpWanted(t, f.xLancement - 0.01, v, CONFIG)).toBe(false);
+    expect(fosseJumpWanted(t, f.xLancement - CONFIG.FOSSE_GUARD / 2, v, CONFIG)).toBe(false);
+    expect(fosseJumpWanted(t, f.xLancement, v, CONFIG)).toBe(true);
+  });
+
+  test('piste sans fosse : jamais', () => {
     const noFosse = generateTrack(1, 1680, { ...CONFIG, FOSSE_PERIOD: 0 });
     for (let x = 0; x < noFosse.length; x += 1) expect(fosseJumpWanted(noFosse, x, 14, CONFIG)).toBe(false);
   });
@@ -213,6 +234,81 @@ describe('2e chute de suite dans une fosse (option B, Q-F2) et séries', () => {
     expect(respawns[1].t - flippedAt).toBeGreaterThan(CONFIG.FLIP_SECONDS - 1e-9);
     // Série remise à zéro : la chute suivante ramène au point sûr (avant xLancement + 5), pas après la fosse.
     expect(respawns[2].target.x).toBeLessThan(F.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN);
+  });
+});
+
+describe('réapparition près du bord aval (tour 1 de la 5g, scénario de la relecture adversariale)', () => {
+  /** Course à 5 sur `track` : Galahad au point sûr `xSafe`, le copain 1 garé dessus, les autres garés loin derrière. */
+  function setup(track: Track, xSafe: number): { sim: RaceSim; respawns: RespawnEvent[]; run: (seconds: number, throttle: boolean) => void } {
+    const sim = createRaceSim(track, CONFIG, { robots: true });
+    sim.cars.slice(1).forEach((car, k) => {
+      car.driver = () => false;
+      placeCar(car.body, k === 0 ? xSafe : 10 + 4 * k, () => 0, 0, CONFIG);
+    });
+    const g = sim.cars[0];
+    g.state.safePoint = { x: xSafe, y: 0, angle: 0 };
+    // Galahad retourné plus loin sur la réception : réapparition « side » ou « flipped » vers son point sûr, occupé.
+    placeCar(g.body, xSafe + 25, () => 0, Math.PI, CONFIG);
+    const respawns: RespawnEvent[] = [];
+    const run = (seconds: number, throttle: boolean): void => {
+      const end = sim.time + seconds;
+      while (sim.time < end) {
+        stepRace(sim, throttle);
+        respawns.push(...sim.events.filter((e): e is RespawnEvent => e.type === 'respawn' && e.carId === g.state.id));
+      }
+    };
+    return { sim, respawns, run };
+  }
+
+  test('point sûr à bord aval + 3,5 m, copain arrêté dessus, réapparition « side » : la cible reste à ≥ bord aval + 1,5 m, une seule réapparition', () => {
+    const { respawns, run } = setup(world.track, F.xReception + 3.5);
+    run(5, false);
+    const what = respawns.map((e) => `${e.reason} → ${e.target.x.toFixed(2)}`).join(' ; ');
+    expect(respawns.length, what).toBe(1);
+    expect(respawns[0].reason, what).toMatch(/^(side|flipped)$/);
+    expect(respawns[0].target.x, what).toBeGreaterThanOrEqual(F.xReception + 1.5 - 1e-9);
+  });
+
+  test('même chose avec une autre fosse ensuite : la série reste sur la bonne fosse (2 chutes à la 2e fosse avant d’être posé après elle)', () => {
+    const rng = mulberry32(2);
+    const two = trackOf([plat(rng, CONFIG, 150), fosse(CONFIG), plat(rng, CONFIG, 30), fosse(CONFIG), plat(rng, CONFIG, 100)]);
+    const [f1, f2] = fosses(two);
+    const { respawns, run } = setup(two, f1.xReception + 3.5);
+    run(4, false);
+    run(30, true);
+    const what = respawns.map((e) => `${e.reason}@${e.x.toFixed(1)} → ${e.target.x.toFixed(2)}`).join(' ; ');
+    expect(respawns.map((e) => e.reason).slice(1, 3), what).toEqual(['lava', 'lava']);
+    expect(respawns[0].target.x, what).toBeGreaterThanOrEqual(f1.xReception + 1.5 - 1e-9);
+    // 1re chute à la 2e fosse : retour au point sûr (avant elle) ; 2e de suite : posée juste après elle.
+    expect(respawns[1].x, what).toBeGreaterThan(f2.xLancement);
+    expect(respawns[1].target.x, what).toBeLessThan(f2.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN);
+    expect(respawns[2].target.x, what).toBeCloseTo(f2.xReception + CONFIG.FOSSE_RESPAWN_AFTER, 6);
+  });
+});
+
+describe('copain lent (tour 1 de la 5g) : il tente son saut, et jamais au-dessus de la lave', () => {
+  test('copain à 3 m/s tenus : saut demandé à 2 m du bord, parti avant que la lave ne le reprenne (il tombe : sous ≈ 6 m/s aucun saut ne passe)', () => {
+    const sim = createRaceSim(world.track, CONFIG, { robots: true });
+    const c = sim.cars[1];
+    sim.cars.slice(2).forEach((car, k) => { car.driver = () => false; placeCar(car.body, 10 + 4 * k, () => 0, 0, CONFIG); });
+    sim.cars[0].state.finishedAt = 0; // Galahad hors jeu (il freine sur place).
+    c.driver = () => true;
+    placeCar(c.body, F.xBord - 12, () => 0, 0, CONFIG);
+    launchSolo({ ...sim, cars: [c] }, F.xBord - 12, 3, CONFIG);
+    const jumps: number[] = [];
+    let fell = false;
+    while (sim.time < 8 && !fell) {
+      stepRace(sim, false);
+      for (const e of sim.events) {
+        if (e.carId !== c.state.id) continue;
+        if (e.type === 'jump') jumps.push(e.x);
+        if (e.type === 'respawn') fell = true;
+      }
+    }
+    expect(jumps.length).toBeGreaterThanOrEqual(1);
+    expect(F.xBord - jumps[0]).toBeGreaterThan(1.5);
+    expect(F.xBord - jumps[0]).toBeLessThanOrEqual(CONFIG.FOSSE_JUMP_MIN_DISTANCE + 1e-6);
+    expect(fell).toBe(true);
   });
 });
 

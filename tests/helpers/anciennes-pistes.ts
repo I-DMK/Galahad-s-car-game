@@ -1,6 +1,7 @@
 // Pistes d'avant (plan B, tâche 5e, Step 10 ; addendum « bouton saut » §6.9) : l'interrupteur qui redonne, au bit
 // près, les pistes de e02dcae SANS étoiles hautes (ni plats étoile, ni fosses, pas du curseur [60, 100], étoiles basses
-// dès le début des réceptions : `STAR_TREMPLIN_LANDING` 0, tâche 5g). Les tests
+// dès le début des réceptions : `STAR_TREMPLIN_LANDING` 0, tâche 5g ; tremplin permis après une double-bosse :
+// `TREMPLIN_AFTER_DOUBLE_BOSSE` 1, tour 1 de la 5g). Les tests
 // qui jugent la physique ou comparent à une mesure d'avant (empreinte, PLAN_A_TRACE, PRE_5E_STARS, phases, dosage,
 // calibrations, rejeu d'interpolation, rattrapage apparié) tournent sur ces pistes ; les tests d'acceptation du jeu
 // tournent sur CONFIG.
@@ -11,10 +12,12 @@ import { CONFIG, type Config } from '../../src/config';
  * sont posées que si la configuration les connaît : sans elles, le générateur fait déjà les pistes d'avant.
  * `STAR_TREMPLIN_LANDING` 0 (tâche 5g, ruling : clé ajoutée à l'interrupteur de la spec §6.9) redonne la zone du
  * curseur [xReception, xEnd] des tremplins ; sans fosse, `STAR_FOSSE_LANDING` ne sert pas.
+ * `TREMPLIN_AFTER_DOUBLE_BOSSE` 1 (tour 1 de la 5g, décision du papa d1012c6) : tremplin permis après une double-bosse,
+ * comme avant.
  */
 export const ANCIENNES_PISTES: Readonly<Record<string, number>> = {
   STAR_FLATS_PER_RACE: 0, FOSSE_PERIOD: 0, STAR_HIGH_PER_RACE: 0, STAR_STEP_MIN: 60, STAR_STEP_MAX: 100,
-  STAR_TREMPLIN_LANDING: 0,
+  STAR_TREMPLIN_LANDING: 0, TREMPLIN_AFTER_DOUBLE_BOSSE: 1,
 };
 
 /** `cfg` avec les pistes d'avant (clés d'`ANCIENNES_PISTES` présentes dans `cfg` seulement). */

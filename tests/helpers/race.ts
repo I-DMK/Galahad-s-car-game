@@ -183,6 +183,8 @@ export function expectRaceInvariants({ r, falls, summary }: FiveCarRace): void {
   expect(r.finishedAtByCar.galahad, summary).toBe(r.finishedAt);
   expect(r.lavaByCar.galahad, summary).toBe(0);
   expect(falls.filter((f) => f.cause === 'propre').map(describeFall), summary).toEqual([]);
+  // Saut parfait de Galahad, saut au centre des copains provisoires (relecture standard M4) : aucune chute « fosse ».
+  expect(falls.filter((f) => f.cause === 'fosse').map(describeFall), summary).toEqual([]);
   // Fantômes près des volcans : aucune paire active entre deux voitures dont l'une est dans une zone fantôme.
   expect(r.ghostContacts, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {

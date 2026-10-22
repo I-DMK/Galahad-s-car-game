@@ -4,14 +4,14 @@
 // ailleurs serait un pur doublon. Les scénarios qui varient avec la piste (cas 2 au début du plat de
 // lancement, cas 5, turbo permanent : la roue arrière part de la tranche précédente) tournent sur
 // tous les volcans des graines 0 à 9 (la CI n'en joue que le premier des graines 0 à 2) ; le cas 3 sur
-// tous les volcans des graines 3 à 9 (0 à 2 en CI). Cas 7 (course « doigt levé 30 % du
+// tous les volcans des graines 4 à 9 (0 à 3 en CI). Cas 7 (course « doigt levé 30 % du
 // temps », graines 0 à 9 ; absorbe l'ancien motif 0,7 s / 0,3 s de respawn-sim) et le scénario du
 // registre « rampe-saut → plat → volcan avec turbo pris avant la rampe-saut » (le plat de lancement
 // absorbe le saut turbo, option (a) de la tâche 1).
 // Budget : ≈ budget d'avant (≈ 7 min) + 5 min (tâche 5g). Tâche 5g : cas 1 à 5 et (i) sur les tremplins seuls ; cas 7
 // « au plus 2 chutes par série » (une fosse ratée sans saut fait 2 chutes, la 2e pose la voiture après) ; scénario
-// (ii) double-bosse puis tremplin, turbo pris à chaque 2 m avant et sur la double-bosse, doigt posé : 0 chute (promesse
-// des tremplins) ; scénario (iii) rampe-saut → plat → fosse, turbo pris avant la rampe-saut : lave sans saut, passage
+// (ii) double-bosse, une tranche, puis tremplin (plus de tremplin juste après une double-bosse, décision du papa), turbo
+// pris à chaque 2 m avant et sur la double-bosse, doigt posé : 0 chute (promesse des tremplins), et son témoin ; scénario (iii) rampe-saut → plat → fosse, turbo pris avant la rampe-saut : lave sans saut, passage
 // avec le saut parfait (`fosseJumpWanted`).
 import { CONFIG } from '../../src/config';
 import { simulateRace } from '../../src/sim/harness';
@@ -24,7 +24,8 @@ import { lavaSeries } from '../helpers/race';
 import { describeRespawns, describeRun, f1, liftedPattern, runFrom, trackFor, worldFor } from '../helpers/runs';
 import type { Fosse } from '../../src/track/types';
 
-const SLOW_SEEDS = [3, 4, 5, 6, 7, 8, 9];
+/** Cas 3 : graines 4 à 9 (0 à 3 en CI ; tour 1 de la 5g, la graine 3 passe en CI : les graines 0 à 2 n'ont plus de tremplin après des bosses). */
+const SLOW_SEEDS = [4, 5, 6, 7, 8, 9];
 const UNIQUE_SEEDS = [3];
 const ALL_SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 const RACE_SEEDS = ALL_SEEDS;
@@ -139,39 +140,57 @@ function pattern(seed: number, types: string[]): { i: number; track: ReturnType<
 const PATTERN_SEEDS = Array.from({ length: 50 }, (_, i) => i);
 
 /**
- * Scénario (ii), ruling de la tâche 5g (À TRANCHER PAR LE PAPA) : le plan attendait 0 chute (sonde de la spec, 189 / 189).
- * Ce balayage dense (turbo tous les 2 m) trouve de rares chutes doigt posé : un turbo qui finit pendant le vol d'une
- * double-bosse prise à ≈ 21 m/s, juste avant un tremplin (sommet ≈ 11 m/s au lieu de ≥ 12,6). Le défaut est
- * antérieur à la 5g : sur les pistes d'avant (graine 0), même balayage tous les 0,25 m, départ 60 m avant la
- * double-bosse, 1 chute sur 329 (turbo pris 34,5 m avant, sommet 11,03 m/s). Le test imprime chaque chute et borne la
- * part à MAX_FALL_SHARE ; il échoue si la part monte.
+ * Scénario (ii), tâche 5g, tour 1 (décision du papa : pas de tremplin juste après une double-bosse). Le balayage de la
+ * phase 1 (double-bosse puis tremplin, 1 568 runs) trouvait 3 chutes doigt posé, une seule trajectoire : turbo pris
+ * 31,8 m avant la double-bosse, il finit pendant son vol, sommet du tremplin ≈ 11,2 m/s. La règle supprime ce motif ;
+ * le balayage porte sur les tremplins qui suivent une double-bosse à une tranche d'écart (bosses ou plat entre les
+ * deux), même turbo tous les 2 m : **0 chute**, sans tolérance. Témoin (pistes avec la règle levée,
+ * `TREMPLIN_AFTER_DOUBLE_BOSSE: 1`) : la trajectoire de la phase 1 tombe toujours.
  */
-const MAX_FALL_SHARE = 0.005;
-
-describe('scénario (ii) : double-bosse puis tremplin, turbo pris tous les 2 m de 80 m avant la double-bosse jusqu’à sa fin, doigt posé : chutes rares, imprimées (ruling, à trancher)', () => {
-  test(`graines 0 à 49 : chaque double-bosse suivie d'un tremplin`, () => {
+describe('scénario (ii) : double-bosse, une tranche, puis tremplin ; turbo pris tous les 2 m de 80 m avant la double-bosse jusqu’à sa fin, doigt posé : 0 chute', () => {
+  test(`graines 0 à 49 : chaque double-bosse suivie d'une tranche puis d'un tremplin`, () => {
     const t0 = performance.now();
     let runs = 0;
+    let motifs = 0;
     const fails: string[] = [];
-    let maxLip = 0;
+    let minLip = Infinity;
     for (const seed of PATTERN_SEEDS) {
-      for (const { i, track } of pattern(seed, ['double-bosse', 'rampe-volcan'])) {
+      const track = trackFor(seed);
+      expect(pattern(seed, ['double-bosse', 'rampe-volcan']), `graine ${seed} : tremplin juste après une double-bosse`).toEqual([]);
+      for (let i = 0; i + 2 < track.slices.length; i++) {
+        if (track.slices[i].type !== 'double-bosse' || track.slices[i + 2].type !== 'rampe-volcan') continue;
+        motifs++;
         const db = track.slices[i];
-        const v = tremplins(track).find((w) => Math.abs(w.xLancement - track.slices[i + 1].xStart) < 1e-9)!;
+        const v = tremplins(track).find((w) => Math.abs(w.xLancement - track.slices[i + 2].xStart) < 1e-9)!;
         const x0 = startAfter(track, Math.max(5, db.xStart - 100));
         const world = croppedWorld(track, CONFIG, x0 - 10, v.xEnd + 20);
         for (let t = Math.max(x0, db.xStart - 80); t <= db.xEnd + 1e-9; t += 2) {
           const r = runFrom(world, x0, { throttle: () => true, launchSpeed: CONFIG.V_MAX, turboAt: t, maxSeconds: 25, volcano: v });
           runs++;
-          maxLip = Math.max(maxLip, r.lipSpeed ?? 0);
-          if (!passesVolcano(r, v)) fails.push(describeRun(seed, v, `double-bosse en ${f1(db.xStart)}, turbo en ${f1(t)}`, r));
+          minLip = Math.min(minLip, r.lipSpeed ?? 0);
+          if (!passesVolcano(r, v)) fails.push(describeRun(seed, v, `double-bosse en ${f1(db.xStart)}, ${track.slices[i + 1].type}, turbo en ${f1(t)}`, r));
         }
       }
     }
-    console.log(`scénario (ii) : ${runs} runs (${((performance.now() - t0) / 60_000).toFixed(1)} min), sommet jusqu'à ${f1(maxLip)} m/s, échecs ${fails.length}`
-      + ` (${((100 * fails.length) / runs).toFixed(2)} %)${fails.length ? `\n  ${fails.join('\n  ')}` : ''}`);
-    expect(runs).toBeGreaterThan(50);
-    expect(fails.length / runs, fails.join('\n')).toBeLessThanOrEqual(MAX_FALL_SHARE);
+    console.log(`scénario (ii) : ${motifs} motifs, ${runs} runs (${((performance.now() - t0) / 60_000).toFixed(1)} min), sommet min ${f1(minLip)} m/s, échecs ${fails.length}`
+      + `${fails.length ? `\n  ${fails.join('\n  ')}` : ''}`);
+    expect(runs).toBeGreaterThan(500);
+    expect(fails, fails.join('\n')).toEqual([]);
+  });
+
+  test('témoin, règle levée (graine 7) : double-bosse puis tremplin, turbo pris 31,8 m avant la double-bosse, chute', () => {
+    const cfg = { ...CONFIG, TREMPLIN_AFTER_DOUBLE_BOSSE: 1 };
+    const track = trackFor(7, cfg);
+    const i = track.slices.findIndex((sl, k) => sl.type === 'double-bosse' && track.slices[k + 1]?.type === 'rampe-volcan');
+    expect(i).toBeGreaterThan(0);
+    const db = track.slices[i];
+    const v = tremplins(track).find((w) => Math.abs(w.xLancement - track.slices[i + 1].xStart) < 1e-9)!;
+    const x0 = startAfter(track, Math.max(5, db.xStart - 100));
+    const world = croppedWorld(track, cfg, x0 - 10, v.xEnd + 20);
+    const r = runFrom(world, x0, { throttle: () => true, launchSpeed: CONFIG.V_MAX, turboAt: db.xStart - 31.8, maxSeconds: 25, volcano: v });
+    const where = describeRun(7, v, `règle levée, double-bosse en ${f1(db.xStart)}, turbo en ${f1(db.xStart - 31.8)}`, r);
+    console.log(`scénario (ii), témoin : ${where}`);
+    expect(passesVolcano(r, v), where).toBe(false);
   });
 });
 

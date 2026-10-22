@@ -58,9 +58,10 @@ export function fosses(track: Track): Fosse[] {
   return track.volcanoes.filter((v): v is Fosse => v.kind === 'fosse');
 }
 
-/** Première fosse (dans l'ordre de la piste) dont le bord amont est strictement devant x (tâche 5g). */
+/** Première fosse (dans l'ordre de la piste) dont le bord amont est strictement devant x (tâche 5g) ; sans allocation. */
 export function nextFosse(track: Track, x: number): Fosse | undefined {
-  return fosses(track).find((f) => f.xBord > x);
+  for (const v of track.volcanoes) if (v.kind === 'fosse' && v.xBord > x) return v;
+  return undefined;
 }
 
 /** Premier volcan (tremplin ou fosse, dans l'ordre de la piste) dont la lave est strictement devant x. */
@@ -80,7 +81,9 @@ export function nearestVolcanoZone(track: Track, x: number): Volcano | undefined
  * FLIP_SECONDS et SIDE_SECONDS s'appliquent.
  */
 export function inElanZone(track: Track, x: number): boolean {
-  return tremplins(track).some((v) => x >= v.xElanStart && x <= v.xLip);
+  // Sans allocation : appelé à chaque pas pour chaque voiture.
+  for (const v of track.volcanoes) if (v.kind === 'tremplin' && x >= v.xElanStart && x <= v.xLip) return true;
+  return false;
 }
 
 /**

@@ -19,6 +19,8 @@ const FOSSE_LAVA_BELOW_M = 0.1;
 const FOSSE_FLAMES_PER_M = 1.5;
 /** Halo d'une fosse : lueur orange jusqu'à ≈ 3 m au-dessus du sol, pulsée au temps de simulation. */
 const FOSSE_HALO_M = 3;
+/** Débord horizontal du halo de part et d'autre de la lave (m), fondu jusqu'à 0 ; sert aussi au tri des fosses visibles. */
+const FOSSE_HALO_SIDE_M = 2;
 /** Panneau d'une fosse, planté à xLancement : poteau de 1,6 m, triangle jaune de 1,1 m de côté portant le ressort. */
 const SIGN_POLE_M = 1.6;
 const SIGN_SIDE_M = 1.1;
@@ -44,7 +46,7 @@ export function drawTrack(ctx: Ctx, track: Track, camera: Camera, view: BackingS
   // langues de feu ; leur panneau est dessiné après le liseré.
   for (const v of track.volcanoes) {
     if (v.kind === 'fosse') {
-      if (v.xReception + FOSSE_HALO_M < xMin || v.xBord - FOSSE_HALO_M > xMax) continue;
+      if (v.xReception + FOSSE_HALO_SIDE_M < xMin || v.xBord - FOSSE_HALO_SIDE_M > xMax) continue;
       drawFosse(ctx, v, heightAt(track, v.xLava), t, ppm, S);
       continue;
     }
@@ -175,7 +177,8 @@ function drawLava(
 }
 
 /**
- * Fosse (tâche 5g, saut §6.7) : halo orange pulsé (au temps de simulation `t`) jusqu'à ≈ 3 m au-dessus de la fosse,
+ * Fosse (tâche 5g, saut §6.7) : halo orange pulsé (au temps de simulation `t`) jusqu'à ≈ 3 m au-dessus de la fosse et
+ * FOSSE_HALO_SIDE_M de part et d'autre, fondu sur ses bords,
  * lave à ras bord (surface 0,1 m sous le sol) avec ses bulles, et langues de feu animées qui montent jusqu'au haut du
  * capteur (0,3 m au-dessus du sol) : une roue qui touche la lave touche du feu dessiné. La lave brille tout le temps :
  * rien ne s'allume quand une voiture arrive (Q-F5).
@@ -184,14 +187,20 @@ function drawFosse(ctx: Ctx, f: Fosse, floorY: number, t: number, ppm: number, S
   const xA = f.xBord;
   const xB = f.xReception;
   const pulse = 0.5 + 0.5 * Math.sin(t * 2.5);
-  // Halo : dégradé vertical du sol vers le ciel, un peu plus large que la fosse.
-  const top = S(xA - 1, f.rimY + FOSSE_HALO_M);
-  const bottom = S(xB + 1, f.rimY);
-  const halo = ctx.createLinearGradient(0, bottom.y, 0, top.y);
-  halo.addColorStop(0, `rgba(255, 120, 20, ${(0.35 + 0.2 * pulse).toFixed(3)})`);
+  // Halo : demi-ellipse posée sur le sol, centrée sur la lave, de demi-largeur W/2 + FOSSE_HALO_SIDE_M et de hauteur
+  // FOSSE_HALO_M, qui s'éteint vers ses bords (dégradé radial étiré verticalement) : pas de bord net.
+  const centre = S((xA + xB) / 2, f.rimY);
+  const rx = ((xB - xA) / 2 + FOSSE_HALO_SIDE_M) * ppm;
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  halo.addColorStop(0, `rgba(255, 120, 20, ${(0.4 + 0.2 * pulse).toFixed(3)})`);
+  halo.addColorStop(0.55, `rgba(255, 120, 20, ${(0.18 + 0.1 * pulse).toFixed(3)})`);
   halo.addColorStop(1, 'rgba(255, 120, 20, 0)');
+  ctx.save();
+  ctx.translate(centre.x, centre.y);
+  ctx.scale(1, (FOSSE_HALO_M * ppm) / rx);
   ctx.fillStyle = halo;
-  ctx.fillRect(top.x, top.y, bottom.x - top.x, bottom.y - top.y);
+  ctx.fillRect(-rx, -rx, 2 * rx, rx);
+  ctx.restore();
   drawLava(ctx, xA, xB, floorY, f.rimY - FOSSE_LAVA_BELOW_M, t, ppm, S);
   // Langues de feu : triangles qui ondulent, du dessus de la lave jusqu'à 0,3 m au-dessus du sol au plus haut.
   const n = Math.max(3, Math.round((xB - xA) * FOSSE_FLAMES_PER_M));

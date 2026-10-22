@@ -88,13 +88,18 @@ test('drawStar ne lève pas', () => {
 });
 
 describe('fosses (tâche 5g, saut §6.7)', () => {
-  /** Piste de 1 680 m avec un tremplin et une fosse, et la première fosse, le premier tremplin. */
-  const seed = [0, 1, 2, 3, 4, 5].find((s) => {
+  /**
+   * Piste de 1 680 m avec un tremplin et une fosse dont la lave couvre un multiple de 10 m (là où un plot serait planté
+   * sans la règle « pas de plot au-dessus de la lave » : le test du plot n'est pas vide).
+   */
+  const POST = 10;
+  const coversPost = (a: number, b: number): boolean => Math.ceil((a - 0.3) / POST) * POST <= b + 0.3;
+  const seed = Array.from({ length: 30 }, (_, i) => i).find((s) => {
     const t = generateTrack(s, 1680, CONFIG);
-    return fosses(t).length > 0 && tremplins(t).length > 0;
+    return tremplins(t).length > 0 && fosses(t).some((f) => coversPost(f.xBord, f.xReception));
   })!;
   const track = generateTrack(seed, 1680, CONFIG);
-  const f = fosses(track)[0];
+  const f = fosses(track).find((v) => coversPost(v.xBord, v.xReception))!;
   const tr = tremplins(track)[0];
   const draw = (x: number) => {
     const cam = new Camera(CONFIG);
@@ -104,9 +109,18 @@ describe('fosses (tâche 5g, saut §6.7)', () => {
     return { cam, calls };
   };
 
-  test('une fosse et son panneau se dessinent sans erreur : halo (dégradé), lave, langues de feu ; triangle jaune à xLancement', () => {
-    const atFosse = draw(f.xLava).calls;
-    expect(atFosse.some((c) => c.name === 'createLinearGradient')).toBe(true);
+  test('une fosse et son panneau se dessinent sans erreur : halo (dégradé radial), lave (dégradé linéaire), langues de feu ; triangle jaune à xLancement', () => {
+    const { cam, calls: atFosse } = draw(f.xLava);
+    const ppm = cam.pxPerMeter(view.h);
+    // Deux dégradés pour la fosse : le halo (radial) et la lave (linéaire).
+    const radial = atFosse.filter((c) => c.name === 'createRadialGradient');
+    expect(radial).toHaveLength(1);
+    expect(atFosse.filter((c) => c.name === 'createLinearGradient')).toHaveLength(1);
+    // Halo : demi-largeur W/2 + 2 m (fondu sur les côtés), hauteur 3 m (étirement vertical du dégradé).
+    const rx = radial[0].args[5] as number;
+    expect(rx / ppm).toBeCloseTo(CONFIG.FOSSE_WIDTH / 2 + 2, 6);
+    const scale = atFosse.find((c) => c.name === 'scale')!;
+    expect(((scale.args[1] as number) * rx) / ppm).toBeCloseTo(3, 6);
     expect(atFosse.some((c) => c.name === 'fill' && (c.fillStyle === '#ff7a1a' || c.fillStyle === '#ffd23f'))).toBe(true);
     // Le panneau est 32 m avant le bord : hors de la vue de la fosse (≈ 22 m de large), dans celle de l'approche.
     const sign = (calls: Call[]) => calls.some((c) => c.name === 'fill' && c.fillStyle === '#ffd400');
@@ -116,12 +130,14 @@ describe('fosses (tâche 5g, saut §6.7)', () => {
     expect(sign(draw(tr.xLancement).calls)).toBe(false);
   });
 
-  test('aucun plot lumineux au-dessus de la lave d’une fosse', () => {
+  test('aucun plot lumineux au-dessus de la lave d’une fosse (la lave couvre un multiple de 10 m : sans la règle, un plot y serait)', () => {
     const { cam, calls } = draw(f.xLava);
     const ppm = cam.pxPerMeter(view.h);
     const [a, b] = [f.xBord - 0.3, f.xReception + 0.3].map((x) => cam.worldToScreen({ x, y: 0 }, view.w, view.h).x);
     const posts = calls.filter((c) => c.name === 'fillRect' && c.fillStyle === '#e8ffff').map((c) => (c.args[0] as number) + 0.04 * ppm);
     expect(posts.length).toBeGreaterThan(0);
+    const expected = cam.worldToScreen({ x: Math.ceil((f.xBord - 0.3) / POST) * POST, y: 0 }, view.w, view.h).x;
+    expect(expected > a && expected < b).toBe(true);
     for (const x of posts) expect(x > a && x < b, `plot en ${x} px, lave sur [${a}, ${b}] px`).toBe(false);
   });
 
@@ -129,5 +145,14 @@ describe('fosses (tâche 5g, saut §6.7)', () => {
     const cone = (calls: Call[]) => calls.some((c) => c.name === 'fill' && c.fillStyle === '#5a4a4a');
     expect(cone(draw(f.xLava).calls)).toBe(false);
     expect(cone(draw(tr.xLava).calls)).toBe(true);
+  });
+
+  test('fosse au bord de la vue : dessinée dès que son halo (2 m de part et d’autre) y entre', () => {
+    const cam = new Camera(CONFIG);
+    cam.update(f.xLava, 2, 0, 1 / 60);
+    const half = cam.visibleHalfWidthM(view.w, view.h);
+    // Vue dont le bord droit (+ 5 m de marge) tombe 1 m avant le bord amont : le halo (2 m) y entre.
+    const { calls } = draw(f.xBord - 1 - 5 - half + (f.xLava - cam.x));
+    expect(calls.some((c) => c.name === 'createRadialGradient')).toBe(true);
   });
 });

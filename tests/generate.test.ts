@@ -306,9 +306,11 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
     expect(slackUsed.filter((x) => /^g[012]\/1680/.test(x))).toEqual([]);
   });
 
+  // Effet des plats étoile seuls : tremplin permis après une double-bosse (le refus du tour 1 de la 5g change la suite tirée
+  // plus tôt, voir le bloc des fosses).
   test('la suite des tranches tirées a un préfixe commun d’au moins 20 tranches avec les pistes d’avant (graines 0 à 49)', () => {
     const prefixes = SEEDS.map((seed) => {
-      const now = drawn(track(seed, 1680));
+      const now = drawn(generateTrack(seed, 1680, { ...CONFIG, TREMPLIN_AFTER_DOUBLE_BOSSE: 1 }));
       const before = generateTrack(seed, 1680, AP).slices;
       let k = 0;
       // Une fosse est une rampe-volcan typée par l'alternance (tâche 5g) : même tirage.
@@ -333,6 +335,11 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
 describe('fosses (tâche 5g, saut §6.3, rulings R-F2, R-F3, R-F5)', () => {
   /** Mêmes pistes sans fosse (FOSSE_PERIOD 0) : la suite tirée doit être la même, à l'échange tremplin / fosse près. */
   const NO_FOSSE: Config = { ...CONFIG, FOSSE_PERIOD: 0 };
+  /**
+   * Tremplin permis après une double-bosse (comme avant le tour 1 de la 5g) : le refus dépend de la sorte du volcan
+   * suivant, donc de l'alternance ; sans lui, FOSSE_PERIOD ne change que la sorte des volcans.
+   */
+  const DB_OK: Config = { ...CONFIG, TREMPLIN_AFTER_DOUBLE_BOSSE: 1 };
 
   test('alternance : deux volcans consécutifs de la piste sont de sortes différentes ; au moins une fosse et un tremplin dès 2 volcans', () => {
     expect(CONFIG.FOSSE_PERIOD).toBe(2);
@@ -355,10 +362,10 @@ describe('fosses (tâche 5g, saut §6.3, rulings R-F2, R-F3, R-F5)', () => {
     expect(nt).toBeGreaterThanOrEqual(10);
   });
 
-  test('même suite de tranches tirées et mêmes x qu’avec FOSSE_PERIOD 0, à l’échange tremplin / fosse près (le rng de la piste n’est pas touché)', () => {
+  test('même suite de tranches tirées et mêmes x qu’avec FOSSE_PERIOD 0, à l’échange tremplin / fosse près (le rng de la piste n’est pas touché ; tremplin permis après une double-bosse des deux côtés)', () => {
     for (const [seed, len] of CASES) {
-      const a = track(seed, len);
-      const b = generateTrack(seed, len, NO_FOSSE);
+      const a = generateTrack(seed, len, DB_OK);
+      const b = generateTrack(seed, len, { ...DB_OK, FOSSE_PERIOD: 0 });
       expect(b.volcanoes.every((v) => v.kind === 'tremplin')).toBe(true);
       expect(a.slices.map((s) => (s.type === 'fosse' ? 'rampe-volcan' : s.type)), `seed ${seed} len ${len}`).toEqual(b.slices.map((s) => s.type));
       a.slices.forEach((s, i) => {
@@ -384,6 +391,28 @@ describe('fosses (tâche 5g, saut §6.3, rulings R-F2, R-F3, R-F5)', () => {
     for (const seed of SEEDS.slice(0, 10)) expect(generateTrack(seed, 1680, NO_FOSSE).slices.some((s) => s.type === 'fosse')).toBe(false);
     // FOSSE_PERIOD 1 : tous les volcans sont des fosses.
     for (const seed of SEEDS.slice(0, 10)) expect(generateTrack(seed, 1680, { ...CONFIG, FOSSE_PERIOD: 1 }).volcanoes.every((v) => v.kind === 'fosse')).toBe(true);
+  });
+
+  test('décision du papa (tour 1 de la 5g) : jamais de tremplin juste après une double-bosse (graines 0 à 199, 1 680 m) ; une fosse y reste permise', () => {
+    let fossesAfter = 0;
+    let refusedWouldBe = 0;
+    for (let seed = 0; seed < 200; seed++) {
+      const d = drawn(seed < 50 ? track(seed, 1680) : generateTrack(seed, 1680, CONFIG));
+      for (let i = 1; i < d.length; i++) {
+        if (d[i - 1].type !== 'double-bosse') continue;
+        expect(d[i].type, `graine ${seed}, tranche tirée ${i}`).not.toBe('rampe-volcan');
+        if (d[i].type === 'fosse') fossesAfter++;
+      }
+      // Avec la règle levée, des tremplins suivaient une double-bosse : le refus sert.
+      if (seed < 50) {
+        const old = drawn(generateTrack(seed, 1680, DB_OK));
+        for (let i = 1; i < old.length; i++) if (old[i - 1].type === 'double-bosse' && old[i].type === 'rampe-volcan') refusedWouldBe++;
+      }
+    }
+    console.log(`double-bosse puis volcan (graines 0 à 199) : ${fossesAfter} fosses, 0 tremplin ; règle levée (graines 0 à 49) : ${refusedWouldBe} tremplins`);
+    expect(fossesAfter).toBeGreaterThan(10);
+    expect(refusedWouldBe).toBeGreaterThan(0);
+    expect(() => generateTrack(0, 1680, CONFIG)).not.toThrow();
   });
 
   test('plats étoile : jamais juste après une fosse non plus (décision du papa)', () => {

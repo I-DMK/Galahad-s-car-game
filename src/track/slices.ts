@@ -218,7 +218,8 @@ const FOSSE_MIN_RECEPTION = 60;
 /** Indices de maille (k × TRACK_POINT_SPACING) du début de l'approche, du bord amont, du bord aval et de la fin. */
 function fosseGrid(cfg: Config): { kLancement: number; kBord: number; kAval: number; n: number } {
   const s = cfg.TRACK_POINT_SPACING;
-  const n = Math.round(rampeVolcan(cfg).length / s);
+  // Même nombre d'échantillons que `rampeVolcan` (`sample` sur dxEnd), sans recalculer son profil.
+  const n = Math.max(1, Math.round(volcanoGeometry(cfg).dxEnd / s));
   const kLancement = Math.ceil(cfg.FOSSE_GUARD / s - EPS);
   const kBord = kLancement + Math.ceil(cfg.LANCEMENT_LENGTH / s - EPS);
   const kAval = kBord + Math.round(cfg.FOSSE_WIDTH / s);

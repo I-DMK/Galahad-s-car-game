@@ -393,7 +393,7 @@ function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolea
     inElanZone: inElanZone(track, x),
   }, cfg);
   if (reason === null) return;
-  const { point, lavaX, consecutive, direction } = chooseRespawnTarget(state, track, cfg, reason);
+  const { point, lavaX, consecutive, direction } = chooseRespawnTarget(state, track, cfg, reason, x);
   const target = shiftTarget(point, otherCars(sim, car).map(chassisX), track, cfg, direction);
   placeInvulnerable(sim, car, target, lavaX, consecutive);
   sim.events.push({ type: 'respawn', carId: state.id, t, reason, x, target: { ...target } });

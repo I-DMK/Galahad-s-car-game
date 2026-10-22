@@ -7,13 +7,20 @@ import type { CarState } from './state';
 /** Angle maximal du châssis (rad) pour qu'une position soit retenue comme point sûr. */
 const SAFE_POINT_MAX_CAR_ANGLE = (20 * Math.PI) / 180;
 
+/** m : marge après la roue arrière d'une voiture posée juste après une fosse (bord de roue à 0,3 m du capteur). */
+const FOSSE_EXIT_MARGIN = 0.3;
+
 /**
  * Zone où l'on ne mémorise jamais de point sûr : [xLancement + SAFE_LANCEMENT_MARGIN, xReception[
  * (addendum §1.6). Un point sûr est donc soit dans les 5 premiers mètres du plat de lancement (il
  * reste D_LANCE de plat pour atteindre V_MAX avant l'élan), soit avant, soit sur le plat de réception.
+ * Fosse (tour 1 de la 5g) : prolongée jusqu'à xReception + WHEEL_BASE/2 + WHEEL_RADIUS + 0,3 m (≈ 1,5 m) : le bord aval
+ * est aussi le bord de la lave, et un châssis posé plus près aurait la roue arrière dans le capteur (boucle de
+ * réapparitions, ou chute comptée pour le volcan suivant). Points sûrs, respawn groupé et `rebuildCars` passent par elle.
  */
 export function forbiddenZone(v: Volcano, cfg: Config): [number, number] {
-  return [v.xLancement + cfg.SAFE_LANCEMENT_MARGIN, v.xReception];
+  const end = v.kind === 'fosse' ? v.xReception + cfg.WHEEL_BASE / 2 + cfg.WHEEL_RADIUS + FOSSE_EXIT_MARGIN : v.xReception;
+  return [v.xLancement + cfg.SAFE_LANCEMENT_MARGIN, end];
 }
 
 export interface SafePointObs {
