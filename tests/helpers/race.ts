@@ -280,7 +280,7 @@ export function registerRaceInvariants(seeds: number[]): void {
       const propres = falls.filter((f) => f.cause === 'propre').length;
       const byKind = (k: Fall['kind']) => falls.filter((f) => f.kind === k).length;
       console.log(`chutes dans la lave à 5 voitures, graines ${seeds.join(', ')} : ${falls.length} (propres ${propres}, `
-        + `choc ${falls.filter((f) => f.cause === 'choc').length}, fosse sans saut ${falls.filter((f) => f.cause === 'fosse').length} ; `
+        + `choc ${falls.filter((f) => f.cause === 'choc').length}, fosse (attendues : copain qui rate son saut, ou sans saut) ${falls.filter((f) => f.cause === 'fosse').length} ; `
         + `aux tremplins ${byKind('tremplin')}, aux fosses ${byKind('fosse')})`
         + (falls.length ? `\n  ${falls.map((f) => `seed ${f.seed} : ${describeFall(f)}`).join('\n  ')}` : ''));
     });

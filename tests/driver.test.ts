@@ -211,7 +211,7 @@ describe('saut d’étoile haute', () => {
     const expected = steps.findIndex((s) => (star.x - s.x) / v <= CONFIG.JUMP_STAR_LEAD + EPS);
     const jumps = where(steps, (s) => s.jump);
     expect(jumps[0]).toBe(expected);
-    expect(jumps).toEqual(where(steps, (s, ) => s.x < star.x).slice(expected));
+    expect(jumps).toEqual(where(steps, (s) => s.x < star.x).slice(expected));
   });
 
   test('servie : plus aucune demande pour cette étoile ; après une réapparition avant elle, la même décision est rejouée', () => {
