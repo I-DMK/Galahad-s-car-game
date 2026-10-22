@@ -58,7 +58,7 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
     const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
     const withOne = counts.filter((n) => n > 0).length;
     const cands = tracks.map((t) => highStarCandidates(t, low(t.stars).map((s) => s.x), CONFIG).length);
-    console.log(`étoiles hautes par course (graines 0 à 49, valeurs de départ PROVISOIRES) : moyenne ${mean.toFixed(2)}, `
+    console.log(`étoiles hautes par course (graines 0 à 49, plats ordinaires, jeu 50 / 12 / 20 / 25) : moyenne ${mean.toFixed(2)}, `
       + `min ${Math.min(...counts)}, max ${Math.max(...counts)}, pistes avec au moins une ${withOne}/50 ; `
       + `par graine ${counts.join(' ')} ; candidates ${cands.join(' ')}`);
   });
@@ -70,7 +70,8 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
       const lows = low(t.stars);
       for (const s of high(t.stars)) {
         seen++;
-        const sl = sliceAt(t, s.x);
+        // Intervalle fermé : une étoile peut être au bout exact de son segment (graine 15, x = 224,6, juste avant des bosses).
+        const sl = t.slices.find((x) => x.type === 'plat' && s.x >= x.xStart - 1e-9 && s.x <= x.xEnd + 1e-9) ?? sliceAt(t, s.x);
         const i = t.slices.indexOf(sl);
         const where = `graine ${t.seed}, étoile haute x = ${s.x.toFixed(2)} (${sl.type} [${sl.xStart.toFixed(1)}, ${sl.xEnd.toFixed(1)}])`;
         expect(sl.type, where).toBe('plat');
@@ -195,8 +196,12 @@ describe('choix et fusion', () => {
       seed: 0, targetLength: 460, length: 460, points: [{ x: 0, y: 0 }, { x: 460, y: 0 }], exemptPointIndices: [],
       slices, volcanoes: [], stars: [], xStart: 21.5, xFinish: 400, xWall: 460,
     };
-    // Pas de curseur (pas immense), pas de volcan : aucune étoile basse.
-    const cfg: Config = { ...CONFIG, STAR_STEP_MIN: 1e5, STAR_STEP_MAX: 1e5 };
+    // Pas de curseur (pas immense), pas de volcan : aucune étoile basse. Élan et atterrissage de 15 m, dégagement de
+    // bosses de 12 m : la fixture ne dépend pas du jeu retenu dans config.ts.
+    const cfg: Config = {
+      ...CONFIG, STAR_STEP_MIN: 1e5, STAR_STEP_MAX: 1e5,
+      STAR_HIGH_TAKEOFF_ROOM: 15, STAR_HIGH_LANDING_ROOM: 15, STAR_HIGH_BUMP_CLEARANCE: 12,
+    };
     const stars = placeStars(t, mulberry32(3), cfg);
     expect(stars).toHaveLength(1);
     const [s] = stars;

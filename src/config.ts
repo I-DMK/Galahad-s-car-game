@@ -74,15 +74,17 @@ export const CONFIG = {
   JUMP_GROUND_GRACE: 0.35,      // s : tolérance de sol (décision P11 du papa, gardée à 0,35 s : Q-F6) : le saut part si une roue a eu le contact de jeu (débouncé) dans les 0,35 s précédentes ; mesuré : 0 appui perdu sur 8 640 à 11,2 et 14 m/s et turbo pris à 14 m/s, 0,41 % à 21 m/s tenus (tests/jump-grace.test.ts) ; GROUND_DEBOUNCE_SECONDS + JUMP_GROUND_GRACE finit 0,05 s avant JUMP_COOLDOWN : pas de double saut
   JUMP_BUTTON_SIZE_PX: 150,     // px CSS (≥ 140), bouton rond en bas à gauche
   // Étoiles hautes ajoutées (plan B, tâche 5e ; décision P1 du papa) : placeStars, étape 5, tirages après tous les
-  // autres. VALEURS DE DÉPART PROVISOIRES (plan, Step 7) pour la hauteur, les places et les dégagements : calibrées
-  // au Step 8, choisies et validées par le papa au Step 9. La fenêtre de saut est très sensible à STAR_HIGH_Y :
-  // recalibrer si JUMP_VY, la gravité, la suspension ou les roues changent (tests/high-stars-window.test.ts).
+  // autres. Hauteur et jeu de dégagements calibrés au Step 8 (4a414c6 : à 3,90 m, fenêtre min 0,57 / 0,53 s à 11,2 /
+  // 14 m/s, 0,42 s à + 5 cm ; garde au sol de Galahad ≥ 2,1 m ; 50 / 12 / 20 / 25 : le plus permissif des jeux à 0 prise
+  // sans saut, 5 voitures, graines 0 à 23) et choisis par le papa (e02dcae, décision P6 ; ruling R-F7). La fenêtre de
+  // saut est très sensible à STAR_HIGH_Y : recalibrer si JUMP_VY, la gravité, la suspension ou les roues changent
+  // (tests/high-stars-window.test.ts).
   STAR_HIGH_PER_RACE: 3,        // au plus N étoiles hautes ajoutées par course ; 0 = étoiles d'avant la tâche 5e, au bit près
-  STAR_HIGH_Y: 3.85,            // PROVISOIRE : m au-dessus du sol local (centre de l'étoile)
-  STAR_HIGH_TAKEOFF_ROOM: 15,   // PROVISOIRE : m de terrain permis avant l'étoile (élan du saut), pas forcément du plat
-  STAR_HIGH_LANDING_ROOM: 15,   // PROVISOIRE : m de terrain permis après l'étoile (atterrissage) ; vol ≈ 2,2 s, ≈ 31 m à 14 m/s
+  STAR_HIGH_Y: 3.9,             // m au-dessus du sol local (centre de l'étoile), décision P6
+  STAR_HIGH_TAKEOFF_ROOM: 20,   // m de terrain permis avant l'étoile (élan du saut), pas forcément du plat
+  STAR_HIGH_LANDING_ROOM: 25,   // m de terrain permis après l'étoile (atterrissage) ; vol ≈ 2,2 s, ≈ 31 m à 14 m/s
   STAR_HIGH_GAP: 10,            // m minimum entre une étoile haute et toute étoile basse
-  STAR_HIGH_RAMP_CLEARANCE: 70, // PROVISOIRE : m interdits après la fin d'une rampe-saut (vol doigt posé, turbo compris)
-  STAR_HIGH_BUMP_CLEARANCE: 12, // PROVISOIRE : m interdits après la fin d'une bosses, double-bosse ou cratère
+  STAR_HIGH_RAMP_CLEARANCE: 50, // m interdits après la fin d'une rampe-saut (vol doigt posé, turbo compris)
+  STAR_HIGH_BUMP_CLEARANCE: 12, // m interdits après la fin d'une bosses, double-bosse ou cratère
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };
