@@ -78,7 +78,10 @@ sans le contexte de celle-ci.
   titre et police Fredoka (tâche 10), Terre dans le ciel (tâche 16), méthode
   allégée pour les tâches d'écrans et de décor, jalon « démo tablette » après la
   tâche 11. Rien de la physique, de l'élastique ni de la piste Grok n'est repris.
-  Quatre questions ouvertes au §8.
+  Quatre questions ouvertes au §8. **Fichiers rangés** dans `assets/` (hors
+  `public/`, non servis) : 6 carrosseries renommées par pilote, roue, étoile, Terre,
+  4 flammes (303 KB, réduits et quantifiés) et Fredoka 600/700 (40 KB), voir
+  `assets/README.md` ; l'archive Grok elle-même n'est pas dans le dépôt.
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
