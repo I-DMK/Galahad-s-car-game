@@ -269,20 +269,30 @@ describe('réapparition près du bord aval (tour 1 de la 5g, scénario de la rel
     expect(respawns[0].target.x, what).toBeGreaterThanOrEqual(F.xReception + 1.5 - 1e-9);
   });
 
-  test('même chose avec une autre fosse ensuite : la série reste sur la bonne fosse (2 chutes à la 2e fosse avant d’être posé après elle)', () => {
+  test('même chose avec une autre fosse ensuite, puis une chute dans la 1re fosse avec le point sûr déjà après elle : la série reste sur la fosse touchée (2 chutes à la 2e fosse avant d’être posé après elle)', () => {
     const rng = mulberry32(2);
     const two = trackOf([plat(rng, CONFIG, 150), fosse(CONFIG), plat(rng, CONFIG, 30), fosse(CONFIG), plat(rng, CONFIG, 100)]);
     const [f1, f2] = fosses(two);
-    const { respawns, run } = setup(two, f1.xReception + 3.5);
+    const { sim, respawns, run } = setup(two, f1.xReception + 3.5);
     run(4, false);
+    // Galahad, point sûr après la 1re fosse, est remis dans sa lave (une voiture qui y recule) : la chute compte pour la
+    // 1re fosse, pas pour le volcan devant le point sûr (la 2e). Le mutant `volcanoAhead(point sûr)` la compterait pour
+    // la 2e fosse, et la 1re chute à la 2e fosse serait déjà « la 2e de suite » : posée après elle d'emblée.
+    expect(sim.cars[0].state.safePoint.x).toBeGreaterThanOrEqual(f1.xReception + 1.5 - 1e-9);
+    expect(sim.cars[0].state.safePoint.x).toBeLessThan(f2.xLancement);
+    placeCar(sim.cars[0].body, f1.xLava, () => 0, 0, CONFIG);
+    run(3, false);
     run(30, true);
     const what = respawns.map((e) => `${e.reason}@${e.x.toFixed(1)} → ${e.target.x.toFixed(2)}`).join(' ; ');
-    expect(respawns.map((e) => e.reason).slice(1, 3), what).toEqual(['lava', 'lava']);
+    expect(respawns.map((e) => e.reason).slice(1, 4), what).toEqual(['lava', 'lava', 'lava']);
     expect(respawns[0].target.x, what).toBeGreaterThanOrEqual(f1.xReception + 1.5 - 1e-9);
+    // Chute dans la 1re fosse : retour au point sûr, après elle.
+    expect(Math.abs(respawns[1].x - f1.xLava), what).toBeLessThan(CONFIG.FOSSE_WIDTH);
+    expect(respawns[1].target.x, what).toBeGreaterThanOrEqual(f1.xReception + 1.5 - 1e-9);
     // 1re chute à la 2e fosse : retour au point sûr (avant elle) ; 2e de suite : posée juste après elle.
-    expect(respawns[1].x, what).toBeGreaterThan(f2.xLancement);
-    expect(respawns[1].target.x, what).toBeLessThan(f2.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN);
-    expect(respawns[2].target.x, what).toBeCloseTo(f2.xReception + CONFIG.FOSSE_RESPAWN_AFTER, 6);
+    expect(respawns[2].x, what).toBeGreaterThan(f2.xLancement);
+    expect(respawns[2].target.x, what).toBeLessThan(f2.xLancement + CONFIG.SAFE_LANCEMENT_MARGIN);
+    expect(respawns[3].target.x, what).toBeCloseTo(f2.xReception + CONFIG.FOSSE_RESPAWN_AFTER, 6);
   });
 });
 

@@ -6,14 +6,25 @@ import {
 } from './slices';
 import type { Slice, SliceType, Track, TrackPoint, Volcano } from './types';
 
-const WEIGHTS: { item: SliceType; weight: number }[] = [
-  { item: 'plat', weight: 2 },
-  { item: 'bosses', weight: 3 },
-  { item: 'rampe-saut', weight: 2 },
-  { item: 'double-bosse', weight: 2 },
-  { item: 'rampe-volcan', weight: 3 },
-];
-const WEIGHTS_NO_VOLCANO = WEIGHTS.filter((w) => w.item !== 'rampe-volcan');
+type Weights = { item: SliceType; weight: number }[];
+
+/**
+ * Poids de tirage des tranches ; celui des volcans est `VOLCANO_WEIGHT` (3 jusqu'à la 5g, 4 depuis le tour 2 de la 5g :
+ * décision du papa, ≈ 3,6 volcans par course). Même ordre qu'avant : avec 3, les tirages sont ceux des pistes d'avant.
+ */
+function sliceWeights(cfg: Config): { all: Weights; noVolcano: Weights } {
+  if (!Number.isFinite(cfg.VOLCANO_WEIGHT) || cfg.VOLCANO_WEIGHT < 0) {
+    throw new Error(`generateTrack : VOLCANO_WEIGHT ${cfg.VOLCANO_WEIGHT} doit être un nombre ≥ 0`);
+  }
+  const all: Weights = [
+    { item: 'plat', weight: 2 },
+    { item: 'bosses', weight: 3 },
+    { item: 'rampe-saut', weight: 2 },
+    { item: 'double-bosse', weight: 2 },
+    { item: 'rampe-volcan', weight: cfg.VOLCANO_WEIGHT },
+  ];
+  return { all, noVolcano: all.filter((w) => w.item !== 'rampe-volcan') };
+}
 
 /** Distance de croisière d'une course : V_CRUISE × RACE_TARGET_SECONDS. */
 export function defaultTrackLength(cfg: Config): number {
@@ -46,10 +57,11 @@ const isVolcanoSlice = (type: SliceType): boolean => type === 'rampe-volcan' || 
  * que soit son type (saut §6.3). `nextIsFosse` : le prochain volcan accepté serait une fosse (alternance).
  */
 function draw(
-  rng: () => number, cfg: Config, x: number, target: number, previous: SliceType, onlyPlat: boolean, nextIsFosse: boolean,
+  rng: () => number, cfg: Config, weights: { all: Weights; noVolcano: Weights }, x: number, target: number,
+  previous: SliceType, onlyPlat: boolean, nextIsFosse: boolean,
 ): SliceProfile {
   if (onlyPlat) return plat(rng, cfg);
-  let type = pickWeighted(rng, WEIGHTS);
+  let type = pickWeighted(rng, weights.all);
   if (type === 'rampe-volcan') {
     const profile = rampeVolcan(cfg);
     // Jamais après une rampe-saut : abordée avec un turbo, elle lançait la voiture à 19–21 m/s sur l'élan ou la
@@ -60,7 +72,7 @@ function draw(
       || isVolcanoSlice(previous) || previous === 'rampe-saut'
       || (previous === 'double-bosse' && !nextIsFosse && cfg.TREMPLIN_AFTER_DOUBLE_BOSSE === 0);
     if (!refused) return profile;
-    type = pickWeighted(rng, WEIGHTS_NO_VOLCANO);
+    type = pickWeighted(rng, weights.noVolcano);
   }
   switch (type) {
     case 'plat': return plat(rng, cfg);
@@ -126,6 +138,7 @@ function buildTrack(
   if (!Number.isInteger(period) || period < 0) throw new Error(`generateTrack : FOSSE_PERIOD ${period} doit être un entier ≥ 0`);
   const phase = period > 0 ? Math.floor(mulberry32((seed ^ 0x6a09e667) >>> 0)() * period) : 0;
   let volcanoRank = 0;
+  const weights = sliceWeights(cfg);
   /** Le prochain volcan accepté (rang `volcanoRank`) sera-t-il une fosse ? */
   const nextIsFosse = (): boolean => period > 0 && (volcanoRank + phase) % period === period - 1;
   /** Le volcan tiré (rampe-volcan) devient une fosse selon l'alternance ; même longueur (ruling R-F2). */
@@ -164,7 +177,7 @@ function buildTrack(
       }
       nextFlat = anchors.length;
     }
-    const drawnProfile = draw(rng, cfg, xNow(), targetLength, lastDrawn, !!opts.onlyPlat, nextIsFosse());
+    const drawnProfile = draw(rng, cfg, weights, xNow(), targetLength, lastDrawn, !!opts.onlyPlat, nextIsFosse());
     if (xNow() + drawnProfile.length > limit + 1e-9) break;
     const profile = typed(drawnProfile);
     append(profile);

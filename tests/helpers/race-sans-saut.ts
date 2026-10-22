@@ -37,6 +37,8 @@ function expectSansSaut(race: FiveCarRace, nF: number, seed: number): void {
 export function registerRaceSansSaut(seeds: readonly number[]): void {
   const lost: { seed: number; perFosse: number }[] = [];
   const receptions: ReceptionRow[] = [];
+  /** Survols tolérés (volcan pris en turbo, décision du papa au tour 2 de la 5g), imprimés en fin de fichier. */
+  const tolerated: ReceptionRow[] = [];
   describe(`doigt posé sans saut, graines ${seeds[0]} à ${seeds[seeds.length - 1]} (contact : ${CONTACT_WINDOW} s avant une chute)`, () => {
     test.each(seeds)('seed %i : Galahad seul puis à 5 voitures, 2 chutes par fosse, 0 au tremplin, arrivée ; temps perdu ; étoiles des réceptions', (seed) => {
       const nF = fosses(trackFor(seed)).length;
@@ -51,7 +53,7 @@ export function registerRaceSansSaut(seeds: readonly number[]): void {
       lost.push({ seed, perFosse });
       console.log(`seed ${seed} : ${nF} fosses ; arrivée sans saut ${f1(solo.r.finishedAt)} s, avec le saut parfait ${f1(jumper.finishedAt)} s ; `
         + `${f1(perFosse)} s perdues par fosse ratée deux fois\n  ${jumper.rows.map(describeRow).join('\n  ')}`);
-      expectReceptionStars(jumper.rows);
+      tolerated.push(...expectReceptionStars(jumper.rows));
       const five = fiveCarRace(seed, { jump: 'jamais' });
       console.log(`sans saut, 5 voitures : ${five.summary}`);
       expectSansSaut(five, nF, seed);
@@ -65,7 +67,8 @@ export function registerRaceSansSaut(seeds: readonly number[]): void {
       console.log(`graines ${seeds.join(', ')} : temps perdu par fosse ratée deux fois (Galahad seul) ${f1(ok[0])} à ${f1(ok[ok.length - 1])} s, `
         + `médiane ${f1(ok[Math.floor(ok.length / 2)])} s ; réceptions : ${tr.length} tremplins (contact jusqu'à ${max(tr, 'touch')} m, survol jusqu'à `
         + `${max(tr, 'lastMiss')} m), ${fo.length} fosses (contact jusqu'à ${max(fo, 'touch')} m, survol jusqu'à ${max(fo, 'lastMiss')} m) ; `
-        + `étoiles basses des réceptions : ${stars.filter((s) => s.taken).length} prises sur ${stars.length}`);
+        + `étoiles basses des réceptions : ${stars.filter((s) => s.taken).length} prises sur ${stars.length} ; `
+        + `survols tolérés (volcan pris en turbo) : ${tolerated.length}${tolerated.length ? `\n  ${tolerated.map(describeRow).join('\n  ')}` : ''}`);
       // Le test ne passe pas à vide : des étoiles de réception existent et sont prises.
       expect(stars.filter((s) => s.taken).length).toBeGreaterThanOrEqual(10);
     });

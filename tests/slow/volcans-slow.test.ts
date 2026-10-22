@@ -179,7 +179,8 @@ describe('scénario (ii) : double-bosse, une tranche, puis tremplin ; turbo pris
   });
 
   test('témoin, règle levée (graine 7) : double-bosse puis tremplin, turbo pris 31,8 m avant la double-bosse, chute', () => {
-    const cfg = { ...CONFIG, TREMPLIN_AFTER_DOUBLE_BOSSE: 1 };
+    // Pistes du tour 1 de la 5g, règle levée : poids de tirage des volcans d'avant le tour 2 (3).
+    const cfg = { ...CONFIG, TREMPLIN_AFTER_DOUBLE_BOSSE: 1, VOLCANO_WEIGHT: 3 };
     const track = trackFor(7, cfg);
     const i = track.slices.findIndex((sl, k) => sl.type === 'double-bosse' && track.slices[k + 1]?.type === 'rampe-volcan');
     expect(i).toBeGreaterThan(0);

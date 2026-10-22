@@ -168,6 +168,8 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
   });
 
   // Tâche 5e : les plats étoile prennent ≈ 171 m à longueur constante ; « 3 à 7 » devient « 2 à 7 » (saut §6.3).
+  // Tour 2 de la 5g (poids de tirage des volcans 4) : graines 0 à 19, 2 à 5 ; sur les graines 0 à 49, la graine 39 n'a
+  // qu'un volcan (un tremplin) : les tests qui veulent 2 volcans ou une fosse les cherchent, ou portent sur 0 à 19.
   test('2 à 7 volcans par piste de 1 680 m sur les graines 0 à 19', () => {
     const counts = SEEDS.slice(0, 20).map((seed) => track(seed, 1680).volcanoes.length);
     console.log(`volcans par piste de 1 680 m (graines 0 à 19) : ${counts.join(' ')} ; moyenne ${(counts.reduce((a, b) => a + b, 0) / counts.length).toFixed(2)}`);
@@ -306,11 +308,12 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
     expect(slackUsed.filter((x) => /^g[012]\/1680/.test(x))).toEqual([]);
   });
 
-  // Effet des plats étoile seuls : tremplin permis après une double-bosse (le refus du tour 1 de la 5g change la suite tirée
-  // plus tôt, voir le bloc des fosses).
+  // Effet des plats étoile seuls : tremplin permis après une double-bosse et poids de tirage des volcans d'avant (le refus
+  // du tour 1 de la 5g change la suite tirée plus tôt, voir le bloc des fosses ; le poids 4 du tour 2 la change dès le
+  // premier tirage).
   test('la suite des tranches tirées a un préfixe commun d’au moins 20 tranches avec les pistes d’avant (graines 0 à 49)', () => {
     const prefixes = SEEDS.map((seed) => {
-      const now = drawn(generateTrack(seed, 1680, { ...CONFIG, TREMPLIN_AFTER_DOUBLE_BOSSE: 1 }));
+      const now = drawn(generateTrack(seed, 1680, { ...CONFIG, TREMPLIN_AFTER_DOUBLE_BOSSE: 1, VOLCANO_WEIGHT: 3 }));
       const before = generateTrack(seed, 1680, AP).slices;
       let k = 0;
       // Une fosse est une rampe-volcan typée par l'alternance (tâche 5g) : même tirage.

@@ -10,6 +10,8 @@
 // étoiles de réception et le pas [35, 58] du curseur ; `FROZEN` resté identique dans le même commit, registre).
 // Tâche 5g, tour de correction 1 : `FROZEN_CONFIG` RECAPTURÉ une 3e fois par le ruling R-F10 (décision du papa « pas de
 // tremplin juste après une double-bosse » ; graine 0 seule ; `FROZEN` resté identique dans le même commit, registre).
+// Tâche 5g, tour 2 : `FROZEN_CONFIG` RECAPTURÉ une 4e fois par le ruling R-F10 (décision du papa : poids de tirage des
+// volcans 3 → 4, `VOLCANO_WEIGHT` ; graines 0 à 2 ; `FROZEN` resté identique dans le même commit, registre).
 // Toute autre variation reste un défaut.
 import { CONFIG, type Config } from '../src/config';
 import { createRaceSim, stepRace } from '../src/sim/simulate';
@@ -34,15 +36,18 @@ const FROZEN: Record<number, string> = {
  *   change pas (premier volcan en 254, 602 et 427 m : un tremplin chaque fois) ; ce sont les étoiles basses qui
  *   bougent (graine 0 : 324,4 → 268,4 et 283,9 m ; graine 1 : une étoile en 192,9 m ; graine 2 : une étoile de plus en
  *   400,7 m, donc des capteurs de plus dans le monde) : 4352f5fd… / 1687479a… / 67b1a3bb… ;
- * - tâche 5g, tour 1 (pas de tremplin juste après une double-bosse) : les valeurs ci-dessous. La règle ne touche le
- *   terrain qu'au-delà des 30 s (graine 0 : 733,8 m ; graine 1 : 957,4 m ; graine 2 : jamais), mais le curseur des
- *   étoiles tire sur le même rng après le terrain : graine 0, ses étoiles basses 268,4 et 283,9 m deviennent une seule
- *   en 268,7 m ; graines 1 et 2 : mêmes étoiles sur les 30 s, empreinte inchangée.
+ * - tâche 5g, tour 1 (pas de tremplin juste après une double-bosse) : 5b03e631… / 1687479a… / 67b1a3bb…. La règle ne
+ *   touche le terrain qu'au-delà des 30 s (graine 0 : 733,8 m ; graine 1 : 957,4 m ; graine 2 : jamais), mais le
+ *   curseur des étoiles tire sur le même rng après le terrain : graine 0, ses étoiles basses 268,4 et 283,9 m deviennent
+ *   une seule en 268,7 m ; graines 1 et 2 : mêmes étoiles sur les 30 s, empreinte inchangée ;
+ * - tâche 5g, tour 2 (poids de tirage des volcans 4) : les valeurs ci-dessous. Le terrain des 30 s change sur les trois
+ *   graines (le poids change chaque tirage) : graine 0, plus de tremplin en 254 m (premier volcan en 410 m) et un plat
+ *   étoile en 316 m ; graine 1, un tremplin en 365 m au lieu d'une double-bosse ; graine 2, tranches décalées dès 27 m.
  */
 const FROZEN_CONFIG: Record<number, string> = {
-  0: '5b03e631d1b814771168228042666963d021644d',
-  1: '1687479a837262528a04f5d429b6c6f265c08fcd',
-  2: '67b1a3bbfc66fc4fcd7104d68b350fd68ec190a8',
+  0: '118d4b62f5c8c23496a1793533852c62666e6e7a',
+  1: '1dc8add2779c62d90cf558d1c1a1bf6a6448ace3',
+  2: 'df75395192ed7b1f943925a1e78bdaa7b8db79b1',
 };
 
 function fingerprint(seed: number, cfg: Config): { digest: string; steps: number } {

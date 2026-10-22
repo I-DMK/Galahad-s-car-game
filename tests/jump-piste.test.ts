@@ -69,7 +69,9 @@ describe('le vol d’un saut ne compte pas comme un blocage', () => {
   });
 
   // Tâche 5g : le volcan de la graine 9 dont la lave était en 1 035 est devenu une fosse ; le scénario vise maintenant le
-  // premier tremplin de la graine 9 (les deux chutes de suite à une fosse : tests/fosses.test.ts).
+  // premier tremplin de la graine 9 (les deux chutes de suite à une fosse : tests/fosses.test.ts). Tour 2 de la 5g
+  // (poids de tirage des volcans 4) : ce tremplin est en 426 m, et un saut 6 m avant l'élan y passe encore (lave
+  // suivante : la fosse, 656,8 m) ; le saut mal placé est donc 8 m avant l'élan (comme sur 2 des 38 tremplins de la 5e).
   test('graine 9 : lave au premier tremplin, retour au point sûr, rafale d’appuis juste après : 0 « stuck », la 2e chute de suite pose la voiture après le volcan', () => {
     const track = trackFor(9);
     const v = tremplins(track)[0];
@@ -81,10 +83,10 @@ describe('le vol d’un saut ne compte pas comme un blocage', () => {
     let armed = true;
     while (sim.time < 200 && respawns.filter((e) => e.reason === 'lava').length < 2) {
       const x = g.state.progress;
-      // Saut mal placé, 6 m avant l'élan (première chute mesurée au Step 14), à chaque approche ; rafale de 0,2 s
-      // d'appuis juste après chaque reprise.
+      // Saut mal placé, 8 m avant l'élan (première chute mesurée au Step 14 : 6 m, 8 m sur 2 tremplins), à chaque
+      // approche ; rafale de 0,2 s d'appuis juste après chaque reprise.
       let jump = sim.time <= burstUntil;
-      if (armed && x >= v.xElanStart - 6 && x < v.xElanStart) { jump = true; armed = false; }
+      if (armed && x >= v.xElanStart - 8 && x < v.xElanStart) { jump = true; armed = false; }
       stepRace(sim, true, jump);
       for (const e of sim.events) {
         if (e.type !== 'respawn') continue;

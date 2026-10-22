@@ -12,5 +12,7 @@ test('graine 14 : doigt posé, chaque étoile basse d’une réception est prise
   expect(rows.length).toBeGreaterThanOrEqual(2);
   // Au moins une étoile de réception, prise (le test ne passe pas à vide).
   expect(rows.flatMap((w) => w.stars).filter((s) => s.taken).length).toBeGreaterThan(0);
-  expectReceptionStars(rows);
+  // Volcan pris en turbo : survol toléré, imprimé (décision du papa, tour 2 de la 5g).
+  const tolerated = expectReceptionStars(rows);
+  console.log(`survols tolérés (volcan pris en turbo) : ${tolerated.length ? tolerated.map(describeRow).join(' ; ') : 'aucun'}`);
 });

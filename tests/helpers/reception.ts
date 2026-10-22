@@ -23,7 +23,7 @@ export interface ReceptionRow {
   touch: number;
   /** Dernier x (m après xReception) où toutes les roues passent au-dessus d'une étoile basse ; −Infinity sinon. */
   lastMiss: number;
-  /** Turbo actif au passage du sommet ou du bord. */
+  /** Turbo actif au passage du sommet ou du bord (volcan pris en turbo). */
   turbo: boolean;
   /** Étoiles basses de la réception : x (m après xReception) et prise par Galahad. */
   stars: { dx: number; taken: boolean }[];
@@ -84,14 +84,22 @@ export const describeRow = (w: ReceptionRow): string =>
   + `étoiles [${w.stars.map((s) => `${s.dx.toFixed(1)}${s.taken ? ' prise' : ' RATÉE'}`).join(', ')}]`;
 
 /**
- * Assertions : chaque étoile basse d'une réception est prise ; l'atterrissage (premier contact et dernier survol) reste
- * à LANDING_MARGIN au moins avant le début des étoiles basses de la réception.
+ * Assertions : le premier contact reste à LANDING_MARGIN au moins avant le début des étoiles basses de la réception ;
+ * hors turbo, le dernier survol aussi, et chaque étoile basse de la réception est prise. Volcan pris en turbo (décision
+ * du papa, tour 2 de la 5g : graine 2, un tremplin pris en turbo rebondit et survole jusqu'à 62,2 m une étoile en
+ * 60,7 m ; dégagement gardé à 55 m) : survol et étoile ratée tolérés, renvoyés pour être imprimés (noté pour le test
+ * tablette). Ruling : « turbo actif » se lit au sommet (`turbo`), pas au contact : le turbo de l'étoile d'élan (3 s)
+ * finit pendant le vol, et à l'atterrissage de la graine 2 il ne l'est plus.
  */
-export function expectReceptionStars(rows: readonly ReceptionRow[], cfg: Config = CONFIG): void {
+export function expectReceptionStars(rows: readonly ReceptionRow[], cfg: Config = CONFIG): ReceptionRow[] {
+  const tolerated: ReceptionRow[] = [];
   for (const w of rows) {
     const clear = w.kind === 'tremplin' ? cfg.STAR_TREMPLIN_LANDING : cfg.STAR_FOSSE_LANDING;
     expect(w.touch, describeRow(w)).toBeLessThanOrEqual(clear - LANDING_MARGIN);
+    const missed = w.lastMiss > clear - LANDING_MARGIN || w.stars.some((s) => !s.taken);
+    if (missed && w.turbo) { tolerated.push(w); continue; }
     expect(w.lastMiss, describeRow(w)).toBeLessThanOrEqual(clear - LANDING_MARGIN);
     expect(w.stars.filter((s) => !s.taken), describeRow(w)).toEqual([]);
   }
+  return tolerated;
 }

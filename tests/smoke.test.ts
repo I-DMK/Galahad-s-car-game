@@ -74,7 +74,7 @@ describe('CONFIG', () => {
     expect(CONFIG.STAR_HIGH_BUMP_CLEARANCE).toBe(12);
   });
 
-  it('fosses (tâche 5g, saut §6.9) : 1 volcan sur 2, 8 m, garde 20 m, étoile de réception à 25 m, visée 1 s (au moins 2 m), posée à + 5 m, fantôme jusqu’à + 40 m, pas de tremplin juste après une double-bosse', () => {
+  it('fosses (tâche 5g, saut §6.9) : 1 volcan sur 2, 8 m, garde 20 m, étoile de réception à 25 m, visée 1 s (au moins 2 m), posée à + 5 m, fantôme jusqu’à + 40 m, pas de tremplin juste après une double-bosse, poids de tirage des volcans 4', () => {
     expect(CONFIG.FOSSE_PERIOD).toBe(2);
     expect(CONFIG.FOSSE_WIDTH).toBe(8);
     expect(CONFIG.FOSSE_GUARD).toBe(20);
@@ -82,6 +82,7 @@ describe('CONFIG', () => {
     expect(CONFIG.FOSSE_JUMP_AIM).toBe(1);
     expect(CONFIG.FOSSE_JUMP_MIN_DISTANCE).toBe(2);
     expect(CONFIG.TREMPLIN_AFTER_DOUBLE_BOSSE).toBe(0);
+    expect(CONFIG.VOLCANO_WEIGHT).toBe(4);
     expect(CONFIG.FOSSE_RESPAWN_AFTER).toBe(5);
     expect(CONFIG.FOSSE_GHOST_AFTER).toBe(40);
   });

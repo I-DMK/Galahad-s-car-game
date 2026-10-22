@@ -1,7 +1,8 @@
 // Fosse de lave sur tablette simulée (plan B, tâche 5g, Step 5 ; addendum « bouton saut » §6.4 et §6.7, ruling R-F13).
-// Graine 31 : sa première fosse est la plus proche du départ des graines 0 à 49 (bord amont à ≈ 311 m). Doigt tenu,
-// sans jamais sauter : captures de la fosse (lave, halo, langues de feu) et de son panneau, puis deux chutes dans la
-// lave (`__game.respawns`, ?debug=1) ; la 2e pose Galahad juste après la fosse (option B) et la course continue.
+// Graine 18 : sa première fosse est la plus proche du départ des graines 0 à 49 (bord amont à ≈ 317 m ; graine 31
+// jusqu'au tour 1 de la 5g, avant le poids de tirage des volcans 4). Doigt tenu, sans jamais sauter : captures de la
+// fosse (lave, halo, langues de feu) et de son panneau, puis deux chutes dans la lave (`__game.respawns`, ?debug=1) ;
+// la 2e pose Galahad juste après la fosse (option B) et la course continue.
 // Aucune assertion sur un saut à la main à l'instant juste : Playwright n'est pas régulier à 16 ms près (couvert en
 // simulation, tests/fosses.test.ts et tests/slow/fosses-fenetres-*.test.ts).
 import { expect, test } from '@playwright/test';
@@ -11,7 +12,7 @@ import { fosses } from '../src/track/query';
 import { waitForGame } from './helpers';
 
 const SHOTS = 'e2e/screenshots';
-const SEED = 31;
+const SEED = 18;
 
 test('doigt tenu sans sauter jusqu’à la première fosse : captures, deux chutes, posé après la fosse, la course continue', async ({ page }) => {
   test.setTimeout(150_000);

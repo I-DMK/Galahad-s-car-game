@@ -111,6 +111,10 @@ export const CONFIG = {
   // comme un volcan après une rampe-saut) : un turbo fini pendant le vol d'une double-bosse prise à ≈ 21 m/s faisait
   // tomber doigt posé (3 chutes sur 1 568, tests/slow/volcans-slow.test.ts, scénario (ii)). 1 = permis (pistes d'avant).
   TREMPLIN_AFTER_DOUBLE_BOSSE: 0,
+  // Poids de tirage d'un volcan (tremplin ou fosse ; plat 2, bosses 3, rampe-saut 2, double-bosse 2). 3 jusqu'à la 5g ;
+  // 4 depuis le tour 2 de la 5g (décision du papa : remonter à ≈ 3,6 volcans par course, tombés à 3,16 avec « pas de
+  // tremplin juste après une double-bosse ») : 3,62 (1 à 5) sur les graines 0 à 49. 3 = pistes d'avant.
+  VOLCANO_WEIGHT: 4,
   // Étoiles basses des réceptions (tâche 5g, demande du papa : une étoile au tout début d'une réception était survolée
   // doigt posé, graine 14 : toutes les voitures en turbo en ratent une sur un tremplin). Aucune étoile basse du curseur
   // avant xReception + ces dégagements : atterrissage le plus long doigt posé (turbo compris), plus une marge.
