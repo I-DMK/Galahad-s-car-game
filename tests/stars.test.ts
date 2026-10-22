@@ -65,10 +65,11 @@ describe('invariants (graines 0..49, 1 680 m)', () => {
     }
   });
 
-  test('chaque étoile est dans une zone admissible ou est une étoile d’élan (xElanStart − 2)', () => {
+  // Les plats étoile (tâche 5e, Step 13) ne sont pas des zones admissibles : leurs étoiles sont hautes (tests/high-stars.test.ts).
+  test('chaque étoile basse est dans une zone admissible ou est une étoile d’élan (xElanStart − 2)', () => {
     for (const t of tracks50) {
       const zones = admissibleZones(t);
-      for (const s of t.stars) {
+      for (const s of low(t.stars)) {
         const ok = isElanStar(t, s) || zones.some(([a, b]) => s.x >= a - 1e-9 && s.x <= b + 1e-9);
         expect(ok, `seed ${t.seed} étoile x=${s.x}`).toBe(true);
       }

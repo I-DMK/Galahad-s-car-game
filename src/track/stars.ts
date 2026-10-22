@@ -88,20 +88,36 @@ export function placeStars(track: Track, rng: () => number, cfg: Config): Star[]
 }
 
 /**
- * Étoiles hautes d'une piste (x) : les candidates (`highStarCandidates`) si elles sont au plus STAR_HIGH_PER_RACE,
- * sinon STAR_HIGH_PER_RACE d'entre elles tirées sans remise par `rng` (Fisher-Yates partiel), dans l'ordre de la
- * piste. STAR_HIGH_PER_RACE = 0 : aucune, et aucun tirage.
+ * Étoile haute d'un plat étoile (tâche 5e, saut §6.6) : à STAR_HIGH_BUMP_CLEARANCE (dégagement d'entrée) +
+ * STAR_HIGH_TAKEOFF_ROOM (élan) de son début, soit 32 m ; il reste STAR_HIGH_LANDING_ROOM (25 m) d'atterrissage.
+ */
+export const starFlatStarX = (sl: { xStart: number }, cfg: Config): number =>
+  sl.xStart + cfg.STAR_HIGH_BUMP_CLEARANCE + cfg.STAR_HIGH_TAKEOFF_ROOM;
+
+/**
+ * Étoiles hautes d'une piste (x), au plus STAR_HIGH_PER_RACE (0 : aucune, et aucun tirage) :
+ * 1. d'abord celle de chaque plat étoile (ruling R-F8), dans l'ordre de la piste, sans tirage ;
+ * 2. s'il reste de la place, les candidates des plats ordinaires (`highStarCandidates`) à au moins
+ *    STAR_HIGH_TAKEOFF_ROOM + STAR_HIGH_LANDING_ROOM d'une étoile de plat étoile : toutes si elles tiennent, sinon
+ *    tirées sans remise par `rng` (Fisher-Yates partiel).
+ * Résultat dans l'ordre de la piste.
  */
 export function chooseHighStars(track: Track, lowXs: readonly number[], rng: () => number, cfg: Config): number[] {
   const n = cfg.STAR_HIGH_PER_RACE;
   if (n <= 0) return [];
-  const cands = highStarCandidates(track, lowXs, cfg);
-  if (cands.length <= n) return cands;
-  for (let i = 0; i < n; i++) {
-    const j = i + Math.floor(rng() * (cands.length - i));
-    [cands[i], cands[j]] = [cands[j], cands[i]];
+  const flats = track.slices.filter((sl) => sl.type === 'plat-étoile').map((sl) => starFlatStarX(sl, cfg)).slice(0, n);
+  const room = n - flats.length;
+  if (room <= 0) return flats;
+  const away = cfg.STAR_HIGH_TAKEOFF_ROOM + cfg.STAR_HIGH_LANDING_ROOM;
+  const cands = highStarCandidates(track, lowXs, cfg).filter((x) => flats.every((f) => Math.abs(x - f) >= away - 1e-9));
+  if (cands.length > room) {
+    for (let i = 0; i < room; i++) {
+      const j = i + Math.floor(rng() * (cands.length - i));
+      [cands[i], cands[j]] = [cands[j], cands[i]];
+    }
+    cands.length = room;
   }
-  return cands.slice(0, n).sort((p, q) => p - q);
+  return [...flats, ...cands].sort((p, q) => p - q);
 }
 
 // ——— Étoiles hautes (plan B, tâche 5e ; addendum « bouton saut » §2, amendé [plan], décision P1 du papa) ———
@@ -140,7 +156,7 @@ export function highStarClearances(track: Track, cfg: Config): Interval[] {
 /**
  * Terrain permis pour l'élan et l'atterrissage d'un saut vers une étoile haute : la piste à partir de xStart +
  * D_LANCE, jusqu'à xWall, sauf les tranches rampe-saut et rampe-volcan (plats de lancement et de réception compris)
- * et les dégagements. Zone de départ exclue (ruling de la tâche 5e) : l'élan commence là où une voiture partie
+ * et les dégagements. Un plat étoile est du terrain permis (mais pas un segment éligible, `highStarSegments`). Zone de départ exclue (ruling de la tâche 5e) : l'élan commence là où une voiture partie
  * arrêtée de la grille a atteint V_MAX (D_LANCE), comme pour la fenêtre calibrée à 11,2 et 14 m/s ; sans elle,
  * une étoile haute pouvait se trouver 10 m devant la pole (graine 7, x = 29,7 m).
  */

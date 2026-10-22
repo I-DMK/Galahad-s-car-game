@@ -25,8 +25,9 @@ describe('CONFIG', () => {
   });
 
   it('étoiles v2 (tâche 2) : pas du curseur, plancher, étoile d’élan ; STAR_EXCLUSION_BEFORE_LAVA retirée', () => {
-    expect(CONFIG.STAR_STEP_MIN).toBe(60);
-    expect(CONFIG.STAR_STEP_MAX).toBe(100);
+    // Tâche 5e (Step 13) : [55, 90] avec les plats étoile (saut §6.5) ; [60, 100] reste celui des pistes d'avant.
+    expect(CONFIG.STAR_STEP_MIN).toBe(55);
+    expect(CONFIG.STAR_STEP_MAX).toBe(90);
     expect(CONFIG.STAR_MIN_COUNT).toBe(6);
     expect(CONFIG.STAR_ELAN_OFFSET).toBe(2);
     expect(CONFIG.STAR_ELAN_GAP).toBe(5);
@@ -70,6 +71,12 @@ describe('CONFIG', () => {
     expect(CONFIG.STAR_HIGH_LANDING_ROOM).toBe(25);
     expect(CONFIG.STAR_HIGH_RAMP_CLEARANCE).toBe(50);
     expect(CONFIG.STAR_HIGH_BUMP_CLEARANCE).toBe(12);
+  });
+
+  it('plats étoile (tâche 5e, Step 13) : 3 par course, un par 400 m au plus, 57 m = dégagement + élan + atterrissage', () => {
+    expect(CONFIG.STAR_FLATS_PER_RACE).toBe(3);
+    expect(CONFIG.STAR_FLAT_SPACING).toBe(400);
+    expect(CONFIG.STAR_FLAT_LENGTH).toBe(57);
   });
 
   it('dimensionne la zone de départ pour 5 longueurs de voiture à vitesse turbo plus 10 m', () => {

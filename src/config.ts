@@ -7,6 +7,10 @@ const SAFE_LANCEMENT_MARGIN = 5;
 const GRAVITY = 4.9;
 /** m : hauteur gagnée par un saut au-dessus du vol sans saut, quelle que soit la pente (décision P3 du papa, plan B tâche 5e). */
 const JUMP_APEX = 2.5;
+/** m : dégagement après bosses, élan et atterrissage d'une étoile haute (tâche 5e) ; STAR_FLAT_LENGTH en est dérivée. */
+const STAR_HIGH_BUMP_CLEARANCE = 12;
+const STAR_HIGH_TAKEOFF_ROOM = 20;
+const STAR_HIGH_LANDING_ROOM = 25;
 export const CONFIG = {
   PIXELS_PER_METER: 40,
   GRAVITY,                      // m/s²
@@ -16,7 +20,7 @@ export const CONFIG = {
   TURBO_FACTOR: 1.5,
   TURBO_SECONDS: 3,
   STAR_RESPAWN_SECONDS: 5,
-  STAR_STEP_MIN: 60, STAR_STEP_MAX: 100,   // m : pas du curseur global d'étoiles (addendum §1.5, cible 8 à 12) ; longueur admissible ≈ 600 m par 1 680 m (397–748 mesurés) → ≈ 9 étoiles + élan ; [80, 130] donnait 7,3 (mesuré au tour de relecture de la tâche 2)
+  STAR_STEP_MIN: 55, STAR_STEP_MAX: 90,    // m : pas du curseur global d'étoiles (addendum §1.5, cible 8 à 12) ; [60, 100] jusqu'à la tâche 5e (≈ 9,02 étoiles basses ; [80, 130] donnait 7,3) ; [55, 90] avec les plats étoile (tâche 5e, saut §6.5), qui prennent ≈ 171 m de plats par course : voir le registre
   STAR_MIN_COUNT: 6,            // plancher : étoiles d'élan ajoutées aux volcans sans étoile, dans l'ordre de la piste ; plancher non garanti sans volcan (une piste sans volcan ou `?len=300` peut en avoir moins, jusqu'à 0)
   STAR_ELAN_OFFSET: 2,          // m : étoile d'élan à xElanStart − 2 (turbo encore actif au sommet)
   STAR_ELAN_GAP: 5,             // m : le curseur s'arrête à xElanStart − 5 sur le plat de lancement (≥ 3 m avant l'étoile d'élan)
@@ -81,10 +85,16 @@ export const CONFIG = {
   // (tests/high-stars-window.test.ts).
   STAR_HIGH_PER_RACE: 3,        // au plus N étoiles hautes ajoutées par course ; 0 = étoiles d'avant la tâche 5e, au bit près
   STAR_HIGH_Y: 3.9,             // m au-dessus du sol local (centre de l'étoile), décision P6
-  STAR_HIGH_TAKEOFF_ROOM: 20,   // m de terrain permis avant l'étoile (élan du saut), pas forcément du plat
-  STAR_HIGH_LANDING_ROOM: 25,   // m de terrain permis après l'étoile (atterrissage) ; vol ≈ 2,2 s, ≈ 31 m à 14 m/s
+  STAR_HIGH_TAKEOFF_ROOM,       // 20 m de terrain permis avant l'étoile (élan du saut), pas forcément du plat
+  STAR_HIGH_LANDING_ROOM,       // 25 m de terrain permis après l'étoile (atterrissage) ; vol ≈ 2,2 s, ≈ 31 m à 14 m/s
   STAR_HIGH_GAP: 10,            // m minimum entre une étoile haute et toute étoile basse
   STAR_HIGH_RAMP_CLEARANCE: 50, // m interdits après la fin d'une rampe-saut (vol doigt posé, turbo compris)
-  STAR_HIGH_BUMP_CLEARANCE: 12, // m interdits après la fin d'une bosses, double-bosse ou cratère
+  STAR_HIGH_BUMP_CLEARANCE,     // 12 m interdits après la fin d'une bosses, double-bosse ou cratère
+  // Plats étoile (tâche 5e, décisions P7 et Q-F4, saut §6.6, ruling R-F8) : le générateur pose STAR_FLATS_PER_RACE
+  // tranches 'plat-étoile' (une par STAR_FLAT_SPACING m de piste au plus), chacune avec son étoile haute à
+  // dégagement + élan = 32 m de son début ; jamais juste après une rampe-saut, aucune étoile basse dessus.
+  STAR_FLATS_PER_RACE: 3,       // plats étoile par course ; 0 = aucun (pistes d'avant)
+  STAR_FLAT_SPACING: 400,       // m de piste par plat étoile (pistes courtes : 1 à 600 m, 0 à 300 m)
+  STAR_FLAT_LENGTH: STAR_HIGH_BUMP_CLEARANCE + STAR_HIGH_TAKEOFF_ROOM + STAR_HIGH_LANDING_ROOM,   // 57 m : dégagement d'entrée + élan + atterrissage
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

@@ -1,6 +1,9 @@
 export interface TrackPoint { x: number; y: number }
-/** `cratère` : défini dès la tâche 1 (addendum §1.4), généré en tâche 15. */
-export type SliceType = 'plat' | 'bosses' | 'rampe-saut' | 'double-bosse' | 'rampe-volcan' | 'cratère';
+/**
+ * `cratère` : défini dès la tâche 1 (addendum §1.4), généré en tâche 15. `plat-étoile` : plat dédié à une étoile haute
+ * (tâche 5e, saut §6.6), posé par le générateur sans tirage.
+ */
+export type SliceType = 'plat' | 'bosses' | 'rampe-saut' | 'double-bosse' | 'rampe-volcan' | 'cratère' | 'plat-étoile';
 export interface Slice { type: SliceType; xStart: number; xEnd: number }
 export interface Volcano {
   /** Début de la tranche = début du plat de lancement (LANCEMENT_LENGTH). */

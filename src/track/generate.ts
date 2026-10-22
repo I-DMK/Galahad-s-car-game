@@ -1,7 +1,7 @@
 import type { Config } from '../config';
 import { mulberry32, pickWeighted } from './rng';
 import { placeStars } from './stars';
-import { bosses, doubleBosse, plat, rampeSaut, rampeVolcan, type SliceProfile } from './slices';
+import { bosses, doubleBosse, plat, platEtoile, rampeSaut, rampeVolcan, type SliceProfile } from './slices';
 import type { Slice, SliceType, Track, TrackPoint, Volcano } from './types';
 
 const WEIGHTS: { item: SliceType; weight: number }[] = [
@@ -34,6 +34,10 @@ export function parseTrackOptions(search: string, cfg: Config): TrackOptions {
   return { seed, length, debug: q.get('debug') === '1' };
 }
 
+/**
+ * Tire une tranche. `previous` est la dernière tranche TIRÉE (un plat étoile intercalé est ignoré, ruling R-F5) :
+ * les refus des volcans ne dépendent pas des plats étoile, et la suite des tirages reste celle d'avant.
+ */
 function draw(
   rng: () => number, cfg: Config, x: number, target: number, previous: SliceType, onlyPlat: boolean,
 ): SliceProfile {
@@ -88,10 +92,28 @@ export function generateTrack(
 
   append(plat(rng, cfg, cfg.START_LENGTH));
   const limit = targetLength - cfg.FINISH_PLAT_BEFORE - cfg.AFTER_FINISH;
+  // Plats étoile (tâche 5e, saut §6.6) : N ancres régulières entre la fin du plat de départ et la limite ; avant chaque
+  // tirage, si x a passé l'ancre suivante, si la dernière tranche tirée n'est pas une rampe-saut et si le plat étoile
+  // tient avant la limite, il est posé (sans tirage). S'il ne tient plus, les suivants sont abandonnés.
+  const x0 = xNow();
+  const nFlats = opts.onlyPlat ? 0 : Math.max(0, Math.min(cfg.STAR_FLATS_PER_RACE, Math.floor((limit - x0) / cfg.STAR_FLAT_SPACING)));
+  const anchors = Array.from({ length: nFlats }, (_, k) => x0 + ((k + 0.5) * (limit - x0)) / nFlats);
+  let nextFlat = 0;
+  let lastDrawn: SliceType = slices[slices.length - 1].type;
   for (;;) {
-    const profile = draw(rng, cfg, xNow(), targetLength, slices[slices.length - 1].type, !!opts.onlyPlat);
+    if (nextFlat < anchors.length && xNow() >= anchors[nextFlat] - 1e-9 && lastDrawn !== 'rampe-saut') {
+      const flat = platEtoile(cfg);
+      if (xNow() + flat.length <= limit + 1e-9) {
+        append(flat);
+        nextFlat++;
+        continue;
+      }
+      nextFlat = anchors.length;
+    }
+    const profile = draw(rng, cfg, xNow(), targetLength, lastDrawn, !!opts.onlyPlat);
     if (xNow() + profile.length > limit + 1e-9) break;
     append(profile);
+    lastDrawn = profile.type;
   }
 
   const finalLength = targetLength - cfg.AFTER_FINISH - xNow();

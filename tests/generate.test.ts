@@ -2,7 +2,11 @@ import { CONFIG } from '../src/config';
 import { defaultTrackLength, generateTrack, parseTrackOptions } from '../src/track/generate';
 import { plat } from '../src/track/slices';
 import { mulberry32 } from '../src/track/rng';
-import type { Track } from '../src/track/types';
+import type { Slice, Track } from '../src/track/types';
+import { AP } from './helpers/anciennes-pistes';
+
+/** Tranches tirées : sans les plats étoile, posés sans tirage (tâche 5e, ruling R-F5). */
+const drawn = (t: Track): Slice[] => t.slices.filter((s) => s.type !== 'plat-étoile');
 
 const S = CONFIG.TRACK_POINT_SPACING;
 const SEEDS = Array.from({ length: 50 }, (_, i) => i);
@@ -71,11 +75,12 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
     }
   });
 
-  test('jamais deux rampe-volcan consécutives ; volcanoes cohérents avec les tranches', () => {
+  test('jamais deux rampe-volcan consécutives (plats étoile ignorés) ; volcanoes cohérents avec les tranches', () => {
     for (const [seed, len] of CASES) {
       const t = track(seed, len);
-      for (let i = 1; i < t.slices.length; i++) {
-        expect(t.slices[i].type === 'rampe-volcan' && t.slices[i - 1].type === 'rampe-volcan').toBe(false);
+      const d = drawn(t);
+      for (let i = 1; i < d.length; i++) {
+        expect(d[i].type === 'rampe-volcan' && d[i - 1].type === 'rampe-volcan').toBe(false);
       }
       const vs = t.slices.filter((s) => s.type === 'rampe-volcan');
       expect(t.volcanoes).toHaveLength(vs.length);
@@ -137,19 +142,21 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
     }
   });
 
-  test('aucun volcan n’est précédé d’une rampe-saut (graines 0 à 49, 1 680 m)', () => {
+  test('aucun volcan n’est précédé d’une rampe-saut, plats étoile ignorés (graines 0 à 49, 1 680 m)', () => {
     for (const seed of SEEDS) {
-      const t = track(seed, 1680);
-      for (let i = 1; i < t.slices.length; i++) {
-        if (t.slices[i].type === 'rampe-volcan') expect(t.slices[i - 1].type, `seed ${seed}, tranche ${i}`).not.toBe('rampe-saut');
+      const d = drawn(track(seed, 1680));
+      for (let i = 1; i < d.length; i++) {
+        if (d[i].type === 'rampe-volcan') expect(d[i - 1].type, `seed ${seed}, tranche tirée ${i}`).not.toBe('rampe-saut');
       }
     }
   });
 
-  test('3 à 7 volcans par piste de 1 680 m sur les graines 0 à 19', () => {
+  // Tâche 5e : les plats étoile prennent ≈ 171 m à longueur constante ; « 3 à 7 » devient « 2 à 7 » (saut §6.3).
+  test('2 à 7 volcans par piste de 1 680 m sur les graines 0 à 19', () => {
     const counts = SEEDS.slice(0, 20).map((seed) => track(seed, 1680).volcanoes.length);
+    console.log(`volcans par piste de 1 680 m (graines 0 à 19) : ${counts.join(' ')} ; moyenne ${(counts.reduce((a, b) => a + b, 0) / counts.length).toFixed(2)}`);
     for (const [seed, n] of counts.entries()) {
-      expect(n, `seed ${seed} : ${n} volcans (${counts.join(' ')})`).toBeGreaterThanOrEqual(3);
+      expect(n, `seed ${seed} : ${n} volcans (${counts.join(' ')})`).toBeGreaterThanOrEqual(2);
       expect(n, `seed ${seed} : ${n} volcans (${counts.join(' ')})`).toBeLessThanOrEqual(7);
     }
   });
@@ -167,13 +174,79 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
   test('chaque type de tranche et les volcans apparaissent sur les longues pistes', () => {
     const types = new Set<string>();
     for (const seed of SEEDS) for (const s of track(seed, 6000).slices) types.add(s.type);
-    expect([...types].sort()).toEqual(['bosses', 'double-bosse', 'plat', 'rampe-saut', 'rampe-volcan']);
+    expect([...types].sort()).toEqual(['bosses', 'double-bosse', 'plat', 'plat-étoile', 'rampe-saut', 'rampe-volcan']);
   });
 
   test('longueur non multiple de la maille : longueur à moins d une maille de la cible', () => {
     const t = generateTrack(3, 913.37, CONFIG);
     expect(Math.abs(t.length - 913.37)).toBeLessThan(S);
     expect(t.xWall - t.xFinish).toBeCloseTo(CONFIG.AFTER_FINISH, 9);
+  });
+});
+
+describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
+  const flats = (t: Track): Slice[] => t.slices.filter((s) => s.type === 'plat-étoile');
+
+  test('N plats étoile : 3 à 1 680 m (graines 0 à 49) et à 6 000 m (graines 0 à 19), 1 à 600 m, 0 à 300 m', () => {
+    for (const seed of SEEDS) expect(flats(track(seed, 1680)), `graine ${seed}`).toHaveLength(3);
+    for (const seed of SEEDS.slice(0, 20)) expect(flats(track(seed, 6000)), `graine ${seed}`).toHaveLength(3);
+    for (const seed of SEEDS) {
+      expect(flats(generateTrack(seed, 600, CONFIG)), `graine ${seed}`).toHaveLength(1);
+      expect(flats(track(seed, 300)), `graine ${seed}`).toHaveLength(0);
+    }
+  });
+
+  test('longueur STAR_FLAT_LENGTH (57 m) à une maille près, hauteur 0, jamais juste après une rampe-saut', () => {
+    expect(CONFIG.STAR_FLAT_LENGTH).toBe(CONFIG.STAR_HIGH_BUMP_CLEARANCE + CONFIG.STAR_HIGH_TAKEOFF_ROOM + CONFIG.STAR_HIGH_LANDING_ROOM);
+    expect(CONFIG.STAR_FLAT_LENGTH).toBe(57);
+    for (const [seed, len] of CASES) {
+      const t = track(seed, len);
+      t.slices.forEach((s, i) => {
+        if (s.type !== 'plat-étoile') return;
+        expect(Math.abs(s.xEnd - s.xStart - CONFIG.STAR_FLAT_LENGTH), `graine ${seed}`).toBeLessThanOrEqual(S + 1e-9);
+        expect(t.slices[i - 1].type, `graine ${seed}, plat étoile en ${s.xStart}`).not.toBe('rampe-saut');
+        expect(t.points.filter((p) => p.x >= s.xStart - 1e-9 && p.x <= s.xEnd + 1e-9 && p.y !== 0)).toEqual([]);
+      });
+    }
+  });
+
+  test('le k-ième plat étoile commence à la première frontière ≥ a_k permise (frontières sautées : après une rampe-saut seulement)', () => {
+    for (const [seed, len] of CASES) {
+      const t = track(seed, len);
+      const x0 = t.slices[0].xEnd;
+      const limit = len - CONFIG.FINISH_PLAT_BEFORE - CONFIG.AFTER_FINISH;
+      const fs = flats(t);
+      const n = fs.length;
+      fs.forEach((f, k) => {
+        const a = x0 + ((k + 0.5) * (limit - x0)) / n;
+        const where = `graine ${seed}, ${len} m, plat étoile ${k} en ${f.xStart.toFixed(1)} (ancre ${a.toFixed(1)})`;
+        expect(f.xStart, where).toBeGreaterThanOrEqual(a - 1e-9);
+        // Toute frontière de [a_k, début du plat étoile[ suit une rampe-saut (frontière refusée).
+        const skipped = t.slices.filter((s) => s.xEnd >= a - 1e-9 && s.xEnd < f.xStart - 1e-9);
+        for (const s of skipped) expect(s.type, where).toBe('rampe-saut');
+      });
+    }
+  });
+
+  test('la suite des tranches tirées a un préfixe commun d’au moins 20 tranches avec les pistes d’avant (graines 0 à 49)', () => {
+    const prefixes = SEEDS.map((seed) => {
+      const now = drawn(track(seed, 1680));
+      const before = generateTrack(seed, 1680, AP).slices;
+      let k = 0;
+      while (k < now.length && k < before.length && now[k].type === before[k].type
+        && Math.abs((now[k].xEnd - now[k].xStart) - (before[k].xEnd - before[k].xStart)) < 1e-6) k++;
+      return k;
+    });
+    console.log(`préfixe commun des tranches tirées (graines 0 à 49) : min ${Math.min(...prefixes)}, moyenne ${(prefixes.reduce((a, b) => a + b, 0) / prefixes.length).toFixed(1)}`);
+    for (const [seed, k] of prefixes.entries()) expect(k, `graine ${seed}`).toBeGreaterThanOrEqual(20);
+  });
+
+  test('onlyPlat : ni plat étoile ni volcan', () => {
+    for (const seed of SEEDS.slice(0, 10)) {
+      const t = generateTrack(seed, 1680, CONFIG, { onlyPlat: true });
+      expect(flats(t)).toEqual([]);
+      expect(t.volcanoes).toEqual([]);
+    }
   });
 });
 

@@ -2,7 +2,7 @@ import { CONFIG } from '../src/config';
 import { jumpRange } from '../src/track/ballistics';
 import { mulberry32 } from '../src/track/rng';
 import {
-  bosses, doubleBosse, plat, rampeSaut, rampeVolcan, volcanoGeometry,
+  bosses, doubleBosse, plat, platEtoile, rampeSaut, rampeVolcan, volcanoGeometry,
   type SliceProfile,
 } from '../src/track/slices';
 
@@ -318,4 +318,16 @@ test('bosses : pente ≤ MAX_SLOPE pour de nombreuses graines', () => {
       prev = h;
     }
   }
+});
+
+describe('plat étoile (tâche 5e, saut §6.6)', () => {
+  test('platEtoile : tranche « plat-étoile » de STAR_FLAT_LENGTH (57 m) à la maille, hauteur 0, sans exemption ni tirage', () => {
+    const p = platEtoile(CONFIG);
+    expect(p.type).toBe('plat-étoile');
+    expect(p.length).toBeCloseTo(CONFIG.STAR_FLAT_LENGTH, 9);
+    expect(p.heights).toHaveLength(Math.round(CONFIG.STAR_FLAT_LENGTH / CONFIG.TRACK_POINT_SPACING));
+    expect(p.heights.every((h) => h === 0)).toBe(true);
+    expect(p.exemptIndices).toEqual([]);
+    expect(p.volcano).toBeUndefined();
+  });
 });

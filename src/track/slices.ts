@@ -42,6 +42,15 @@ export function plat(rng: Rng, cfg: Config, length?: number): SliceProfile {
   return { type: 'plat', heights, length: l, exemptIndices: [] };
 }
 
+/**
+ * Plat étoile (tâche 5e, saut §6.6) : plat de STAR_FLAT_LENGTH (57 m), sans tirage. Son étoile haute (à
+ * STAR_HIGH_BUMP_CLEARANCE + STAR_HIGH_TAKEOFF_ROOM de son début) est posée par `placeStars`.
+ */
+export function platEtoile(cfg: Config): SliceProfile {
+  const { heights, length } = sample(cfg, cfg.STAR_FLAT_LENGTH, () => 0);
+  return { type: 'plat-étoile', heights, length, exemptIndices: [] };
+}
+
 export function bosses(rng: Rng, cfg: Config): SliceProfile {
   const s = cfg.TRACK_POINT_SPACING;
   const L = Math.round((30 + rng() * 30) / s) * s;

@@ -1,8 +1,8 @@
-// Étoiles hautes ajoutées (plan B, tâche 5e, Step 7 ; addendum « bouton saut » §2 amendé [plan], décision P1) :
-// placement statique, graines 0 à 49, pistes de 1 680 m. Les règles sont revérifiées ici à partir des tranches,
-// indépendamment de src/track/stars.ts. Le nombre d'étoiles hautes par course n'a pas encore de seuil : sa
-// moyenne et le nombre de pistes qui en ont sont imprimés ; les seuils arrivent au Step 10, après la calibration
-// (Step 9, validée par le papa).
+// Étoiles hautes ajoutées (plan B, tâche 5e, Steps 7 et 13 ; addendum « bouton saut » §2 amendé [plan] et §6.6,
+// décisions P1, P7 et Q-F4) : placement statique, graines 0 à 49, pistes de 1 680 m. Exactement 3 étoiles hautes par
+// course, celles des 3 plats étoile, à + 32 m de leur début. Les règles des plats ordinaires (5e, Step 7) restent
+// testées sur une fixture à plafond 5 (`STAR_HIGH_PER_RACE` 5), pour un éventuel changement d'avis. Les règles sont
+// revérifiées ici à partir des tranches, indépendamment de src/track/stars.ts.
 import { CONFIG, type Config } from '../src/config';
 import { simulateRace } from '../src/sim/harness';
 import { AP } from './helpers/anciennes-pistes';
@@ -16,6 +16,15 @@ import type { Slice, SliceType, Star, Track } from '../src/track/types';
 const LEN = 1680;
 const SEEDS = Array.from({ length: 50 }, (_, i) => i);
 const tracks = SEEDS.map((seed) => generateTrack(seed, LEN, CONFIG));
+/** Fixture à plafond 5 : les 3 étoiles des plats étoile, plus des étoiles sur des plats ordinaires (règle du Step 7). */
+const CAP5: Config = { ...CONFIG, STAR_HIGH_PER_RACE: 5 };
+const tracks5 = SEEDS.map((seed) => generateTrack(seed, LEN, CAP5));
+/** Étoile de plat étoile : à STAR_HIGH_BUMP_CLEARANCE + STAR_HIGH_TAKEOFF_ROOM (32 m) du début de son plat. */
+const FLAT_STAR_AT = CONFIG.STAR_HIGH_BUMP_CLEARANCE + CONFIG.STAR_HIGH_TAKEOFF_ROOM;
+const starFlats = (t: Track): Slice[] => t.slices.filter((sl) => sl.type === 'plat-étoile');
+const onStarFlat = (t: Track, x: number): boolean => starFlats(t).some((f) => x >= f.xStart - 1e-9 && x <= f.xEnd + 1e-9);
+/** Étoiles hautes des plats ordinaires (pas sur un plat étoile). */
+const ordinary = (t: Track): Star[] => high(t.stars).filter((s) => !onStarFlat(t, s.x));
 /** Mêmes pistes que CONFIG, sans étoiles hautes : les étoiles basses doivent y être les mêmes (décision P1). */
 const OFF: Config = { ...CONFIG, STAR_HIGH_PER_RACE: 0 };
 const tracksOff = SEEDS.map((seed) => generateTrack(seed, LEN, OFF));
@@ -48,27 +57,61 @@ function clearances(t: Track, cfg: Config = CONFIG): [number, number][] {
 const inOpen = (x: number, [a, b]: [number, number]): boolean => x > a + 1e-9 && x < b - 1e-9;
 
 describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
-  test('0 ≤ n ≤ STAR_HIGH_PER_RACE par piste ; moyenne et pistes avec au moins une étoile haute imprimées (seuils au Step 10)', () => {
-    const counts = tracks.map((t) => high(t.stars).length);
+  test('exactement 3 étoiles hautes par piste (Q-F4), une par plat étoile, à + 32 m de son début, y = sol + 3,90', () => {
+    expect(CONFIG.STAR_HIGH_PER_RACE).toBe(3);
+    expect(FLAT_STAR_AT).toBe(32);
     for (const t of tracks) {
-      const n = high(t.stars).length;
-      expect(n, `graine ${t.seed}`).toBeGreaterThanOrEqual(0);
-      expect(n, `graine ${t.seed}`).toBeLessThanOrEqual(CONFIG.STAR_HIGH_PER_RACE);
+      const hs = high(t.stars);
+      const fs = starFlats(t);
+      expect(hs, `graine ${t.seed}`).toHaveLength(3);
+      expect(fs, `graine ${t.seed}`).toHaveLength(3);
+      hs.forEach((s, k) => {
+        expect(s.x, `graine ${t.seed}, plat étoile ${k}`).toBeCloseTo(fs[k].xStart + FLAT_STAR_AT, 9);
+        expect(s.y - heightAt(t, s.x), `graine ${t.seed}`).toBeCloseTo(3.9, 9);
+      });
     }
-    const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
-    const withOne = counts.filter((n) => n > 0).length;
-    const cands = tracks.map((t) => highStarCandidates(t, low(t.stars).map((s) => s.x), CONFIG).length);
-    console.log(`étoiles hautes par course (graines 0 à 49, plats ordinaires, jeu 50 / 12 / 20 / 25) : moyenne ${mean.toFixed(2)}, `
-      + `min ${Math.min(...counts)}, max ${Math.max(...counts)}, pistes avec au moins une ${withOne}/50 ; `
-      + `par graine ${counts.join(' ')} ; candidates ${cands.join(' ')}`);
+    // Plats ordinaires seuls (STAR_FLATS_PER_RACE 0, plafond 3, règle du Step 7) : moyenne imprimée.
+    const counts = SEEDS.map((seed) => high(generateTrack(seed, LEN, { ...CONFIG, STAR_FLATS_PER_RACE: 0 }).stars).length);
+    console.log(`étoiles hautes des plats ordinaires seuls (sans plat étoile, plafond 3, jeu 50 / 12 / 20 / 25) : moyenne `
+      + `${(counts.reduce((a, b) => a + b, 0) / counts.length).toFixed(2)}, pistes avec au moins une ${counts.filter((n) => n > 0).length}/50`);
   });
 
-  test('chaque étoile haute est sur une tranche plat éligible (ni départ ni arrivée), hors dégagements, à STAR_HIGH_GAP au moins de toute étoile basse', () => {
-    let seen = 0;
+  test('aucune étoile basse sur un plat étoile ; les étoiles basses restent à STAR_HIGH_GAP au moins de toute étoile haute', () => {
     for (const t of tracks) {
+      for (const s of low(t.stars)) {
+        expect(onStarFlat(t, s.x), `graine ${t.seed}, étoile basse x = ${s.x.toFixed(2)}`).toBe(false);
+        for (const h of high(t.stars)) expect(Math.abs(s.x - h.x), `graine ${t.seed}`).toBeGreaterThanOrEqual(CONFIG.STAR_HIGH_GAP - 1e-9);
+      }
+    }
+  });
+
+  test('plafond 5 (fixture) : les 3 des plats étoile toujours présentes, les autres à ≥ 45 m d’elles, sur des plats ordinaires', () => {
+    let extra = 0;
+    tracks5.forEach((t, k) => {
+      const flatsX = high(tracks[k].stars).map((s) => s.x);
+      const hs = high(t.stars).map((s) => s.x);
+      expect(hs.length, `graine ${t.seed}`).toBeLessThanOrEqual(5);
+      for (const x of flatsX) expect(hs, `graine ${t.seed}`).toContain(x);
+      for (const s of ordinary(t)) {
+        extra++;
+        for (const x of flatsX) {
+          expect(Math.abs(s.x - x), `graine ${t.seed}, étoile x = ${s.x.toFixed(1)}`)
+            .toBeGreaterThanOrEqual(CONFIG.STAR_HIGH_TAKEOFF_ROOM + CONFIG.STAR_HIGH_LANDING_ROOM - 1e-9);
+        }
+      }
+      const xy = (stars: Star[]) => low(stars).map(({ x, y }) => ({ x, y }));
+      expect(xy(t.stars), `graine ${t.seed} : étoiles basses inchangées`).toEqual(xy(tracks[k].stars));
+    });
+    console.log(`plafond 5 : ${extra} étoiles hautes sur des plats ordinaires (graines 0 à 49)`);
+    expect(extra).toBeGreaterThan(10);
+  });
+
+  test('plats ordinaires (plafond 5) : chaque étoile haute est sur une tranche plat éligible (ni départ ni arrivée), hors dégagements, à STAR_HIGH_GAP au moins de toute étoile basse', () => {
+    let seen = 0;
+    for (const t of tracks5) {
       const cl = clearances(t);
       const lows = low(t.stars);
-      for (const s of high(t.stars)) {
+      for (const s of ordinary(t)) {
         seen++;
         // Intervalle fermé : une étoile peut être au bout exact de son segment (graine 15, x = 224,6, juste avant des bosses).
         const sl = t.slices.find((x) => x.type === 'plat' && s.x >= x.xStart - 1e-9 && s.x <= x.xEnd + 1e-9) ?? sliceAt(t, s.x);
@@ -84,10 +127,13 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
     expect(seen).toBeGreaterThan(10);
   });
 
-  test('[x − TAKEOFF_ROOM, x + LANDING_ROOM] est du terrain permis : après la zone de départ (xStart + D_LANCE), ni rampe-saut, ni rampe-volcan, ni dégagement', () => {
-    for (const t of tracks) {
+  // Les étoiles des plats étoile suivent la règle d'insertion du plat étoile (§6.6 : 12 m d'entrée, jamais juste après une
+  // rampe-saut, tests/generate.test.ts), pas celle des dégagements des plats ordinaires : graine 5, l'élan de l'étoile en
+  // 863,8 chevauche les 50 m de dégagement d'une rampe-saut finie 64,8 m avant (portée mesurée à 21 m/s : 36,6 m).
+  test('plats ordinaires (plafond 5) : [x − TAKEOFF_ROOM, x + LANDING_ROOM] est du terrain permis, après la zone de départ (xStart + D_LANCE), ni rampe-saut, ni rampe-volcan, ni dégagement', () => {
+    for (const t of tracks5) {
       const cl = clearances(t);
-      for (const s of high(t.stars)) {
+      for (const s of ordinary(t)) {
         const a = s.x - CONFIG.STAR_HIGH_TAKEOFF_ROOM;
         const b = s.x + CONFIG.STAR_HIGH_LANDING_ROOM;
         expect(a, `graine ${t.seed}, étoile haute x = ${s.x.toFixed(2)} : élan dans la zone de départ`).toBeGreaterThanOrEqual(t.xStart + CONFIG.D_LANCE - 1e-9);
@@ -103,7 +149,7 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
   });
 
   test('aucune étoile haute dans [xLancement, xLava] d’un volcan', () => {
-    for (const t of tracks) {
+    for (const t of [...tracks, ...tracks5]) {
       for (const s of high(t.stars)) {
         for (const v of t.volcanoes) expect(s.x >= v.xLancement && s.x <= v.xLava, `graine ${t.seed} x = ${s.x}`).toBe(false);
       }
@@ -153,9 +199,9 @@ describe('étoiles basses inchangées (décision P1 : les étoiles hautes s’aj
 });
 
 describe('choix et fusion', () => {
-  test('plus de candidates que STAR_HIGH_PER_RACE : tirage sans remise par le rng de piste, dans l’ordre de la piste', () => {
+  test('sans plat étoile, plus de candidates que STAR_HIGH_PER_RACE : tirage sans remise par le rng de piste, dans l’ordre de la piste', () => {
     let drawn = 0;
-    for (const t of tracks) {
+    for (const t of SEEDS.map((seed) => generateTrack(seed, LEN, { ...CONFIG, STAR_FLATS_PER_RACE: 0 }))) {
       const lowXs = low(t.stars).map((s) => s.x);
       const cands = highStarCandidates(t, lowXs, CONFIG);
       for (const n of [1, 2]) {
