@@ -46,22 +46,33 @@ export interface FiveCarRace {
   r: SimulateResult;
   /** Chutes dans la lave de toutes les voitures, avec leur cause. */
   falls: Fall[];
+  /** Étoiles prises par voiture (événements 'star' relevés par l'observateur), toutes les voitures. */
+  stars: Record<string, number>;
+  /** Première étoile de la course : premier 'star' relevé (au même pas, le plus petit index), null si aucune. */
+  firstStar: { carId: string; t: number } | null;
   /** Résumé lisible (par voiture), imprimé et repris dans les messages d'assertion. */
   summary: string;
   /** Durée mur de la simulation (s). */
   seconds: number;
 }
 
-/** Options de `simulateRace` de la course à 5 (hors observateur) ; `maxSeconds` réduit pour le test de l'observateur. */
-export const fiveCarOptions = (maxSeconds = RACE_MAX_SECONDS) => ({ throttle: () => true, maxSeconds, cfg: CONFIG, robots: true });
+/**
+ * Options de `simulateRace` de la course à 5 (hors observateur) ; `maxSeconds` réduit pour le test de
+ * l'observateur ; `throttle` : doigt de Galahad (défaut : toujours posé).
+ */
+export const fiveCarOptions = (maxSeconds = RACE_MAX_SECONDS, throttle: (t: number) => boolean = () => true) => (
+  { throttle, maxSeconds, cfg: CONFIG, robots: true }
+);
 
-export function fiveCarRace(seed: number, maxSeconds = RACE_MAX_SECONDS): FiveCarRace {
+export function fiveCarRace(seed: number, maxSeconds = RACE_MAX_SECONDS, throttle?: (t: number) => boolean): FiveCarRace {
   const track = trackFor(seed);
   const t0 = performance.now();
   const lastContact = new Map<string, { t: number; with: string }>();
   const falls: Fall[] = [];
+  const starCounts: Record<string, number> = {};
+  let firstStar: FiveCarRace['firstStar'] = null;
   const r = simulateRace(track, {
-    ...fiveCarOptions(maxSeconds),
+    ...fiveCarOptions(maxSeconds, throttle),
     onStep: (sim) => {
       const t = sim.time;
       for (const [a, b] of carPairsTouching(sim)) {
@@ -69,6 +80,10 @@ export function fiveCarRace(seed: number, maxSeconds = RACE_MAX_SECONDS): FiveCa
         lastContact.set(b, { t, with: a });
       }
       for (const e of sim.events) {
+        if (e.type === 'star') {
+          starCounts[e.carId] = (starCounts[e.carId] ?? 0) + 1;
+          firstStar ??= { carId: e.carId, t: e.t };
+        }
         if (e.type !== 'respawn') continue;
         if (e.reason === 'lava') {
           const v = nearestVolcanoZone(track, e.x) ?? volcanoAhead(track, e.x);
@@ -84,15 +99,16 @@ export function fiveCarRace(seed: number, maxSeconds = RACE_MAX_SECONDS): FiveCa
     },
   });
   const seconds = (performance.now() - t0) / 1000;
+  const stars = Object.fromEntries(Object.keys(r.respawnsByCar).map((id) => [id, starCounts[id] ?? 0]));
   const cars = Object.keys(r.respawnsByCar).map((id) => {
     const rs = r.respawnsByCar[id];
-    return `${id} : respawns ${rs.length}, lave ${r.lavaByCar[id]}, blocage max ${f2(r.maxStuckByCar[id])} s, `
+    return `${id} : respawns ${rs.length}, lave ${r.lavaByCar[id]}, étoiles ${stars[id]}, blocage max ${f2(r.maxStuckByCar[id])} s, `
       + `arrivée ${f1(r.finishedAtByCar[id])} s [${describeRespawns(rs).join(' ; ')}]`;
   });
   const summary = `seed ${seed} : Galahad arrivé à ${f1(r.finishedAt)} s, fin à ${f1(r.time)} s, classement ${r.ranking.join(' > ')}, `
     + `meanStepMs ${f2(r.meanStepMs)} (indicateur, cible < 4), maxStepMs ${f1(r.maxStepMs)}, durée ${f1(seconds)} s\n  ${cars.join('\n  ')}`
     + `\n  chutes dans la lave : ${falls.length ? falls.map(describeFall).join(' ; ') : 'aucune'}`;
-  return { r, falls, summary, seconds };
+  return { r, falls, stars, firstStar, summary, seconds };
 }
 
 /**
