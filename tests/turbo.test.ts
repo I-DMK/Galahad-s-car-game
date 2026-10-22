@@ -1,6 +1,6 @@
 // Turbo et étoiles (tâche 12) : logique pure.
 import { CONFIG } from '../src/config';
-import { isStarActive, newStarStates, takeStar } from '../src/cars/stars';
+import { isStarActiveFor, newStarStates, takeStarFor } from '../src/cars/stars';
 import { newCarState } from '../src/cars/state';
 import { activateTurbo, turboFactor } from '../src/cars/turbo';
 
@@ -34,19 +34,19 @@ describe('turbo', () => {
 });
 
 describe('étoiles', () => {
-  test('newStarStates : un état par étoile, mêmes ids, aucune prise', () => {
-    const states = newStarStates([{ id: 3, x: 10, y: 1 }, { id: 7, x: 30, y: 2 }]);
-    expect(states).toEqual([{ id: 3, takenAt: null }, { id: 7, takenAt: null }]);
+  test('newStarStates : un état par étoile, mêmes ids, aucune prise (une case par voiture)', () => {
+    const states = newStarStates([{ id: 3, x: 10, y: 1 }, { id: 7, x: 30, y: 2 }], 2);
+    expect(states).toEqual([{ id: 3, takenAt: [null, null] }, { id: 7, takenAt: [null, null] }]);
   });
 
-  test('active tant que non prise ; prise : inactive STAR_RESPAWN_SECONDS puis de nouveau active', () => {
-    const [s] = newStarStates([{ id: 1, x: 0, y: 0 }]);
-    expect(isStarActive(s, 0, CONFIG)).toBe(true);
-    takeStar(s, 20);
-    expect(s.takenAt).toBe(20);
-    expect(isStarActive(s, 20, CONFIG)).toBe(false);
-    expect(isStarActive(s, 24.9, CONFIG)).toBe(false);
-    expect(isStarActive(s, 20 + CONFIG.STAR_RESPAWN_SECONDS, CONFIG)).toBe(true);
-    expect(isStarActive(s, 30, CONFIG)).toBe(true);
+  test('active tant que non prise ; prise : inactive STAR_RESPAWN_SECONDS puis de nouveau active (pour la voiture qui l’a prise)', () => {
+    const [s] = newStarStates([{ id: 1, x: 0, y: 0 }], 1);
+    expect(isStarActiveFor(s, 0, 0, CONFIG)).toBe(true);
+    takeStarFor(s, 0, 20);
+    expect(s.takenAt).toEqual([20]);
+    expect(isStarActiveFor(s, 0, 20, CONFIG)).toBe(false);
+    expect(isStarActiveFor(s, 0, 24.9, CONFIG)).toBe(false);
+    expect(isStarActiveFor(s, 0, 20 + CONFIG.STAR_RESPAWN_SECONDS, CONFIG)).toBe(true);
+    expect(isStarActiveFor(s, 0, 30, CONFIG)).toBe(true);
   });
 });

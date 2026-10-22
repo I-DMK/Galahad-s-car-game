@@ -6,7 +6,7 @@ import {
   placeCar, setCarInvulnerable, wheelsBelowChassis, wheelsOnGround, type CarBody,
 } from '../src/physics/car';
 import { mpsToPxPerStep, physToWorld, speedMps, toPx } from '../src/physics/units';
-import { CAT, createWorld, stepWorld, type World } from '../src/physics/world';
+import { CAT, carCategory, createWorld, stepWorld, type World } from '../src/physics/world';
 import { generateTrack } from '../src/track/generate';
 import { heightAt, slopeAt } from '../src/track/query';
 
@@ -63,8 +63,8 @@ test('construction : 3 parties sans frottement de l’air, masses 60/40/40, grou
   for (const p of car.parts) {
     expect(p.frictionAir).toBe(0);
     expect(p.collisionFilter.group).toBe(-1);
-    expect(p.collisionFilter.category).toBe(CAT.CAR);
-    expect(p.collisionFilter.mask).toBe(CAT.GROUND | CAT.CAR | CAT.SENSOR);
+    expect(p.collisionFilter.category).toBe(carCategory(0));
+    expect(p.collisionFilter.mask).toBe(CAT.GROUND | CAT.ALL_CARS | CAT.SENSOR);
     expect(p.plugin.carId).toBe('galahad');
   }
   expect(car.chassis.mass).toBeCloseTo(CONFIG.CHASSIS_MASS, 9);
@@ -337,15 +337,15 @@ test('placeCar remet à zéro les vitesses de toutes les parties', () => {
   expect(posM(car.chassis).x).toBeCloseTo(50, 6);
 });
 
-test('invulnérable : mask sans CAT.CAR, puis rétabli', () => {
+test('invulnérable : mask sans les voitures (CAT.ALL_CARS), puis rétabli', () => {
   const { car } = flatCar();
   setCarInvulnerable(car, true);
   for (const p of car.parts) {
     expect(p.collisionFilter.mask).toBe(CAT.GROUND | CAT.SENSOR);
-    expect((p.collisionFilter.mask ?? 0) & CAT.CAR).toBe(0);
-    expect(p.collisionFilter.category).toBe(CAT.CAR);
+    expect((p.collisionFilter.mask ?? 0) & CAT.ALL_CARS).toBe(0);
+    expect(p.collisionFilter.category).toBe(carCategory(0));
     expect(p.collisionFilter.group).toBe(-1);
   }
   setCarInvulnerable(car, false);
-  for (const p of car.parts) expect(p.collisionFilter.mask).toBe(CAT.GROUND | CAT.CAR | CAT.SENSOR);
+  for (const p of car.parts) expect(p.collisionFilter.mask).toBe(CAT.GROUND | CAT.ALL_CARS | CAT.SENSOR);
 });

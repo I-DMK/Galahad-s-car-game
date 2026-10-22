@@ -29,9 +29,9 @@ function parked(): RaceSim {
 const carPairs = (sim: RaceSim): string[] => carPairsTouching(sim).map(([a, b]) => `${a}/${b} à t = ${sim.time.toFixed(3)}`);
 /** Une pièce de `a` chevauche-t-elle une pièce de `b` ? */
 const overlap = (a: CarSim, b: CarSim): boolean => a.body.parts.some((p) => Matter.Query.collides(p, b.body.parts).length > 0);
-/** Bit CAT.CAR du masque de chaque pièce : 0 = traverse les autres voitures. */
-const carBits = (car: CarSim): number[] => car.body.parts.map((p) => (p.collisionFilter.mask ?? 0) & CAT.CAR);
-const SOLID = [CAT.CAR, CAT.CAR, CAT.CAR];
+/** Bits « voitures » (CAT.ALL_CARS) du masque de chaque pièce : 0 = traverse les autres voitures. */
+const carBits = (car: CarSim): number[] => car.body.parts.map((p) => (p.collisionFilter.mask ?? 0) & CAT.ALL_CARS);
+const SOLID = [CAT.ALL_CARS, CAT.ALL_CARS, CAT.ALL_CARS];
 const PASS = [0, 0, 0];
 
 test('dans la zone, deux voitures posées en chevauchement se traversent ; hors zone, à distance de contact, elles se cognent', () => {

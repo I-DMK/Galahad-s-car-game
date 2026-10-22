@@ -10,7 +10,7 @@ import {
   applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
 } from '../cars/respawn';
 import { isSafePointCandidate } from '../cars/safepoint';
-import { isStarActive, newStarStates, takeStar, type StarState } from '../cars/stars';
+import { isStarActiveFor, newStarStates, takeStarFor, type StarState } from '../cars/stars';
 import { newCarState, type CarState, type SafePoint } from '../cars/state';
 import { activateTurbo, turboFactor } from '../cars/turbo';
 import type { CarPose } from '../loop/interpolation';
@@ -34,6 +34,7 @@ export type SimEvent =
   | { type: 'finish'; carId: string; t: number };
 
 export type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
+export type StarEvent = Extract<SimEvent, { type: 'star' }>;
 
 /** Pilote automatique : doigt posé à l'instant t ? (`speed` : vitesse du châssis, m/s). */
 export type Driver = (ctx: { t: number; state: CarState; track: Track; speed: number }) => boolean;
@@ -71,9 +72,12 @@ export interface RaceSim {
   time: number;
   /** Événements du dernier pas (vidés au début de chaque pas). */
   events: SimEvent[];
-  /** État des étoiles, dans l'ordre de `track.stars` ; une étoile prise l'est pour toutes les voitures. */
+  /**
+   * État des étoiles, dans l'ordre de `track.stars`, tenu par voiture (une case de `takenAt` par index de
+   * `cars`) : une étoile prise ne l'est que pour la voiture qui l'a prise (tâche 5d).
+   */
   stars: StarState[];
-  /** Capteurs des étoiles, même ordre que `stars`. */
+  /** Capteurs des étoiles, même ordre que `stars` ; masque = voitures pour qui l'étoile est active (`syncStarBodies`). */
   starBodies: Matter.Body[];
   cfg: Config;
   /** Graine du tirage des copains (`drawPilots`), mémorisée pour rejouer la même course. */
@@ -130,7 +134,7 @@ export function createRaceSim(
   const pilotSeed = opts.pilotSeed ?? defaultPilotSeed(track);
   const pilots = [GALAHAD, ...(opts.robots ? drawPilots(pilotSeed) : [])];
   const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, cfg));
-  const stars = newStarStates(track.stars);
+  const stars = newStarStates(track.stars, cars.length);
   const starBodies = createStarBodies(world, track.stars, cfg);
   return { track, world, cars, time: 0, events: [], stars, starBodies, cfg, pilotSeed };
 }
@@ -141,9 +145,10 @@ export function createRaceSim(
  * contact au sol et mise à plat en l'air ; un seul pas physique ; puis, voiture par voiture dans
  * l'ordre des index : bornage des vitesses, progression, étoiles, arrivée, invulnérabilité et réapparition.
  * Après son arrivée (`state.finishedAt` défini), une voiture freine (FINISH_BRAKE) et ne réapparaît
- * plus jamais (elle s'arrête sur le plat avant le mur de fin). Une étoile active touchée est prise
- * (pour toutes les voitures, réapparition STAR_RESPAWN_SECONDS plus tard) et lance TURBO_SECONDS de
- * turbo à la voiture qui l'a prise.
+ * plus jamais (elle s'arrête sur le plat avant le mur de fin). Une étoile touchée par une voiture pour qui
+ * elle est active est prise pour cette voiture seule (réapparition pour elle STAR_RESPAWN_SECONDS plus
+ * tard ; les autres peuvent la prendre) et lui lance TURBO_SECONDS de turbo. Les capteurs sont alignés
+ * sur l'état des étoiles à la fin du pas (`syncStarBodies`).
  */
 export function stepRace(sim: RaceSim, galahadThrottle: boolean): void {
   const { cfg, world, track, time: t } = sim;
@@ -170,7 +175,7 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean): void {
     const finished = state.finishedAt !== null;
     clampVelocities(car.body, cfg);
     state.progress = physToWorld(car.body.chassis.position).x;
-    collectStars(sim, car);
+    collectStars(sim, car, i);
     if (!finished && state.progress >= track.xFinish) {
       state.finishedAt = t;
       sim.events.push({ type: 'finish', carId: state.id, t });
@@ -198,17 +203,17 @@ function detectLanding(sim: RaceSim, car: CarSim, grounded: boolean): void {
 }
 
 /**
- * Prend les étoiles actives touchées par la voiture ce pas-ci : une étoile prise est aussitôt inactive
- * pour les voitures suivantes (les capteurs sont alignés sur l'état à la fin du pas).
+ * Prend, pour la voiture d'index `index` seule, les étoiles touchées ce pas-ci qui sont actives pour elle :
+ * la décision se fait voiture par voiture, une prise ne change rien pour les autres (même au même pas).
  */
-function collectStars(sim: RaceSim, car: CarSim): void {
+function collectStars(sim: RaceSim, car: CarSim, index: number): void {
   const { cfg, time: t } = sim;
   for (const sensor of sensorsTouching(sim.world.engine, car.body.parts)) {
     if (sensor.label !== 'star') continue;
     const i = sim.starBodies.indexOf(sensor);
     const star = sim.stars[i];
-    if (!star || !isStarActive(star, t, cfg)) continue;
-    takeStar(star, t);
+    if (!star || !isStarActiveFor(star, index, t, cfg)) continue;
+    takeStarFor(star, index, t);
     activateTurbo(car.state, t, cfg);
     sim.events.push({ type: 'star', carId: car.state.id, t, id: star.id });
   }
@@ -225,7 +230,7 @@ export const chassisX = (car: CarSim): number => physToWorld(car.body.chassis.po
 /** Point posé au sol en x : hauteur et angle du sol local. */
 const groundPoint = (track: Track, x: number): SafePoint => ({ x, y: heightAt(track, x), angle: slopeAt(track, x) });
 
-/** Une pièce de la voiture (châssis ou roue, toutes filtrées CAT.CAR) chevauche-t-elle une pièce d'une autre voiture ? */
+/** Une pièce de la voiture (châssis ou roue, chacune de la catégorie de sa voiture) chevauche-t-elle une pièce d'une autre voiture ? */
 function overlapsOtherCar(sim: RaceSim, car: CarSim): boolean {
   const others = otherCars(sim, car).flatMap((c) => c.body.parts);
   return car.body.parts.some((p) => Matter.Query.collides(p, others).length > 0);
@@ -408,13 +413,14 @@ export function carView(sim: RaceSim, index: number, pose?: CarPose): CarView {
  * Scène de rendu : toutes les voitures, Galahad en dernier (dessiné au-dessus des copains). Sans poses :
  * état du dernier pas. Avec poses et alpha : voitures aux poses données (interpolées, `runFrame`) et
  * `Scene.t` = sim.time − (1 − alpha) × PHYSICS_DT (même latence que les voitures) ; étoiles et turbo
- * gardent le temps de simulation.
+ * gardent le temps de simulation. Étoiles : état vu par Galahad (index 0) ; une prise par un copain n'y
+ * laisse aucun signe (décision P5 du plan B).
  */
 export function sceneOf(sim: RaceSim, poses?: CarPose[], alpha = 1): Scene {
   return {
     track: sim.track,
     cars: sim.cars.map((_, i) => carView(sim, i, poses?.[i])).reverse(),
-    stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActive(sim.stars[i], sim.time, sim.cfg) })),
+    stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActiveFor(sim.stars[i], 0, sim.time, sim.cfg) })),
     t: poses === undefined ? sim.time : sim.time - (1 - alpha) * sim.cfg.PHYSICS_DT,
   };
 }
@@ -432,8 +438,12 @@ export interface SimulateResult {
   maxStuckSeconds: number;
   /** Vitesse maximale du châssis de Galahad (m/s). */
   maxSpeed: number;
-  /** Étoiles prises par Galahad. */
+  /** Étoiles prises par Galahad (= `starsByCar.galahad`). */
   starsTaken: SimEvent[];
+  /** Par id de voiture (ordre de la grille) : étoiles prises, dans l'ordre de la course. */
+  starsByCar: Record<string, StarEvent[]>;
+  /** Première étoile prise dans la course (au même pas : la voiture de plus petit index), null si aucune. */
+  firstStar: { carId: string; t: number } | null;
   /** Temps de course final (s). */
   time: number;
   /** Nombre d'événements 'finish' de Galahad (1 attendu une fois la ligne franchie). */
@@ -528,8 +538,9 @@ export function simulateRace(
   const ids = sim.cars.map((c) => c.state.id);
   const respawnsByCar: Record<string, RespawnEvent[]> = Object.fromEntries(ids.map((id) => [id, []]));
   const lavaByCar: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+  const starsByCar: Record<string, StarEvent[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  let firstStar: SimulateResult['firstStar'] = null;
   const stuck = sim.cars.map((c) => new StuckMeter(c.state.progress, cfg.STUCK_DISTANCE));
-  const starsTaken: SimEvent[] = [];
   let finishes = 0;
   let maxSpeed = 0;
   let ghostContacts = 0;
@@ -555,8 +566,11 @@ export function simulateRace(
         respawnsByCar[e.carId].push(e);
         if (e.reason === 'lava') lavaByCar[e.carId]++;
         respawned.add(e.carId);
-      } else if (e.type === 'star' && mine) starsTaken.push(e);
-      else if (e.type === 'finish' && mine) finishes++;
+      } else if (e.type === 'star') {
+        // Événements d'un pas dans l'ordre des index : le premier est la plus petite index.
+        starsByCar[e.carId].push(e);
+        firstStar ??= { carId: e.carId, t: e.t };
+      } else if (e.type === 'finish' && mine) finishes++;
     }
     sim.cars.forEach((c, k) => {
       stuck[k].update(t, c.state.progress, c.throttle, c.state.finishedAt !== null, respawned.has(c.state.id));
@@ -575,7 +589,10 @@ export function simulateRace(
   const ranking = rankCars(sim.cars.map((c, index) => ({ index, progress: c.state.progress, finishedAt: c.state.finishedAt })));
   return {
     respawns: respawnsByCar[galahad.state.id], finishedAt: galahad.state.finishedAt, finishes,
-    maxStuckSeconds: stuck[0].max, maxSpeed, starsTaken, time: sim.time, progressAt: at(samples), speedAt: at(speeds),
+    maxStuckSeconds: stuck[0].max, maxSpeed, starsTaken: starsByCar[galahad.state.id], time: sim.time,
+    progressAt: at(samples), speedAt: at(speeds),
+    starsByCar,
+    firstStar,
     ranking: ranking.map((i) => ids[i]),
     respawnsByCar,
     lavaByCar,

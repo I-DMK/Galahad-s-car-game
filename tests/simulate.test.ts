@@ -1,11 +1,12 @@
 // Pas de course (tâche 5b) : non-régression du plan A (Galahad seul, défaut `robots: false`), grille
-// de départ à 5 voitures (`robots: true`), délai de départ, déterminisme, étoiles partagées, garde-fou
-// `rebuildCars`.
+// de départ à 5 voitures (`robots: true`), délai de départ, déterminisme, étoiles par voiture (tâche 5d),
+// garde-fou `rebuildCars`.
 import Matter from 'matter-js';
 import { GALAHAD, drawPilots } from '../src/cars/pilots';
+import { isStarActiveFor } from '../src/cars/stars';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
-import { CAT } from '../src/physics/world';
+import { CAT, carCategory } from '../src/physics/world';
 import {
   carView, chassisX, createRaceSim, rebuildCars, sceneOf, simulateRace, stepRace, type RaceSim, type SimEvent,
 } from '../src/sim/simulate';
@@ -122,7 +123,7 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
     expect(between).toEqual([]);
     for (const car of sim.cars) {
       expect(car.invulnerable).toBe(false);
-      for (const p of car.body.parts) expect((p.collisionFilter.mask ?? 0) & CAT.CAR).toBe(CAT.CAR);
+      for (const p of car.body.parts) expect((p.collisionFilter.mask ?? 0) & CAT.ALL_CARS).toBe(CAT.ALL_CARS);
     }
   });
 
@@ -187,7 +188,7 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
   });
 });
 
-test('une étoile prise par une voiture est inactive pour toutes : au même pas et au pas suivant', () => {
+test('une étoile prise par une voiture reste active pour les autres, inactive pour elle seule : au même pas et au pas suivant', () => {
   const sim = createRaceSim(TRACK, CONFIG, { robots: true });
   for (const robot of sim.cars.slice(1)) robot.driver = () => false;
   const star = TRACK.stars[0];
@@ -200,10 +201,18 @@ test('une étoile prise par une voiture est inactive pour toutes : au même pas 
   for (let i = 0; i < 2; i++) {
     stepRace(sim, false);
     taken.push(...sim.events.filter((e) => e.type === 'star'));
-    expect(b.state.turboUntil, `pas ${i}`).toBe(0);
   }
-  expect(taken).toEqual([{ type: 'star', carId: a.state.id, t: 0, id: star.id }]);
+  // Au même pas, chacune la prend pour elle (ordre des index) ; au pas suivant, ni l'une ni l'autre.
+  expect(taken).toEqual([
+    { type: 'star', carId: a.state.id, t: 0, id: star.id },
+    { type: 'star', carId: b.state.id, t: 0, id: star.id },
+  ]);
   expect(a.state.turboUntil).toBeCloseTo(CONFIG.TURBO_SECONDS, 9);
+  expect(b.state.turboUntil).toBeCloseTo(CONFIG.TURBO_SECONDS, 9);
+  expect([0, 1, 2, 3, 4].map((k) => isStarActiveFor(sim.stars[0], k, sim.time, CONFIG))).toEqual([false, false, true, true, true]);
+  // Le capteur ne détecte plus que les trois autres voitures.
+  expect(sim.starBodies[0].collisionFilter.mask).toBe(carCategory(2) | carCategory(3) | carCategory(4));
+  // L'écran montre l'état vu par Galahad (a = cars[0]), qui l'a prise.
   expect(sceneOf(sim).stars[0].active).toBe(false);
 });
 

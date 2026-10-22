@@ -1,22 +1,27 @@
-// État des étoiles en course : pur (ni DOM, ni matter-js). Une étoile prise réapparaît
-// STAR_RESPAWN_SECONDS plus tard.
+// État des étoiles en course : pur (ni DOM, ni matter-js). L'état est tenu par voiture (plan B, tâche
+// 5d ; addendum « bouton saut » §2) : une voiture qui prend une étoile la rend inactive pour elle seule,
+// jusqu'à STAR_RESPAWN_SECONDS plus tard ; pour les autres, l'étoile reste prenable.
 import type { Config } from '../config';
 import type { Star } from '../track/types';
 
 export interface StarState {
   id: number;
-  /** Instant (s) de la dernière prise, null si jamais prise. */
-  takenAt: number | null;
+  /** Par index de voiture : instant (s) de sa dernière prise, null si jamais. */
+  takenAt: (number | null)[];
 }
 
-export function newStarStates(stars: Star[]): StarState[] {
-  return stars.map((s) => ({ id: s.id, takenAt: null }));
+/** Un état par étoile (mêmes ids, même ordre), une case par voiture de la course, aucune prise. */
+export function newStarStates(stars: Star[], carCount: number): StarState[] {
+  return stars.map((s) => ({ id: s.id, takenAt: Array.from({ length: carCount }, () => null) }));
 }
 
-export function isStarActive(s: StarState, t: number, cfg: Config): boolean {
-  return s.takenAt === null || t >= s.takenAt + cfg.STAR_RESPAWN_SECONDS;
+/** L'étoile est-elle prenable par la voiture d'index `carIndex` à l'instant t ? */
+export function isStarActiveFor(s: StarState, carIndex: number, t: number, cfg: Config): boolean {
+  const taken = s.takenAt[carIndex];
+  return taken === null || t >= taken + cfg.STAR_RESPAWN_SECONDS;
 }
 
-export function takeStar(s: StarState, t: number): void {
-  s.takenAt = t;
+/** La voiture d'index `carIndex` prend l'étoile à l'instant t (pour elle seule). */
+export function takeStarFor(s: StarState, carIndex: number, t: number): void {
+  s.takenAt[carIndex] = t;
 }

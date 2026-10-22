@@ -4,8 +4,28 @@ import type { Track } from '../track/types';
 
 const { Engine, Bodies, Composite, Vertices } = Matter;
 
-/** Catégories de collision. */
-export const CAT = { GROUND: 0x0001, CAR: 0x0002, SENSOR: 0x0004 } as const;
+/** Nombre maximal de voitures d'une course : une catégorie de collision chacune (`carCategory`). */
+export const MAX_CARS = 5;
+/** Bit de la voiture d'index 0 ; la voiture d'index i a le bit FIRST_CAR_BIT << i. */
+const FIRST_CAR_BIT = 0x0008;
+/**
+ * Catégories de collision. Une catégorie par voiture (`carCategory`), pour que le capteur d'une étoile ne
+ * détecte que les voitures pour qui elle est active (`syncStarBodies`) ; `ALL_CARS` est leur OU (sol, mur,
+ * lave, autres voitures).
+ */
+export const CAT = {
+  GROUND: 0x0001,
+  SENSOR: 0x0004,
+  ALL_CARS: ((1 << MAX_CARS) - 1) * FIRST_CAR_BIT,
+} as const;
+
+/** Catégorie de collision de la voiture d'index `index` (0 = Galahad) ; RangeError hors de [0, MAX_CARS). */
+export function carCategory(index: number): number {
+  if (!Number.isInteger(index) || index < 0 || index >= MAX_CARS) {
+    throw new RangeError(`carCategory : index de voiture ${index} hors de [0, ${MAX_CARS}) (une catégorie de collision par voiture)`);
+  }
+  return FIRST_CAR_BIT << index;
+}
 
 export interface World {
   engine: Matter.Engine;
@@ -39,7 +59,7 @@ function buildGround(track: Track, ppm: number, floorY: number): Matter.Body[] {
         isStatic: true,
         friction: 1,
         label: 'ground',
-        collisionFilter: { category: CAT.GROUND, mask: CAT.CAR },
+        collisionFilter: { category: CAT.GROUND, mask: CAT.ALL_CARS },
       }),
     );
   }
@@ -67,7 +87,7 @@ function buildLava(track: Track, cfg: Config, floorY: number): Matter.Body[] {
       isStatic: true,
       isSensor: true,
       label: 'lava',
-      collisionFilter: { category: CAT.SENSOR, mask: CAT.CAR },
+      collisionFilter: { category: CAT.SENSOR, mask: CAT.ALL_CARS },
     });
     // Affecté après création : Body.create copie en profondeur ses options, ce qui
     // casserait l'identité avec le volcan de la piste.
@@ -83,7 +103,7 @@ function buildWall(track: Track, ppm: number): Matter.Body {
   return Bodies.rectangle((track.xWall + 0.5) * ppm, (yTop + yBottom) / 2, ppm, yBottom - yTop, {
     isStatic: true,
     label: 'wall',
-    collisionFilter: { category: CAT.GROUND, mask: CAT.CAR },
+    collisionFilter: { category: CAT.GROUND, mask: CAT.ALL_CARS },
   });
 }
 

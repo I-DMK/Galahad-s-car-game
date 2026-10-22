@@ -1,7 +1,7 @@
 // Étoiles et turbo dans le pas de course (tâche 12) : seed 1, 1680 m, doigt toujours posé. Galahad
 // seul (défaut `robots: false` de createRaceSim et simulateRace, comme au plan A).
 import { CONFIG } from '../../src/config';
-import { isStarActive } from '../../src/cars/stars';
+import { isStarActiveFor } from '../../src/cars/stars';
 import { createRaceSim, sceneOf, simulateRace, stepRace, carView, type SimEvent } from '../../src/sim/simulate';
 import { generateTrack } from '../../src/track/generate';
 
@@ -34,20 +34,20 @@ test('la première étoile prise : turbo et flammes, inactive STAR_RESPAWN_SECON
   expect(taken).toBeDefined();
   const { t, id } = taken!;
   const idx = sim.stars.findIndex((s) => s.id === id);
-  expect(sim.stars[idx].takenAt).toBe(t);
+  expect(sim.stars[idx].takenAt).toEqual([t]);
   expect(sim.cars[0].state.turboUntil).toBeCloseTo(t + CONFIG.TURBO_SECONDS, 9);
   expect(carView(sim, 0).turbo).toBe(true);
   expect(sceneOf(sim).stars[idx].active).toBe(false);
   expect(sim.starBodies[idx].collisionFilter.mask).toBe(0);
 
   while (sim.time < t + 4.9) stepRace(sim, true);
-  expect(isStarActive(sim.stars[idx], sim.time, CONFIG)).toBe(false);
+  expect(isStarActiveFor(sim.stars[idx], 0, sim.time, CONFIG)).toBe(false);
   expect(sceneOf(sim).stars[idx].active).toBe(false);
   expect(carView(sim, 0).turbo).toBe(false);
   while (sim.time < t + 5.1) stepRace(sim, true);
-  expect(isStarActive(sim.stars[idx], sim.time, CONFIG)).toBe(true);
+  expect(isStarActiveFor(sim.stars[idx], 0, sim.time, CONFIG)).toBe(true);
   expect(sceneOf(sim).stars[idx].active).toBe(true);
   expect(sim.starBodies[idx].collisionFilter.mask).not.toBe(0);
   // Elle n'a été prise qu'une fois : la voiture est loin devant quand elle réapparaît.
-  expect(sim.stars[idx].takenAt).toBe(t);
+  expect(sim.stars[idx].takenAt).toEqual([t]);
 });

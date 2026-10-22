@@ -175,7 +175,8 @@ describe('voiture retournée (inElanZone calculé par le pas de course)', () => 
 });
 
 describe('invulnérabilité après une réapparition', () => {
-  const masks = (sim: RaceSim) => sim.cars[0].body.parts.map((p) => (p.collisionFilter.mask ?? 0) & CAT.CAR);
+  /** Bits « voitures » (CAT.ALL_CARS) du masque de chaque pièce de Galahad : 0 = traverse les autres voitures. */
+  const masks = (sim: RaceSim) => sim.cars[0].body.parts.map((p) => (p.collisionFilter.mask ?? 0) & CAT.ALL_CARS);
 
   test('RESPAWN_INVULN s sans autre voiture : collisions entre voitures coupées puis rétablies', () => {
     const { track, v } = firstVolcano();
@@ -190,7 +191,7 @@ describe('invulnérabilité après une réapparition', () => {
     expect(masks(sim)).toEqual([0, 0, 0]);
     for (let i = 0; i < 3; i++) stepRace(sim, false);
     expect(sim.cars[0].invulnerable).toBe(false);
-    expect(masks(sim)).toEqual([CAT.CAR, CAT.CAR, CAT.CAR]);
+    expect(masks(sim)).toEqual([CAT.ALL_CARS, CAT.ALL_CARS, CAT.ALL_CARS]);
   });
 
   test('roue d’une autre voiture dans une roue, châssis séparés : invulnérable jusqu’au plafond (toutes les pièces comptent)', () => {
@@ -251,6 +252,6 @@ describe('invulnérabilité après une réapparition', () => {
     // Tombé dans la lave (zone fantôme) mais reposé hors zone : un respawn est une téléportation, pas
     // une sortie de zone en roulant ; pas fantôme, c'est l'invulnérabilité (plafonnée) qui gouverne.
     expect(sim.cars[0].ghost).toBe(false);
-    expect(masks(sim)).toEqual([CAT.CAR, CAT.CAR, CAT.CAR]);
+    expect(masks(sim)).toEqual([CAT.ALL_CARS, CAT.ALL_CARS, CAT.ALL_CARS]);
   });
 });

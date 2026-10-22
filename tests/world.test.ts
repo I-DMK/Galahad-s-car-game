@@ -1,6 +1,6 @@
 import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
-import { CAT, createWorld, sensorsTouching, stepWorld, type World } from '../src/physics/world';
+import { CAT, carCategory, createWorld, sensorsTouching, stepWorld, type World } from '../src/physics/world';
 import { mpsToPxPerStep, physToWorld, worldToPhys } from '../src/physics/units';
 import { generateTrack } from '../src/track/generate';
 import { heightAt } from '../src/track/query';
@@ -10,12 +10,12 @@ const { Bodies, Body, Composite } = Matter;
 
 const R = CONFIG.WHEEL_RADIUS;
 
-/** Roue de test : cercle dynamique, CAR, sans frottement de l'air ; les roues de test s'ignorent entre elles. */
+/** Roue de test : cercle dynamique, catégorie de Galahad, sans frottement de l'air ; les roues de test s'ignorent entre elles. */
 function addWheel(world: World, x: number, y: number): Matter.Body {
   const p = worldToPhys({ x, y });
   const body = Bodies.circle(p.x, p.y, R * CONFIG.PIXELS_PER_METER, {
     frictionAir: 0,
-    collisionFilter: { category: CAT.CAR, mask: CAT.GROUND | CAT.SENSOR, group: -999 },
+    collisionFilter: { category: carCategory(0), mask: CAT.GROUND | CAT.SENSOR, group: -999 },
   });
   Body.setMass(body, 1);
   Composite.add(world.engine.world, body);

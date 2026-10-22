@@ -3,7 +3,7 @@ import { normalizeAngle } from '../cars/angle';
 import type { Config } from '../config';
 import { heightAt as trackHeightAt } from '../track/query';
 import { mpsToPxPerStep, physToWorld, speedMps, toPx, worldToPhys } from './units';
-import { CAT, type World } from './world';
+import { CAT, carCategory, type World } from './world';
 
 const { Bodies, Body, Composite, Constraint, Vector } = Matter;
 
@@ -31,15 +31,17 @@ export interface CarBody {
  */
 const INERTIA_SCALE = 4;
 
-const MASK_NORMAL = CAT.GROUND | CAT.CAR | CAT.SENSOR;
+const MASK_NORMAL = CAT.GROUND | CAT.ALL_CARS | CAT.SENSOR;
 const MASK_INVULNERABLE = CAT.GROUND | CAT.SENSOR;
 
 /**
  * Voiture : châssis + deux roues suspendues chacune par trois ressorts. Construite à
- * l'origine puis posée sur la piste à x (angle 0) par `placeCar`.
+ * l'origine puis posée sur la piste à x (angle 0) par `placeCar`. Ses pièces portent la catégorie de
+ * collision de la voiture (`carCategory(index)`, RangeError au-delà de MAX_CARS voitures).
  */
 export function createCar(world: World, id: string, index: number, x: number, cfg: Config): CarBody {
-  const filter = () => ({ group: -(index + 1), category: CAT.CAR, mask: MASK_NORMAL });
+  const category = carCategory(index);
+  const filter = () => ({ group: -(index + 1), category, mask: MASK_NORMAL });
   const w = toPx(cfg.CAR_LENGTH);
   const h = toPx(cfg.CAR_HEIGHT);
   const r = toPx(cfg.WHEEL_RADIUS);
