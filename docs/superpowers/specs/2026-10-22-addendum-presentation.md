@@ -1,7 +1,7 @@
 # Course Lunaire de Galahad — addendum « présentation »
 
 Date : 2026-10-22
-Statut : **brouillon, en relecture par le papa** (à valider section par section, comme l'addendum « bouton saut »).
+Statut : **VALIDÉ par le papa** le 2026-10-22 (recommandations de la session acceptées ; décisions reportées au §1.3, §1.4, §6 et §8).
 Amende : le spec du 2026-10-20 (§2, §8, §12), l'addendum plan B (`2026-10-21-plan-b-addendum.md`, §3.1, §3.2, §4) et le plan B partie 3 (tâches 10, 13, 16). En cas de contradiction, ce document l'emporte. Tout ce qui n'est pas repris ici reste inchangé, en particulier la physique, les volcans, les étoiles, le saut (5e), les copains (6) et l'élastique (7).
 
 ## 0. Origine et intention
@@ -53,17 +53,22 @@ Les sprites Grok ne correspondent pas à notre voiture. Mesuré sur `galahad.png
 - Pour faire coïncider l'empattement du sprite avec les roues physiques, la carrosserie se dessine sur **2,87 m** de large, soit 0,33 m de débord à chaque bout du châssis de 2,2 m : visible seulement quand deux voitures se touchent (les sprites se chevauchent un peu avant le choc).
 - À cette échelle, les passages de roue du sprite font 0,26 m de rayon ; notre roue de 0,45 m **dépasse largement** des arches. L'aspect est à juger sur capture, pas à deviner.
 
-Trois options, **décision du papa** :
+**Décision du papa : option A, générer de nouveaux sprites à nos proportions.** Les options écartées, pour mémoire : (B) reprendre les sprites Grok tels quels, carrosserie à 2,87 m et roues 1,7 fois plus grandes que leurs arches, aspect « monster truck » prévisible sans essai ; (C) garder le dessin par code et l'améliorer, le moins cher et le moins joli.
 
-- **(A) Générer de nouveaux sprites** à nos proportions : carrosserie basse et longue (rapport 2,2 × 0,7), arches prévues pour une roue de 0,45 m, empattement à 68 % de la longueur, pilote casqué au tiers arrière, vue de côté stricte, fond transparent, nez à droite. Le papa les génère avec l'outil de son choix ; un gabarit SVG des proportions (`docs/sprites-gabarit.svg`) est fourni par la tâche pour les contrôler. Résultat le plus propre, demande une passe de génération par pilote.
-- **(B) Reprendre les sprites Grok** tels quels, carrosserie à 2,87 m, roue PNG au rayon physique. Zéro génération, aspect « grosses roues » à valider. Recommandé comme **essai de 30 minutes** (Step 0 de la tâche) pour juger sur capture avant de choisir A ou C.
-- **(C) Garder le dessin par code** et l'améliorer (dégradés, ombre portée, reflet). Le moins cher, le moins joli.
+Pourquoi A : notre voiture a des proportions de buggy (roues de 0,9 m de diamètre pour une caisse de 0,7 m de haut), parce que la physique a été calibrée ainsi et qu'on n'y touche pas. Aucun sprite pensé pour une citadine n'ira ; un sprite généré sur nos proportions ira du premier coup, et un buggy lunaire est crédible sur la Lune.
 
-Recommandation : B en essai, puis A si l'essai déplaît. Dans tous les cas la carrosserie se dessine centrée sur le châssis physique, et la roue PNG remplace le 48-gone à rayons.
+Cahier des charges des sprites à générer :
+
+- **sept carrosseries** (Galahad et les six copains) dans la **même passe**, même style, même angle, même pilote casqué : vue de côté stricte, nez à droite, fond transparent, **sans roues** (arches vides) ;
+- caisse basse et longue (rapport 2,2 × 0,7), arches prévues pour une roue de 0,45 m de rayon, empattement à 68 % de la longueur, pilote casqué au tiers arrière ;
+- couleurs de la palette 5a (Galahad bleu à bandes rouges et casque rouge ; Pablo rouge, Diego vert, Timothée blanc, Matthis jaune, Malo orange, Liam rose ; casque assorti à la carrosserie) ;
+- un **gabarit SVG des proportions** (`docs/sprites-gabarit.svg`, fourni par la tâche 8b, Step 0) sert à contrôler chaque image avant de la réduire au budget du §1.2.
+
+Le papa les génère avec l'outil de son choix, **dès maintenant, en parallèle des tâches 5e, 6 et 7**, pour qu'elles soient prêtes à la 8b. Les sprites Grok de `assets/sprites/` restent le repli si la génération tarde (option B, à juger sur capture dans ce seul cas). La carrosserie se dessine centrée sur le châssis physique ; la roue PNG (`wheel.png` de Grok, indépendante de la géométrie) remplace le 48-gone à rayons.
 
 ### 1.4 Correspondance des couleurs (amende tâche 5a, palette)
 
-Les sprites Grok portent leur couleur dans l'image. La palette validée en 5a (aucun copain bleu, cyan, turquoise ou violet ; casque assorti ; contraste ≥ 3:1 sur le ciel) reste la règle. Correspondance proposée par teinte :
+Les sprites portent leur couleur dans l'image. La palette validée en 5a (aucun copain bleu, cyan, turquoise ou violet ; casque assorti ; contraste ≥ 3:1 sur le ciel) reste la règle et s'impose aux sprites générés (option A). La correspondance ci-dessous ne concerne que les sprites Grok rangés dans `assets/sprites/` en repli :
 
 | Notre pilote | Couleur 5a | Sprite Grok | Teinte du sprite |
 |---|---|---|---|
@@ -73,7 +78,7 @@ Les sprites Grok portent leur couleur dans l'image. La palette validée en 5a (a
 | Matthis | jaune | `malo.png` | jaune |
 | Malo | orange | `timothe.png` | orange |
 | Liam | rose | `diego.png` | rose |
-| Timothée | blanc | **aucun** | à générer (option A) ou repli par code |
+| Timothée | blanc | **aucun** | repli par code tant que le sprite généré n'existe pas |
 
 Les sprites turquoise (`kaiden.png`) et violet (`matthis.png`) sont **exclus** par la règle 5a. Les constantes `color` des pilotes servent encore aux points de la barre de progression, au podium et au prénom : si la teinte d'un sprite s'écarte visiblement de sa constante, c'est **la constante qui s'aligne sur le sprite**, sous les mêmes tests de contraste ; les coloris sont alors re-validés par le papa comme en 5a. Le `helmet` d'un pilote à sprite n'est plus dessiné (le casque est dans l'image) ; la constante reste pour le repli.
 
@@ -120,10 +125,10 @@ Une tâche de présentation qui touche à la simulation (par exemple un événem
 | 6 | Conduite des robots | physique |
 | 7 | Élastique | physique |
 | 8 | Position, barre de progression, classement | écrans |
-| **8b (nouvelle)** | **Images** : `assets.ts`, carrosseries et roue, flammes, étoile, ombre au sol, budget de taille, repli par code ; Step 0 = essai option B sur capture, décision A/B/C du papa | écrans |
+| **8b (nouvelle)** | **Images** : Step 0 = gabarit SVG des proportions et contrôle des sept sprites générés par le papa ; `assets.ts`, carrosseries et roue, flammes, étoile, ombre au sol, budget de taille, repli par code | écrans |
 | 10 | Titre avec les copains, décompte, pause, orientation, **police** | écrans |
 | 11 | Podium | écrans |
-| **Jalon « démo tablette »** | Galahad lance une course seul depuis le titre, reconnaît les voitures, voit le podium. Le papa filme 30 s. C'est le succès défini par le spec §1. | |
+| **Jalon « démo tablette »** | Galahad lance une course seul depuis le titre, reconnaît les voitures, voit le podium. Le papa filme 30 s. C'est le succès défini par le spec §1. **Avant l'audio** (décision) : les trois critères n'ont pas besoin de son, et l'audio est la tâche la plus exposée aux surprises de tablette (déblocage de l'AudioContext, clics, volume) ; une base muette filmée sert de référence. | |
 | 12 | Audio | écrans |
 | 13 | PWA (cache des sprites et de la police) | écrans |
 | 15, 16 | Cratères, calques de décor **+ Terre** | écrans |
@@ -141,9 +146,10 @@ Le plan d'implémentation de la 8b et les amendements des tâches 10, 13 et 16 s
 - **Couleurs** : tests de palette de la 5a toujours verts après tout alignement de constante sur un sprite.
 - **Démo tablette** : vidéo de 30 s du papa, jointe à la passation (ou son lien).
 
-## 8. Questions ouvertes pour le papa
+## 8. Décisions du papa (2026-10-22)
 
-1. Option A, B ou C pour la géométrie des sprites (§1.3), après l'essai B sur capture ?
-2. Timothée en blanc : génération d'un sprite, ou repli par code tant qu'il n'existe pas ?
-3. Le jalon « démo tablette » avant l'audio (ordre proposé) ou après ?
-4. Garder `JUMP_BUFFER` à 0,1 s (décision P2) ou l'essayer à 0,18 s comme Grok, sur la tablette ?
+1. **Géométrie des sprites : option A**, sept sprites générés à nos proportions, dans la même passe (§1.3). Les sprites Grok restent en repli.
+2. **Timothée en blanc : réglé par la décision 1.** Généré avec les six autres ; repli par code tant que le sprite n'existe pas.
+3. **Jalon « démo tablette » avant l'audio** (§6).
+4. **`JUMP_BUFFER` reste à 0,1 s** (décision P2 de la 5e). Les 0,18 s de Grok compensent un saut sans physique ; chez nous la condition « roue au sol » s'appuie déjà sur l'antirebond de 0,1 s, qui élargit la fenêtre réelle. Un tampon plus long ferait partir à l'atterrissage un appui donné en l'air que l'enfant n'a plus en tête, parfois juste avant un volcan. À rouvrir seulement si Galahad est observé « appuyer trop tôt » sur la tablette ; ce sera une constante à changer.
+5. **Ordre inchangé** : reprise par la 5e, puis 6 et 7 (le retour tablette portait sur le jeu, pas sur l'aspect), les écrans ensuite au régime allégé ; la 8b peut se faire dans la même session que la 8. La génération des sprites par le papa se fait en parallèle.

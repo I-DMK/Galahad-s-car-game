@@ -71,14 +71,17 @@ sans le contexte de celle-ci.
 - **Tâche 5f faite, validée et déployée** (rendu interpolé : `38b012f` empreinte figée, `e979930` feat, `9ecf7b2` tour 1, `7e05336` tour 2) : `loop/interpolation.ts` (PoseHistory, lerpAngle), `loop/frame.ts` (runFrame, cameraTarget), `loop/frame-stats.ts` (compteur d'images à 0 et 2+ pas, HUD en `?debug=1`), `sim/present.ts` (presentFrame, stepOutcome, partagés par `Game` et les tests), `tests/game-frame.test.ts` (vraie boucle de `Game` sous jsdom). Rejeu de 12 courses à 5 voitures : épisodes de tremblement sans / avec interpolation 75 / 0 (60,05 Hz), 90 / 0 (59,94 Hz), 13 / 0 (120 Hz), 3 / 1 (60,000 Hz, choc réel, masqué). Galahad seul identique au bit près (empreinte sha1 par pas). npm test 373/373, e2e 7/7, suite lente de l'interpolation 18/18. Non corrigé (choix) : effets, étoiles et flammes avec ≤ 1 pas d'avance sur la voiture dessinée ; stroboscope des roues à 60 Hz.
 - **Tâche 5d faite, validée et déployée** (étoiles pour tous : `0cabe30` mesure « avant », `39cda73` feat, `1110f14` tour 1, `da1166f` tour 2) : état d'étoile par voiture (`takenAt[k]`, `isStarActiveFor`, `takeStarFor`), catégorie de collision par voiture (`carCategory(k)`, `CAT.ALL_CARS`, `MAX_CARS` 5), masque des capteurs = OU des voitures actives (empreinte de Galahad seul identique), rendu de l'état vu par Galahad (`GALAHAD_INDEX`), `firstStar`/`firstStarCars`, `starsByCar`. Rattrapage (48 courses doigt posé, appariées) : vainqueur = première étoile 94 % → 58 %, Galahad gagne 81 % → 52 %, place moyenne 1,33 → 1,77, étoiles par voiture 341/128/88/79/67 → ≈ 390 chacune (McNemar p ≈ 4·10⁻⁵) ; mesure à la demande : `npm run test:slow:rattrapage` (≈ 7 min, lignes étiquetées par commit). npm test 386/386, e2e 7/7, test:slow 252/252 (avant sortie du rattrapage).
 - **Addendum « présentation »** (2026-10-22, `docs/superpowers/specs/2026-10-22-addendum-presentation.md`,
-  **brouillon en relecture par le papa**) : après comparaison avec la reproduction
+  **VALIDÉ par le papa le 2026-10-22**, décisions au §8) : après comparaison avec la reproduction
   Grok du jeu (archive du papa), reprise de sa présentation seulement : sprites
   pour les voitures, la roue, les flammes, l'étoile et la Terre (nouvelle tâche
   8b, option de géométrie A/B/C à trancher sur capture), copains sur l'écran
   titre et police Fredoka (tâche 10), Terre dans le ciel (tâche 16), méthode
   allégée pour les tâches d'écrans et de décor, jalon « démo tablette » après la
   tâche 11. Rien de la physique, de l'élastique ni de la piste Grok n'est repris.
-  Quatre questions ouvertes au §8. **Fichiers rangés** dans `assets/` (hors
+  Décisions : sprites **générés par le papa** à nos proportions (option A, sept
+  voitures dans la même passe, en parallèle des tâches 5e à 7, gabarit SVG fourni
+  par la 8b), jalon avant l'audio, `JUMP_BUFFER` gardé à 0,1 s, ordre inchangé
+  (reprise par la 5e). **Fichiers rangés** dans `assets/` (hors
   `public/`, non servis) : 6 carrosseries renommées par pilote, roue, étoile, Terre,
   4 flammes (303 KB, réduits et quantifiés) et Fredoka 600/700 (40 KB), voir
   `assets/README.md` ; l'archive Grok elle-même n'est pas dans le dépôt.
