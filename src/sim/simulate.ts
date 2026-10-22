@@ -20,7 +20,7 @@ import {
 } from '../physics/car';
 import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
-import { createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
+import { MAX_CARS, createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
 import { heightAt, inElanZone, inGhostZone, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
@@ -63,10 +63,13 @@ export interface CarSim {
   throttle: boolean;
 }
 
+/** Index de Galahad dans `RaceSim.cars` : l'écran montre les étoiles telles qu'il les voit. */
+export const GALAHAD_INDEX = 0;
+
 export interface RaceSim {
   track: Track;
   world: World;
-  /** Galahad = cars[0] ; le robot de rang n = cars[n] (ordre de la grille). */
+  /** Galahad = cars[GALAHAD_INDEX] = cars[0] ; le robot de rang n = cars[n] (ordre de la grille). */
   cars: CarSim[];
   /** Temps de course (s), PHYSICS_DT par pas. */
   time: number;
@@ -133,6 +136,9 @@ export function createRaceSim(
   const world = createWorld(track, cfg);
   const pilotSeed = opts.pilotSeed ?? defaultPilotSeed(track);
   const pilots = [GALAHAD, ...(opts.robots ? drawPilots(pilotSeed) : [])];
+  if (pilots.length > MAX_CARS) {
+    throw new RangeError(`createRaceSim : ${pilots.length} voitures (Galahad + ${pilots.length - 1} copains), au plus MAX_CARS = ${MAX_CARS} (une catégorie de collision par voiture)`);
+  }
   const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, cfg));
   const stars = newStarStates(track.stars, cars.length);
   const starBodies = createStarBodies(world, track.stars, cfg);
@@ -420,7 +426,7 @@ export function sceneOf(sim: RaceSim, poses?: CarPose[], alpha = 1): Scene {
   return {
     track: sim.track,
     cars: sim.cars.map((_, i) => carView(sim, i, poses?.[i])).reverse(),
-    stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActiveFor(sim.stars[i], 0, sim.time, sim.cfg) })),
+    stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActiveFor(sim.stars[i], GALAHAD_INDEX, sim.time, sim.cfg) })),
     t: poses === undefined ? sim.time : sim.time - (1 - alpha) * sim.cfg.PHYSICS_DT,
   };
 }
@@ -438,12 +444,17 @@ export interface SimulateResult {
   maxStuckSeconds: number;
   /** Vitesse maximale du châssis de Galahad (m/s). */
   maxSpeed: number;
-  /** Étoiles prises par Galahad (= `starsByCar.galahad`). */
-  starsTaken: SimEvent[];
+  /** Étoiles prises par Galahad (copie de `starsByCar.galahad`). */
+  starsTaken: StarEvent[];
   /** Par id de voiture (ordre de la grille) : étoiles prises, dans l'ordre de la course. */
   starsByCar: Record<string, StarEvent[]>;
-  /** Première étoile prise dans la course (au même pas : la voiture de plus petit index), null si aucune. */
+  /**
+   * Première étoile prise dans la course, null si aucune. Si plusieurs voitures en prennent au même pas,
+   * `carId` est celle de plus petit index et `firstStarCars` les nomme toutes : une égalité se voit.
+   */
   firstStar: { carId: string; t: number } | null;
+  /** Ids (ordre des index, sans doublon) des voitures qui ont pris une étoile au pas de `firstStar` ; vide si aucune. */
+  firstStarCars: string[];
   /** Temps de course final (s). */
   time: number;
   /** Nombre d'événements 'finish' de Galahad (1 attendu une fois la ligne franchie). */
@@ -530,7 +541,7 @@ export function simulateRace(
 ): SimulateResult {
   const { cfg } = opts;
   const sim = createRaceSim(track, cfg, { robots: opts.robots, pilotSeed: opts.pilotSeed });
-  const galahad = sim.cars[0];
+  const galahad = sim.cars[GALAHAD_INDEX];
   const stopAfterFinish = opts.stopAfterFinish ?? cfg.FINISH_COAST_SECONDS;
   const steps = Math.round(opts.maxSeconds / cfg.PHYSICS_DT);
   const samples: number[] = [galahad.state.progress];
@@ -540,6 +551,7 @@ export function simulateRace(
   const lavaByCar: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
   const starsByCar: Record<string, StarEvent[]> = Object.fromEntries(ids.map((id) => [id, []]));
   let firstStar: SimulateResult['firstStar'] = null;
+  const firstStarCars: string[] = [];
   const stuck = sim.cars.map((c) => new StuckMeter(c.state.progress, cfg.STUCK_DISTANCE));
   let finishes = 0;
   let maxSpeed = 0;
@@ -570,6 +582,7 @@ export function simulateRace(
         // Événements d'un pas dans l'ordre des index : le premier est la plus petite index.
         starsByCar[e.carId].push(e);
         firstStar ??= { carId: e.carId, t: e.t };
+        if (e.t === firstStar.t && !firstStarCars.includes(e.carId)) firstStarCars.push(e.carId);
       } else if (e.type === 'finish' && mine) finishes++;
     }
     sim.cars.forEach((c, k) => {
@@ -589,10 +602,11 @@ export function simulateRace(
   const ranking = rankCars(sim.cars.map((c, index) => ({ index, progress: c.state.progress, finishedAt: c.state.finishedAt })));
   return {
     respawns: respawnsByCar[galahad.state.id], finishedAt: galahad.state.finishedAt, finishes,
-    maxStuckSeconds: stuck[0].max, maxSpeed, starsTaken: starsByCar[galahad.state.id], time: sim.time,
+    maxStuckSeconds: stuck[GALAHAD_INDEX].max, maxSpeed, starsTaken: [...starsByCar[galahad.state.id]], time: sim.time,
     progressAt: at(samples), speedAt: at(speeds),
     starsByCar,
     firstStar,
+    firstStarCars,
     ranking: ranking.map((i) => ids[i]),
     respawnsByCar,
     lavaByCar,

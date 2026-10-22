@@ -50,29 +50,38 @@ export interface FiveCarRace {
   stars: Record<string, number>;
   /** Première étoile de la course : premier 'star' relevé (au même pas, le plus petit index), null si aucune. */
   firstStar: { carId: string; t: number } | null;
+  /** Voitures (ordre des index) qui ont pris une étoile au pas de `firstStar` : plus d'une = égalité. */
+  firstStarCars: string[];
   /** Résumé lisible (par voiture), imprimé et repris dans les messages d'assertion. */
   summary: string;
   /** Durée mur de la simulation (s). */
   seconds: number;
 }
 
-/**
- * Options de `simulateRace` de la course à 5 (hors observateur) ; `maxSeconds` réduit pour le test de
- * l'observateur ; `throttle` : doigt de Galahad (défaut : toujours posé).
- */
-export const fiveCarOptions = (maxSeconds = RACE_MAX_SECONDS, throttle: (t: number) => boolean = () => true) => (
+/** Course à 5 : durée maximale (défaut RACE_MAX_SECONDS ; réduite pour le test de l'observateur) et doigt de Galahad (défaut : toujours posé). */
+export interface FiveCarOptions { maxSeconds?: number; throttle?: (t: number) => boolean }
+
+/** Options de `simulateRace` de la course à 5 (hors observateur). */
+export const fiveCarOptions = ({ maxSeconds = RACE_MAX_SECONDS, throttle = () => true }: FiveCarOptions = {}) => (
   { throttle, maxSeconds, cfg: CONFIG, robots: true }
 );
 
-export function fiveCarRace(seed: number, maxSeconds = RACE_MAX_SECONDS, throttle?: (t: number) => boolean): FiveCarRace {
+/**
+ * Course à 5 voitures sur la piste de la graine, observée par `onStep` : contacts entre voitures et chutes,
+ * mais aussi étoiles par voiture et première étoile. Ces dernières sont relevées ici, et non lues dans
+ * `SimulateResult.starsByCar` / `firstStar` (tâche 5d), pour que le harnais tourne aussi sur le code
+ * d'avant la 5d : la mesure « avant » du rattrapage reste rejouable et comparable.
+ */
+export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRace {
   const track = trackFor(seed);
   const t0 = performance.now();
   const lastContact = new Map<string, { t: number; with: string }>();
   const falls: Fall[] = [];
   const starCounts: Record<string, number> = {};
   let firstStar: FiveCarRace['firstStar'] = null;
+  const firstStarCars: string[] = [];
   const r = simulateRace(track, {
-    ...fiveCarOptions(maxSeconds, throttle),
+    ...fiveCarOptions(opts),
     onStep: (sim) => {
       const t = sim.time;
       for (const [a, b] of carPairsTouching(sim)) {
@@ -83,6 +92,7 @@ export function fiveCarRace(seed: number, maxSeconds = RACE_MAX_SECONDS, throttl
         if (e.type === 'star') {
           starCounts[e.carId] = (starCounts[e.carId] ?? 0) + 1;
           firstStar ??= { carId: e.carId, t: e.t };
+          if (e.t === firstStar.t && !firstStarCars.includes(e.carId)) firstStarCars.push(e.carId);
         }
         if (e.type !== 'respawn') continue;
         if (e.reason === 'lava') {
@@ -108,7 +118,7 @@ export function fiveCarRace(seed: number, maxSeconds = RACE_MAX_SECONDS, throttl
   const summary = `seed ${seed} : Galahad arrivé à ${f1(r.finishedAt)} s, fin à ${f1(r.time)} s, classement ${r.ranking.join(' > ')}, `
     + `meanStepMs ${f2(r.meanStepMs)} (indicateur, cible < 4), maxStepMs ${f1(r.maxStepMs)}, durée ${f1(seconds)} s\n  ${cars.join('\n  ')}`
     + `\n  chutes dans la lave : ${falls.length ? falls.map(describeFall).join(' ; ') : 'aucune'}`;
-  return { r, falls, stars, firstStar, summary, seconds };
+  return { r, falls, stars, firstStar, firstStarCars, summary, seconds };
 }
 
 /**

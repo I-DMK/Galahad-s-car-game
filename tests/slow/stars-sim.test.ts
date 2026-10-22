@@ -2,17 +2,15 @@
 // seul (défaut `robots: false` de createRaceSim et simulateRace, comme au plan A).
 import { CONFIG } from '../../src/config';
 import { isStarActiveFor } from '../../src/cars/stars';
-import { createRaceSim, sceneOf, simulateRace, stepRace, carView, type SimEvent } from '../../src/sim/simulate';
+import { createRaceSim, sceneOf, simulateRace, stepRace, carView, type StarEvent } from '../../src/sim/simulate';
 import { generateTrack } from '../../src/track/generate';
-
-type StarEvent = Extract<SimEvent, { type: 'star' }>;
 
 const TRACK = generateTrack(1, 1680, CONFIG);
 const MAX_SECONDS = 240;
 
 test('course complète : étoiles prises tôt, turbo au-delà de V_MAX, arrivée sans aucune réapparition', () => {
   const r = simulateRace(TRACK, { throttle: () => true, maxSeconds: MAX_SECONDS, cfg: CONFIG });
-  const stars = r.starsTaken as StarEvent[];
+  const stars = r.starsTaken;
   const summary = `stars=${stars.length} first=${stars[0]?.t.toFixed(2)} maxSpeed=${r.maxSpeed.toFixed(2)} finishedAt=${r.finishedAt?.toFixed(2)} respawns=${r.respawns.length}`;
   expect(stars.length, summary).toBeGreaterThanOrEqual(1);
   expect(stars[0].t, summary).toBeLessThan(60);

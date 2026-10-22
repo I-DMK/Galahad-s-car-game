@@ -102,9 +102,10 @@ test('construction : 3 parties sans frottement de l’air, masses 60/40/40, grou
   const all = Composite.allBodies(world.engine.world);
   for (const p of car.parts) expect(all).toContain(p);
   expect(Composite.allConstraints(world.engine.world)).toHaveLength(6);
-  // Une deuxième voiture a son propre groupe.
+  // Une deuxième voiture a son propre groupe et sa propre catégorie.
   const other = createCar(world, 'b', 1, 20, CONFIG);
   for (const p of other.parts) expect(p.collisionFilter.group).toBe(-2);
+  for (const p of other.parts) expect(p.collisionFilter.category).toBe(carCategory(1));
   // Posée à angle 0 : roues de part et d'autre, sous le centre du châssis.
   const c = posM(car.chassis);
   const [w0, w1] = car.wheels.map(posM);
@@ -335,6 +336,19 @@ test('placeCar remet à zéro les vitesses de toutes les parties', () => {
     expect(p.angularVelocity).toBe(0);
   }
   expect(posM(car.chassis).x).toBeCloseTo(50, 6);
+});
+
+test('catégorie de collision par voiture (tâche 5d) : les pièces de la voiture d’index i portent carCategory(i) ; une 6e voiture lève une RangeError', () => {
+  const world = createWorld(FLAT, CONFIG);
+  for (let i = 0; i < 5; i++) {
+    const car = createCar(world, `v${i}`, i, 10 + 5 * i, CONFIG);
+    for (const p of car.parts) {
+      expect(p.collisionFilter.category, `index ${i}`).toBe(carCategory(i));
+      expect(p.collisionFilter.mask, `index ${i}`).toBe(CAT.GROUND | CAT.ALL_CARS | CAT.SENSOR);
+      expect(p.collisionFilter.group, `index ${i}`).toBe(-(i + 1));
+    }
+  }
+  expect(() => createCar(world, 'v5', 5, 40, CONFIG)).toThrow(RangeError);
 });
 
 test('invulnérable : mask sans les voitures (CAT.ALL_CARS), puis rétabli', () => {

@@ -17,8 +17,8 @@ function comparable(r: SimulateResult): unknown {
 
 test(`simulateRace à 5 voitures, graine ${SEED}, 12 s : même résultat avec et sans l'observateur de fiveCarRace`, () => {
   const track = variantTrack(SEED, REFERENCE);
-  const observed = fiveCarRace(SEED, 12).r;
-  const plain = simulateRace(track, fiveCarOptions(12));
+  const observed = fiveCarRace(SEED, { maxSeconds: 12 }).r;
+  const plain = simulateRace(track, fiveCarOptions({ maxSeconds: 12 }));
   expect(observed.time).toBeGreaterThan(11);
   expect(comparable(observed)).toEqual(comparable(plain));
 });
