@@ -69,6 +69,7 @@ sans le contexte de celle-ci.
   l'instant).
 - **Tâche 5c faite, validée et déployée avec la 5f** : `ee58194` (harnais de phases), `25ba33f` (congé de 10 m au pied de la rampe-volcan, `RAMP_FOOT_RADIUS`), `db037f3` (tour 1), `8d92584` (doc). 0 chute doigt posé sur 2 924 historiques + 4 601 en turbo dense, 0 chute à 5 voitures graines 0 à 23 ; garde minimale **0,63 m** en fin de turbo au pied (gardée par le papa, assertée ≥ 0,3 m), ≥ 1,72 m sinon ; doigt levé toléré inchangé (≈ 1,25–1,3 s, pas de levier de difficulté pour l'instant, décision du papa). npm test 331/331, test:slow 170/170.
 - **Tâche 5f faite, validée et déployée** (rendu interpolé : `38b012f` empreinte figée, `e979930` feat, `9ecf7b2` tour 1, `7e05336` tour 2) : `loop/interpolation.ts` (PoseHistory, lerpAngle), `loop/frame.ts` (runFrame, cameraTarget), `loop/frame-stats.ts` (compteur d'images à 0 et 2+ pas, HUD en `?debug=1`), `sim/present.ts` (presentFrame, stepOutcome, partagés par `Game` et les tests), `tests/game-frame.test.ts` (vraie boucle de `Game` sous jsdom). Rejeu de 12 courses à 5 voitures : épisodes de tremblement sans / avec interpolation 75 / 0 (60,05 Hz), 90 / 0 (59,94 Hz), 13 / 0 (120 Hz), 3 / 1 (60,000 Hz, choc réel, masqué). Galahad seul identique au bit près (empreinte sha1 par pas). npm test 373/373, e2e 7/7, suite lente de l'interpolation 18/18. Non corrigé (choix) : effets, étoiles et flammes avec ≤ 1 pas d'avance sur la voiture dessinée ; stroboscope des roues à 60 Hz.
+- **Tâche 5d faite, validée et déployée** (étoiles pour tous : `0cabe30` mesure « avant », `39cda73` feat, `1110f14` tour 1, `da1166f` tour 2) : état d'étoile par voiture (`takenAt[k]`, `isStarActiveFor`, `takeStarFor`), catégorie de collision par voiture (`carCategory(k)`, `CAT.ALL_CARS`, `MAX_CARS` 5), masque des capteurs = OU des voitures actives (empreinte de Galahad seul identique), rendu de l'état vu par Galahad (`GALAHAD_INDEX`), `firstStar`/`firstStarCars`, `starsByCar`. Rattrapage (48 courses doigt posé, appariées) : vainqueur = première étoile 94 % → 58 %, Galahad gagne 81 % → 52 %, place moyenne 1,33 → 1,77, étoiles par voiture 341/128/88/79/67 → ≈ 390 chacune (McNemar p ≈ 4·10⁻⁵) ; mesure à la demande : `npm run test:slow:rattrapage` (≈ 7 min, lignes étiquetées par commit). npm test 386/386, e2e 7/7, test:slow 252/252 (avant sortie du rattrapage).
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
@@ -106,7 +107,7 @@ sans le contexte de celle-ci.
 | 5b course à 5 voitures, grille, chocs, respawn groupé (+ fantômes près des volcans) | **faite, validée**, poussée → mesure fps du papa |
 | 5c (ajoutée) saut fiabilisé | **faite, validée**, déployée avec la 5f |
 | 5f (ajoutée) rendu interpolé (tremblement) | **faite, validée**, déployée → test tablette (tremplin + tremblement) |
-| 5d (ajoutée) étoiles pour tous | à faire (addendum bouton saut §2) |
+| 5d (ajoutée) étoiles pour tous | **faite, validée**, déployée |
 | 5e (ajoutée) bouton saut et étoiles hautes | à faire (addendum bouton saut §1–2) |
 | 6 conduite des robots (+ robots polis + sauts des copains) | à faire |
 | 7 élastique (+ suite `test:slow:race`) | à faire |
@@ -201,4 +202,4 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 Session 3 (2026-10-21/22) : 5c et 5f validées et déployées ensemble. Plan des tâches 5f, 5d, 5e, 6 : `docs/superpowers/plans/2026-10-21-plan-b-saut-et-rendu.md` (v1.3 : relectures standard, adversariale, deux re-relectures ; décisions du papa Q-P1 à Q-P5 au registre ; étoiles hautes réalistes ≈ 1 par course, seuil fixé à la calibration du Step 9 de la 5e et présenté au papa). La branche de sauvegarde `wip-plan-b` est gardée (décision du papa) et sert aux tâches non validées.
 
 1. Retour tablette du papa sur le tremplin (5c) et le tremblement (5f, compteur en `?debug=1`).
-2. Exécuter **5d** (étoiles pour tous) sur `wip-plan-b`, méthode habituelle ; puis **5e → 6 → 7**. À chaque validation : `git checkout ccr-5b6fabc4-n96ofo && git merge --ff-only wip-plan-b`, push.
+2. 5d faite et déployée. Exécuter **5e** (bouton saut et étoiles hautes ; Step 9 : tableau de calibration et nombre d'étoiles hautes à faire valider par le papa) sur `wip-plan-b`, méthode habituelle ; puis **6 → 7** (l'élastique doit rendre l'avantage à Galahad : il gagne 52 % des courses doigt posé depuis la 5d). À chaque validation : `git checkout ccr-5b6fabc4-n96ofo && git merge --ff-only wip-plan-b`, push.
