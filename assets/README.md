@@ -41,3 +41,27 @@ Autres : `wheel.png`, `star.png`, `earth.png`, `flame-0.png` à `flame-3.png` (b
 Fredoka, graisses 600 et 700, sous-ensemble latin, `woff2`, tels que livrés par
 `@fontsource/fredoka` 5.3 dans l'archive. Licence SIL Open Font License 1.1
 (https://openfontlicense.org), auto-hébergement autorisé. Addendum §2.
+
+## `generated/` (à créer par le papa) : les sept sprites générés (addendum §1.3, option A)
+
+Déposer ici les PNG **tels que sortis du générateur** (≥ 1024 px de large, fond transparent),
+nommés `galahad.png`, `pablo.png`, `diego.png`, `timothée.png`, `matthis.png`, `malo.png`,
+`liam.png`. La tâche 8b les contrôle avec le gabarit SVG, efface les roues s'il y en a, les
+réduit à 512 px et les range dans `public/sprites/`. Un dossier dans le dépôt plutôt qu'une
+archive : une archive envoyée à une session disparaît avec elle.
+
+Méthode : générer d'abord Galahad jusqu'à satisfaction, puis demander « la même voiture »
+dans chaque couleur, pour garder un seul style et un seul angle. Prompt de départ :
+
+```
+Side view of a cartoon lunar racing buggy, facing right, strictly profile,
+transparent background, no wheels (empty wheel arches), low and long body
+(about 3 times longer than tall), large wheel arches sized for big wheels
+(wheel diameter larger than the body height), helmeted driver sitting in the
+rear third, bold flat colors with soft shading, kid-friendly, no text,
+no shadow on the ground. Body color: blue with red stripes, red helmet.
+```
+
+Puis, pour chaque copain : « Same car, same angle, same style, body color red, matching red
+helmet » (vert, blanc, jaune, orange, rose de même ; casque assorti à la carrosserie, palette
+de la 5a).
