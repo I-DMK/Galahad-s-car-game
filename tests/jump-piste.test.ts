@@ -4,8 +4,12 @@
 // - le vol d'un saut ne compte pas comme un blocage : un saut depuis l'arrêt, gaz posé, vole ≈ 2,02 s sans avancer,
 //   plus que STUCK_SECONDS (relecture adversariale : respawn « stuck » à l'atterrissage, série « même volcan » remise
 //   à zéro, option B repoussée).
+import Matter from 'matter-js';
 import { CONFIG } from '../src/config';
-import { createRaceSim, stepRace, type RespawnEvent } from '../src/sim/simulate';
+import { worldToPhys } from '../src/physics/units';
+import { CAT, carCategory } from '../src/physics/world';
+import { createRaceSim, stepRace, type RaceSim, type RespawnEvent } from '../src/sim/simulate';
+import { generateTrack } from '../src/track/generate';
 import { heightAt } from '../src/track/query';
 import { trackFor } from './helpers/runs';
 
@@ -93,5 +97,69 @@ describe('le vol d’un saut ne compte pas comme un blocage', () => {
     expect(first.target.x).toBeLessThan(v.xLancement);
     // Option B : deuxième chute de suite dans la même lave → posée en fin de réception, après le volcan.
     expect(second.target.x).toBeCloseTo(v.xEnd - CONFIG.RESPAWN_AFTER_VOLCANO_BACK, 9);
+  });
+});
+
+/**
+ * Plafond du vol de saut (tour 2 de la 5e) : Galahad seul sur une piste plate, saut à t = 0 gaz posé ; à l'apogée
+ * (t = 1 s), un obstacle est posé sous lui :
+ * - « perché » : un pilier de 0,4 m de large et 1 m de haut sous le châssis, entre les roues (piste) : le châssis s'y
+ *   pose, les roues pendent dans le vide, le vol ne se clôt jamais ; seul le plafond (≈ 4,04 s) rend la voiture
+ *   « bloquée » : réapparition vers 6,04 s ;
+ * - « toit » : une plaque à 1 m (catégorie d'une voiture, pas la piste) sous les deux roues et une butée devant : le
+ *   vol se clôt à l'atterrissage sur le toit (≈ 1,8 s), « bloquée » 2 s plus tard (≈ 3,8 s).
+ */
+function perchedRun(kind: 'perché' | 'toit'): { stuckAt: number | null; others: RespawnEvent[]; landedOnRoof: boolean } {
+  const sim: RaceSim = createRaceSim(generateTrack(3, 400, CONFIG, { onlyPlat: true }), CONFIG);
+  const g = sim.cars[0];
+  const box = (x: number, y: number, w: number, h: number, category: number): Matter.Body => {
+    const p = worldToPhys({ x, y });
+    return Matter.Bodies.rectangle(p.x, p.y, w * CONFIG.PIXELS_PER_METER, h * CONFIG.PIXELS_PER_METER, {
+      isStatic: true, collisionFilter: { category, mask: CAT.ALL_CARS },
+    });
+  };
+  let placed = false;
+  let landedOnRoof = false;
+  let stuckAt: number | null = null;
+  const others: RespawnEvent[] = [];
+  for (let i = 0; i < STEPS(10) && stuckAt === null; i++) {
+    stepRace(sim, true, i === 0);
+    if (!placed && sim.time >= 1) {
+      const x = g.state.progress;
+      const bodies = kind === 'perché'
+        ? [box(x, 0.5, 0.4, 1, CAT.GROUND)]
+        : [box(x, 0.9, 3, 0.2, carCategory(1)), box(x + 1.45, 2, 0.2, 2, carCategory(1))];
+      Matter.Composite.add(sim.world.engine.world, bodies);
+      placed = true;
+    }
+    if (kind === 'toit' && placed && g.airborneSince === null && !g.grounded) landedOnRoof = true;
+    for (const e of sim.events) {
+      if (e.type !== 'respawn') continue;
+      if (e.reason === 'stuck') stuckAt = e.t;
+      else others.push(e);
+    }
+  }
+  return { stuckAt, others, landedOnRoof };
+}
+
+describe('plafond du vol de saut pour le chronomètre « bloquée »', () => {
+  test('châssis perché sur un pilier, roues dans le vide, après un saut : « stuck » en 6,1 s au plus (sans plafond : jamais)', () => {
+    const r = perchedRun('perché');
+    console.log(`perché sur un pilier après un saut : « stuck » à ${r.stuckAt?.toFixed(2)} s`);
+    expect(r.others).toEqual([]);
+    expect(r.stuckAt, 'réapparition « stuck »').not.toBeNull();
+    // Plafond 4 × JUMP_VY / GRAVITY ≈ 4,04 s, puis STUCK_SECONDS.
+    expect(r.stuckAt!).toBeGreaterThan((4 * CONFIG.JUMP_VY) / CONFIG.GRAVITY + CONFIG.STUCK_SECONDS - 0.1);
+    expect(r.stuckAt!).toBeLessThanOrEqual(6.1);
+  });
+
+  test('roues posées sur un toit contre une butée : vol clos à l’atterrissage, « stuck » vers 3,8 s', () => {
+    const r = perchedRun('toit');
+    console.log(`roues sur un toit contre une butée : « stuck » à ${r.stuckAt?.toFixed(2)} s`);
+    expect(r.landedOnRoof, 'roues sur le toit (contact de jeu sans la piste)').toBe(true);
+    expect(r.others).toEqual([]);
+    expect(r.stuckAt, 'réapparition « stuck »').not.toBeNull();
+    expect(r.stuckAt!).toBeGreaterThan(3.3);
+    expect(r.stuckAt!).toBeLessThan(4.3);
   });
 });

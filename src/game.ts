@@ -148,7 +148,8 @@ export class Game {
 
   /**
    * Pas `i` de l'image pour `runFrame` : la demande de saut est donnée au premier pas (`i === 0`) et consommée
-   * seulement s'il réussit ; une image sans pas, ou un pas qui lève, la laisse en attente. Événements recueillis
+   * quand il réussit ; une image sans pas la laisse en attente ; un pas qui lève la jette (`rebuildCars` est une
+   * téléportation, qui oublie la demande). Événements recueillis
    * dans `events`, sauts et arrivée de Galahad ; poses après le pas et voitures réapparues (téléportées : pas
    * d'interpolation depuis l'ancienne position). Sur exception : `rebuildCars` (historique remis à zéro), ou
    * abandon au MAX_ERRORS-ième échec.
@@ -169,6 +170,8 @@ export class Game {
       return stepOutcome(sim);
     } catch (err) {
       console.error('stepRace a échoué', err);
+      // `rebuildCars` est une téléportation : elle oublie la demande de saut, celle du pas qui a levé comprise.
+      this.jumpInput.clear();
       if (++this.errors >= MAX_ERRORS) {
         this._state = 'error';
         this.hud.showError('Oups ! Recharge la page');

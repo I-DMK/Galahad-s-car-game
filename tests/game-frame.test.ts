@@ -4,6 +4,7 @@
 // les voitures aux poses interpolées entre les deux derniers pas (sans traînée pour une voiture réapparue),
 // `Scene.t` = sim.time − (1 − α)·dt, et la caméra doit suivre la pose dessinée de Galahad au temps réel.
 // Les attendus sont recalculés ici, à côté de `Game`, depuis l'état de la course après chaque pas.
+import Matter from 'matter-js';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { CONFIG } from '../src/config';
 import { Game } from '../src/game';
@@ -170,6 +171,35 @@ test('Game : demande de saut gardée sur une image sans pas et donnée au pas su
   for (let f = 0; f < 10; f++) { now += DT * 1000; raf!(now); }
   expect(game.jumps).toBe(1);
   expect(button.classList.contains('is-waiting')).toBe(true);
+  internals.stop();
+  internals.throttle.dispose();
+  internals.jumpInput.dispose();
+});
+
+test('Game : un pas qui lève jette la demande de saut ; après rebuildCars (téléportation), aucun saut ne part', () => {
+  const canvas = document.createElement('canvas');
+  const hud = document.createElement('div');
+  document.body.append(canvas, hud);
+  const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
+  const internals = game as unknown as { sim: RaceSim; stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void; pending: boolean } };
+  const { sim } = internals;
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  game.start();
+  let now = 0;
+  // Quelques pas au sol, puis un tap ; le pas suivant lève avant le saut (au gaz de la première voiture, `applyDrive`).
+  for (let f = 0; f < 30; f++) { now += DT * 1000; raf!(now); }
+  pointerDown(hud.querySelector('.jump-button')!, 9);
+  expect(internals.jumpInput.pending).toBe(true);
+  vi.spyOn(Matter.Body, 'setAngularVelocity').mockImplementationOnce(() => { throw new Error('pas qui lève (test)'); });
+  now += DT * 1000;
+  raf!(now);
+  expect(error).toHaveBeenCalledWith('stepRace a échoué', expect.any(Error));
+  expect(internals.jumpInput.pending).toBe(false);
+  // Voitures reconstruites au point sûr : une seconde de course, aucun saut.
+  for (let f = 0; f < 60; f++) { now += DT * 1000; raf!(now); }
+  expect(game.state).toBe('racing');
+  expect(game.jumps).toBe(0);
+  expect(sim.cars[0].state.lastJumpAt).toBeNull();
   internals.stop();
   internals.throttle.dispose();
   internals.jumpInput.dispose();

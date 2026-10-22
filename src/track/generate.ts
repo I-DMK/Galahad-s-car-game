@@ -69,7 +69,9 @@ const STAR_FLAT_ATTEMPTS = 12;
  * régulière n'en met pas autant que prévu (fin de piste atteinte avant le dernier, graine 128), la piste est
  * refaite depuis la même graine avec du jeu sur les ancres (`slack`), qui les rapproche du départ ; la première
  * pose qui les met tous est gardée (graines 0 à 999 : 3 plats étoile à 1 680 m, testé). Une piste posée du premier
- * coup est inchangée.
+ * coup reste inchangée par les ancres avancées ; mais la règle « rampe-saut → plat court » (`starFlatAllowed`) change
+ * environ 48 % des pistes à 1 680 m depuis faba763 (95 sur 200, graines 0 à 199 ; 459 sur 1 000, graines 0 à 999),
+ * dont les graines 0 à 2, à partir de 957 à 1 387 m (au-delà des 30 s de l'empreinte, inchangée).
  */
 export function generateTrack(
   seed: number, targetLength: number, cfg: Config, opts: { onlyPlat?: boolean } = {},
