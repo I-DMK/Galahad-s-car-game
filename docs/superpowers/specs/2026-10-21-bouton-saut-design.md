@@ -4,7 +4,8 @@ Date : 2026-10-21
 Statut : **VALIDÉ par le papa** le 2026-10-21 (design approuvé section par section, puis document relu et approuvé).
 Amendé [plan] le 2026-10-22 (tâche 5e, Step 1) avec les décisions du papa sur le plan 5e/6 (registre 567ee13) : Q-P1 (b) étoiles hautes **en plus** des étoiles du curseur ; Q-P2 mémoire de la demande de saut de 0,1 s ; Q-P3 **même hauteur partout**. Les passages amendés sont marqués « [plan] » ; le plan `docs/superpowers/plans/2026-10-21-plan-b-saut-et-rendu.md` (tâche 5e) en donne le détail.
 Amendé [fosses] le 2026-10-22 avec les décisions du papa au Step 9 de la tâche 5e (registre e02dcae) : `STAR_HIGH_Y` = 3,90 m ; au moins 3 étoiles hautes par course, sur des **plats étoile** posés par le générateur ; **fosses de lave** sans tremplin, environ 1 volcan sur 2 ; promesse changée. Les passages amendés sont marqués « [fosses] » ; le détail et les mesures sont au §6.
-v1.5 (tour de correction 1, 2026-10-22) : réponses du papa aux questions Q-F1 à Q-F5 (registre 10282e7) et **tolérance de sol pour le saut** (0718977), constats des relectures standard et adversariale. **À relire, puis à faire valider par le papa avant tout code.**
+v1.5 (tour de correction 1, 2026-10-22) : réponses du papa aux questions Q-F1 à Q-F5 (registre 10282e7) et **tolérance de sol pour le saut** (0718977), constats des relectures standard et adversariale.
+v1.6 (tour de correction 2, 2026-10-22) : Q-F6 tranché (c73faf5, tolérance gardée à 0,35 s) ; mesure des fenêtres en test (§6.2) ; super saut après une bosse (§6.10). **À relire, puis à faire valider par le papa avant tout code.**
 Amende : le spec du 2026-10-20 et l'addendum plan B (`2026-10-21-plan-b-addendum.md`, §1.4 à §1.8 pour les fosses, §2 et §3.3). En cas de contradiction, ce document l'emporte sur les deux.
 
 ## 0. Origine et intention
@@ -55,7 +56,7 @@ Hors périmètre (reste au plan C) : obstacles sur la piste, météorites, saut 
 - **Étoiles hautes** [plan] (décision Q-P1 (b), remplace « environ 1 étoile du curseur sur 3 est surélevée ») :
   - Elles sont **ajoutées** aux étoiles du curseur, qui ne changent pas. À la génération (`placeStars`, rng de la piste, déterministe pour ENCORE), leurs tirages viennent **après** tous les autres ; avec `STAR_HIGH_PER_RACE` = 0, les étoiles sont celles d'avant, au bit près.
   - Nombre : **au plus `STAR_HIGH_PER_RACE`** par course, réaliste **≈ 1 par course**, et certaines pistes n'en ont aucune. Les plats ne mesurent que 20 à 40 m, et un saut vole ≈ 28 m à 14 m/s. Le nombre est mesuré, puis validé par le papa sur le tableau de calibration.
-    [fosses] Remplacé par la décision du 2026-10-22 : **au moins 3 par course**, une sur chacun des 3 **plats étoile** que le générateur pose (§6.6). `STAR_HIGH_PER_RACE` devient le plafond total (3 recommandé, question Q-F4) ; les étoiles des plats étoile passent toujours en premier.
+    [fosses] Remplacé par la décision du 2026-10-22 : **au moins 3 par course**, une sur chacun des 3 **plats étoile** que le générateur pose (§6.6). `STAR_HIGH_PER_RACE` devient le plafond total (3 : exactement 3, Q-F4) ; les étoiles des plats étoile passent toujours en premier.
   - [fosses] Hauteur : **`STAR_HIGH_Y` = 3,90 m** (choix du papa sur le tableau du Step 9 ; fenêtre réelle mesurée 0,57 / 0,60 s à 11,2 / 14 m/s sur un plat étoile, 0,47 / 0,48 s à +5 cm).
   - Emplacement : **seulement sur les plats éligibles**, jamais au-dessus d'une bosse (remplace « sur les plats et au-dessus du sommet d'une bosse »). [fosses] Les plats étoile ont leurs propres règles (§6.6) ; les règles ci-dessous ne valent plus que pour les étoiles hautes ajoutées sur des plats ordinaires, si le plafond le permet.
     - Les tranches `plat`, hors plat de départ et plat d'arrivée, **voisines fusionnées** en un seul segment.
@@ -85,7 +86,7 @@ Hors périmètre (reste au plan C) : obstacles sur la piste, météorites, saut 
 
 - **Saut (unitaires et simulation)** :
   - au sol seulement ; [fosses] lire : au sol, ou en l'air depuis au plus `JUMP_GROUND_GRACE` (0,35 s) après le dernier contact de jeu ; au-delà, aucun saut ;
-  - [fosses] aucun appui perdu dans la fenêtre d'une fosse : 0 sur au moins 24 lancers à 14 m/s et avec un turbo pris à 14 m/s (calcul sur la suite « au sol / en l'air » d'une course sans saut) ; à 21 m/s tenus, part imprimée (§6.2) ;
+  - [fosses] aucun appui perdu dans la fenêtre d'une fosse : 0 sur 24 lancers à 11,2 et à 14 m/s, et avec un turbo pris à 14 m/s (calcul sur la suite « au sol / en l'air » d'une course sans saut) ; à 21 m/s tenus, part imprimée, au plus 0,5 % (accepté par le papa, Q-F6) (§6.2) ;
   - [fosses] sauts dans la tolérance au sommet des tremplins et des rampes-saut : remesurés (§6.2, « Tolérance de sol ») ;
   - délai respecté ;
   - un saut par appui ;
@@ -107,7 +108,7 @@ Hors périmètre (reste au plan C) : obstacles sur la piste, météorites, saut 
   - un saut mal placé dans l'élan ou sur la rampe peut faire tomber : mesuré, pour vérifier que le risque existe.
 - [fosses] **Fosses** (§6.2 à §6.5) :
   - (a) doigt posé sans saut, de 3 à 30 m/s et en turbo, depuis n'importe quelle tranche précédente : la voiture tombe, à 100 % (jamais de survol) ;
-  - (b) lancée à 11,2 et à 14 m/s, et en turbo : fenêtre principale d'au moins 0,4 s, **d'un seul tenant (chaque pas vérifié)**, sans respawn dans les 3 s après l'atterrissage ; des morceaux isolés plus tôt (saut trop tôt sauvé par un rebond) sont permis et imprimés ;
+  - (b) lancée à 11,2 et à 14 m/s, et en turbo : fenêtre principale d'au moins 0,4 s, **d'un seul tenant (chaque pas vérifié)**, sans respawn dans les 3 s après l'atterrissage ; des morceaux isolés plus tôt (saut trop tôt sauvé par un rebond) sont permis et imprimés. Fenêtres entières en suite lente ; en CI, un bloc de 0,4 s autour de l'instant visé par les copains (§6.2) ;
   - (c) départ arrêté au pire point sûr (`xLancement + 5 − ε`), doigt posé : fenêtre d'au moins 0,4 s ;
   - sous ≈ 6 m/s, presque aucun saut ne passe (à 5 m/s, aucun ; mesuré et imprimé, c'est la limite « à doigt posé » du §6.1) ;
   - (d) turbo (21 m/s) : tout saut qui passe atterrit avant `xEnd − 10` ;
@@ -157,9 +158,10 @@ Réponses du papa aux questions de la v1.4 (registre 10282e7 et 0718977) :
 - **Q-F4** : **exactement 3** étoiles hautes par course (§6.6).
 - **Q-F5** : rien ne s'allume à l'approche d'une fosse pour le premier test (§6.7).
 - Nouveau : **tolérance de sol** pour le saut, `JUMP_GROUND_GRACE` = 0,35 s (§1, §6.2).
+- **Q-F6** (c73faf5) : tolérance de sol **gardée à 0,35 s**, à rejuger au test tablette (§6.10).
 
 Conventions des chiffres :
-- **MESURÉ** : sonde jetable `tests/zz-probe-*` (supprimée), Galahad seul, vrai `stepRace` (contact débouncé, saut, capteurs, respawns), monde rogné, vitesse tenue doigt posé par le facteur de la voiture comme dans `jumpRun`. « MESURÉ (relecture) » : sonde de la relecture adversariale de la v1.4. Les mesures « avec tolérance » émulent `JUMP_GROUND_GRACE` (saut posé par `applyJump` si le dernier contact de jeu date d'au plus 0,35 s) en attendant son code. Les tâches 5e et 5g refont ces mesures en tests.
+- **MESURÉ** : sonde jetable `tests/zz-probe-*` (supprimée), Galahad seul, vrai `stepRace` (contact débouncé, saut, capteurs, respawns), monde rogné, vitesse tenue doigt posé par le facteur de la voiture comme dans `jumpRun`. « MESURÉ (relecture) » : sonde d'une relecture (adversariale de la v1.4, ou re-relecture de la v1.5). Les mesures « avec tolérance » émulent `JUMP_GROUND_GRACE` (saut posé par `applyJump` si le dernier contact de jeu date d'au plus 0,35 s) en attendant son code. Les tâches 5e et 5g refont ces mesures en tests.
 - **CALCULÉ** : formule, ou prototype statique du générateur (même `rng`, mêmes profils, sans physique ; vérifié identique à `generateTrack` sans fosse ni plat étoile sur les graines 0 à 49).
 - Vocabulaire : un **volcan** est soit un **tremplin** (la `rampe-volcan` d'aujourd'hui), soit une **fosse**. W = `FOSSE_WIDTH`, largeur de lave. s = distance du châssis au bord amont de la fosse au moment du saut.
 
@@ -169,7 +171,7 @@ Conventions des chiffres :
 |---|---|---|
 | sans jamais sauter | passe, jamais de chute (promesse 5c inchangée) | tombe, à coup sûr (§6.2 (a)) ; respawn au point sûr d'avant ; 2e chute de suite → posée juste après la fosse (option B) ; on finit la course |
 | saut bien placé | (sans objet : le saut n'est pas nécessaire) | **à doigt posé**, passe, sans respawn (§6.2 (b) à (d)) |
-| saut mal placé | peut tomber (mesuré en fin de 5e, `saut-volcan`) | tombe : trop tard, la roue avant touche la lave ; trop tôt, la voiture retombe dans la fosse |
+| saut mal placé | peut tomber (mesuré en fin de 5e, `saut-volcan-*`) | tombe : trop tard, la roue avant touche la lave ; trop tôt, la voiture retombe dans la fosse |
 
 Ce qui ne change pas : on finit toujours la course ; aucune autre tranche ne fait tomber ; la règle « 2e chute de suite au même volcan » ne compte que les chutes dans la lave (ruling de la tâche 3).
 
@@ -229,6 +231,8 @@ Ce qui ne change pas : on finit toujours la course ; aucune autre tranche ne fai
 
 - La fenêtre principale est d'un seul tenant partout : le trou du turbo a disparu.
 - Les morceaux en plus sont des sauts trop tôt sauvés par un rebond, plus, à 21 m/s tenus, quelques appuis encore perdus (ci-dessous).
+- **Mesure en test** (MESURÉ, sonde de la v1.6, piste synthétique) : on balaie chaque pas des 1,6 s qui précèdent la chute de la course sans saut, soit ≈ [bord − 1,6 s × v, bord]. La fenêtre principale y tient entière et le premier pas balayé échoue toujours : fenêtres de 1,02 / 1,18 / 0,87 / 1,17 / 1,45 s à 11,2 m/s, 14 m/s, départ arrêté, turbo et 21 m/s tenus, ouvertes au plus 1,47 s avant. Les morceaux plus tôt (sauts 35 à 54 m trop tôt) sont hors du balayage : ni exigés, ni interdits. Un run coûte ≈ 0,06 s.
+- **En CI**, un bloc suffit : 25 appuis, un par pas, sur les 0,4 s centrées sur l'instant visé par les copains (`fosseJumpLead`, §6.8). Ils passent tous à 14 m/s, en turbo et au départ arrêté (MESURÉ). À 5 m/s, 13 appuis échantillonnés suffisent à montrer qu'aucun ne passe (0 sur 97 à chaque pas, MESURÉ).
 
 **Tolérance de sol : appuis perdus** (MESURÉ, piste plate, 24 lancers décalés de 0,37 m, chaque pas de 6 s pris comme appui, soit 8 640 appuis par cas ; calcul sur la suite « au sol / en l'air » d'une course sans saut) :
 
@@ -239,7 +243,7 @@ Ce qui ne change pas : on finit toujours la course ; aucune autre tranche ne fai
 | turbo pris à 14 m/s | 2,16 % | **0** | 0 | 0 | 23 pas |
 | 21 m/s tenus (facteur 1,5 permanent) | 6,49 % | **0,41 %** | 0,15 % | 0 | 46 pas (0,77 s) |
 
-- À 21 m/s tenus, la voiture rebondit souvent plus de 0,35 s sur le plat. Galahad n'y arrive qu'en enchaînant les étoiles, d'où la question Q-F6 (§6.10).
+- À 21 m/s tenus, la voiture rebondit souvent plus de 0,35 s sur le plat. Galahad n'y arrive qu'en enchaînant les étoiles. Le papa garde 0,35 s (Q-F6, c73faf5) : 1 appui sur 250 perdu dans ce cas, à rejuger au test tablette.
 
 **Tolérance de sol : saut au sommet d'un tremplin** (MESURÉ ; demandé par le papa) :
 - Protocole :
@@ -442,7 +446,7 @@ Réutilisées sans changement : `LANCEMENT_LENGTH` (approche), `CRATER_DEPTH` (f
 
 ### 6.10 Questions pour le papa
 
-**Tranchées** (registre 10282e7 et 0718977), un seul calendrier, avant tout code :
+**Tranchées** (registre 10282e7, 0718977 et c73faf5), un seul calendrier, avant tout code :
 
 | # | Question | Réponse |
 |---|---|---|
@@ -452,11 +456,9 @@ Réutilisées sans changement : `LANCEMENT_LENGTH` (approche), `CRATER_DEPTH` (f
 | Q-F4 | Combien d'étoiles hautes ? | **exactement 3** (§6.6) |
 | Q-F5 | Aider Galahad à voir la fosse ? | **rien qui s'allume** pour le premier test, à rejuger (§6.7) |
 | — | Saut après un décollage | **tolérance de sol de 0,35 s** (§1, §6.2) |
+| Q-F6 | Tolérance de sol en turbo enchaîné (1 appui sur 250 perdu à 21 m/s tenus) | **0,35 s gardé**, à rejuger au test tablette (§6.2) |
 
-**Reste à trancher** (né des mesures de la tolérance de sol, §6.2) :
-- **Q-F6 — Tolérance de sol en turbo enchaîné.** Avec 0,35 s, aucun appui n'est perdu à 14 m/s ni pendant le turbo d'une étoile. À 21 m/s tenus, ce qui demande d'enchaîner les étoiles, la voiture rebondit parfois jusqu'à 0,77 s, et **1 appui sur 250** tombe encore dans un rebond : pas de saut, et devant une fosse, la lave.
-  - Garder 0,35 s (**recommandé**) : c'est rare, et le saut reste « juste après une bosse », comme le papa l'a voulu.
-  - Ou passer à 0,8 s : 0 appui perdu, mais on peut sauter jusqu'à 0,8 s après un décollage, au milieu du vol d'une bosse. Aux tremplins, la voiture atterrit encore toujours sur la réception (mesuré).
+**Reste à trancher** : rien.
 
 **À savoir, sans question :**
 - **Volcans** : à longueur constante, les plats étoile prennent ≈ 171 m. Une course a donc ≈ 3,6 volcans au lieu de 4,2 (≈ 1,8 fosses et 1,8 tremplins).
@@ -465,3 +467,8 @@ Réutilisées sans changement : `LANCEMENT_LENGTH` (approche), `CRATER_DEPTH` (f
 - **Copains catapultés** : un copain projeté par un choc peut prendre une étoile haute sans sauter. C'est toléré dans les 2 s qui suivent un choc, et compté ; pour Galahad, jamais.
 - **À doigt posé seulement** : sous ≈ 6 m/s, une fosse ne se passe pas. Doigt levé ≈ 2,5 s avant la lave, l'enfant tombe une fois, puis repart du point sûr et passe (§6.1).
 - **Tremplins et tolérance de sol** : un saut au sommet d'un tremplin, même pendant la tolérance, atterrit toujours sur la réception. Aucune parade n'est nécessaire (§6.2).
+- **Super saut après une bosse** (MESURÉ (relecture), 727 sauts dans la tolérance juste après des bosses ou une double-bosse, à 14, 17,5 et 21 m/s). Avec la tolérance, on peut sauter juste après avoir décollé d'une bosse : le saut monte alors 2,5 m au-dessus du vol de la bosse et porte plus loin.
+  - Il retombe au plus 65 m après la bosse, donc toujours avant `xEnd − 10` d'une fosse qui suivrait (115 m après son début).
+  - À 14 m/s, il n'attrape qu'une fois l'étoile haute d'un plat étoile qui suit. En turbo, il l'attrape 134 fois sur 727.
+  - 40 de ces sauts retombent dans la lave d'une fosse qui suit.
+  - Ce sont de vrais sauts : l'enfant a appuyé, et un saut mal placé se paie (§0). Doigt posé sans saut, rien ne change : la promesse tient.
