@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. À chaque tâche : implémenteur frais, puis relecture standard + relecture adversariale par sous-agents frais **et** le skill `code-review` sur le diff de la tâche ; tours de correction (≤ 5) ; validation du papa ; passation mise à jour et commitée ; push.
 
-**Statut :** v1.4.
+**Statut :** v1.5.
 - v1 (04d458a) : brouillon.
 - v1.1 : tour de relecture 1 (standard, adversariale avec calculs physiques, rulings du coordinateur).
 - v1.2 : décisions du papa intégrées (registre 567ee13) et constats de la re-relecture.
@@ -17,7 +17,12 @@
   - tâche 6 ajustée (sauts des copains aux fosses) ;
   - migration des tests qui supposent « doigt posé = 0 chute » ou des pistes figées ; budget CI.
 
-v1.3 validée par le papa et exécutée jusqu'au Step 8 de la 5e. **v1.4 en attente** : relectures (standard, adversariale, `code-review`), puis réponses du papa aux questions Q-F1 à Q-F5 (addendum §6.10), avant tout code.
+- v1.5 (2026-10-22) : tour de correction 1.
+  - Réponses du papa Q-F1 à Q-F5 (registre 10282e7).
+  - **Tolérance de sol pour le saut** (0718977) : nouveau Step 11 de la 5e.
+  - Constats des relectures standard et adversariale : migrations des helpers de pistes d'avant au Step 10, ordre des migrations et des commandes, tâche 6 amendée dans ses Steps, chiffres corrigés (étoiles basses, budget CI, coûts en course).
+
+v1.3 validée par le papa et exécutée jusqu'au Step 8 de la 5e. **v1.5 en attente** de relecture. Les questions du papa sont toutes tranchées ; il ne reste que celles de l'addendum §6.10, nées des mesures de la tolérance de sol.
 
 **Goal:** Supprimer le tremblement d'affichage (5f). Rendre la course rattrapable : chaque voiture a ses propres étoiles (5d), Galahad a un bouton saut et des étoiles en hauteur s'ajoutent (5e). Les copains conduisent pour de vrai : départ échelonné, lever de pied, politesse, sauts plus ou moins bien placés (6).
 
@@ -68,7 +73,18 @@ Restent soumis au papa pendant l'exécution :
 | P9 | **Promesse changée** : sans sauter, on tombe dans une fosse (respawn avant, 2e chute de suite → posé de l'autre côté) ; on finit toujours la course ; les tremplins gardent « doigt posé, jamais de chute » | Global Constraints, migration des tests |
 | P10 | Toutes les pistes changent, à longueur totale constante ; l'empreinte de Galahad seul est recapturée par un ruling | Global Constraints, Step 13 de la 5e et Step 8 de la 5g (ruling R-F10) |
 
-**Questions ouvertes** (saut §6.10, réponses attendues avant le code concerné) : Q-F1 largeur des fosses (8 m recommandé) ; Q-F2 coût d'une fosse ratée deux fois (posé juste après la fosse recommandé) ; Q-F3 les copains ratent parfois une fosse (`FOSSE_SKILL_FACTOR` 2,5 recommandé) ; Q-F4 exactement 3 étoiles hautes (recommandé) ; Q-F5 pas de bouton qui clignote au premier test (recommandé).
+## Décisions du papa (registre 10282e7 et 0718977, réponses aux questions de la v1.4)
+
+| # | Décision | Effet dans le plan |
+|---|---|---|
+| Q-F1 | Fosse de **8 m**, franchissable **à doigt posé** (sous ≈ 6 m/s, aucun saut ne passe) | `FOSSE_WIDTH` 8 (5g) ; saut §6.1 |
+| Q-F2 | **Option B** : à la 2e chute de suite, voiture posée **juste après la fosse** (bord aval + 5 m) | 5g : cible de 2e chute, respawn groupé vers l'aval ; zone fantôme jusqu'à bord aval + 40 m |
+| Q-F3 | Les copains **ratent parfois** : erreur × **2,5** aux fosses, instant visé **centré à chaque vitesse** | tâche 6 : `FOSSE_SKILL_FACTOR` 2,5, `fosseJumpLead(v)` ; taux mesuré vitesse par vitesse (Pablo : 19 à 34 % attendus) |
+| Q-F4 | **Exactement 3** étoiles hautes par course | 5e : `STAR_HIGH_PER_RACE` 3, test « exactement 3 » |
+| Q-F5 | Rien ne s'allume à l'approche d'une fosse pour le premier test | 5g : panneau et lave seulement ; rejugé au test tablette |
+| P11 | **Tolérance de sol** : le saut part si une roue a eu le contact de jeu dans les **0,35 s** précédentes ; mémoire de 0,1 s gardée ; `JUMP_COOLDOWN` empêche le double saut ; un saut juste après un décollage de bosse ou de rampe est accepté | 5e, Step 11 : `JUMP_GROUND_GRACE`, tests, remesure des sauts aux sommets |
+
+Questions restantes : addendum §6.10.
 
 ## Global Constraints
 
@@ -81,7 +97,7 @@ Toutes celles du plan v2.1 restent valables :
 En plus :
 
 - **Typecheck et `npm test` verts à chaque commit.** `tsconfig.json` inclut `tests/`, et `deploy.yml` lance `npm run typecheck` puis `npm test`. **Jamais de `.skip`.** Une API n'est retirée que dans le commit qui migre son dernier consommateur.
-- **Budget CI.** `npm test` reste sous 6 min mur sur le runner (≈ 3 min 05 ici, 331 tests). Simulations de course complète à 5 voitures, balayages et calibrations vont dans `tests/slow/` (`npm run test:slow`). [fosses] Chiffres à jour et ajouts de la fin de la 5e et de la 5g : section « Budget CI (v1.4) » en fin de plan.
+- **Budget CI.** `npm test` reste sous 6 min mur sur le runner (≈ 3 min 05 ici, 331 tests). Simulations de course complète à 5 voitures, balayages et calibrations vont dans `tests/slow/` (`npm run test:slow`). [fosses] Chiffres à jour et ajouts de la fin de la 5e et de la 5g : section « Budget CI (v1.5) » en fin de plan.
   - Chaque fichier lent a un budget écrit en tête, **moins de 30 min mur**.
   - On scinde les fichiers plutôt que de les allonger, puisque Vitest parallélise par fichier.
 - **Déterminisme.** Toute décision aléatoire vient d'un `mulberry32` dérivé d'une graine :
@@ -103,18 +119,26 @@ En plus :
   | 5f | **identique** | Seul le rendu change ; `stepRace` n'est pas touché. |
   | 5d | **identique** (vérifié par l'empreinte) | `syncStarBodies` gardée, catégorie de collision par voiture. Avec une seule voiture, le masque d'un capteur vaut la catégorie de Galahad quand l'étoile est active pour lui, et 0 sinon : c'est le comportement d'aujourd'hui. Les paires de capteurs comptent dans `totalContacts` (`Resolver.preSolvePosition`) : elles ne sont donc jamais laissées actives sans raison. |
   | 5e | **identique au bit près avec `STAR_HIGH_PER_RACE: 0`** ; avec `CONFIG`, identique **attendu** | Étoiles basses inchangées. Tirages des étoiles hautes **après** tous les autres dans `placeStars`, dernier consommateur du rng de piste (`generate.ts:110`). `galahadJump = false` : `applyJump` n'est jamais appelé. Avec `CONFIG`, les capteurs d'étoiles hautes s'ajoutent au monde : doigt posé ne les touche jamais (testé), mais les ids des corps changent. L'empreinte avec `CONFIG` est donc mesurée et consignée, et c'est l'empreinte figée, à `STAR_HIGH_PER_RACE: 0`, qui fait foi. |
-  | 5e (fin, v1.4) | **identique avec `ANCIENNES_PISTES`** ; avec `CONFIG`, **recapturée par ruling** | Les plats étoile changent les pistes (décision P10). `ANCIENNES_PISTES` = `{ STAR_FLATS_PER_RACE: 0, FOSSE_PERIOD: 0, STAR_HIGH_PER_RACE: 0, STAR_STEP_MIN: 60, STAR_STEP_MAX: 100 }` redonne les pistes de e02dcae au bit près (saut §6.9) : l'empreinte figée y reste la preuve que la physique n'a pas bougé. |
+  | 5e (fin, v1.4) | **identique avec `ANCIENNES_PISTES`** ; avec `CONFIG`, **recapturée par ruling** | Les plats étoile changent les pistes (décision P10). `ANCIENNES_PISTES` = `{ STAR_FLATS_PER_RACE: 0, FOSSE_PERIOD: 0, STAR_HIGH_PER_RACE: 0, STAR_STEP_MIN: 60, STAR_STEP_MAX: 100 }` redonne les pistes de e02dcae **sans étoiles hautes** au bit près (saut §6.9) : l'empreinte figée y reste la preuve que la physique n'a pas bougé. La tolérance de sol (Step 11) ne joue que sur une demande de saut : doigt posé sans saut, l'empreinte ne bouge pas. |
   | 5g | **identique avec `ANCIENNES_PISTES`** ; avec `CONFIG`, **recapturée par ruling** | Les fosses changent les pistes. Aucun chemin de code des fosses ne s'exécute sans fosse. |
   | 6 | **identique**, avec `ANCIENNES_PISTES` et (v1.4) avec `CONFIG` | Galahad n'a pas de driver ; le saut provisoire des copains aux fosses (5g) n'existe qu'à 5 voitures. |
 
   Si l'empreinte bouge alors que le tableau dit « identique » : on s'arrête, on mesure, le papa tranche, le ruling va au registre. On ne recapture jamais en silence. [fosses] Une recapture « par ruling » (fin de 5e, 5g) consigne au registre : les 3 anciens hash, les 3 nouveaux, le commit, et la preuve que l'empreinte `ANCIENNES_PISTES` est restée identique dans le même commit.
 - **Promesse de la 5c conservée (saut §0).** Doigt posé sans jamais sauter, on finit la course et on ne tombe jamais dans la lave. L'invariant `lavaByCar.galahad === 0` à 5 voitures, graines 0 à 23 (`tests/slow/race-invariants-*.test.ts`), reste vert à chaque tâche.
   [fosses] **Amendée à partir de la 5g (décision P9, saut §6.1)** :
-  - doigt posé sans jamais sauter : 0 chute **aux tremplins** ; **exactement 2 chutes par fosse** (la 2e pose la voiture de l'autre côté) ; arrivée avant 240 s ;
+  - doigt posé sans jamais sauter : 0 chute **aux tremplins** ; **exactement 2 chutes par fosse** (la 2e pose la voiture juste après la fosse, option B) et au plus 2 par série ; arrivée avant 240 s ;
   - doigt posé avec un saut au centre de la fenêtre à chaque fosse (`fosseJumpWanted`, 5g) : 0 chute, comme avant ;
   - les invariants à 5 voitures font courir Galahad **avec** ce saut (`lavaByCar.galahad === 0` garde son sens), et une famille nouvelle le fait courir **sans** (2 chutes par fosse, 0 au tremplin).
 - **Paramètres.** Chaque nouveau paramètre va dans `src/config.ts`, en nombres seulement. Une constante dérivée est déclarée avant le littéral, comme `D_LANCE`. La gravité devient la constante locale `GRAVITY`, réutilisée par `JUMP_VY`. [fosses] Constantes de la fin de la 5e et de la 5g : saut §6.9 ; `STAR_FLAT_LENGTH` est dérivée (dégagement d'entrée + élan + atterrissage).
-- [fosses] **Pistes d'avant.** `tests/helpers/anciennes-pistes.ts` exporte `ANCIENNES_PISTES` et `withAnciennesPistes(cfg)`. Les tests qui jugent la physique ou comparent à une mesure d'avant (empreinte, `PLAN_A_TRACE`, `PRE_5E_STARS`, phases, dosage, calibrations, rejeu d'interpolation, rattrapage apparié) les utilisent ; les tests d'acceptation du jeu (invariants, cas des volcans, fosses, étoiles) tournent sur `CONFIG`. Un test `tests/anciennes-pistes.test.ts` fige le sha1 des pistes de e02dcae (points, tranches, volcans, étoiles ; graines 0 à 49, 1 680 m) : si ce sha1 bouge, l'interrupteur ment.
+- [fosses] **Pistes d'avant** (« e02dcae sans étoiles hautes »). `tests/helpers/anciennes-pistes.ts` exporte `ANCIENNES_PISTES` et `withAnciennesPistes(cfg)`.
+  - Qui les utilise : les tests qui jugent la physique ou comparent à une mesure d'avant (empreinte, `PLAN_A_TRACE`, `PRE_5E_STARS`, phases, dosage, calibrations, rejeu d'interpolation, rattrapage apparié). Les tests d'acceptation du jeu (invariants, cas des volcans, fosses, étoiles) tournent sur `CONFIG`.
+  - Helpers à migrer **au Step 10 de la 5e, avant tout changement de `src/`** :
+    - `trackFor(seed, cfg = CONFIG)` et `worldFor(seed, cfg = CONFIG)` (`tests/helpers/runs.ts`), avec un cache par cfg (clé `JSON.stringify(cfg)`) ;
+    - `recordTrajectory(seed, seconds, robots, cfg = CONFIG)` (`tests/helpers/frames.ts`) ;
+    - `variantTrack` (`tests/helpers/phases.ts`) ;
+    - `cfgFor` de la calibration (`tests/helpers/calibration-saut.ts`) devient `{ ...withAnciennesPistes(CONFIG), STAR_HIGH_PER_RACE: 3, … }`, avec une assertion de non-vacuité (au moins une candidate par jeu sur les graines calibrées). Sinon, les tableaux du Step 8 se vident sans faire échouer le test.
+  - `tests/anciennes-pistes.test.ts` fige le sha1 des pistes de e02dcae sans étoiles hautes (points, tranches, volcans, étoiles ; graines 0 à 49 à 1 680 m, graines 0 à 9 à 300 et 6 000 m) : si ce sha1 bouge, l'interrupteur ment.
+  - Le rattrapage mesuré sur ces pistes est un **contrôle de non-régression** (identique à la 5d par construction) ; l'effet de la 5e et de la 5g se mesure sur `CONFIG`.
 - **Fin de tâche.**
   - Commandes : `npm run typecheck`, `npm test`, `npm run test:slow` et `npm run e2e`.
   - Capture dans `e2e/screenshots/` quand l'écran change.
@@ -146,16 +170,19 @@ En plus :
 7. **Galahad arrêté sur la grille.**
    - Attendu : les copains ne le poussent pas pendant au moins 2 s.
    - Tâche : 6.
-8. [fosses] **Turbo pris sur une double-bosse juste avant une fosse, sans sauter.**
+8. [fosses] **Appui de saut pendant un rebond, en turbo, au milieu de la fenêtre d'une fosse.**
+   - Attendu : avec la tolérance de sol de 0,35 s, aucun appui perdu à 14 m/s ni en turbo pris à 14 m/s ; à 21 m/s tenus, au plus 0,5 %.
+   - Tâche : 5e (Step 11).
+9. [fosses] **Turbo pris sur une double-bosse juste avant une fosse, sans sauter.**
    - Attendu : la voiture tombe (jamais de survol), grâce au plat de garde de 20 m.
    - Tâche : 5g.
-9. [fosses] **Départ arrêté au point sûr d'avant une fosse, après une chute.**
-   - Attendu : un saut bien placé passe (fenêtre ≥ 0,4 s, mesurée 0,87 s pour 8 m) ; à la 2e chute, la voiture est posée de l'autre côté et finit la course.
+10. [fosses] **Départ arrêté au point sûr d'avant une fosse, après une chute.**
+   - Attendu : un saut bien placé passe (fenêtre ≥ 0,4 s, mesurée 0,87 à 0,92 s pour 8 m) ; à la 2e chute, la voiture est posée juste après la fosse (bord aval + 5 m) et finit la course.
    - Tâche : 5g.
-10. [fosses] **Plat étoile après une rampe-saut ou une double-bosse, en turbo.**
+11. [fosses] **Plat étoile après une rampe-saut ou une double-bosse, en turbo.**
     - Attendu : jamais de plat étoile juste après une rampe-saut ; après une double-bosse, aucune étoile haute prise sans saut.
     - Tâche : 5e (fin).
-11. [fosses] **`ANCIENNES_PISTES`.**
+12. [fosses] **`ANCIENNES_PISTES`.**
     - Attendu : pistes et empreinte de e02dcae au bit près ; aucun chemin de code des fosses ni des plats étoile ne s'exécute.
     - Tâches : 5e (fin) et 5g.
 
@@ -192,10 +219,13 @@ src/track/slices.ts           [fosses] platEtoile (5e fin) ; fosseGeometry, foss
 src/track/generate.ts         [fosses] plats étoile insérés (5e fin) ; alternance tremplin / fosse (5g)
 src/track/stars.ts            [fosses] étoiles des plats étoile (5e fin) ; zones et étoile de réception des fosses (5g)
 src/track/query.ts            [fosses] tremplins, fosses, nextFosse, inGhostZone (option B) (5g)
-src/cars/jump.ts              [fosses] fosseJumpWanted : saut au centre de la fenêtre d'une fosse (5g)
+src/cars/jump.ts              [fosses] canJump avec tolérance de sol (5e fin) ; fosseJumpLead, fosseJumpWanted (5g)
+src/sim/simulate.ts           [fosses] CarSim.lastGroundedAt (5e fin) ; saut provisoire des copains aux fosses (5g)
+src/game.ts                   [fosses] __game.respawns en ?debug=1 (5g)
 src/render/track.ts           [fosses] fosse : lave à ras bord, langues de feu, halo, panneau (5g)
 tests/helpers/anciennes-pistes.ts  [fosses] ANCIENNES_PISTES, withAnciennesPistes (5e fin, complétée en 5g)
-tests/helpers/fosses.ts       [fosses] piste à une fosse, fosseRun, fosseWindow (dichotomie), sauteur parfait (5g)
+tests/helpers/fosses.ts       [fosses] piste à une fosse, fosseRun, fosseWindow (chaque pas), sauteur parfait (5g)
+tests/jump-grace.test.ts      [fosses] tolérance de sol, appuis perdus (5e fin)
 ```
 
 ---
@@ -458,7 +488,7 @@ firstStar: { carId: string; t: number } | null;   // au même pas : la plus peti
 - **P1** : des étoiles hautes **ajoutées** aux étoiles du curseur ; les étoiles basses ne changent pas.
 - **P2** : mémoire de la demande pendant 0,1 s.
 - **P3** : **même hauteur partout**.
-- [fosses] **P6, P7** (Step 9, e02dcae) : `STAR_HIGH_Y` = 3,90 m ; au moins 3 étoiles hautes par course, sur des plats étoile. La fin de la tâche (Steps 9 à 15) est réécrite en v1.4, plus bas.
+- [fosses] **P6, P7, Q-F4, P11** (Step 9) : `STAR_HIGH_Y` = 3,90 m ; exactement 3 étoiles hautes par course, sur des plats étoile ; tolérance de sol de 0,35 s. La fin de la tâche (Steps 9 à 16) est réécrite en v1.5, plus bas.
 
 **Saut §1 (amendé au Step 1) :**
 - **Bouton** : rond, au moins 140 px, en bas à gauche, `data-no-pedal`.
@@ -688,7 +718,7 @@ Conséquences :
   - `tests/helpers/recorded.ts` : `recordRace`, `sensorHits`.
   - Option `jump` de `simulateRace`.
   - `tests/high-stars-window.test.ts` commence par vérifier `flatJumpTrajectory` : apogée cohérent avec le Step 3, à 1 cm près.
-- [ ] **Step 7 : Tests de placement** (ROUGE, puis implémentation, puis VERT). Fichier `tests/high-stars.test.ts`, en CI, statique, graines 0 à 49, pistes de 1 680 m. **Aucun seuil sur le nombre d'étoiles hautes à ce stade** : la moyenne et le nombre de pistes sont seulement imprimés, et leurs assertions arrivent au Step 10, après la calibration.
+- [ ] **Step 7 : Tests de placement** (ROUGE, puis implémentation, puis VERT). Fichier `tests/high-stars.test.ts`, en CI, statique, graines 0 à 49, pistes de 1 680 m. **Aucun seuil sur le nombre d'étoiles hautes à ce stade** : la moyenne et le nombre de pistes sont seulement imprimés, et leurs assertions arrivent au Step 12 (v1.5), après la calibration.
   - 0 ≤ n ≤ `STAR_HIGH_PER_RACE` par piste ;
   - plats voisins fusionnés : une étoile haute peut se trouver à cheval sur deux tranches `plat` consécutives (fixture) ;
   - aucune étoile haute hors d'une tranche `plat` éligible, ni dans les clearances, ni à moins de `STAR_HIGH_GAP` d'une étoile basse ;
@@ -710,34 +740,78 @@ Conséquences :
   | `tests/slow/calibration-saut-vols-0-11.test.ts`, `-12-23.test.ts` | **(c) Vols.** Une course enregistrée à 5 voitures, doigt posé, sans saut, par graine. Prises hors ligne pour chaque jeu candidat : rampe-saut {50, 60, 70, 80}, bosses {8, 12, 16}, `STAR_HIGH_TAKEOFF_ROOM` {10, 15, 20}, `STAR_HIGH_LANDING_ROOM` {10, 15, 20, 25}. Le placement est statique : il est recalculé pour chaque jeu, sans nouvelle simulation. Pour chaque jeu : nombre d'étoiles hautes par course (moyenne, minimum, maximum) et nombre de pistes sur 50 avec au moins une étoile haute. | < 25 min chacun |
 
   Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/calibration-saut-sol.test.ts tests/slow/calibration-saut-fenetres.test.ts tests/slow/calibration-saut-vols-0-11.test.ts tests/slow/calibration-saut-vols-12-23.test.ts`.
-#### Fin de la 5e (v1.4, décisions P6 et P7 du 2026-10-22, registre e02dcae)
+#### Fin de la 5e (v1.5, décisions P6, P7, Q-F4 et P11 du 2026-10-22)
 
-Steps 1 à 8 faits (registre : commits 96556a2 à 4a414c6). Les Steps 9 à 14 de la v1.3 sont remplacés par ceux-ci. Spécification : saut §6.6 (plats étoile) et §6.9 (constantes, `ANCIENNES_PISTES`).
+Steps 1 à 8 faits (registre : commits 96556a2 à 4a414c6). Les Steps 9 à 14 de la v1.3 sont remplacés par les Steps 9 à 16 ci-dessous. Spécification : saut §1 (tolérance de sol), §6.6 (plats étoile) et §6.9 (constantes, `ANCIENNES_PISTES`).
 
 **Files (fin de la 5e) :**
-- Create: `tests/helpers/anciennes-pistes.ts`, `tests/anciennes-pistes.test.ts`, `tests/slow/high-stars-sim.test.ts`, `tests/slow/saut-volcan.test.ts`
+- Create: `tests/helpers/anciennes-pistes.ts`, `tests/anciennes-pistes.test.ts`, `tests/jump-grace.test.ts`, `tests/slow/high-stars-sim.test.ts`, `tests/slow/saut-volcan.test.ts`
 - Modify (code) :
-  - `src/config.ts` : `STAR_HIGH_Y` 3,90 ; jeu 50 / 12 / 20 / 25 ; `STAR_FLATS_PER_RACE` 3 ; `STAR_FLAT_SPACING` 400 ; `STAR_FLAT_LENGTH` dérivée (57) ; `STAR_STEP_MIN/MAX` selon la mesure du Step 11 ; commentaires « PROVISOIRE » retirés.
+  - `src/config.ts` :
+    - `JUMP_GROUND_GRACE` 0,35 ; `STAR_HIGH_Y` 3,90 ; jeu 50 / 12 / 20 / 25 ; `STAR_HIGH_PER_RACE` 3 ;
+    - `STAR_FLATS_PER_RACE` 3, `STAR_FLAT_SPACING` 400, `STAR_FLAT_LENGTH` dérivée (57) ;
+    - `STAR_STEP_MIN/MAX` 55 / 90 (Step 12) ;
+    - commentaires « PROVISOIRE » retirés.
+  - `src/cars/jump.ts` : `canJump` reçoit `lastGroundedAt` à la place de `grounded`.
+  - `src/sim/simulate.ts` : `CarSim.lastGroundedAt` (instant du dernier contact de jeu, remis à `null` par une téléportation) ; `updateJump`, `jumpReady`.
   - `src/track/types.ts` : `'plat-étoile'` dans `SliceType`.
   - `src/track/slices.ts` : `platEtoile(cfg)` (sans `rng`).
   - `src/track/generate.ts` : ancres, insertion, refus des volcans sur la dernière tranche **tirée** ; `onlyPlat` sans plat étoile.
-  - `src/track/stars.ts` : une étoile haute par plat étoile, posée d'abord ; plats étoile hors des zones du curseur ; candidates ordinaires à ≥ 45 m d'une étoile de plat étoile ; terrain permis : un plat étoile en est.
+  - `src/track/stars.ts` : une étoile haute par plat étoile, posée d'abord ; plats étoile hors des zones du curseur ; candidates ordinaires à ≥ 45 m d'une étoile de plat étoile ; un plat étoile est du terrain permis.
   - `src/render/track.ts` : rien, sauf si un `switch` sur le type de tranche l'exige (le sol est dessiné depuis les points).
-- Modify (tests) : voir « Migration des tests existants (v1.4) », lignes marquées **5e**.
-- Test: `tests/anciennes-pistes.test.ts`, `tests/high-stars.test.ts`, `tests/high-stars-window.test.ts`, `tests/generate.test.ts`, `tests/stars.test.ts`, `tests/slow/high-stars-sim.test.ts`, `tests/slow/saut-volcan.test.ts`, `e2e/jump.spec.ts` (capture)
+- Modify (tests) : « Migration des tests existants (v1.5) », lignes marquées **5e**, chacune au Step indiqué.
+- Test: `tests/anciennes-pistes.test.ts`, `tests/jump.test.ts`, `tests/jump-grace.test.ts`, `tests/high-stars.test.ts`, `tests/high-stars-window.test.ts`, `tests/generate.test.ts`, `tests/stars.test.ts`, `tests/slow/high-stars-sim.test.ts`, `tests/slow/saut-volcan.test.ts`, `e2e/jump.spec.ts` (capture)
 
-- [x] **Step 9 : Décisions du papa enregistrées** (e02dcae).
+- [x] **Step 9 : Décisions du papa enregistrées** (e02dcae, 10282e7, 0718977).
   - Tableau du Step 8 présenté (4a414c6) : à 3,90 m, fenêtre min 0,57 / 0,53 s à 11,2 / 14 m/s, 0,42 s à +5 cm ; garde au sol de Galahad ≥ 2,1 m.
-  - Décisions : P6 `STAR_HIGH_Y` = 3,90 m ; P7 au moins 3 étoiles hautes par course sur des plats étoile ; P8 fosses (tâche 5g) ; P9 promesse changée ; P10 pistes changées, empreinte recapturée par ruling.
+  - Décisions :
+    - P6 : `STAR_HIGH_Y` = 3,90 m ;
+    - P7 et Q-F4 : exactement 3 étoiles hautes par course, sur 3 plats étoile ;
+    - P8, Q-F1, Q-F2, Q-F5 : fosses (tâche 5g) ;
+    - P9 : promesse changée ;
+    - P10 : pistes changées, empreinte recapturée par ruling ;
+    - P11 : tolérance de sol de 0,35 s.
   - Jeu de dégagements retenu (saut §6.6, ruling R-F7) : **50 / 12 / 20 / 25**. C'est le plus permissif des 4 jeux à 0 prise sans saut à 3,90 m (5 voitures, graines 0 à 23).
-- [ ] **Step 10 : Spécification relue, pistes d'avant figées.**
-  - Relectures de l'addendum §6 et de ce plan v1.4 : standard, adversariale, `code-review`. Réponses du papa aux questions Q-F1 à Q-F5 consignées au registre. Commit `docs: …` par tour.
-  - **Avant tout changement de `src/`** : `tests/helpers/anciennes-pistes.ts` exporte `ANCIENNES_PISTES` et `withAnciennesPistes(cfg)`. Les clés `STAR_FLATS_PER_RACE` et `FOSSE_PERIOD` n'existent pas encore dans `Config` : l'helper les ajoute dès qu'elles existent, sans changer de valeur.
-  - `tests/anciennes-pistes.test.ts` : sha1 des pistes générées avec `withAnciennesPistes(CONFIG)` (Float64 de `points`, puis tranches, volcans, étoiles ; graines 0 à 49 à 1 680 m, graines 0 à 9 à 300 et 6 000 m). Valeurs **mesurées sur e02dcae** et collées, avec le hash du commit en commentaire.
-  - `tests/empreinte.test.ts`, `PLAN_A_TRACE` (`tests/simulate.test.ts`) et `PRE_5E_STARS` (`tests/high-stars.test.ts`) passent à `withAnciennesPistes(CONFIG)`. Leurs valeurs figées ne changent pas.
-  - Commande : `npx vitest run tests/anciennes-pistes.test.ts tests/empreinte.test.ts tests/simulate.test.ts tests/high-stars.test.ts`, **vert**.
-  - Commit `test: pistes d'avant figées derrière un interrupteur (ANCIENNES_PISTES)`.
-- [ ] **Step 11 : Plats étoile dans le générateur** (ROUGE, puis implémentation, puis VERT).
+- [ ] **Step 10 : Spécification relue, pistes d'avant figées, migrations « AP ».** Aucun changement de `src/` dans ce Step.
+  - Relectures de l'addendum §6 et de ce plan (v1.5) ; commit `docs: …` par tour.
+  - `tests/helpers/anciennes-pistes.ts` exporte `ANCIENNES_PISTES` et `withAnciennesPistes(cfg)`. Les clés `STAR_FLATS_PER_RACE` et `FOSSE_PERIOD` n'existent pas encore dans `Config` : l'helper les ajoute dès qu'elles existent, sans changer de valeur.
+  - `tests/anciennes-pistes.test.ts` : sha1 des pistes générées avec `withAnciennesPistes(CONFIG)` (Float64 de `points`, puis tranches, volcans, étoiles ; graines 0 à 49 à 1 680 m, graines 0 à 9 à 300 et 6 000 m), **mesuré sur e02dcae** et collé, avec le hash du commit en commentaire. Ce sont les pistes de e02dcae sans étoiles hautes.
+  - Helpers (Global Constraints, « Pistes d'avant ») :
+    - `trackFor(seed, cfg)` et `worldFor(seed, cfg)` (cache par cfg) ;
+    - `recordTrajectory(…, cfg)` ;
+    - `variantTrack` ;
+    - `cfgFor` de la calibration, avec son assertion de non-vacuité.
+  - Toutes les lignes **AP** du tableau de migration :
+    - `tests/empreinte.test.ts`, `PLAN_A_TRACE` (`tests/simulate.test.ts`), `PRE_5E_STARS` (`tests/high-stars.test.ts`) ;
+    - `tests/interpolation-replay.test.ts` et `tests/slow/interpolation-replay-slow.test.ts` ;
+    - `tests/slow/dosage.test.ts`, `tests/slow/phases*.test.ts`, `tests/slow/calibration-saut-*.test.ts`, `tests/helpers/rattrapage.ts`.
+
+    Leurs valeurs figées ne changent pas : sur e02dcae, ces pistes **sont** celles de `CONFIG` sans étoiles hautes, et les étoiles hautes ne touchent pas la physique (empreinte identique au Step 7).
+  - Commandes : `npm run typecheck` ; `npm test` (vert, durée notée) ; `npx vitest run -c vitest.slow.config.ts tests/slow/dosage.test.ts tests/slow/calibration-saut-sol.test.ts` (vert, mêmes chiffres qu'en 4a414c6).
+  - Commit `test: pistes d'avant figées derrière un interrupteur (ANCIENNES_PISTES), helpers par configuration`.
+- [ ] **Step 11 : Tolérance de sol pour le saut** (décision P11, saut §1). ROUGE, puis VERT.
+  - Tests rouges, `tests/jump.test.ts` migré et `tests/jump-grace.test.ts` (CI) :
+    - « au sol seulement » devient : une demande **0,30 s** après le dernier contact de jeu (voiture lâchée de 2 m, ou décollage d'une rampe-saut) donne un saut ; à **0,40 s** et à 0,7 s, aucun saut, vy inchangée ;
+    - bouton grisé : `jumpReady` vrai jusqu'à 0,35 s après le dernier contact de jeu, faux ensuite jusqu'au retour au sol, et pendant le délai ;
+    - pas de double saut : demande à chaque pas pendant 3 s après un saut → un seul saut avant le retour au sol. CALCULÉ : le contact de jeu dure jusqu'à t + 0,1 s, la tolérance jusqu'à t + 0,45 s, et le délai de 0,5 s finit après elle, avec 0,05 s de marge. Le test garde cette marge : si `GROUND_DEBOUNCE_SECONDS`, `JUMP_GROUND_GRACE` ou `JUMP_COOLDOWN` change, il échoue ;
+    - mémoire de 0,1 s : les deux cas de la v1.3 inchangés ;
+    - une téléportation (respawn) remet `lastGroundedAt` à `null` : pas de saut de tolérance sur le contact d'avant la téléportation ;
+    - **0 appui perdu** (saut §6.2, calcul sur la suite « au sol / en l'air » d'une course sans saut, sans relancer la physique par appui) : 24 lancers décalés de 0,37 m sur une piste plate, chaque pas d'une fenêtre de 7 s pris comme appui. Un appui est servi si un pas de [k, k + `JUMP_BUFFER`] a eu un contact de jeu dans les 0,35 s. Attendu (MESURÉ avec la tolérance émulée) :
+      - 0 sur 8 640 à 11,2 et 14 m/s ;
+      - 0 avec un turbo pris à 14 m/s ;
+      - à 21 m/s tenus (facteur 1,5 permanent) : part imprimée, au plus 0,5 % (MESURÉ : 0,41 %, rebonds jusqu'à 0,77 s ; question Q-F6 de saut §6.10).
+  - Implémentation → **VERT** ; `npm test` : empreinte et `PLAN_A_TRACE` inchangés (aucune demande de saut doigt posé).
+  - **Remesure des sauts aux sommets** (`tests/slow/saut-volcan.test.ts`, < 20 min, écrit à ce Step, complété au Step 13) :
+    - **tremplins** des graines 0 à 9, 4 cas d'arrivée :
+      - doigt posé depuis `xLancement` ;
+      - turbo de l'étoile d'élan ;
+      - lancée à V_MAX en `xLancement − 45`, turbo à − 26 ;
+      - turbo permanent.
+
+      Saut à chaque pas de [dernier contact de jeu − 6 pas, dernier contact + 0,35 s] : atterrissage avant `xEnd`, part de lave imprimée (saut §6.2, « Tolérance de sol », chiffres de la sonde) ;
+    - **rampes-saut** des graines 0 à 4, à V_MAX et en turbo, même balayage : angle au contact, retournements et atterrissage imprimés, sans assertion (un saut mal placé se paie, saut §0).
+  - Commit `feat: tolérance de sol pour le saut (0,35 s), aucun appui perdu dans une fenêtre`.
+- [ ] **Step 12 : Plats étoile dans le générateur** (ROUGE, puis implémentation, puis VERT).
   - Tests rouges :
     - `tests/generate.test.ts` :
       - N = 3 plats étoile à 1 680 m (graines 0 à 49) et à 6 000 m (graines 0 à 19), 1 à 600 m, 0 à 300 m ;
@@ -745,97 +819,112 @@ Steps 1 à 8 faits (registre : commits 96556a2 à 4a414c6). Les Steps 9 à 14 de
       - jamais juste après une rampe-saut ;
       - le k-ième commence à la première frontière ≥ a_k permise ;
       - aucun volcan juste après une rampe-saut ou un autre volcan, en ignorant les plats étoile ;
-      - la suite des tranches tirées (plats étoile retirés) a, avec celle de `withAnciennesPistes`, un préfixe commun d'au moins 20 tranches sur chaque graine 0 à 49 (CALCULÉ : 25 au moins) ;
+      - la suite des tranches tirées (plats étoile retirés) a, avec celle de `withAnciennesPistes`, un préfixe commun d'au moins 20 tranches sur chaque graine 0 à 49 (MESURÉ : 25 au moins, 31,9 en moyenne) ;
+      - **2 à 7 volcans** (graines 0 à 19), remplace « 3 à 7 » (MESURÉ : 2 à 5) ;
       - `onlyPlat` : ni plat étoile ni volcan.
     - `tests/high-stars.test.ts` :
-      - **exactement 3 étoiles hautes par piste de 1 680 m, graines 0 à 49** (seuil validé par le papa, P7), chacune à `xStart` de son plat étoile + 32 m, y = sol + 3,90 ;
+      - **exactement 3 étoiles hautes par piste de 1 680 m, graines 0 à 49** (Q-F4), chacune à `xStart` de son plat étoile + 32 m, y = sol + 3,90 ;
       - `STAR_HIGH_PER_RACE` = 5 (fixture) : les 3 des plats étoile toujours présentes, les autres à ≥ 45 m d'elles, sur des plats ordinaires selon la règle de la 5e ;
       - aucune étoile basse sur un plat étoile ;
       - étoiles basses identiques entre `STAR_HIGH_PER_RACE` 0 et 3 ;
       - déterminisme ;
       - les tests de placement du Step 7 restent pour les plats ordinaires (fixture à plafond 5).
     - `tests/stars.test.ts` : 6 à 14 étoiles basses (graines 0 à 19), filtrées `!s.high`.
-  - Implémentation, puis **mesure** de la distribution des étoiles basses (graines 0 à 49).
-    - Si la moyenne est hors de [8, 12] ou le minimum sous 6, le pas passe à [55, 90] (CALCULÉ : 8,74 de moyenne, de 6 à 13), puis on remesure.
-    - Ruling au registre, cible inchangée (addendum plan B §1.5).
-  - Commande : `npx vitest run tests/generate.test.ts tests/high-stars.test.ts tests/stars.test.ts tests/anciennes-pistes.test.ts`. Puis `npm run typecheck` et `npm test`. L'empreinte `CONFIG` n'est pas encore figée : seule `ANCIENNES_PISTES` fait foi.
-- [ ] **Step 12 : Acceptation.**
+  - Implémentation, `STAR_STEP_MIN/MAX` = 55 / 90 (MESURÉ (relecture) : 8,72 de moyenne). On remesure ; si la moyenne sort de [8, 12] ou si le minimum passe sous 6 : ruling, cible inchangée (addendum plan B §1.5).
+  - **Dans ce même Step**, migration des tests marqués **5e (Step 12)**, qui cassent quand le générateur change :
+    - `tests/generate.test.ts`, `tests/stars.test.ts`, `tests/high-stars.test.ts` ;
+    - `tests/high-stars-window.test.ts`, `tests/stars-pour-tous.test.ts`, `tests/jump.test.ts` (rampe trouvée dynamiquement) ;
+    - bornes de `tests/race-smoke.test.ts` et de `tests/slow/finish.test.ts` remesurées.
+  - Commandes : `npx vitest run tests/generate.test.ts tests/high-stars.test.ts tests/stars.test.ts tests/anciennes-pistes.test.ts`, puis `npm run typecheck` et `npm test` (vert). L'empreinte `CONFIG` n'est figée qu'au Step 14 : jusque-là seule `ANCIENNES_PISTES` fait foi, et `FROZEN_CONFIG` n'existe pas encore.
+- [ ] **Step 13 : Acceptation.**
   - `tests/high-stars-window.test.ts` (CI) : étoile du 1er plat étoile de la graine 1, fenêtre ≥ **0,4 s** à 11,2 et à 14 m/s, ≥ 0,3 s à 3,95 m (MESURÉ sur un plat : 0,57 / 0,60 s, et 0,47 / 0,48 s à +5 cm).
   - `tests/slow/high-stars-sim.test.ts` (< 25 min) :
     - **(i)** 5 voitures doigt posé sans saut, turbo compris, graines 0 à 23 : 0 étoile haute prise par Galahad. Un copain ne prend une étoile haute sans saut que dans les 2 s après un contact entre voitures (« catapulte », relevée par l'observateur `carPairsTouching`, comme les chutes « par choc ») : les prises sont imprimées, et une prise sans contact échoue (saut §4).
     - **(ii)** Galahad seul, turbo forcé tous les 5 m de [x★ − 80, x★ − 20], graines 0 à 9 : 0 prise.
     - **(iii)** Pour chaque étoile de plat étoile des graines 0 à 9 : fenêtre ≥ 0,4 s à 11,2 et 14 m/s, ≥ 0,3 s à +5 cm, sans respawn (`windowFor`). Le centre est imprimé (futur `JUMP_STAR_LEAD`, mesuré ≈ 1,0 s).
     - **(iv)** Pour chaque plat étoile précédé de bosses ou d'une double-bosse (graines 0 à 49) : élan à 21 m/s sur la tranche précédente, 0 prise sans saut.
-  - `tests/slow/saut-volcan.test.ts` (< 15 min), inchangé depuis la v1.3, sur les **tremplins** :
+  - `tests/slow/saut-volcan.test.ts` (Step 11), complété, sur les **tremplins** :
     - doigt posé sans saut : 0 chute ;
-    - un saut mal placé peut faire tomber, au moins une position sur [xElanStart − 10, xLip].
+    - un saut mal placé peut faire tomber : au moins une position sur [xElanStart − 10, xLip] ;
+    - sauts dans la tolérance au sommet : chiffres du Step 11 assertés.
   - Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/high-stars-sim.test.ts tests/slow/saut-volcan.test.ts`.
-- [ ] **Step 13 : Non-régression, empreinte recapturée, commit.**
+- [ ] **Step 14 : Non-régression, empreinte recapturée, commit.**
   - Avec `ANCIENNES_PISTES` : empreinte, `PLAN_A_TRACE`, `PRE_5E_STARS` et sha1 des pistes **inchangés**.
   - Avec `CONFIG` : les 3 nouveaux hash de l'empreinte (graines 0, 1, 2, 30 s) sont mesurés et collés dans `tests/empreinte.test.ts` (second tableau `FROZEN_CONFIG`). **Ruling R-F10** au registre : anciens et nouveaux hash, commit, raison (P10), et la preuve que l'empreinte `ANCIENNES_PISTES` est restée identique dans le même commit.
-  - Migration des tests marqués **5e** dans « Migration des tests existants (v1.4) ».
+  - Migrations restantes marquées **5e** (tableau).
   - `npm run typecheck`, `npm test` (chronométré, < 6 min), `npm run test:slow`, `npm run e2e`, avec la capture `e2e/screenshots/plat-etoile.png`.
-  - Rattrapage « après 5e », en deux mesures :
-    - sur `ANCIENNES_PISTES`, appariée aux mesures de la 5d (mêmes pistes, sans plats étoile) ;
-    - sur `CONFIG` : nouvelle référence, non appariée.
+  - Rattrapage « après 5e » :
+    - sur `ANCIENNES_PISTES` : **contrôle de non-régression**, identique à la mesure de la 5d course par course ;
+    - sur `CONFIG` : **mesure de l'effet**, nouvelle référence, non appariée.
   - Commit `feat: plats étoile, 3 étoiles hautes par course à 3,90 m, pistes d'avant derrière un interrupteur`.
-- [ ] **Step 14 : Relectures.**
+- [ ] **Step 15 : Relectures.**
   - Relecture standard.
   - Relecture adversariale, avec les sondes de la v1.3 :
     - saut à chaque x d'un volcan ; saut depuis un toit ; saut dans les 0,1 s après un sommet (Q6) ; mémoire de 0,1 s combinée au délai de 0,5 s ;
     - saut en turbo ; saut juste après un respawn ; sauts sur les bosses ; apogée sur toutes les pentes du générateur (P3) ;
     - étoile haute prise en vol de rampe-saut turbo ; doigt qui glisse du bouton vers l'écran ; Espace maintenu ; demande faite pendant une image à 0 pas.
   - Plus ces sondes :
+    - tolérance de sol : double saut, saut après une téléportation, saut 0,34 et 0,36 s après un décollage ;
     - plat étoile après une double-bosse ou des bosses prises à 21 m/s ;
     - pistes de 300, 600 et 6 000 m ;
-    - mutant « plat étoile après une rampe-saut » ;
-    - mutant « refus des volcans sur la tranche précédente au lieu de la dernière tirée » ;
+    - mutants : « plat étoile après une rampe-saut », « refus des volcans sur la tranche précédente au lieu de la dernière tirée », « tolérance de 0,1 s » (le test des appuis perdus doit échouer) ;
     - `ANCIENNES_PISTES` au bit près ;
     - copain catapulté sur un plat étoile.
   - `code-review` sur le diff.
   - Tours de correction (5 au plus), un commit `fix:` chacun.
-- [ ] **Step 15 : Validation du papa et de Galahad.**
-  - Questions : Galahad comprend-il le bouton seul ? Un saut raté se voit-il, et coûte-t-il quelque chose (saut §0) ? Trouve-t-il les 3 étoiles hautes ?
+- [ ] **Step 16 : Validation du papa et de Galahad.**
+  - Questions :
+    - Galahad comprend-il le bouton seul ?
+    - Un saut raté se voit-il, et coûte-t-il quelque chose (saut §0) ?
+    - Trouve-t-il les 3 étoiles hautes ?
+    - Le saut « juste après une bosse » lui plaît-il ?
   - Puis commit `docs: tâche 5e validée, passation et registre`, `git status -sb`, push.
 
 ---
 
-### Task 5g (ajoutée, v1.4) : Fosses de lave (volcans sans tremplin)
+### Task 5g (ajoutée, v1.5) : Fosses de lave (volcans sans tremplin)
 
-**Décisions du papa :** P8 (fosses, ≈ 1 volcan sur 2), P9 (promesse changée), P10 (pistes changées, empreinte recapturée par ruling). Réponses à Q-F1 (largeur), Q-F2 (2e chute) et Q-F5 (aide) consignées au Step 0.
+**Décisions du papa :**
+- P8 (fosses, ≈ 1 volcan sur 2), P9 (promesse changée), P10 (pistes changées, empreinte recapturée par ruling) ;
+- Q-F1 (8 m, franchissable à doigt posé), Q-F2 (option B : posée juste après la fosse), Q-F5 (rien ne s'allume), registre 10282e7.
+
+La tolérance de sol (P11) est déjà en place (5e, Step 11).
 
 **Spécification :** saut §6.1 à §6.5, §6.7 et §6.9. Les chiffres MESURÉS de la spec viennent de sondes jetables ; cette tâche les refait en tests.
 
 **Files:**
 - Create:
   - `tests/helpers/fosses.ts` :
-    - `fossePiste` : piste plate à une fosse, avec en option des tranches avant ;
-    - `fosseRun` : Galahad seul, lancé à v ou arrêté, doigt posé, turbo forcé à un x, saut au pas k ; il renvoie la lave, le passage, le x du saut et de l'atterrissage, la plus petite garde des roues au-dessus du capteur ;
-    - `fosseWindow` : dichotomie des deux bords, contiguïté vérifiée à ± 3 pas de chaque bord ;
+    - `fossePiste` : piste plate à une fosse, avec en option des tranches avant (recette de saut §6.2 (a)) ;
+    - `fosseRun` : Galahad seul, lancé à v ou arrêté, doigt posé, turbo forcé à un x, appui au pas k par le vrai `stepRace` ; il renvoie la lave, le passage, le x du saut et de l'atterrissage, la plus petite garde des roues au-dessus du capteur ;
+    - `fosseWindow` : fenêtre par balayage de **chaque pas** de [bord − 60 m, bord] (pas de dichotomie : la continuité est vérifiée partout) ;
     - `sauteurParfait(track, cfg)` : option `jump` de `simulateRace`, par `fosseJumpWanted`.
   - `tests/fosses.test.ts` (CI) ; `tests/slow/fosses-a.test.ts`, `tests/slow/fosses-fenetres.test.ts`, `tests/slow/race-sans-saut-0-11.test.ts`, `tests/slow/race-sans-saut-12-23.test.ts` ; `e2e/fosse.spec.ts`.
 - Modify (code) :
-  - `src/config.ts` : `FOSSE_PERIOD` 2, `FOSSE_WIDTH` (Q-F1, 8 recommandé), `FOSSE_GUARD` 20, `FOSSE_STAR_AFTER` 25, `FOSSE_JUMP_LEAD` 0,65 ; si Q-F2 = B, `FOSSE_RESPAWN_AFTER` 5 et `FOSSE_GHOST_AFTER` 40 ; `STAR_STEP_MIN/MAX` d'après la mesure du Step 7.
+  - `src/config.ts` : `FOSSE_PERIOD` 2, `FOSSE_WIDTH` 8, `FOSSE_GUARD` 20, `FOSSE_STAR_AFTER` 25, `FOSSE_JUMP_AIM` (Step 1), `FOSSE_RESPAWN_AFTER` 5, `FOSSE_GHOST_AFTER` 40 ; `STAR_STEP_MIN/MAX` 50 / 85 (Step 7).
   - `src/track/types.ts` : `'fosse'` ; `Volcano = Tremplin | Fosse` (champ `kind`, `xBord`).
   - `src/track/slices.ts` : `fosseGeometry`, `fosse` ; `SliceProfile.volcano` devient lui aussi une union.
   - `src/track/generate.ts` : phase tirée dans un `mulberry32` dédié, alternance, `kind` posé à l'ajout.
   - `src/track/query.ts` :
     - `tremplins`, `nextFosse` ;
     - `inElanZone` sur les tremplins seuls ;
-    - `inGhostZone` étendue jusqu'à bord aval + `FOSSE_GHOST_AFTER` si Q-F2 = B.
-  - `src/track/stars.ts` : zones admissibles (réception seule pour une fosse), étoile de réception, plancher, `highStarTerrain` sans les tranches `'fosse'`.
-  - `src/cars/respawn.ts` : cible de 2e chute selon le type. A : inchangée. B : bord aval + `FOSSE_RESPAWN_AFTER`, et le respawn groupé de cette cible avance.
-  - `src/cars/jump.ts` : `fosseJumpWanted` (pur).
+    - `inGhostZone` : fosse jusqu'à bord aval + `FOSSE_GHOST_AFTER`.
+  - `src/track/stars.ts` : zones admissibles (réception seule, moins ± `STAR_ELAN_GAP` autour de l'étoile de réception), étoile de réception, plancher, `highStarTerrain` sans les tranches `'fosse'`.
+  - `src/cars/respawn.ts` : cible de 2e chute selon le type.
+    - Tremplin : `xEnd − 10`, inchangée.
+    - Fosse : bord aval + `FOSSE_RESPAWN_AFTER`. Le respawn groupé de cette cible avance (`shiftTarget` gagne un sens).
+  - `src/cars/jump.ts` : `fosseJumpLead(v, cfg)` et `fosseJumpWanted` (purs).
   - `src/sim/simulate.ts` :
     - copains provisoires : `updateJump(sim, car, car.driver ? fosseJumpWanted(…) : galahadJump, …)`, sans erreur, remplacé en tâche 6 ;
     - `inElanZone` restreint aux tremplins.
+  - `src/game.ts` : en `?debug=1`, `__game.respawns` : liste des réapparitions de Galahad (raison, t, x), pour l'e2e.
   - `src/physics/world.ts` : commentaire de `buildLava` (fosse : `rimY` 0, capteur à 0,3 m au-dessus du sol), code inchangé.
   - `src/render/track.ts` :
     - fosse : lave à ras bord, langues de feu jusqu'au haut du capteur, halo pulsé ;
     - panneau à ressort à `xLancement` des fosses ;
     - cône sombre et `xLip` réservés aux tremplins.
   - `src/render/effects.ts` : rien d'attendu (`xLava`, `rimY`), vérifié par test.
-- Modify (tests) : « Migration des tests existants (v1.4) », lignes marquées **5g**.
+- Modify (tests) : « Migration des tests existants (v1.5) », lignes marquées **5g**, au Step indiqué.
 - Test: `tests/fosses.test.ts`, `tests/generate.test.ts`, `tests/stars.test.ts`, `tests/high-stars.test.ts`, `tests/query.test.ts`, `tests/safepoint.test.ts`, `tests/respawn.test.ts`, `tests/world.test.ts`, `tests/render-smoke.test.ts`, `tests/effects.test.ts`, `tests/race-smoke.test.ts`, `tests/slow/fosses-a.test.ts`, `tests/slow/fosses-fenetres.test.ts`, `tests/slow/race-invariants-*.test.ts`, `tests/slow/race-sans-saut-*.test.ts`, `tests/slow/volcans-slow.test.ts`, `e2e/fosse.spec.ts`
 
 **Interfaces :**
@@ -856,29 +945,31 @@ export function fosse(cfg: Config): SliceProfile;   // hauteur 0 sauf ]xBord, xB
 export function tremplins(track: Track): Tremplin[];
 export function nextFosse(track: Track, x: number): Fosse | undefined;   // première fosse dont xBord > x
 // src/cars/jump.ts (pur)
-/** x dans [xLancement, xBord[ de la prochaine fosse et (xBord − x) / max(v, 1) ≤ FOSSE_JUMP_LEAD. */
+/** Centre de la fenêtre, en s avant le bord amont, à la vitesse v : FOSSE_JUMP_AIM − FOSSE_WIDTH / (2 max(v, 1)) (saut §6.8). */
+export function fosseJumpLead(v: number, cfg: Config): number;
+/** x dans [xLancement, xBord[ de la prochaine fosse et (xBord − x) / max(v, 1) ≤ fosseJumpLead(v). */
 export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config): boolean;
 // tests/helpers/fosses.ts
-export function fosseRun(world: World, opts: { x0: number; v: number | 'arrêt'; jumpAtStep: number | null; turboAtX?: number; cfg?: Config }):
+export function fosseRun(world: World, opts: { x0: number; v: number | 'arrêt'; pressAtStep: number | null; turboAtX?: number; cfg?: Config }):
   { lava: boolean; passed: boolean; jumpX: number | null; landX: number | null; minWheelGap: number };
 export function fosseWindow(world: World, f: Fosse, v: number | 'arrêt', cfg?: Config):
-  { seconds: number; sMin: number; sMax: number; contiguous: boolean; landMax: number; runs: number };
+  { seconds: number; pieces: number; sMin: number; sMax: number; centreLead: number; landMax: number; runs: number };
 ```
 
 **Règles de mise en œuvre :**
 - **Générateur** : une `'rampe-volcan'` tirée et acceptée devient une fosse si (rang du volcan + phase) mod `FOSSE_PERIOD` = `FOSSE_PERIOD` − 1. Le rang compte tous les volcans, dans l'ordre de la piste.
-  - La phase est tirée une fois par piste dans `mulberry32((seed ^ 0x6a09e667) >>> 0)`. Elle n'est tirée que si `FOSSE_PERIOD` > 0 : avec 0, aucun appel.
+  - La phase est tirée une fois par piste dans `mulberry32((seed ^ 0x6a09e667) >>> 0)`, seulement si `FOSSE_PERIOD` > 0 : avec 0, aucun appel.
   - Le `rng` principal ne voit aucun tirage de plus ; `fosse(cfg).length === rampeVolcan(cfg).length` est assertée.
   - Refus (saut §6.3) : jugés sur la dernière tranche tirée ; un volcan ne suit jamais une rampe-saut ni un autre volcan, quel que soit son type.
 - **Capteur** : `buildLava` inchangé ; une fosse porte `rimY` = 0.
-- **Copains provisoires** : demande de saut à chaque pas tant que `fosseJumpWanted` est vrai. `wantsJump` et `canJump` filtrent, comme pour Galahad. Ce saut n'a pas d'erreur. La tâche 6 le remplace par le driver.
+- **Copains provisoires** : demande de saut **à chaque pas** tant que `fosseJumpWanted` est vrai. `wantsJump` et `canJump` filtrent, comme pour Galahad, avec la tolérance de sol. Ce saut n'a pas d'erreur. La tâche 6 le remplace par le driver.
 - **Galahad dans `Game`** : rien ne change, c'est l'enfant qui saute.
 
-- [ ] **Step 0 : Décisions du papa consignées** : Q-F1, Q-F2 et Q-F5 (registre). Si Q-F1 ≠ 8 m, les seuils « attendus » ci-dessous sont remplacés par les mesures du Step 6, sans relâcher le plancher de 0,4 s.
-- [ ] **Step 1 : Tests rouges statiques.**
+- [ ] **Step 0 : Décisions du papa consignées** (registre 10282e7) : Q-F1 8 m, Q-F2 option B, Q-F5 rien. Rien à demander.
+- [ ] **Step 1 : Tests rouges statiques et purs.**
   - `tests/fosses.test.ts`, partie statique :
     - longueur égale à celle de la rampe-volcan ;
-    - garde de 20 m, approche `LANCEMENT_LENGTH`, lave de W m ;
+    - garde de 20 m, approche `LANCEMENT_LENGTH`, lave de 8 m ;
     - réception ≥ 60 m ;
     - bords sur la maille ;
     - hauteur 0 sur [début, xBord] et sur [xReception, xEnd] (aucune lèvre) ;
@@ -888,122 +979,124 @@ export function fosseWindow(world: World, f: Fosse, v: number | 'arrêt', cfg?: 
     - volcans consécutifs de types différents ;
     - les deux phases présentes ;
     - au moins une fosse et un tremplin dès 2 volcans ;
-    - **2 à 7 volcans (graines 0 à 19)**, remplace « 3 à 7 » ;
     - aucun volcan après une rampe-saut ou un volcan (dernière tranche tirée) ;
     - [15 %, 90 %] ;
     - même suite de tranches tirées et mêmes x qu'avec `FOSSE_PERIOD` 0, à l'échange tremplin / fosse près ;
     - `FOSSE_PERIOD` 0 avec `ANCIENNES_PISTES` : sha1 des pistes inchangé.
+
+    Le « 2 à 7 volcans » est déjà migré en 5e.
   - `tests/stars.test.ts`, `tests/high-stars.test.ts` :
     - aucune étoile basse dans [début de la tranche fosse, xReception) ;
     - étoile de réception à xReception + 25, tirée 1 fosse sur 2 ;
+    - aucune autre étoile basse à moins de 3 m d'elle (trou de ± `STAR_ELAN_GAP` du curseur) ;
     - plancher dans l'ordre de la piste (élan ou réception) ;
     - aucune étoile haute dans une tranche fosse ;
     - 6 à 14 étoiles basses (graines 0 à 19).
   - `tests/query.test.ts`, `tests/safepoint.test.ts`, `tests/respawn.test.ts` (purs) :
     - `forbiddenZone` d'une fosse ;
     - `volcanoAhead` trouve une fosse ;
-    - 2e chute → cible A ou B, selon Q-F2 ;
+    - 2e chute de suite : bord aval + 5 ; recul groupé **vers l'aval** pour cette cible, 4 au plus ;
+    - au plus 2 chutes par série ;
     - `inElanZone` faux sur toute la fosse ;
-    - `inGhostZone` d'une fosse ;
+    - `inGhostZone` d'une fosse jusqu'à bord aval + 40 m ;
     - `nextFosse`.
+  - `fosseJumpLead` et `fosseJumpWanted` (purs) : valeurs à 8, 11,2, 14 et 21 m/s (saut §6.8) ; faux hors [xLancement, xBord[.
   - Commande : `npx vitest run tests/fosses.test.ts tests/generate.test.ts tests/stars.test.ts tests/high-stars.test.ts tests/query.test.ts tests/safepoint.test.ts tests/respawn.test.ts`. Attendu : **ROUGE**.
-- [ ] **Step 2 : Implémenter la piste** (types, slices, generate, stars, query, respawn) → **VERT** statique.
-  - `npm run typecheck` liste chaque usage des champs du tremplin : on les restreint aux tremplins, par `tremplins(track)` ou par un test sur `kind`. Ni `as`, ni `!` sans commentaire.
-- [ ] **Step 3 : Tests rouges physiques**, `tests/fosses.test.ts` (CI, une fosse sur piste plate, monde rogné) :
+- [ ] **Step 2 : Implémenter la piste et les règles, migrer, VERT.**
+  - Implémentation : types, slices, generate, stars, query, respawn, `fosseJumpLead`, `fosseJumpWanted`, saut provisoire des copains.
+  - **Dans ce même Step, avant le typecheck**, toutes les migrations « 5g S2 » du tableau :
+    - **T** (tremplins seuls) : `query`, `safepoint`, `respawn`, `respawn-e2e`, `fantomes`, `world`, `observer`, `volcans` et `helpers/cases.ts`, `helpers/runs.ts`, `slow/volcans-slow`, `slow/saut-volcan` ;
+    - **SP** (`sauteurParfait`) : `race-smoke`, `helpers/race.ts`, `slow/race-invariants-*`, `slow/finish`, `slow/stars-sim`, `slow/high-stars-sim`.
+
+    Sans elles, le typecheck casse sur `xElanStart` et `xLip`, et les courses doigt posé tombent dans les fosses.
+  - `npm run typecheck` liste chaque usage des champs du tremplin : on les restreint par `tremplins(track)` ou par un test sur `kind`. Ni `as`, ni `!` sans commentaire.
+  - Commandes : les tests du Step 1, puis `npm run typecheck` et `npm test`, **verts**. L'empreinte `ANCIENNES_PISTES` ne bouge pas.
+- [ ] **Step 3 : Tests physiques**, `tests/fosses.test.ts` (CI, une fosse de 8 m sur piste plate, monde rogné). Ils passent en général dès le Step 2. Ceux qui échouent sont corrigés au Step 4 : rouge attendu jusqu'au Step 4.
   - **(a)** roulé sans saut à 3, 11,2, 14, 21 et 30 m/s : lave, châssis repris avant `xBord` ;
-  - **(a')** double-bosse puis fosse, turbo à 21 m/s à l'entrée de la double-bosse : lave. Le mutant `FOSSE_GUARD` 0 est mesuré et consigné ;
-  - **(b)** `fosseWindow` à 11,2 et à 14 m/s : ≥ 0,4 s, d'un seul tenant, 0 respawn dans les 3 s après l'atterrissage, valeurs imprimées (attendu 1,02 / 1,20 s pour 8 m) ;
-  - **(c)** départ arrêté en `xLancement + SAFE_LANCEMENT_MARGIN − 0,01` : ≥ 0,4 s (attendu 0,87 s) ;
-  - **(d)** à 21 m/s, le saut qui passe et atterrit le plus loin le fait avant `xEnd − 10` (attendu ≤ 31,6 m après le bord aval) ;
-  - `fosseJumpWanted` à 11,2, 14 et 21 m/s, et au départ arrêté : passe ;
-  - 2e chute de suite : cible A ou B. Une chute puis un retournement remettent la série à zéro ;
+  - **(a')** double-bosse puis fosse, turbo à 21 m/s à l'entrée de la double-bosse : lave (le mutant `FOSSE_GUARD` 0 est mesuré et consigné) ;
+  - **(b)** `fosseWindow` à 11,2 et à 14 m/s, et avec un turbo pris 40 m avant le bord : fenêtre principale ≥ 0,4 s **d'un seul tenant** (chaque pas vérifié), morceaux isolés plus tôt permis et imprimés, 0 respawn dans les 3 s après l'atterrissage ; valeurs et centre imprimés (saut §6.2) ;
+  - **(c)** départ arrêté en `xLancement + SAFE_LANCEMENT_MARGIN − 0,01` : ≥ 0,4 s ;
+  - **(d)** à 21 m/s, le saut qui passe et atterrit le plus loin le fait avant `xEnd − 10` (attendu ≤ 32 m après le bord aval) ;
+  - **à doigt posé seulement** : à 5 m/s, aucun appui ne passe (imprimé, saut §6.1) ;
+  - `fosseJumpWanted` à 8, 11,2, 14 et 21 m/s, et au départ arrêté : passe ;
+  - 2e chute de suite : posée à bord aval + 5, à l'arrêt ; une chute puis un retournement remettent la série à zéro ;
   - 5 voitures dans la fosse au même pas, point sûr `xLancement + 1` : 5 respawns en file, sans chevauchement, aucun `'speed'` ;
+  - 5 voitures qui ratent toutes deux fois : posées à bord aval + 5, + 8,3, + 11,6… (recul vers l'aval), aucun `'speed'` ;
   - fantômes :
-    - une voiture arrêtée au point sûr est traversée par une voiture lancée, sans paire active ;
-    - (B) une voiture posée à bord aval + 5 est traversée par une voiture qui atterrit ;
+    - une voiture arrêtée au point sûr est traversée par une voiture lancée ;
+    - une voiture posée à bord aval + 5 est traversée par une voiture qui atterrit ;
+    - deux sauteurs qui se croisent en l'air ne se touchent pas ;
   - Galahad seul, doigt posé sans saut, sur la première graine de 0 à 9 qui a ≥ 2 fosses : exactement 2 chutes par fosse, 0 au tremplin, arrivée < 240 s. Avec `sauteurParfait` : 0 chute ;
   - 5 voitures, graine 1 : copains provisoires 0 chute, Galahad `sauteurParfait` 0 chute.
-  - Commande : `npx vitest run tests/fosses.test.ts`. Attendu : **ROUGE**.
-- [ ] **Step 4 : Implémenter** `fosseJumpWanted`, le saut des copains provisoires et la cible B si elle est choisie → **VERT**. Puis `npm test` : l'empreinte `ANCIENNES_PISTES` ne bouge pas.
+  - Commande : `npx vitest run tests/fosses.test.ts`.
+- [ ] **Step 4 : Corriger** ce que le Step 3 a trouvé → **VERT**. Puis `npm test` : l'empreinte `ANCIENNES_PISTES` ne bouge pas.
 - [ ] **Step 5 : Rendu et e2e.**
   - Dessin : lave à ras bord, langues de feu jusqu'au capteur, halo pulsé au temps de simulation, panneau à ressort.
+  - `src/game.ts` : `__game.respawns` en `?debug=1`.
   - `tests/render-smoke.test.ts` :
     - une fosse et son panneau se dessinent sans erreur ;
     - aucun plot au-dessus de la lave ;
     - le cône sombre reste réservé aux tremplins.
+  - `tests/effects.test.ts` : bulles d'une fosse au ras du sol.
   - `e2e/fosse.spec.ts` (`?seed=<graine figée dans le test, dont la 1re fosse est la plus proche du départ>&debug=1`) :
     - doigt tenu jusqu'à la fosse, capture `e2e/screenshots/fosse.png` (fosse, halo et panneau à l'écran) ;
-    - puis, sans saut, deux `'respawn'` de raison lave, et la course continue ;
+    - sans saut, `__game.respawns` reçoit deux réapparitions de raison `'lava'` ; la 2e pose Galahad après la fosse, et la course continue ;
     - pas d'assertion sur l'instant exact d'un saut à la main (Playwright n'est pas assez régulier) : le saut juste est couvert par (b) et (c).
   - Commande : `npm run e2e`.
 - [ ] **Step 6 : Suite lente.**
 
   | Fichier | Contenu | Budget |
   |---|---|---|
-  | `tests/slow/fosses-a.test.ts` | Chaque fosse des graines 0 à 19, Galahad lancé à V_MAX 100 m avant la tranche précédente, turbo pris tous les 2 m de 80 m avant cette tranche jusqu'à `xLancement`, sans saut : **100 % de lave** (sonde de la spec : 0 survol sur 1 044 runs avec la garde). **Témoin vivant** : sur les pistes synthétiques de `tests/helpers/fosses.ts` (bosses, double-bosse, bosses + double-bosse avant la fosse : profils de la sonde de la spec), le même balayage avec `FOSSE_GUARD` 0 et W 6 retrouve au moins un survol (sonde : 2 sur 1 044). Sinon, le balayage ne prouve rien. | < 20 min |
-  | `tests/slow/fosses-fenetres.test.ts` | Chaque fosse des graines 0 à 9 : (b) à 11,2 et 14 m/s, (c) départ arrêté au pire point sûr, (d) turbo. Minimum, médiane et centre des fenêtres ; `FOSSE_JUMP_LEAD` est dans la fenêtre partout. | < 20 min |
-  | `tests/slow/race-invariants-*.test.ts` (migrés) | 5 voitures, graines 0 à 23, Galahad doigt posé **avec** `sauteurParfait` : `lavaByCar.galahad === 0`, aucune chute propre, chutes classées par type de volcan. | inchangé |
-  | `tests/slow/race-sans-saut-0-11.test.ts`, `-12-23.test.ts` | 5 voitures, Galahad doigt posé **sans** saut : lave de Galahad = 2 × nombre de fosses, 0 au tremplin, arrivée < 240 s ; copains provisoires 0 chute. Temps perdu par fosse imprimé (attendu ≈ 1 s en A, ≈ 4,7 s en B). | < 15 min chacun |
+  | `tests/slow/fosses-a.test.ts` | Chaque fosse des graines 0 à 19, Galahad lancé à V_MAX 100 m avant la tranche précédente, turbo pris tous les 2 m de 80 m avant cette tranche jusqu'à `xLancement`, sans saut : **100 % de lave** (≈ 3 400 runs, ≈ 14 min MESURÉ (relecture)). **Témoin vivant** : sur les pistes synthétiques de `tests/helpers/fosses.ts` (recette de saut §6.2 (a)), le même balayage avec `FOSSE_GUARD` 0 et W 6 retrouve au moins un survol (sonde : k = 6 et k = 14). Sinon, le balayage ne prouve rien. | < 20 min |
+  | `tests/slow/fosses-fenetres.test.ts` | Chaque fosse des graines 0 à 9 : (b) à 11,2 et 14 m/s, (c) départ arrêté au pire point sûr, (d) turbo. Un seul morceau ; minimum, médiane et centre des fenêtres ; `fosseJumpLead(v)` à moins de 0,05 s du centre mesuré à chaque vitesse (saut §6.8). | < 20 min |
+  | `tests/slow/race-invariants-*.test.ts` (migrés au Step 2) | 5 voitures, graines 0 à 23, Galahad doigt posé **avec** `sauteurParfait` : `lavaByCar.galahad === 0`, aucune chute propre, chutes classées par type de volcan. | inchangé |
+  | `tests/slow/race-sans-saut-0-11.test.ts`, `-12-23.test.ts` | Galahad doigt posé **sans** saut, graines 0 à 23 : **seul** (saut §4) puis à **5 voitures**. Lave de Galahad = 2 × nombre de fosses, au plus 2 par série, 0 au tremplin, arrivée < 240 s ; copains provisoires 0 chute. Temps perdu par fosse imprimé, contre la même course avec `sauteurParfait` (attendu ≈ 4,3 à 4,6 s, option B). | < 15 min chacun |
   | `tests/slow/volcans-slow.test.ts` (complété) | Scénario (ii) : double-bosse puis tremplin, turbo à 21 m/s, doigt posé : 0 chute (sonde de la spec : 189 / 189). Scénario (iii) : rampe-saut, plat, puis fosse, turbo : lave sans saut, passage avec `sauteurParfait`. | + 5 min |
 
   Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/fosses-a.test.ts tests/slow/fosses-fenetres.test.ts tests/slow/race-sans-saut-0-11.test.ts tests/slow/race-sans-saut-12-23.test.ts`, puis `npm run test:slow`.
-- [ ] **Step 7 : Étoiles basses.** Mesure sur les graines 0 à 49. Passer à [50, 85] si la moyenne sort de [8, 12] ou si le minimum passe sous 6 (CALCULÉ : 9,10, de 6 à 13). Ruling au registre.
+- [ ] **Step 7 : Étoiles basses.** Pas [50, 85] (MESURÉ (relecture) : 8,52, de 6 à 12). On remesure avec le trou de ± 5 m autour de l'étoile de réception ; si la moyenne sort de [8, 12] ou si le minimum passe sous 6 : ruling au registre.
 - [ ] **Step 8 : Non-régression et empreinte.**
   - `ANCIENNES_PISTES` : empreinte, `PLAN_A_TRACE` et sha1 des pistes **inchangés**.
   - `CONFIG` : nouveaux hash dans `FROZEN_CONFIG`, ruling R-F10 (2e recapture, même contenu qu'en 5e).
-  - Migration des tests marqués **5g**.
+  - Migrations restantes marquées **5g**.
   - `npm run typecheck`, `npm test` (chronométré, < 6 min), `npm run test:slow`, `npm run e2e`.
   - Rattrapage « après 5g » :
-    - sur `ANCIENNES_PISTES` : identique à « après 5e » course par course, sinon c'est un défaut ;
-    - sur `CONFIG` : nouvelle référence, Galahad doigt posé avec et sans `sauteurParfait`.
+    - sur `ANCIENNES_PISTES` : contrôle de non-régression, identique à « après 5e » course par course, sinon c'est un défaut ;
+    - sur `CONFIG` : mesure de l'effet, Galahad doigt posé avec et sans `sauteurParfait`.
 - [ ] **Step 9 : Commit** `feat: fosses de lave (1 volcan sur 2), à franchir avec le bouton saut`.
 - [ ] **Step 10 : Relectures.**
   - Relecture standard.
   - Relecture adversariale, avec ces sondes :
     - turbo pris sur des bosses ou une double-bosse avant une fosse, et rebond d'atterrissage au bord ;
+    - appuis à chaque pas d'une fenêtre en turbo (tolérance de sol) ;
     - saut trop tôt qui retombe avant la fosse, puis second saut après le délai ;
     - saut au dernier pas permis, roue avant au coin du capteur ;
     - départ arrêté au pire point sûr, avec 4 autres voitures sur le même point sûr ;
-    - 2e chute avec la cible occupée (A et B) ;
+    - 2e chute avec la cible occupée ;
     - copain retourné sur l'approche ;
     - fantômes à la sortie de la zone ;
+    - doigt levé 2 à 3 s avant la fosse ;
     - `ANCIENNES_PISTES` au bit près ;
     - pistes de 300, 600 et 6 000 m ;
-    - mutants : rebord surélevé de 5 cm, capteur à 0 m au lieu de 0,3 m, alternance remplacée par un tirage sur le `rng` principal ;
+    - mutants : rebord surélevé de 5 cm, capteur à 0 m au lieu de 0,3 m, alternance remplacée par un tirage sur le `rng` principal, recul groupé vers l'amont pour la cible d'après la fosse ;
     - double-bosse puis tremplin à 21 m/s (promesse des tremplins).
   - `code-review` sur le diff.
   - Tours de correction (5 au plus), un commit `fix:` chacun.
 - [ ] **Step 11 : Validation du papa** (tablette, puis Galahad).
   - Montrer `fosse.png` et le tableau mesuré : fenêtres, chutes, temps perdu par fosse ratée.
-  - Questions : Galahad voit-il venir la fosse ? Saute-t-il seul ? La largeur est-elle juste ? Une fosse ratée coûte-t-elle assez ?
+  - Questions :
+    - Galahad voit-il venir la fosse ?
+    - Saute-t-il seul ?
+    - La largeur est-elle juste ?
+    - Une fosse ratée coûte-t-elle assez ?
+    - Lève-t-il le doigt devant la lave (sous ≈ 6 m/s, la fosse est infranchissable) ?
   - Puis commit `docs: tâche 5g validée, passation et registre`, `git status -sb`, push.
 
 ---
 
 ### Task 6 : Conduite des robots (remplace la tâche 6 du plan v2.1)
 
-**[fosses] Ajustements v1.4 (saut §6.8) : sauts des copains aux fosses.** Ils complètent le texte ci-dessous, qui reste valable pour les tremplins et les étoiles hautes.
-- **Décision du papa attendue** : Q-F3 (`FOSSE_SKILL_FACTOR`, 2,5 recommandé ; 1 = traits tels quels). Consignée au Step 0.
-- **Fichiers en plus** :
-  - `src/config.ts` : `FOSSE_SKILL_FACTOR` ; `JUMP_STAR_LEAD` = 1,0 s (centre mesuré en 5e, 0,98 à 1,02 s sur un plat étoile).
-  - `src/sim/simulate.ts` : le saut provisoire des copains aux fosses (5g) est **retiré** ; c'est le driver qui saute.
-  - `src/track/query.ts` : `inNoJumpZone` = [`xLancement`, `xReception`] d'un **tremplin** seulement.
-- **`DriverContext`** gagne `nextFosse: { xBord: number; attempt: 1 | 2 } | null` : prochaine fosse à moins de `JUMP_LOOKAHEAD`, avec le numéro de la tentative. Il vaut 2 après une chute dans cette fosse, et revient à 1 à la fosse suivante.
-- **Règle 3, zone volcan** : pour une **fosse**, `throttle: true`, jamais de politesse ni de lever de pied, et le saut de la fosse : le copain saute dès que (`xBord − x`) / max(v, 1) ≤ `FOSSE_JUMP_LEAD` + e. L'erreur e vient de N(0, `FOSSE_SKILL_FACTOR` × `jumpSkill`), pré-tirée à la création du driver, 2 par fosse dans l'ordre de la piste (Box-Muller sur la graine du driver), après les tirages des étoiles hautes. Pas de tirage `jumpTry` : on saute toujours. Un seul saut par tentative entre `xLancement` et le bord aval + 5 m.
-- **Tests en plus** (`tests/driver.test.ts`) :
-  - `jumpSkill` 0 : saut au premier pas où (`xBord − x`) / v ≤ `FOSSE_JUMP_LEAD` ;
-  - 2e tentative : 2e erreur ;
-  - jamais deux sauts dans la même approche ;
-  - jamais de saut d'étoile dans une tranche fosse ;
-  - `inNoJumpZone` vrai sur les tremplins et faux sur les fosses ;
-  - déterminisme.
-- **Mesures en plus** (Step 3) :
-  - par bras « Pablo » / « Timothé », chutes aux fosses par tentative, comparées au tableau CALCULÉ de saut §6.8 ;
-  - tentatives ≈ 1,8 fosse × 4 copains × 48 graines ≈ 350 par bras, au-dessus du seuil de 40 ;
-  - respawns : au plus 3 par robot hors fosses, au plus 2 par fosse ;
-  - les invariants à 5 voitures classent une chute de copain dans une fosse « fosse » (attendue), pas « propre ». Une chute propre à un tremplin reste un échec.
-- **Galahad** court avec `sauteurParfait` dans les invariants, et sans saut dans `race-sans-saut-*` (5g).
-- **Validation du papa** (Step 9) : en plus, « les copains tombent-ils parfois dans une fosse, de façon crédible ? ».
+**[fosses] v1.5 : sauts des copains aux fosses (saut §6.8, décision Q-F3).** Les amendements sont faits dans le texte même de la tâche, marqués « [fosses] ». La tâche s'exécute après la 5g : les pistes ont des fosses, et les copains y sautent déjà sans erreur (driver provisoire de la 5g). Cette tâche remplace ce saut par celui du driver.
 
 **Files:**
 - Create: `src/ai/driver.ts` (types `Driver` et `DriverContext`, et `makeRobotDriver`)
@@ -1013,8 +1106,9 @@ export function fosseWindow(world: World, f: Fosse, v: number | 'arrêt', cfg?: 
     - importe `Driver` et `DriverContext` de `ai/driver.ts` et ne les définit plus ;
     - `holdAfterStartDelay` remplacé par `makeRobotDriver` ;
     - garde « jamais de saut de robot dans `inNoJumpZone` » ;
-    - commentaire du champ `ghost` mis à jour (zone jusqu'à la roue arrière, héritage de la 5b).
-  - `src/track/query.ts` : `inNoJumpZone`.
+    - commentaire du champ `ghost` mis à jour (zone jusqu'à la roue arrière, héritage de la 5b) ;
+    - [fosses] le saut provisoire des copains aux fosses (5g) est **retiré** : c'est le driver qui saute ; `DriverContext.nextFosse` est rempli.
+  - `src/track/query.ts` : `inNoJumpZone`, [fosses] sur les **tremplins** seulement.
   - `src/config.ts` :
 
     | Constante | Valeur |
@@ -1025,8 +1119,8 @@ export function fosseWindow(world: World, f: Fosse, v: number | 'arrêt', cfg?: 
     | `LIFT_LOOKAHEAD` | 8 |
     | `LIFT_SECONDS` | 0,4 |
     | `JUMP_LOOKAHEAD` | 40 |
-    | `JUMP_STAR_LEAD` | mesuré en 5e, Step 8 ; [fosses] 1,0 s (centre sur un plat étoile) |
-    | `FOSSE_SKILL_FACTOR` | [fosses] Q-F3 (2,5 recommandé) |
+    | `JUMP_STAR_LEAD` | mesuré en 5e, Step 8 ; [fosses] 1,0 s (centre sur un plat étoile, 0,98 à 1,02 s quelle que soit la vitesse) |
+    | `FOSSE_SKILL_FACTOR` | [fosses] **2,5** (Q-F3) |
   - `tests/deps.test.ts` : `src/{track,cars,loop,ai}`.
   - **Drivers écrits à la main**, `() => boolean` → `() => ({ throttle, jump: false })` :
     - `tests/fantomes.test.ts`, l. 24, 69, 114, 122 et 131 ;
@@ -1048,11 +1142,15 @@ export interface DriverContext {
   others: readonly { index: number; x: number; speed: number }[];
   /** Étoile haute la plus proche devant, à moins de JUMP_LOOKAHEAD (40 m), avec sa disponibilité pour CETTE voiture ; null sinon. */
   nextHighStar: { index: number; x: number; available: boolean } | null;
+  /** [fosses] Prochaine fosse devant, à moins de JUMP_LOOKAHEAD : bord amont, rang dans la piste, tentative (2 après une chute dans cette fosse, 1 sinon) ; null sinon. */
+  nextFosse: { xBord: number; index: number; attempt: 1 | 2 } | null;
 }
 export type Driver = (ctx: DriverContext) => { throttle: boolean; jump: boolean };
 export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: number, cfg: Config): Driver;
 // src/track/query.ts
 export function inNoJumpZone(track: Track, x: number): boolean;   // x ∈ [xLancement, xReception] d'un volcan [fosses] à tremplin
+// src/cars/jump.ts (5g) : centre de la fenêtre d'une fosse, en s avant le bord, à la vitesse v
+export function fosseJumpLead(v: number, cfg: Config): number;
 // src/cars/pilots.ts
 readonly jumpTry: number;    // [0 ; 1]
 readonly jumpSkill: number;  // s : écart-type de l'erreur sur l'instant du saut
@@ -1064,7 +1162,11 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 2. **Délai de départ** : `{ throttle: false, jump: false }` tant que `t < rank × START_DELAY_PER_RANK`.
 3. **Zone volcan `[xLancement, xLava]`** :
    - `throttle: true`, jamais de lever de pied ni de politesse ;
-   - **saut interdit sur `[xLancement, xReception]`**, dans le driver **et** par la garde de `stepRace` pour toute voiture qui a un driver.
+   - **saut interdit sur `[xLancement, xReception]`**, dans le driver **et** par la garde de `stepRace` pour toute voiture qui a un driver. [fosses] Pour un tremplin seulement.
+   - [fosses] **Fosse** : saut de la fosse, toujours tenté (pas de tirage `jumpTry`).
+     - L'instant visé est **centré à chaque vitesse** : le copain demande le saut dès que (`xBord − x`) / max(v, 1) ≤ `fosseJumpLead(v)` + e.
+     - e est pré-tirée à la création du driver : N(0, `FOSSE_SKILL_FACTOR` × `jumpSkill`), **2 par fosse** (une par tentative), dans l'ordre de la piste, après les tirages des étoiles hautes (Box-Muller sur la graine du driver).
+     - Une seule demande de saut par tentative entre `xLancement` et le bord aval + 5 m ; jamais de saut d'étoile dans une tranche fosse.
 4. **Robots polis** (décision du papa, 5b) :
    - hors zone volcan, `throttle: false` si une autre voiture roule à moins de `POLITE_SPEED` et se trouve devant, à une distance de châssis à châssis dans `(0, POLITE_GAP]` ;
    - au-delà de 3 s d'attente continue derrière la même voiture, le robot repart (ruling Q8) ;
@@ -1076,7 +1178,7 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 6. **Saut des copains (saut §3)** :
    - **Pré-tirage** : à la création du driver, pour chaque étoile haute dans l'ordre de la piste, on tire `essaie = rng() < jumpTry`, puis `erreur = N(0, jumpSkill)` (Box-Muller).
    - **Déclenchement** : quand `nextHighStar` est disponible et que `essaie` est vrai, le copain saute dès que `(xÉtoile − x) / max(speed, 1) ≤ JUMP_STAR_LEAD + erreur`.
-   - **Maintien** : la demande est tenue jusqu'au saut ou jusqu'au passage de l'étoile. `wantsJump` et `canJump` filtrent.
+   - **Maintien** : la demande est tenue jusqu'au saut ou jusqu'au passage de l'étoile. `wantsJump` et `canJump` filtrent. [fosses] Concrètement, **le driver redemande le saut à chaque pas** tant qu'il est dans sa fenêtre (étoile ou fosse) et qu'il n'a pas sauté. Avec la tolérance de sol de 0,35 s, un rebond ne fait plus perdre la demande (saut §6.2).
    - **Après un respawn** : la décision tirée pour cette étoile est rejouée telle quelle.
    - Il peut rater l'étoile, mal retomber, se retourner.
 7. Sinon : `{ throttle: true, jump: false }`.
@@ -1097,7 +1199,7 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 - **Tentatives attendues** : avec ≈ 1 étoile haute par course (5e, Step 9), 4 copains et 48 graines, on compte ≈ 150 tentatives dans le bras « Pablo » (4 × 48 × 0,8) et ≈ 58 dans le bras « Timothé » (4 × 48 × 0,3). C'est au-dessus du seuil de 40 : la mesure est valable. [fosses] Avec 3 étoiles hautes par course (P7) : ≈ 460 et ≈ 170.
 - **Seuil** : au moins 40 tentatives exigées par bras, sinon on passe à 96 graines (4 fichiers).
 
-- [ ] **Step 0 : Décisions du papa consignées** (registre 567ee13). Le tableau des traits est gardé (P4).
+- [ ] **Step 0 : Décisions du papa consignées** (registre 567ee13). Le tableau des traits est gardé (P4). [fosses] Q-F3 (registre 10282e7) : `FOSSE_SKILL_FACTOR` 2,5, instant visé centré à chaque vitesse.
 - [ ] **Step 1 : Tests rouges.**
   - `tests/driver.test.ts`, pur, avec un contexte fabriqué à la main :
     - **délai** : `throttle` faux pour `t < rank × 0,3`, vrai ensuite.
@@ -1114,7 +1216,13 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
       - `jumpTry = 1`, `jumpSkill = 0` : `jump` devient vrai au premier pas où `(xÉtoile − x) / v ≤ JUMP_STAR_LEAD` ;
       - `jumpTry = 0` : jamais ;
       - étoile indisponible : jamais ;
-      - **jamais `jump: true` dans `inNoJumpZone`** : balayage au pas de 0,1 m sur tous les volcans des graines 0 à 19, avec `jumpTry = 1` et des étoiles hautes fictives juste après chaque réception.
+      - **jamais `jump: true` dans `inNoJumpZone`** : balayage au pas de 0,1 m sur tous les volcans des graines 0 à 19, avec `jumpTry = 1` et des étoiles hautes fictives juste après chaque réception. [fosses] Sur les tremplins ; `inNoJumpZone` est faux sur toute une fosse.
+    - [fosses] **saut de fosse** :
+      - `jumpSkill = 0` : demande au premier pas où (`xBord − x`) / v ≤ `fosseJumpLead(v)`, à 8, 11,2, 14 et 21 m/s ;
+      - redemandée à chaque pas jusqu'au saut ;
+      - 2e tentative (après une chute) : 2e erreur pré-tirée ;
+      - jamais deux sauts dans la même approche ;
+      - `jumpTry = 0` : la fosse est quand même sautée.
     - **déterminisme** : même graine, mêmes sorties ; deux rangs, deux tirages différents.
   - `tests/pilots.test.ts` :
     - bornes : `jumpTry` ∈ [0 ; 1], `jumpSkill` ∈ [0,02 ; 0,25] ;
@@ -1125,7 +1233,7 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 - [ ] **Step 2 : Implémenter**, puis **VERT**.
   - Driver, traits, types déplacés dans `ai/driver.ts`, contexte, garde, migration des drivers de test.
   - `npm run typecheck`, puis `npm test` (empreinte inchangée).
-- [ ] **Step 3 : Mesures, suite lente** (`tests/slow/robots-sauts-*.test.ts`, moins de 30 min par fichier). 5 voitures, graines 0 à 47, Galahad doigt posé.
+- [ ] **Step 3 : Mesures, suite lente** (`tests/slow/robots-sauts-*.test.ts`, moins de 30 min par fichier). 5 voitures, graines 0 à 47, Galahad doigt posé [fosses] **avec `sauteurParfait`** aux fosses.
   - **Aucun saut de copain en zone volcan** : 0 `'jump'` de robot avec `inNoJumpZone(x)`.
   - **Fonceurs contre prudents**, en appariement par graine. Par bras, on compte :
     - tentatives ;
@@ -1134,12 +1242,18 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
     - respawns dans les 3 s.
 
     Assertions : au moins 40 tentatives par bras, et taux de raté « Pablo » > taux de raté « Timothé ». On imprime aussi les chiffres du tirage normal, pilote par pilote.
+  - [fosses] **Fosses**, mêmes bras appariés :
+    - chutes par tentative, **vitesse par vitesse** (vitesse au saut par tranches de 2 m/s, et départ arrêté après une chute) ;
+    - comparées au CALCULÉ de saut §6.8 : Pablo 19 à 34 % selon la vitesse, prudents ≈ 0 ;
+    - ≈ 1,8 fosse × 4 copains × 48 graines ≈ 350 tentatives par bras, au-dessus du seuil de 40 ;
+    - assertion : raté « Pablo » > raté « Timothé ». Les taux mesurés vont au registre et au papa (validation, Step 9).
   - **Déterminisme** : graine 3 jouée deux fois, même empreinte finale et même liste de `'jump'`.
   - **Invariants** :
-    - au plus 3 respawns par robot ;
+    - au plus 3 respawns par robot ; [fosses] **hors chutes dans une fosse**, et au plus 2 chutes par série à une fosse (la 2e pose la voiture juste après) ;
     - blocage d'au plus 2,1 s ;
-    - `lavaByCar.galahad === 0` ;
-    - `ghostContacts === 0`.
+    - `lavaByCar.galahad === 0` ([fosses] Galahad avec `sauteurParfait`) ;
+    - `ghostContacts === 0` ;
+    - [fosses] chute d'un copain dans une fosse classée « fosse » (attendue) ; une chute propre à un tremplin reste un échec.
 
     Si les sauts font dépasser 3 respawns : on mesure, et le papa choisit entre baisser `jumpTry` et accepter. On ne relâche rien en silence.
   - Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/robots-sauts-0-23.test.ts tests/slow/robots-sauts-24-47.test.ts`.
@@ -1149,7 +1263,7 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
   - Fixer `POLITE_SPEED` et `POLITE_GAP`, et les consigner au registre.
   - Puis `npx vitest run tests/race-smoke.test.ts` et `npm run e2e`, avec la fenêtre « sans doigt » de 2 s.
 - [ ] **Step 5 : Rattrapage « après 6 ».**
-  - Relancer `rattrapage-*` et comparer, graine par graine : **avant la 5d, après la 5d, après la 5e, après la 6**.
+  - Relancer `rattrapage-*` et comparer, graine par graine : **avant la 5d, après la 5d, après la 5e, après la 5g, après la 6**. [fosses] Les comparaisons appariées se font sur `ANCIENNES_PISTES` ; l'effet des fosses et des plats étoile se lit sur `CONFIG`, à partir des mesures « après 5e » et « après 5g ».
   - **Variante « Galahad sauteur »** (ruling Q9) : même lot, avec l'option `jump` de `simulateRace` pilotée par `makeRobotDriver`, traits `jumpTry` 1 et `jumpSkill` 0,05 appliqués à Galahad.
   - Chiffres dans la passation, sans assertion chiffrée.
 - [ ] **Step 6 : Suites** : `npm run typecheck`, `npm test` (moins de 6 min), `npm run test:slow`, `npm run e2e`.
@@ -1162,7 +1276,8 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
     - saut pendant le fantôme de sortie de zone ;
     - interblocage poli entre deux copains ;
     - respawn avant une étoile déjà tirée ;
-    - turbo pendant l'approche (`JUMP_STAR_LEAD`) ;
+    - turbo pendant l'approche (`JUMP_STAR_LEAD`, [fosses] `fosseJumpLead`) ;
+    - [fosses] copain qui rate une fosse deux fois, puis posé juste après ; deux copains qui sautent la même fosse ;
     - allocations de `others` par pas ;
     - absence de cycle d'import.
   - `code-review` sur le diff.
@@ -1170,14 +1285,17 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 - [ ] **Step 9 : Validation du papa** (tablette, 5 voitures) :
   - Les copains sautent-ils de façon crédible ?
   - La course est-elle encore jouée d'avance ?
+  - [fosses] Les copains tombent-ils parfois dans une fosse, de façon crédible (taux mesurés du Step 3) ?
 
   Puis commit `docs: tâche 6 validée, passation et registre`, `git status -sb`, push. On enchaîne sur la tâche 7 du plan v2.1. Après les tâches 6 et 7, le papa rejuge la difficulté (`ENGINE_BRAKE`, plan C).
 
 ---
 
-## Migration des tests existants (v1.4)
+## Migration des tests existants (v1.5)
 
-Toutes les pistes changent (P10), et la promesse « doigt posé = 0 chute » ne vaut plus qu'aux tremplins (P9). La liste ci-dessous couvre **tous** les tests qui supposent l'une ou l'autre, repérés par `grep` des usages de `volcanoes`, `firstVolcano`, `xElanStart`, `xLip`, `lavaByCar`, des valeurs figées et des graines fixes. Une migration est faite dans le commit qui change le comportement, jamais par `.skip`.
+Toutes les pistes changent (P10), et la promesse « doigt posé = 0 chute » ne vaut plus qu'aux tremplins (P9). La liste ci-dessous couvre **tous** les tests qui supposent l'une ou l'autre, ainsi que ceux que la tolérance de sol (P11) touche. Elle a été établie par `grep` des usages de `volcanoes`, `firstVolcano`, `trackFor`, `worldFor`, `xElanStart`, `xLip`, `lavaByCar`, des valeurs figées et des graines fixes.
+- Chaque migration est faite **au Step indiqué**, qui est celui où le comportement change ; ce Step finit vert. Jamais de `.skip`.
+- « 5e S10 » se lit : tâche 5e, Step 10.
 
 Légende des migrations :
 - **AP** : passer à `withAnciennesPistes(cfg)`. Le test juge la physique ou compare à une mesure d'avant, et ses valeurs figées ne bougent pas.
@@ -1185,72 +1303,86 @@ Légende des migrations :
 - **SP** : Galahad court avec `sauteurParfait`. Le test garde « 0 chute ».
 - **+F** : ajouter le cas fosse.
 
-| Test | Ce qu'il suppose | Migration | Tâche |
+| Test | Ce qu'il suppose | Migration | Quand |
 |---|---|---|---|
-| `tests/empreinte.test.ts` | sha1 figés sur les pistes `CONFIG` des graines 0 à 2 | AP pour `FROZEN` (inchangé) ; `FROZEN_CONFIG` recapturé par ruling R-F10 | 5e, puis 5g |
-| `tests/simulate.test.ts` | `PLAN_A_TRACE` (graine 1, 20 s) ; `rebuildCars` à mi-course sans « stuck » | AP pour `PLAN_A_TRACE` ; à mi-course, vérifier qu'une chute dans une fosse n'est pas comptée comme « stuck » | 5e ; 5g |
-| `tests/high-stars.test.ts` | `PRE_5E_STARS` (sha1, `STAR_HIGH_PER_RACE` 0) ; 0 ≤ n ≤ 3 ; règles de placement sur les plats ; aucune étoile haute dans [xLancement, xLava] | AP pour `PRE_5E_STARS` ; n = 3 exactement ; règles des plats ordinaires sur fixture à plafond 5 ; +F (aucune dans une tranche fosse) | 5e ; 5g |
-| `tests/high-stars-window.test.ts` | « graine 1 ou première graine 0 à 9 avec une étoile haute », 0,3 s | 1er plat étoile de la graine 1, 0,4 s (0,3 s à +5 cm) | 5e |
-| `tests/stars.test.ts` | zones admissibles (plats, lancement, réception) ; étoiles d'élan sur tous les volcans (l. 26, 43, 154, 205 à 260) ; 6 à 14 | plats étoile hors zones ; T pour les étoiles d'élan ; +F (zone = réception, étoile de réception, plancher) ; 6 à 14 au pas mesuré | 5e ; 5g |
-| `tests/generate.test.ts` | volcans consécutifs (l. 74 à 96) ; rampe-saut avant un volcan (l. 140) ; 3 à 7 volcans (l. 149) ; `onlyPlat` ; types présents (l. 167) ; pente hors parois | dernière tranche tirée ; **2 à 7** volcans dès la 5e (plats étoile : minimum 2 CALCULÉ) ; `onlyPlat` sans plat étoile ; + `'plat-étoile'`, + `'fosse'` ; parois de fosse exemptées ; +F (alternance, phase) | 5e ; 5g |
-| `tests/slices.test.ts` | géométrie de la rampe-volcan | inchangée ; + `platEtoile`, + `fosseGeometry` et `fosse` | 5e ; 5g |
-| `tests/query.test.ts` | `volcanoes[0]` porte `xElanStart` et `xLip` (l. 33 à 99) | T ; +F (`volcanoAhead`, `nearestVolcanoZone`, `inGhostZone`, `nextFosse` ; `inElanZone` faux) | 5g |
-| `tests/safepoint.test.ts` | `volcanoes[0]` (l. 18) : refus sur l'élan et la rampe | T ; +F (zone interdite d'une fosse, garde permise) | 5g |
-| `tests/respawn.test.ts` | séries et cible `xEnd − 10` sur des pistes à ≥ 2 volcans (l. 187 à 271) | inchangé pour A (vérifié sur les deux types) ; +F, et cible B si Q-F2 = B | 5g |
-| `tests/respawn-e2e.test.ts` | `firstVolcano` (flanc amont, vallée, 2 chutes, retourné sur l'élan) | T (`firstTremplin`) ; le cas fosse des 2 chutes va dans `tests/fosses.test.ts` | 5g |
-| `tests/fantomes.test.ts` | `firstVolcano` (élan, sortie de zone) | T ; +F (approche de fosse, et zone prolongée si B) | 5g |
-| `tests/world.test.ts` | capteur du 1er volcan (cratère, rebord à 1,2 m) | T ; +F (capteur d'une fosse : [xBord, xBord + W], haut à 0,3 m au-dessus du sol) | 5g |
-| `tests/effects.test.ts` | bulles du `volcanoes[0]` | inchangé (champs communs) ; +F (bulles au ras du sol) | 5g |
-| `tests/game-frame.test.ts` | `volcanoes[0]` pour une réapparition forcée | inchangé (champs communs) ; vérifier que la graine choisie a toujours un volcan | 5g |
-| `tests/interpolation-replay.test.ts` | graine 1, 40 s doigt posé : nombre d'épisodes ; téléportation au 1er volcan | AP (une fosse ajouterait des téléportations au rejeu) | 5e |
-| `tests/observer.test.ts` | `runFrom` au 1er volcan (élan) | T | 5g |
-| `tests/race-smoke.test.ts` | cas 6 : 0 respawn, 110 à 170 s, 6 à 14 étoiles ; à 5 voitures : ≤ 3 respawns ; « 5 dans la lave » au 1er volcan | SP pour le cas 6 et Galahad à 5 voitures ; T pour « 5 dans la lave » ; +F (5 dans la fosse) ; bornes de temps remesurées (ruling si elles bougent) | 5e (bornes) ; 5g |
-| `tests/rampes.test.ts` | toutes les rampes-saut des graines ; saut des volcans (l. 70) | champs communs, inchangé ; pistes nouvelles : vérifier la durée (≈ 131 s, le plus long de la CI) | 5e ; 5g |
-| `tests/volcans.test.ts` (+ `helpers/cases.ts`) | cas 1 à 5 sur le 1er volcan des graines 0 à 2 | T (cas définis par l'élan et le sommet) | 5g |
-| `tests/jump.test.ts` | rampe-saut d'une graine choisie (apogée sur pente, bouton grisé en vol) | à vérifier en 5e : si la recherche dépend de la piste, prendre la 1re rampe-saut de la graine trouvée dynamiquement | 5e |
-| `tests/stars-pour-tous.test.ts` | graine 1 : 1re étoile, copain 6 m avant | à vérifier en 5e et 5g (choisir la 1re étoile **basse**) | 5e ; 5g |
-| `tests/render-smoke.test.ts` | dessin d'une piste à volcans | +F (fosse, panneau, pas de plot au-dessus de la lave, cône réservé aux tremplins) | 5g |
-| `tests/smoke.test.ts` | constantes | nouvelles constantes et valeurs (3,90 ; 50 / 12 / 20 / 25 ; plats étoile ; fosses) | 5e ; 5g |
-| `tests/helpers/runs.ts` | `firstVolcano`, `trackFor` | `firstTremplin`, `firstFosse` ; `trackFor` reste sur `CONFIG` | 5g |
-| `tests/helpers/phases.ts` | `variantTrack` sur `CONFIG` : les « 43 volcans » et les 2 924 + 4 601 historiques | AP dans `variantTrack` : les échantillons restent ceux de la 5c | 5e |
-| `tests/helpers/race.ts` | Galahad doigt posé ; chute classée « choc » ou « propre » | option `jump` (SP par défaut, sans saut pour `race-sans-saut-*`) ; cause « fosse » (attendue sans saut) ; une chute propre à un tremplin reste un échec | 5g |
-| `tests/helpers/recorded.ts`, `calibration-saut.ts` | courses enregistrées de la calibration de la 5e | AP (les tableaux du Step 8 restent comparables) | 5e |
-| `tests/helpers/rattrapage.ts` | mesure appariée par graine depuis la 5d | deux mesures : AP (appariée) et `CONFIG` (nouvelle référence) | 5e ; 5g |
-| `tests/slow/race-invariants-*.test.ts` | `lavaByCar.galahad === 0`, aucune chute propre | SP ; chutes par type de volcan | 5g |
-| `tests/slow/finish.test.ts` | cas 6, graines 0 à 4 : 0 respawn, 6 à 14 étoiles, 110 à 170 s | SP ; bornes remesurées | 5e (bornes) ; 5g |
-| `tests/slow/stars-sim.test.ts` | graine 1 : arrivée sans réapparition | SP | 5g |
-| `tests/slow/volcans-slow.test.ts` | cas 7 : ≤ 2 respawns par volcan ; scénario (i) rampe-saut → plat → volcan | cas 7 inchangé (vrai pour les deux types) ; T pour (i) ; + (ii) et (iii) | 5g |
-| `tests/slow/dosage.test.ts` | 1er volcan de la graine 0, tremplins des graines 0 à 2 | AP | 5e |
-| `tests/slow/phases.test.ts`, `phases-dense.test.ts` | volcans des graines 0 à 9 | AP (par `helpers/phases.ts`) | 5e |
-| `tests/slow/interpolation-replay-slow.test.ts` | 12 courses à 5 voitures, doigt posé | AP | 5e |
-| `tests/slow/calibration-saut-*.test.ts` | pistes de la calibration du Step 8 | AP | 5e |
-| `tests/slow/rattrapage-*.test.ts` | comparaison appariée « avant 5d / après 5d » | voir `helpers/rattrapage.ts` | 5e ; 5g |
-| `tests/slow/race-objective.test.ts` (tâche 7) | Galahad doigt posé | à trancher en tâche 7 : Galahad avec SP (le joueur saute) ; noté ici pour ne pas l'oublier | 7 |
-| `e2e/race.spec.ts` (`?seed=1`) | captures `course.png`, `arrivee.png` ; course courte `len=300` doigt posé | captures refaites ; à 300 m, 0 plat étoile, et une fosse possible : l'arrivée reste sous le délai de 150 s (2 chutes ≈ + 8 s au plus) | 5e ; 5g |
-| `e2e/jump.spec.ts` (`?seed=1`) | tap, Espace, HUD ; capture `bouton-saut.png` | inchangé ; capture refaite si l'écran change | 5e |
+| `tests/helpers/runs.ts` | `trackFor`, `worldFor` et `firstVolcano` sur `CONFIG` | `trackFor(seed, cfg)` et `worldFor(seed, cfg)` (cache par cfg) ; `firstTremplin` et `firstFosse` | 5e S10 ; 5g S2 |
+| `tests/helpers/frames.ts` | `recordTrajectory` sur `CONFIG` | paramètre `cfg` | 5e S10 |
+| `tests/helpers/phases.ts` | `variantTrack` sur `CONFIG` : les « 43 volcans » et les 2 924 + 4 601 historiques | AP dans `variantTrack` | 5e S10 |
+| `tests/helpers/calibration-saut.ts` | `cfgFor` part de `CONFIG` | `{ ...withAnciennesPistes(CONFIG), STAR_HIGH_PER_RACE: 3, … }`, assertion de non-vacuité | 5e S10 |
+| `tests/helpers/recorded.ts` | courses enregistrées de la calibration de la 5e | AP (par `cfgFor` et `trackFor`) | 5e S10 |
+| `tests/helpers/rattrapage.ts` | mesure appariée par graine depuis la 5d | deux mesures : AP (contrôle de non-régression) et `CONFIG` (effet) | 5e S10 ; 5g S8 |
+| `tests/helpers/race.ts` | Galahad doigt posé ; chute classée « choc » ou « propre » | option `jump` (SP par défaut, sans saut pour `race-sans-saut-*`) ; cause « fosse » (attendue sans saut) ; au plus 2 chutes par série | 5g S2 |
+| `tests/empreinte.test.ts` | sha1 figés sur les pistes `CONFIG` des graines 0 à 2 | AP pour `FROZEN` (inchangé) ; `FROZEN_CONFIG` recapturé par ruling R-F10 | 5e S10 ; 5e S14 ; 5g S8 |
+| `tests/simulate.test.ts` | `PLAN_A_TRACE` (graine 1, 20 s) ; `rebuildCars` à mi-course sans « stuck » ; l. 257 : piste de 300 m, arrivée en moins de 60 s | AP pour `PLAN_A_TRACE`. À mi-course, une chute dans une fosse n'est pas un « stuck ». L. 257 : une fosse est possible à 300 m ; sans saut, l'arrivée reste sous 60 s (2 chutes ≈ + 5 s), sinon SP | 5e S10 ; 5g S2 |
+| `tests/jump.test.ts` | « au sol seulement » (demande 0,7 s après le décollage) ; bouton grisé du 7e pas après le décollage ; rampe-saut d'une graine choisie | tolérance de sol : demande à 0,30 s → saut, à 0,40 et 0,7 s → aucun ; bouton grisé à partir de 0,35 s après le dernier contact de jeu ; rampe trouvée dynamiquement (`rampTrack`) | 5e S11 ; 5e S12 |
+| `tests/high-stars.test.ts` | `PRE_5E_STARS` (sha1, `STAR_HIGH_PER_RACE` 0) ; 0 ≤ n ≤ 3 ; placement sur les plats ; aucune étoile haute dans [xLancement, xLava] | AP pour `PRE_5E_STARS` ; n = 3 exactement ; règles des plats ordinaires sur fixture à plafond 5 ; +F (aucune dans une tranche fosse) | 5e S10 ; 5e S12 ; 5g S1 |
+| `tests/high-stars-window.test.ts` | « graine 1 ou première graine 0 à 9 avec une étoile haute », 0,3 s | 1er plat étoile de la graine 1, 0,4 s (0,3 s à +5 cm) | 5e S12 |
+| `tests/stars.test.ts` | zones admissibles (plats, lancement, réception) ; étoiles d'élan sur tous les volcans (l. 26, 43, 154, 205 à 260) ; 6 à 14 | plats étoile hors zones (S12) ; T pour les étoiles d'élan ; +F (zone = réception moins ± 5 m autour de l'étoile de réception, plancher) ; 6 à 14 au pas mesuré | 5e S12 ; 5g S1 et S2 |
+| `tests/generate.test.ts` | volcans consécutifs (l. 74 à 96) ; rampe-saut avant un volcan (l. 140) ; 3 à 7 volcans (l. 149) ; `onlyPlat` ; types présents (l. 167) ; pente hors parois | dernière tranche tirée ; **2 à 7 volcans** ; `onlyPlat` sans plat étoile ; + `'plat-étoile'` (S12) ; + `'fosse'`, parois de fosse exemptées, alternance, phase | 5e S12 ; 5g S1 |
+| `tests/stars-pour-tous.test.ts` | graine 1 : 1re étoile **basse** (`findIndex(!s.high)`, déjà) | vérifier que le copain et Galahad n'ont pas une fosse avant cette étoile | 5e S12 ; 5g S2 |
+| `tests/slices.test.ts` | géométrie de la rampe-volcan | inchangée ; + `platEtoile` ; + `fosseGeometry`, `fosse` | 5e S12 ; 5g S1 |
+| `tests/query.test.ts` | `volcanoes[0]` porte `xElanStart` et `xLip` (l. 33 à 99) | T ; +F (`volcanoAhead`, `nearestVolcanoZone`, `inGhostZone` jusqu'à + 40 m, `nextFosse` ; `inElanZone` faux) | 5g S1 et S2 |
+| `tests/safepoint.test.ts` | `volcanoes[0]` (l. 18) : refus sur l'élan et la rampe | T ; +F (zone interdite d'une fosse, garde permise) | 5g S1 et S2 |
+| `tests/respawn.test.ts` | séries et cible `xEnd − 10` sur des pistes à ≥ 2 volcans (l. 187 à 271) | T pour `xEnd − 10` ; +F (cible bord aval + 5, respawn groupé vers l'aval, au plus 2 par série) | 5g S1 et S2 |
+| `tests/respawn-e2e.test.ts` | `firstVolcano` (flanc amont, vallée, 2 chutes, retourné sur l'élan) | T (`firstTremplin`) ; les 2 chutes à la fosse vont dans `tests/fosses.test.ts` | 5g S2 |
+| `tests/fantomes.test.ts` | `firstVolcano` (élan, sortie de zone) | T ; +F (approche, saut, zone jusqu'à + 40 m) | 5g S2 ; 5g S3 |
+| `tests/world.test.ts` | capteur du 1er volcan (cratère, rebord à 1,2 m) | T ; +F (capteur d'une fosse : [xBord, xBord + W], haut à 0,3 m au-dessus du sol) | 5g S2 ; 5g S3 |
+| `tests/effects.test.ts` | bulles du `volcanoes[0]` | inchangé (champs communs) ; +F (bulles au ras du sol) | 5g S5 |
+| `tests/game-frame.test.ts` | voitures posées sur la lave de `volcanoes[0]` | inchangé (une fosse reprend aussi une voiture posée en `xLava`) | 5g S2 (vérifié) |
+| `tests/interpolation-replay.test.ts` | graine 1, 40 s doigt posé : nombre d'épisodes ; téléportation au 1er volcan | AP (`recordTrajectory(…, cfg)`) | 5e S10 |
+| `tests/observer.test.ts` | `runFrom` au 1er volcan (élan) | T | 5g S2 |
+| `tests/race-smoke.test.ts` | cas 6 : 0 respawn, 110 à 170 s, 6 à 14 étoiles ; à 5 voitures : ≤ 3 respawns ; « 5 dans la lave » au 1er volcan | bornes remesurées (S12) ; SP pour le cas 6 et Galahad à 5 voitures ; copains provisoires sauteurs ; T pour « 5 dans la lave » ; +F (5 dans la fosse) | 5e S12 ; 5g S2 ; 5g S3 |
+| `tests/rampes.test.ts` | toutes les rampes-saut des graines ; saut des volcans (l. 70, champs communs) | inchangé ; durée vérifiée (≈ 131 s, le plus long de la CI) | 5e S12 ; 5g S2 |
+| `tests/volcans.test.ts` (+ `helpers/cases.ts`) | cas 1 à 5 sur le 1er volcan des graines 0 à 2 | T | 5g S2 |
+| `tests/render-smoke.test.ts` | dessin d'une piste à volcans | +F (fosse, panneau, pas de plot au-dessus de la lave, cône réservé aux tremplins) | 5g S5 |
+| `tests/smoke.test.ts` | constantes | nouvelles constantes et valeurs | 5e S11 et S12 ; 5g S2 |
+| `tests/slow/race-invariants-*.test.ts` | `lavaByCar.galahad === 0`, aucune chute propre | SP ; chutes par type de volcan ; copains provisoires sauteurs | 5g S2 |
+| `tests/slow/finish.test.ts` | cas 6, graines 0 à 4 : 0 respawn, 6 à 14 étoiles, 110 à 170 s | bornes remesurées (S12) ; SP | 5e S12 ; 5g S2 |
+| `tests/slow/stars-sim.test.ts` | graine 1 : arrivée sans réapparition | SP | 5g S2 |
+| `tests/slow/volcans-slow.test.ts` | cas 7 : ≤ 2 respawns par volcan ; scénario (i) rampe-saut → plat → volcan | cas 7 : « au plus 2 par série » ; T pour (i) ; + (ii), (iii) | 5g S2 ; 5g S6 |
+| `tests/slow/saut-volcan.test.ts` (5e S11) | `xElanStart`, `xLip` des volcans | T | 5g S2 |
+| `tests/slow/high-stars-sim.test.ts` (5e S13) | Galahad doigt posé sans saut, 5 voitures, graines 0 à 23 : 0 prise d'étoile haute | Galahad tombe aux fosses à partir de la 5g : SP (les sauts de fosse n'atteignent pas une étoile de plat étoile, testé) ou sans saut avec 2 chutes par fosse admises | 5g S2 |
+| `tests/slow/dosage.test.ts` | 1er volcan de la graine 0, tremplins des graines 0 à 2 | AP (`worldFor(seed, cfg)`) | 5e S10 |
+| `tests/slow/phases.test.ts`, `phases-dense.test.ts` | volcans des graines 0 à 9 | AP (par `variantTrack`) | 5e S10 |
+| `tests/slow/interpolation-replay-slow.test.ts` | 12 courses à 5 voitures, doigt posé | AP (`recordTrajectory(…, cfg)`) | 5e S10 |
+| `tests/slow/calibration-saut-*.test.ts` | pistes de la calibration du Step 8 | AP (par `cfgFor`) | 5e S10 |
+| `tests/slow/rattrapage-*.test.ts` | comparaison appariée depuis la 5d | voir `helpers/rattrapage.ts` | 5e S10 |
+| `tests/slow/race-objective.test.ts` (tâche 7) | Galahad doigt posé | à trancher en tâche 7 : Galahad avec SP (le joueur saute) | 7 |
+| `e2e/race.spec.ts` (`?seed=1`) | captures `course.png`, `arrivee.png` ; course courte `len=300` doigt posé | captures refaites ; à 300 m, aucun plat étoile et une fosse possible : l'arrivée reste sous le délai de 150 s (option B : ≈ + 5 s) | 5e S14 ; 5g S5 |
+| `e2e/jump.spec.ts` (`?seed=1`) | tap, Espace, HUD ; capture `bouton-saut.png` | inchangé ; « bouton grisé » relu avec la tolérance (gris 0,35 s après le décollage, pas avant) | 5e S11 |
 
-## Budget CI (v1.4)
+## Budget CI (v1.5)
 
 - **Aujourd'hui** (MESURÉ ici, e02dcae, 4 cœurs) : `npm test` 441 tests en **131,5 s** mur. La limite reste 6 min sur le runner. `tests/rampes.test.ts` (≈ 131 s) fixe la durée.
-- **Ajouts** (CALCULÉ d'après les sondes : ≈ 0,1 à 0,2 s par run de fosse en monde rogné ; ≈ 15 runs par bord de fenêtre en dichotomie) :
-  - fin de la 5e : `anciennes-pistes` (sha1 de 70 pistes, ≈ 2 s), `high-stars` (≈ 1 s), `high-stars-window` (≈ 45 runs, ≈ 5 s) : ≈ + 10 s de CPU ;
-  - 5g : `tests/fosses.test.ts`, ≈ + 30 s de CPU :
-    - partie statique ≈ 1 s ;
-    - (a) et (a') 6 runs ;
-    - (b) et (c) 3 dichotomies, ≈ 45 runs ;
-    - (d) ≈ 15 runs ;
-    - 2 courses de Galahad seul (≈ 5 s chacune) ;
-    - 5 voitures sur la graine 1 (≈ 10 s) ;
-  - fichier à part : Vitest parallélise par fichier, et le mur reste fixé par `rampes.test.ts`.
-  - **Estimation : ≈ 2 min 15 à 2 min 45 mur ici, sous 6 min.** Si un run CI dépasse 4 min : réduire d'abord `rampes.test.ts` aux graines 0 à 2 (mineur différé de la tâche 4).
+- **Coûts unitaires** (MESURÉ) :
+  - une course complète prend **13,1 s** avec Galahad seul et **13,7 s** à 5 voitures (MESURÉ (relecture)) ;
+  - un run de fosse en monde rogné, ≈ 0,1 à 0,24 s ;
+  - un appui servi ou perdu, sur la suite « au sol / en l'air », ne relance pas la physique : ≈ 0.
+- **Ajouts en CI** :
+  - fin de la 5e :
+    - `anciennes-pistes` (sha1 de 70 pistes, ≈ 2 s) ;
+    - `jump-grace` (2 × 24 lancers de 9 s sur piste plate, ≈ 15 s, plus le calcul des appuis) ;
+    - `high-stars` (≈ 1 s) ;
+    - `high-stars-window` (≈ 45 runs, ≈ 5 s) ;
+    - soit ≈ + 25 s de CPU ;
+  - 5g : `tests/fosses.test.ts`, **≈ 55 s de CPU** (MESURÉ (relecture), estimation détaillée) :
+    - partie statique ;
+    - (a), (a') ;
+    - 3 dichotomies, (d) ;
+    - 2 courses de Galahad seul (2 × 13,1 s) ;
+    - 5 voitures sur la graine 1 (13,7 s).
+
+    Fichier à part : Vitest parallélise par fichier, et le mur reste fixé par `rampes.test.ts`.
+- **Estimation : ≈ 2 min 15 à 2 min 50 mur ici**, sous 6 min. Si un run CI dépasse 4 min, réduire d'abord `rampes.test.ts` aux graines 0 à 2 (mineur différé de la tâche 4).
 - **Suite lente** (`npm run test:slow`), chaque fichier sous 30 min mur, budget écrit en tête :
-  - `fosses-a` < 20 min (≈ 1 600 runs, ≈ 5 min CALCULÉ) ;
-  - `fosses-fenetres` < 20 min (≈ 2 200 runs, ≈ 6 min) ;
-  - `race-sans-saut-0-11` et `-12-23` < 15 min chacun ;
-  - `high-stars-sim` < 25 min ; `saut-volcan` < 15 min ;
+  - `fosses-a` : ≈ 3 400 runs à 0,24 s, soit **≈ 14 min** (MESURÉ (relecture)), budget 20 min ;
+  - `fosses-fenetres` < 20 min (≈ 2 200 runs) ;
+  - `race-sans-saut-0-11` et `-12-23` : 12 courses à 5 voitures et 12 de Galahad seul chacun, ≈ 12 × (13,7 + 13,1) s ≈ 5,5 min, budget 15 min ;
+  - `high-stars-sim` < 25 min ;
+  - `saut-volcan` < 20 min : tremplins des graines 0 à 9, 4 cas, ≈ 28 sauts par tremplin ;
   - `volcans-slow` + 5 min.
 
-  Les autres fichiers ne changent pas de taille. Durée totale attendue avec 4 cœurs : ≈ + 15 min par rapport à aujourd'hui.
+  Durée totale attendue avec 4 cœurs : ≈ + 20 min par rapport à aujourd'hui.
 
 ## Rulings du plan (ambiguïtés de l'addendum tranchées ici)
 
@@ -1275,9 +1407,9 @@ Légende des migrations :
   - Décision : mesure consignée, appariée par graine, sans seuil d'assertion.
   - Ajout : une variante « Galahad sauteur ».
 
-### Rulings v1.4 (fosses et plats étoile, saut §6)
+### Rulings v1.5 (fosses, plats étoile, tolérance de sol ; saut §6)
 
-Chacun est à confirmer par les relectures de la v1.4 ; « coût si faux » comme au registre.
+Chacun est à confirmer par les relectures de la v1.5 ; « coût si faux » comme au registre.
 
 - **R-F1 — Une fosse est un `Volcano`** (`Tremplin | Fosse`, champ `kind`), et non un tableau à part.
   - Pourquoi : le capteur, les points sûrs, la série de chutes, les fantômes et les bulles n'utilisent que les champs communs ; ils valent donc d'office pour les fosses. Le compilateur signale chaque usage des champs du tremplin.
@@ -1297,11 +1429,17 @@ Chacun est à confirmer par les relectures de la v1.4 ; « coût si faux » comm
   - Tranche `'plat-étoile'` de 57 m, étoile à + 32 m, jamais juste après une rampe-saut, pas de fusion, pas d'étoile basse dessus.
   - Les étoiles des plats étoile passent d'abord ; `STAR_HIGH_PER_RACE` plafonne le total.
   - Coût si faux : une règle d'insertion.
-- **R-F9 — Copains provisoires en 5g** : ils sautent chaque fosse sans erreur, jusqu'à la tâche 6. Sans cela, les invariants à 5 voitures n'auraient plus de sens entre la 5g et la 6. Coût si faux : nul (code retiré en tâche 6).
+- **R-F9 — Copains provisoires en 5g** : ils redemandent le saut à chaque pas de leur fenêtre, sans erreur, au centre `fosseJumpLead(v)`, jusqu'à la tâche 6. Sans cela, les invariants à 5 voitures n'auraient plus de sens entre la 5g et la 6. Coût si faux : nul (code retiré en tâche 6).
 - **R-F10 — Empreinte.**
   - `ANCIENNES_PISTES` garde les hash figés sur la 5c.
   - `FROZEN_CONFIG` est recapturé en fin de 5e et en 5g. Chaque fois, le registre reçoit les anciens et les nouveaux hash, le commit, la raison (P10) et la preuve que l'empreinte `ANCIENNES_PISTES` n'a pas bougé.
   - Toute autre variation de l'empreinte reste un défaut.
 - **R-F11 — Chute « fosse »** : dans les invariants, une chute dans une fosse sans saut est attendue. Elle n'est ni « choc » ni « propre ». Une chute propre à un tremplin reste un échec.
 - **R-F12 — Copains catapultés** : une étoile haute prise sans saut par un copain n'est tolérée que dans les 2 s après un contact entre voitures ; elle est comptée. Pour Galahad, aucune tolérance.
-- **R-F13 — e2e** : pas d'assertion sur un saut à la main à l'instant juste (Playwright n'est pas régulier à 16 ms près). Le saut juste est couvert par les fenêtres (b) et (c) en simulation.
+- **R-F13 — e2e** : pas d'assertion sur un saut à la main à l'instant juste (Playwright n'est pas régulier à 16 ms près). Le saut juste est couvert par les fenêtres (b) et (c) en simulation. Les réapparitions de Galahad sont exposées en `?debug=1` (`__game.respawns`).
+- **R-F14 — Tolérance de sol (P11) : comment on la teste.** Le test « 0 appui perdu » se calcule sur la suite « au sol / en l'air » d'une course sans saut, sans relancer la physique par appui.
+  - Exigé : 0 à 11,2 et à 14 m/s, et avec un turbo pris à 14 m/s (MESURÉ : 0 sur 8 640 chacun).
+  - À 21 m/s **tenus** (facteur 1,5 permanent), la part perdue est imprimée et bornée à 0,5 % (MESURÉ : 0,41 %, rebonds jusqu'à 0,77 s ; saut §6.10, Q-F6).
+  - Coût si faux : un appui sur 250 perdu en turbo enchaîné.
+- **R-F15 — Option B, respawn groupé vers l'aval** : la cible « bord aval + 5 m » avance de 1,5 × `CAR_LENGTH` par voiture déjà posée, 4 fois au plus. Reculer la ramènerait vers la lave. Coût si faux : quelques mètres.
+- **R-F16 — Zone fantôme d'une fosse jusqu'à bord aval + 40 m**, quelle que soit l'option : les sauteurs atterrissent jusqu'à ≈ 32 m, et une voiture posée à + 5 m y attend. Coût si faux : des voitures qui se traversent 40 m de plus. À revérifier en tâche 7 (copains sous élastique : ≈ 44 m).
