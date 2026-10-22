@@ -72,5 +72,16 @@ export const CONFIG = {
   JUMP_COOLDOWN: 0.5,           // s depuis le dernier saut de cette voiture
   JUMP_BUFFER: 0.1,             // s : mémoire d'une demande de saut pas encore servie (décision P2 du papa)
   JUMP_BUTTON_SIZE_PX: 150,     // px CSS (≥ 140), bouton rond en bas à gauche
+  // Étoiles hautes ajoutées (plan B, tâche 5e ; décision P1 du papa) : placeStars, étape 5, tirages après tous les
+  // autres. VALEURS DE DÉPART PROVISOIRES (plan, Step 7) pour la hauteur, les places et les dégagements : calibrées
+  // au Step 8, choisies et validées par le papa au Step 9. La fenêtre de saut est très sensible à STAR_HIGH_Y :
+  // recalibrer si JUMP_VY, la gravité, la suspension ou les roues changent (tests/high-stars-window.test.ts).
+  STAR_HIGH_PER_RACE: 3,        // au plus N étoiles hautes ajoutées par course ; 0 = étoiles d'avant la tâche 5e, au bit près
+  STAR_HIGH_Y: 3.85,            // PROVISOIRE : m au-dessus du sol local (centre de l'étoile)
+  STAR_HIGH_TAKEOFF_ROOM: 15,   // PROVISOIRE : m de terrain permis avant l'étoile (élan du saut), pas forcément du plat
+  STAR_HIGH_LANDING_ROOM: 15,   // PROVISOIRE : m de terrain permis après l'étoile (atterrissage) ; vol ≈ 2,2 s, ≈ 31 m à 14 m/s
+  STAR_HIGH_GAP: 10,            // m minimum entre une étoile haute et toute étoile basse
+  STAR_HIGH_RAMP_CLEARANCE: 70, // PROVISOIRE : m interdits après la fin d'une rampe-saut (vol doigt posé, turbo compris)
+  STAR_HIGH_BUMP_CLEARANCE: 12, // PROVISOIRE : m interdits après la fin d'une bosses, double-bosse ou cratère
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

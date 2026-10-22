@@ -17,10 +17,14 @@ import { trackFor } from './helpers/runs';
 const R = CONFIG.STAR_RESPAWN_SECONDS;
 const DT = CONFIG.PHYSICS_DT;
 const CARS = [0, 1, 2, 3, 4];
-const STARS = [{ id: 4, x: 100, y: 1 }, { id: 9, x: 200, y: 2 }];
-/** Graine 1, 1 680 m : sa première étoile (x ≈ 443 m) est sur un plat, hors zone fantôme. */
+const STARS = [{ id: 4, x: 100, y: 1, high: false }, { id: 9, x: 200, y: 2, high: false }];
+/**
+ * Graine 1, 1 680 m : sa première étoile basse (x ≈ 443 m) est sur un plat, hors zone fantôme. Repérée par `high`
+ * (tâche 5e : une étoile haute peut la précéder) ; STAR_INDEX est son rang dans `track.stars`, `sim.stars` et la scène.
+ */
 const TRACK = trackFor(1);
-const STAR = TRACK.stars[0];
+const STAR_INDEX = TRACK.stars.findIndex((s) => !s.high);
+const STAR = TRACK.stars[STAR_INDEX];
 
 const activeFor = (s: Parameters<typeof isStarActiveFor>[0], t: number): boolean[] => CARS.map((k) => isStarActiveFor(s, k, t, CONFIG));
 const place = (car: CarSim, x: number): void => placeCar(car.body, x, (xx) => heightAt(TRACK, xx), slopeAt(TRACK, x), CONFIG);
@@ -117,7 +121,7 @@ describe('course à 5 voitures, graine 1 : une étoile prise par un copain reste
       stepRace(sim, true);
       const events = sim.events.filter((e): e is StarEvent => e.type === 'star');
       taken.push(...events);
-      const active = sceneOf(sim).stars[0].active;
+      const active = sceneOf(sim).stars[STAR_INDEX].active;
       if (taken.some((e) => e.carId === g.state.id)) {
         turbosAtGalahad = [g, copain].map((c) => turboFactor(c.state, sim.time, CONFIG) > 1);
         expect(active, 'dessinée inactive dès la prise de Galahad').toBe(false);
@@ -145,7 +149,7 @@ describe('course à 5 voitures, graine 1 : une étoile prise par un copain reste
     const taken: StarEvent[] = [];
     let blind = 0;
     while (sim.time < 2 * R + 2) {
-      const inactiveBefore = sim.time > 0 && !isStarActiveFor(sim.stars[0], 1, sim.time - DT, CONFIG);
+      const inactiveBefore = sim.time > 0 && !isStarActiveFor(sim.stars[STAR_INDEX], 1, sim.time - DT, CONFIG);
       stepRace(sim, false);
       taken.push(...sim.events.filter((e): e is StarEvent => e.type === 'star'));
       if (inactiveBefore) {
@@ -153,7 +157,7 @@ describe('course à 5 voitures, graine 1 : une étoile prise par un copain reste
         expect(sensorsTouching(sim.world.engine, copain.body.parts).filter((b) => b.label === 'star'), `t = ${sim.time}`).toEqual([]);
       }
       // Galahad ne l'a jamais prise : elle reste dessinée.
-      expect(sceneOf(sim).stars[0].active).toBe(true);
+      expect(sceneOf(sim).stars[STAR_INDEX].active).toBe(true);
     }
     expect(blind, 'pas contrôlés avec l’étoile inactive pour le copain').toBeGreaterThan(500);
     const summary = taken.map((e) => `${e.carId} t ${e.t.toFixed(4)}`).join(' ; ');

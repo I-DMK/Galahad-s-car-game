@@ -61,6 +61,17 @@ describe('CONFIG', () => {
     expect(CONFIG.JUMP_BUTTON_SIZE_PX).toBeGreaterThanOrEqual(140);
   });
 
+  it('étoiles hautes (tâche 5e) : au plus 3 par course, écart aux étoiles basses ; hauteur, places et dégagements provisoires (Step 9)', () => {
+    expect(CONFIG.STAR_HIGH_PER_RACE).toBe(3);
+    expect(CONFIG.STAR_HIGH_GAP).toBe(10);
+    // Valeurs de départ du plan, en attendant la calibration (Step 8) et le choix du papa (Step 9).
+    expect(CONFIG.STAR_HIGH_Y).toBeGreaterThan(3.5);
+    expect(CONFIG.STAR_HIGH_Y).toBeLessThan(4.1);
+    for (const k of ['STAR_HIGH_TAKEOFF_ROOM', 'STAR_HIGH_LANDING_ROOM', 'STAR_HIGH_RAMP_CLEARANCE', 'STAR_HIGH_BUMP_CLEARANCE'] as const) {
+      expect(CONFIG[k], k).toBeGreaterThan(0);
+    }
+  });
+
   it('dimensionne la zone de départ pour 5 longueurs de voiture à vitesse turbo plus 10 m', () => {
     expect(CONFIG.START_LENGTH).toBeGreaterThanOrEqual(5 * 1.5 * CONFIG.CAR_LENGTH + 10);
   });

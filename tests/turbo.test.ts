@@ -35,12 +35,12 @@ describe('turbo', () => {
 
 describe('étoiles', () => {
   test('newStarStates : un état par étoile, mêmes ids, aucune prise (une case par voiture)', () => {
-    const states = newStarStates([{ id: 3, x: 10, y: 1 }, { id: 7, x: 30, y: 2 }], 2);
+    const states = newStarStates([{ id: 3, x: 10, y: 1, high: false }, { id: 7, x: 30, y: 2, high: false }], 2);
     expect(states).toEqual([{ id: 3, takenAt: [null, null] }, { id: 7, takenAt: [null, null] }]);
   });
 
   test('active tant que non prise ; prise : inactive STAR_RESPAWN_SECONDS puis de nouveau active (pour la voiture qui l’a prise)', () => {
-    const [s] = newStarStates([{ id: 1, x: 0, y: 0 }], 1);
+    const [s] = newStarStates([{ id: 1, x: 0, y: 0, high: false }], 1);
     expect(isStarActiveFor(s, 0, 0, CONFIG)).toBe(true);
     takeStarFor(s, 0, 20);
     expect(s.takenAt).toEqual([20]);

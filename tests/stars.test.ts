@@ -1,5 +1,7 @@
 // Étoiles v2 (plan B, tâche 2 ; addendum §1.5) : curseur global sur les zones admissibles, étoiles d'élan
 // tirées un volcan sur deux, plancher de STAR_MIN_COUNT, aucune étoile dans [xElanStart, xLava].
+// Tâche 5e : les étoiles hautes s'ajoutent sans rien changer aux étoiles basses ; les règles du curseur, de l'élan
+// et du plancher portent sur les étoiles basses (`low`), les étoiles hautes ont leurs tests (tests/high-stars.test.ts).
 import { CONFIG, type Config } from '../src/config';
 import { generateTrack } from '../src/track/generate';
 import { heightAt, sliceAt } from '../src/track/query';
@@ -27,6 +29,9 @@ function admissibleZones(t: Track): [number, number][] {
   }
   return zones.filter(([a, b]) => b - a > 0);
 }
+
+/** Étoiles basses (curseur et élan), sans les étoiles hautes de la tâche 5e. */
+const low = (stars: Star[]): Star[] => stars.filter((s) => !s.high);
 
 const isElanStar = (t: Track, s: Star): boolean =>
   t.volcanoes.some((v) => Math.abs(s.x - (v.xElanStart - CONFIG.STAR_ELAN_OFFSET)) < 1e-9);
@@ -70,9 +75,9 @@ describe('invariants (graines 0..49, 1 680 m)', () => {
     }
   });
 
-  test('y = hauteur du sol + 0,6', () => {
+  test('y = hauteur du sol + 0,6 (étoiles basses)', () => {
     for (const t of tracks50) {
-      for (const s of t.stars) expect(s.y - heightAt(t, s.x)).toBeCloseTo(0.6, 9);
+      for (const s of low(t.stars)) expect(s.y - heightAt(t, s.x)).toBeCloseTo(0.6, 9);
     }
   });
 
@@ -97,10 +102,10 @@ describe('nombre d’étoiles (graines 0..19, 1 680 m)', () => {
   // Le plancher de 6 n'est garanti ici que parce que ces graines ont ≥ 2 volcans (le plancher n'ajoute que des
   // étoiles d'élan ; une piste sans volcan peut en avoir moins, jusqu'à 0) : ne pas étendre ce test à 0..49.
   test('entre 6 et 14 (cible 8 à 12, addendum §1.5)', () => {
-    const counts = tracks20.map((t) => t.stars.length);
+    const counts = tracks20.map((t) => low(t.stars).length);
     for (const t of tracks20) {
-      expect(t.stars.length, `seed ${t.seed} : ${counts.join(' ')}`).toBeGreaterThanOrEqual(6);
-      expect(t.stars.length, `seed ${t.seed} : ${counts.join(' ')}`).toBeLessThanOrEqual(14);
+      expect(low(t.stars).length, `seed ${t.seed} : ${counts.join(' ')}`).toBeGreaterThanOrEqual(6);
+      expect(low(t.stars).length, `seed ${t.seed} : ${counts.join(' ')}`).toBeLessThanOrEqual(14);
     }
   });
 });
@@ -108,7 +113,8 @@ describe('nombre d’étoiles (graines 0..19, 1 680 m)', () => {
 describe('curseur global', () => {
   test('piste onlyPlat : écarts entre étoiles tous dans [STAR_STEP_MIN, STAR_STEP_MAX]', () => {
     for (const seed of SEEDS_20) {
-      const t = generateTrack(seed, LEN, CONFIG, { onlyPlat: true });
+      const t0 = generateTrack(seed, LEN, CONFIG, { onlyPlat: true });
+      const t = { ...t0, stars: low(t0.stars) };
       expect(t.volcanoes).toEqual([]);
       expect(t.stars.length).toBeGreaterThanOrEqual(6);
       // Première étoile à un pas du début de la première zone admissible (fin du plat de départ).
@@ -127,8 +133,8 @@ describe('curseur global', () => {
 
   test('pas tirés dans [STAR_STEP_MIN, STAR_STEP_MAX] : rng = 0 → pas minimal, rng → 1 → pas maximal', () => {
     const t = generateTrack(3, LEN, CONFIG, { onlyPlat: true });
-    const atMin = placeStars(t, () => 0, CONFIG);
-    const atMax = placeStars(t, () => 1 - 1e-12, CONFIG);
+    const atMin = low(placeStars(t, () => 0, CONFIG));
+    const atMax = low(placeStars(t, () => 1 - 1e-12, CONFIG));
     for (let i = 1; i < atMin.length; i++) expect(atMin[i].x - atMin[i - 1].x).toBeCloseTo(CONFIG.STAR_STEP_MIN, 9);
     for (let i = 1; i < atMax.length; i++) expect(atMax[i].x - atMax[i - 1].x).toBeCloseTo(CONFIG.STAR_STEP_MAX, 6);
     expect(atMin.length).toBeGreaterThan(atMax.length);
@@ -154,7 +160,7 @@ describe('curseur global', () => {
     };
     let seen = 0;
     for (const t of tracks20) {
-      const cursor = t.stars.filter((s) => !isElanStar(t, s));
+      const cursor = low(t.stars).filter((s) => !isElanStar(t, s));
       expect(cursor.length, `seed ${t.seed}`).toBeGreaterThan(0);
       for (let i = 1; i < cursor.length; i++) {
         const len = admissibleLength(t, cursor[i - 1].x, cursor[i].x);
@@ -195,11 +201,12 @@ describe('plancher', () => {
   const cfg: Config = { ...CONFIG, STAR_STEP_MIN: 100_000, STAR_STEP_MAX: 100_000 };
   test('aucune étoile du curseur ni d’élan tirée → min(6, nVolcans) étoiles d’élan, dans l’ordre de la piste', () => {
     for (const t of tracks50) {
-      const stars = placeStars(t, () => 0.99, cfg);
+      const stars = low(placeStars(t, () => 0.99, cfg));
       const n = Math.min(cfg.STAR_MIN_COUNT, t.volcanoes.length);
       expect(stars.length, `seed ${t.seed}`).toBe(n);
       stars.forEach((s, i) => {
-        expect(s.id).toBe(i);
+        // Ids renumérotés sur toutes les étoiles (hautes comprises, tâche 5e) : croissants, pas forcément 0..n−1.
+        if (i > 0) expect(s.id).toBeGreaterThan(stars[i - 1].id);
         expect(s.x).toBeCloseTo(t.volcanoes[i].xElanStart - cfg.STAR_ELAN_OFFSET, 9);
         expect(s.y).toBeCloseTo(heightAt(t, s.x) + 0.6, 9);
       });
@@ -208,14 +215,14 @@ describe('plancher', () => {
 
   test('sans volcan, le plancher ne peut rien ajouter', () => {
     const t = generateTrack(5, LEN, CONFIG, { onlyPlat: true });
-    expect(placeStars(t, () => 0.99, cfg)).toEqual([]);
+    expect(low(placeStars(t, () => 0.99, cfg))).toEqual([]);
   });
 
   test('le plancher complète seulement jusqu’à STAR_MIN_COUNT', () => {
     // rng = 0.2 : étoile d'élan tirée à chaque volcan (0,2 < 0,5) → déjà nVolcans étoiles ; le plancher
     // n'ajoute rien de plus (il ne peut que viser des volcans sans étoile d'élan).
     for (const t of tracks50) {
-      const stars = placeStars(t, () => 0.2, cfg);
+      const stars = low(placeStars(t, () => 0.2, cfg));
       expect(stars.length, `seed ${t.seed}`).toBe(t.volcanoes.length);
     }
   });
@@ -224,7 +231,7 @@ describe('plancher', () => {
 describe('étoiles d’élan', () => {
   test('rng = 0 : chaque volcan a son étoile à xElanStart − 2, aucune autre à moins de 3 m, aucune dans [xElanStart, xLava]', () => {
     for (const t of tracks50) {
-      const stars = placeStars(t, () => 0, CONFIG);
+      const stars = low(placeStars(t, () => 0, CONFIG));
       for (const v of t.volcanoes) {
         const xe = v.xElanStart - CONFIG.STAR_ELAN_OFFSET;
         const elan = stars.filter((s) => Math.abs(s.x - xe) < 1e-9);
@@ -237,7 +244,8 @@ describe('étoiles d’élan', () => {
         }
       }
       stars.forEach((s, i) => {
-        expect(s.id).toBe(i);
+        // Ids renumérotés sur toutes les étoiles (hautes comprises, tâche 5e) : croissants, pas forcément 0..n−1.
+        if (i > 0) expect(s.id).toBeGreaterThan(stars[i - 1].id);
         if (i > 0) expect(s.x).toBeGreaterThan(stars[i - 1].x);
       });
     }
@@ -245,7 +253,7 @@ describe('étoiles d’élan', () => {
 
   test('rng ≥ 0,5 sur le tirage : aucune étoile d’élan hors plancher', () => {
     for (const t of tracks50) {
-      const stars = placeStars(t, () => 0.5, CONFIG);
+      const stars = low(placeStars(t, () => 0.5, CONFIG));
       const elan = stars.filter((s) => isElanStar(t, s));
       // Le plancher n'intervient que si le curseur en a posé moins de 6.
       if (stars.length - elan.length >= CONFIG.STAR_MIN_COUNT) expect(elan, `seed ${t.seed}`).toEqual([]);

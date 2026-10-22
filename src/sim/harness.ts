@@ -28,6 +28,8 @@ export interface SimulateResult {
   starsTaken: StarEvent[];
   /** Par id de voiture (ordre de la grille) : étoiles prises, dans l'ordre de la course. */
   starsByCar: Record<string, StarEvent[]>;
+  /** Par id de voiture : étoiles hautes prises (sous-ensemble de `starsByCar`, tâche 5e). */
+  highStarsByCar: Record<string, StarEvent[]>;
   /**
    * Première étoile prise dans la course, null si aucune. Si plusieurs voitures en prennent au même pas,
    * `carId` est celle de plus petit index et `firstStarCars` les nomme toutes : une égalité se voit.
@@ -132,6 +134,8 @@ export function simulateRace(
   const respawnsByCar: Record<string, RespawnEvent[]> = Object.fromEntries(ids.map((id) => [id, []]));
   const lavaByCar: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
   const starsByCar: Record<string, StarEvent[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  const highStarsByCar: Record<string, StarEvent[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  const highIds = new Set(track.stars.filter((s) => s.high).map((s) => s.id));
   let firstStar: SimulateResult['firstStar'] = null;
   const firstStarCars: string[] = [];
   const stuck = sim.cars.map((c) => new StuckMeter(c.state.progress, cfg.STUCK_DISTANCE));
@@ -164,6 +168,7 @@ export function simulateRace(
       } else if (e.type === 'star') {
         // Événements d'un pas dans l'ordre des index : le premier est la plus petite index.
         starsByCar[e.carId].push(e);
+        if (highIds.has(e.id)) highStarsByCar[e.carId].push(e);
         firstStar ??= { carId: e.carId, t: e.t };
         if (e.t === firstStar.t && !firstStarCars.includes(e.carId)) firstStarCars.push(e.carId);
       } else if (e.type === 'finish' && mine) finishes++;
@@ -188,6 +193,7 @@ export function simulateRace(
     maxStuckSeconds: stuck[GALAHAD_INDEX].max, maxSpeed, starsTaken: [...starsByCar[galahad.state.id]], time: sim.time,
     progressAt: at(samples), speedAt: at(speeds),
     starsByCar,
+    highStarsByCar,
     firstStar,
     firstStarCars,
     ranking: ranking.map((i) => ids[i]),

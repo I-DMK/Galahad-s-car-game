@@ -15,7 +15,8 @@ export interface Volcano {
   xRampStart: number; xLip: number; lipY: number;
   xLava: number; lavaWidth: number; rimY: number; xReception: number; xEnd: number;
 }
-export interface Star { id: number; x: number; y: number }
+/** Étoile : `high` = étoile haute ajoutée (tâche 5e, à STAR_HIGH_Y au-dessus du sol), sinon étoile basse (0,6 m). */
+export interface Star { id: number; x: number; y: number; high: boolean }
 export interface Track {
   seed: number;
   targetLength: number;

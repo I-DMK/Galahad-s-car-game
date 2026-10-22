@@ -192,7 +192,10 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
 test('une étoile prise par une voiture reste active pour les autres, inactive pour elle seule : au même pas et au pas suivant', () => {
   const sim = createRaceSim(TRACK, CONFIG, { robots: true });
   for (const robot of sim.cars.slice(1)) robot.driver = () => false;
-  const star = TRACK.stars[0];
+  // Première étoile basse (les étoiles hautes de la tâche 5e sont hors de portée d'une voiture au sol) ; repérée par
+  // `high` et son rang dans `track.stars`, qui est aussi celui de `sim.stars` et `sim.starBodies`.
+  const k = TRACK.stars.findIndex((s) => !s.high);
+  const star = TRACK.stars[k];
   const [a, b] = sim.cars;
   // Les deux châssis recouvrent le capteur de l'étoile (rayon 0,5 m), l'un devant, l'autre derrière, sans se toucher.
   for (const [car, dx] of [[a, 1.25], [b, -1.25]] as const) {
@@ -210,11 +213,11 @@ test('une étoile prise par une voiture reste active pour les autres, inactive p
   ]);
   expect(a.state.turboUntil).toBeCloseTo(CONFIG.TURBO_SECONDS, 9);
   expect(b.state.turboUntil).toBeCloseTo(CONFIG.TURBO_SECONDS, 9);
-  expect([0, 1, 2, 3, 4].map((k) => isStarActiveFor(sim.stars[0], k, sim.time, CONFIG))).toEqual([false, false, true, true, true]);
+  expect([0, 1, 2, 3, 4].map((c) => isStarActiveFor(sim.stars[k], c, sim.time, CONFIG))).toEqual([false, false, true, true, true]);
   // Le capteur ne détecte plus que les trois autres voitures.
-  expect(sim.starBodies[0].collisionFilter.mask).toBe(carCategory(2) | carCategory(3) | carCategory(4));
+  expect(sim.starBodies[k].collisionFilter.mask).toBe(carCategory(2) | carCategory(3) | carCategory(4));
   // L'écran montre l'état vu par Galahad (a = cars[0]), qui l'a prise.
-  expect(sceneOf(sim).stars[0].active).toBe(false);
+  expect(sceneOf(sim).stars[k].active).toBe(false);
 });
 
 describe('rebuildCars (garde-fou après une exception de stepRace)', () => {
