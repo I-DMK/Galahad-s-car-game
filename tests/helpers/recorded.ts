@@ -49,6 +49,11 @@ export interface RecordedRace {
   poses: CarPose[][];
   /** Chassis x de chaque voiture à chaque pas : xs[index de voiture][pas]. */
   xs: Float64Array[];
+  /** Arrivée de chaque voiture (s), null si elle n'a pas franchi la ligne. */
+  finishedAt: (number | null)[];
+  /** Réapparitions et chutes dans la lave de la course, par voiture. */
+  respawns: number[];
+  lava: number[];
 }
 
 /**
@@ -67,6 +72,8 @@ export function recordRace(
   const poses: CarPose[][] = [];
   const xs = sim.cars.map(() => new Float64Array(steps));
   let allDoneAt: number | null = null;
+  const respawns = sim.cars.map(() => 0);
+  const lava = sim.cars.map(() => 0);
   for (let i = 0; i < steps; i++) {
     const g = sim.cars[0];
     while (pending.length > 0 && g.state.progress >= pending[0]) {
@@ -74,13 +81,22 @@ export function recordRace(
       activateTurbo(g.state, sim.time, cfg);
     }
     stepRace(sim, true);
+    for (const e of sim.events) {
+      if (e.type !== 'respawn') continue;
+      const k = sim.cars.findIndex((c) => c.state.id === e.carId);
+      respawns[k]++;
+      if (e.reason === 'lava') lava[k]++;
+    }
     const p = posesOf(sim);
     poses.push(p);
     p.forEach((pose, k) => { xs[k][i] = pose.chassis.x; });
     if (allDoneAt === null && sim.cars.every((c) => c.state.finishedAt !== null)) allDoneAt = sim.time;
     if (allDoneAt !== null && sim.time >= allDoneAt + 1) break;
   }
-  return { track, poses, xs: xs.map((a) => a.slice(0, poses.length)) };
+  return {
+    track, poses, xs: xs.map((a) => a.slice(0, poses.length)),
+    finishedAt: sim.cars.map((c) => c.state.finishedAt), respawns, lava,
+  };
 }
 
 /** Plus petite distance (m) capteur–pièce sur la course, par voiture, aux pas où son châssis est à moins de `reach` m de l'étoile. */
