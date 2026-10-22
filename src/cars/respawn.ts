@@ -157,6 +157,7 @@ export function applyRespawnToState(
 ): void {
   state.lastRespawnLavaX = lavaX;
   state.consecutiveRespawns = consecutive;
+  state.respawnCount++;
   state.invulnerableUntil = t + cfg.RESPAWN_INVULN;
   state.flippedSince = null;
   state.sideSince = null;

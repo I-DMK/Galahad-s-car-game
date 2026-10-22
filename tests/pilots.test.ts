@@ -147,9 +147,48 @@ describe('GALAHAD', () => {
     expect(GALAHAD.lift).toBe(0);
   });
 
+  test('jumpTry 0 et jumpSkill 0 (tâche 6) : c’est l’enfant qui saute', () => {
+    expect(GALAHAD.jumpTry).toBe(0);
+    expect(GALAHAD.jumpSkill).toBe(0);
+  });
+
   test('n’est pas dans PILOTS', () => {
     expect(PILOTS).not.toContain(GALAHAD);
     expect(ids(PILOTS)).not.toContain('galahad');
+  });
+});
+
+describe('traits de saut (tâche 6, décision P4 du papa : tableau gardé)', () => {
+  const par = (id: string): Pilot => PILOTS.find((p) => p.id === id)!;
+  const FONCEURS = ['pablo', 'matthis'].map(par);
+  const MOYENS = ['diego', 'malo'].map(par);
+  const PRUDENTS = ['timothé', 'liam'].map(par);
+  const min = (ps: Pilot[], k: 'jumpTry' | 'jumpSkill') => Math.min(...ps.map((p) => p[k]));
+  const max = (ps: Pilot[], k: 'jumpTry' | 'jumpSkill') => Math.max(...ps.map((p) => p[k]));
+
+  test('valeurs validées : Pablo 0,80 / 0,18, Matthis 0,75 / 0,15, Diego 0,55 / 0,10, Malo 0,50 / 0,09, Timothé 0,30 / 0,04, Liam 0,30 / 0,05', () => {
+    expect(Object.fromEntries(PILOTS.map((p) => [p.id, [p.jumpTry, p.jumpSkill]]))).toEqual({
+      pablo: [0.8, 0.18], matthis: [0.75, 0.15], diego: [0.55, 0.1], malo: [0.5, 0.09], 'timothé': [0.3, 0.04], liam: [0.3, 0.05],
+    });
+  });
+
+  test('bornes : jumpTry ∈ [0 ; 1], jumpSkill ∈ [0,02 ; 0,25] s', () => {
+    for (const p of PILOTS) {
+      expect(p.jumpTry, `${p.name}.jumpTry`).toBeGreaterThanOrEqual(0);
+      expect(p.jumpTry, `${p.name}.jumpTry`).toBeLessThanOrEqual(1);
+      expect(p.jumpSkill, `${p.name}.jumpSkill`).toBeGreaterThanOrEqual(0.02);
+      expect(p.jumpSkill, `${p.name}.jumpSkill`).toBeLessThanOrEqual(0.25);
+    }
+  });
+
+  test('jumpTry : fonceurs > moyens > prudents (ils tentent plus souvent)', () => {
+    expect(min(FONCEURS, 'jumpTry')).toBeGreaterThan(max(MOYENS, 'jumpTry'));
+    expect(min(MOYENS, 'jumpTry')).toBeGreaterThan(max(PRUDENTS, 'jumpTry'));
+  });
+
+  test('jumpSkill : prudents < moyens < fonceurs (les prudents visent juste)', () => {
+    expect(max(PRUDENTS, 'jumpSkill')).toBeLessThan(min(MOYENS, 'jumpSkill'));
+    expect(max(MOYENS, 'jumpSkill')).toBeLessThan(min(FONCEURS, 'jumpSkill'));
   });
 });
 

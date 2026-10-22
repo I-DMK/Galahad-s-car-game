@@ -3,6 +3,7 @@
 // cas physiques qui discriminent sur une fosse de 8 m posée sur une piste plate (monde rogné), par le vrai `stepRace`.
 // Fenêtres entières et courses complètes : suite lente (tests/slow/fosses-*.test.ts, race-sans-saut-*.test.ts).
 import Matter from 'matter-js';
+import { makeRobotDriver } from '../src/ai/driver';
 import { fosseJumpLead, fosseJumpWanted } from '../src/cars/jump';
 import { CONFIG } from '../src/config';
 import { carSpeedMps, placeCar } from '../src/physics/car';
@@ -242,7 +243,7 @@ describe('réapparition près du bord aval (tour 1 de la 5g, scénario de la rel
   function setup(track: Track, xSafe: number): { sim: RaceSim; respawns: RespawnEvent[]; run: (seconds: number, throttle: boolean) => void } {
     const sim = createRaceSim(track, CONFIG, { robots: true });
     sim.cars.slice(1).forEach((car, k) => {
-      car.driver = () => false;
+      car.driver = () => ({ throttle: false, jump: false });
       placeCar(car.body, k === 0 ? xSafe : 10 + 4 * k, () => 0, 0, CONFIG);
     });
     const g = sim.cars[0];
@@ -300,9 +301,10 @@ describe('copain lent (tour 1 de la 5g) : il tente son saut, et jamais au-dessus
   test('copain à 3 m/s tenus : saut demandé à 2 m du bord, parti avant que la lave ne le reprenne (il tombe : sous ≈ 6 m/s aucun saut ne passe)', () => {
     const sim = createRaceSim(world.track, CONFIG, { robots: true });
     const c = sim.cars[1];
-    sim.cars.slice(2).forEach((car, k) => { car.driver = () => false; placeCar(car.body, 10 + 4 * k, () => 0, 0, CONFIG); });
+    sim.cars.slice(2).forEach((car, k) => { car.driver = () => ({ throttle: false, jump: false }); placeCar(car.body, 10 + 4 * k, () => 0, 0, CONFIG); });
     sim.cars[0].state.finishedAt = 0; // Galahad hors jeu (il freine sur place).
-    c.driver = () => true;
+    // Driver du copain sans erreur (jumpSkill 0, tâche 6) : il vise le centre `fosseJumpLead(v)`.
+    c.driver = makeRobotDriver({ ...c.pilot, jumpSkill: 0 }, 1, world.track, sim.pilotSeed, CONFIG);
     placeCar(c.body, F.xBord - 12, () => 0, 0, CONFIG);
     launchSolo({ ...sim, cars: [c] }, F.xBord - 12, 3, CONFIG);
     const jumps: number[] = [];
@@ -326,7 +328,7 @@ describe('5 voitures (respawn groupé)', () => {
   /** Course à 5 sur la piste à fosse, copains doigt posé dès t = 0, tous au point sûr xLancement + 1. */
   function five(): RaceSim {
     const sim = createRaceSim(world.track, CONFIG, { robots: true });
-    for (const robot of sim.cars.slice(1)) robot.driver = () => true;
+    for (const robot of sim.cars.slice(1)) robot.driver = () => ({ throttle: true, jump: false });
     const xSafe = F.xLancement + 1;
     for (const car of sim.cars) car.state.safePoint = { x: xSafe, y: 0, angle: 0 };
     return sim;
@@ -390,7 +392,7 @@ describe('fantômes d’une fosse (zone [xLancement, bord aval + 40], ruling R-F
   function duo(): { sim: RaceSim; g: CarSim; c: CarSim } {
     const sim = createRaceSim(world.track, CONFIG, { robots: true });
     sim.cars.slice(2).forEach((car, k) => {
-      car.driver = () => false;
+      car.driver = () => ({ throttle: false, jump: false });
       placeCar(car.body, 10 + 4 * k, () => 0, 0, CONFIG);
     });
     return { sim, g: sim.cars[0], c: sim.cars[1] };
@@ -400,7 +402,7 @@ describe('fantômes d’une fosse (zone [xLancement, bord aval + 40], ruling R-F
 
   test('une voiture arrêtée au point sûr est traversée par une voiture lancée', () => {
     const { sim, g, c } = duo();
-    c.driver = () => false;
+    c.driver = () => ({ throttle: false, jump: false });
     placeCar(c.body, F.xLancement + 4.99, () => 0, 0, CONFIG);
     placeCar(g.body, F.xLancement - 30, () => 0, 0, CONFIG);
     launchSolo({ ...sim, cars: [g] }, F.xLancement - 30, 14, CONFIG, 1);
@@ -411,11 +413,12 @@ describe('fantômes d’une fosse (zone [xLancement, bord aval + 40], ruling R-F
   });
 
   test('une voiture posée à bord aval + 5 est traversée par une voiture qui atterrit ; deux sauteurs qui se croisent en l’air ne se touchent pas', () => {
-    // Le copain saute seul au centre de la fenêtre (driver provisoire) ; Galahad, plus rapide, saute juste après lui.
+    // Le copain saute seul au centre de la fenêtre (son driver sans erreur, jumpSkill 0) ; Galahad, plus rapide, saute
+    // juste après lui.
     const { sim, g, c } = duo();
     const parked = sim.cars[2];
     placeCar(parked.body, F.xReception + CONFIG.FOSSE_RESPAWN_AFTER, () => 0, 0, CONFIG);
-    c.driver = () => true;
+    c.driver = makeRobotDriver({ ...c.pilot, jumpSkill: 0 }, 1, world.track, sim.pilotSeed, CONFIG);
     placeCar(c.body, F.xBord - 35, () => 0, 0, CONFIG);
     launchSolo({ ...sim, cars: [c] }, F.xBord - 35, 11.2, CONFIG);
     placeCar(g.body, F.xBord - 60, () => 0, 0, CONFIG);

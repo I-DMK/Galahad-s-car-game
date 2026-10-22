@@ -34,7 +34,7 @@ test(`cas 6, seed ${SEED} : course doigt posé avec le saut parfait aux fosses, 
   expect(r.maxStuckSeconds, summary).toBeLessThanOrEqual(2.1);
 });
 
-describe('course à 5 voitures, doigt posé (robots : driver provisoire)', () => {
+describe('course à 5 voitures, doigt posé (copains à leur driver, tâche 6)', () => {
   test.each([1, 2])('seed %i : ≤ 3 respawns par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive', (seed) => {
     const race = fiveCarRace(seed);
     console.log(`course à 5 ${race.summary}`);
@@ -61,7 +61,7 @@ test('5 dans la lave d’un tremplin au même pas, même point sûr (xLancement 
   const h = (x: number) => heightAt(track, x);
   const sim = createRaceSim(track, CONFIG, { robots: true });
   // Doigt posé pour tous dès le respawn : pas de délai de grille dans ce scénario (t = 0).
-  for (const robot of sim.cars.slice(1)) robot.driver = () => true;
+  for (const robot of sim.cars.slice(1)) robot.driver = () => ({ throttle: true, jump: false });
   const xSafe = v.xLancement + 1;
   for (const car of sim.cars) {
     car.state.safePoint = { x: xSafe, y: h(xSafe), angle: 0 };

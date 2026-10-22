@@ -1,12 +1,13 @@
 // Budget : < 25 min mur (mesuré au Step 14 : (i) 5,4 min, (iii) 1,8 min, ≈ 8 min en tout avec (ii) et (iv)).
 // Acceptation des étoiles hautes des plats étoile (plan B, tâche 5e, Step 14 ; addendum « bouton saut » §4 et §6.6,
 // ruling R-F12) :
-// (i) 5 voitures doigt posé sans saut d'étoile, turbo compris, graines 0 à 23 (tâche 5g : Galahad et les copains sautent
-//     au centre de chaque fosse, `sauteurParfait` et driver provisoire ; ces sauts n'atteignent aucun plat étoile, jamais
-//     juste après un volcan) : une voiture, Galahad compris (R-F12 amendé, décision du papa au tour 2 de la 5g : graine 5,
-//     Galahad retombé d'une bosse sur le toit de Liam, catapulté sur l'étoile 1,15 s après), ne prend une étoile haute
-//     sans saut que dans les 2 s après un contact avec une autre voiture (« catapulte », observateur `carPairsTouching`) :
-//     ces prises sont tolérées, comptées et imprimées ; une prise sans saut ni contact échoue ;
+// (i) 5 voitures doigt posé, turbo compris, graines 0 à 23 (tâche 5g : Galahad saute au centre de chaque fosse,
+//     `sauteurParfait` ; ces sauts n'atteignent aucun plat étoile, jamais juste après un volcan ; tâche 6 : les copains
+//     sautent aussi les étoiles hautes, et une prise dans les JUMP_TAKE_WINDOW s qui suivent son propre saut est une
+//     « prise au saut », comptée et imprimée) : une voiture, Galahad compris (R-F12 amendé, décision du papa au tour 2 de
+//     la 5g : graine 5, Galahad retombé d'une bosse sur le toit de Liam, catapulté sur l'étoile 1,15 s après), ne prend
+//     une étoile haute sans saut que dans les 2 s après un contact avec une autre voiture (« catapulte », observateur
+//     `carPairsTouching`) : ces prises sont tolérées, comptées et imprimées ; une prise sans saut ni contact échoue ;
 // (ii) Galahad seul, turbo forcé tous les 5 m de [x★ − 80, x★ − 20], graines 0 à 9 : 0 prise ;
 // (iii) chaque étoile de plat étoile des graines 0 à 9 : fenêtre ≥ 0,4 s à 11,2 et 14 m/s, ≥ 0,3 s à + 5 cm, sans
 //     réapparition (`windowFor`) ; centre imprimé (futur JUMP_STAR_LEAD) ;
@@ -22,24 +23,31 @@ import { trackFor } from '../helpers/runs';
 
 /** s : une prise d'étoile haute sans saut n'est tolérée que dans cette durée après un contact, pour toute voiture (R-F12 amendé). */
 const CATAPULT_WINDOW = 2;
+/** s : une prise dans cette durée après le saut de la voiture est une prise au saut (tâche 6, même fenêtre que la mesure des ratés). */
+const JUMP_TAKE_WINDOW = 2.5;
 const f2 = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : '—');
 const flatStars = (t: Track): Star[] => t.stars.filter((s) => s.high);
 
-test('(i) 5 voitures doigt posé sans saut, graines 0 à 23 : 0 étoile haute prise sans saut ni contact, Galahad compris ; prises après un contact tolérées et imprimées', () => {
+test('(i) 5 voitures doigt posé, graines 0 à 23 : 0 étoile haute prise sans saut ni contact, Galahad compris ; prises après un contact tolérées et imprimées, prises au saut des copains comptées', () => {
   const t0 = performance.now();
   const catapults: string[] = [];
   const failures: string[] = [];
+  let jumpTakes = 0;
   for (let seed = 0; seed < 24; seed++) {
     const track = trackFor(seed);
     const highIds = new Set(flatStars(track).map((s) => s.id));
     const lastContact = new Map<string, number>();
+    const lastJump = new Map<string, number>();
     const r = simulateRace(track, {
       throttle: () => true, maxSeconds: 240, cfg: CONFIG, robots: true, jump: sauteurParfait(track),
       onStep: (sim) => {
         for (const [a, b] of carPairsTouching(sim)) { lastContact.set(a, sim.time); lastContact.set(b, sim.time); }
         for (const e of sim.events) {
-          if (e.type === 'respawn') lastContact.delete(e.carId);
+          if (e.type === 'respawn') { lastContact.delete(e.carId); lastJump.delete(e.carId); }
+          if (e.type === 'jump') lastJump.set(e.carId, e.t);
           if (e.type !== 'star' || !highIds.has(e.id)) continue;
+          const j = lastJump.get(e.carId);
+          if (j !== undefined && e.t - j <= JUMP_TAKE_WINDOW) { jumpTakes++; continue; }
           const c = lastContact.get(e.carId);
           const what = `g${seed} ${e.carId} étoile ${e.id} t = ${e.t.toFixed(2)} s, dernier contact ${c === undefined ? 'aucun' : `${(e.t - c).toFixed(2)} s avant`}`;
           if (c !== undefined && e.t - c <= CATAPULT_WINDOW) catapults.push(what);
@@ -49,8 +57,8 @@ test('(i) 5 voitures doigt posé sans saut, graines 0 à 23 : 0 étoile haute pr
     });
     expect(r.lavaByCar.galahad, `g${seed}`).toBe(0);
   }
-  console.log(`(i) 24 courses à 5 voitures (${((performance.now() - t0) / 60_000).toFixed(1)} min) : prises tolérées après un contact ${catapults.length}`
-    + `${catapults.length ? ` (${catapults.join(' ; ')})` : ''} ; prises sans contact ${failures.length}`);
+  console.log(`(i) 24 courses à 5 voitures (${((performance.now() - t0) / 60_000).toFixed(1)} min) : prises au saut (copains) ${jumpTakes} ; `
+    + `prises tolérées après un contact ${catapults.length}${catapults.length ? ` (${catapults.join(' ; ')})` : ''} ; prises sans contact ${failures.length}`);
   expect(failures).toEqual([]);
 });
 

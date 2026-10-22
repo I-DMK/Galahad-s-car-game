@@ -314,7 +314,8 @@ export function fosseBlock(world: World, f: Fosse, v: number | 'arrêt', opts: {
 
 /**
  * Option `jump` de `simulateRace` : Galahad demande le saut à chaque pas où `fosseJumpWanted` est vrai (au centre de la
- * fenêtre, sans erreur, comme les copains provisoires de la 5g). Doigt posé avec ce saut : 0 chute attendue.
+ * fenêtre, sans erreur, comme les copains provisoires de la 5g ; depuis la tâche 6, un copain y ajoute son erreur). Doigt
+ * posé avec ce saut : 0 chute attendue.
  */
 export function sauteurParfait(track: Track, cfg: Config = CONFIG): (t: number, sim: RaceSim) => boolean {
   return (_t, sim) => {

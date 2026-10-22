@@ -1,10 +1,12 @@
 // Pas de course : relie la physique (matter-js) à l'état de course. Sans DOM : utilisable sous node
 // (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b),
 // ligne d'arrivée (11), étoiles et turbo (12) ; course à 5 voitures dans un seul monde, grille de
-// départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B).
+// départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B) ; conduite des
+// robots par leur driver (tâche 6 : `ai/driver.ts`).
 import Matter from 'matter-js';
+import { makeRobotDriver, type Driver, type DriverContext } from '../ai/driver';
 import type { Config } from '../config';
-import { canJump, fosseJumpWanted, wantsJump } from '../cars/jump';
+import { canJump, wantsJump } from '../cars/jump';
 import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
 import {
   applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
@@ -22,7 +24,7 @@ import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
 import { MAX_CARS, createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
-import { heightAt, inElanZone, inGhostZone, slopeAt } from '../track/query';
+import { heightAt, inElanZone, inGhostZone, inNoJumpZone, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 
 /** Chaque événement porte l'id (`CarState.id`) de la voiture concernée. */
@@ -40,9 +42,6 @@ export type SimEvent =
 
 export type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 export type StarEvent = Extract<SimEvent, { type: 'star' }>;
-
-/** Pilote automatique : doigt posé à l'instant t ? (`speed` : vitesse du châssis, m/s). */
-export type Driver = (ctx: { t: number; state: CarState; track: Track; speed: number }) => boolean;
 
 /** Une voiture de la course : pilote, corps physique et état de course. */
 export interface CarSim {
@@ -72,12 +71,13 @@ export interface CarSim {
   /** Collisions avec les autres voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
   invulnerable: boolean;
   /**
-   * Fantôme : châssis dans la zone [xLancement, xReception] d'un volcan (`inGhostZone` ; fosse : jusqu'au bord aval +
-   * FOSSE_GHOST_AFTER, tâche 5g), ou sorti de la zone mais encore engagé dans une autre voiture (`updateGhost`). Les
-   * voitures se traversent.
+   * Fantôme : châssis dans la zone fantôme d'un volcan (`inGhostZone`) : tremplin, de xLancement jusqu'à ce que la roue
+   * arrière ait passé xReception (châssis ≤ xReception + WHEEL_BASE/2 + WHEEL_RADIUS, tâche 5b) ; fosse, jusqu'au bord
+   * aval + FOSSE_GHOST_AFTER (tâche 5g) ; ou sorti de la zone mais encore engagé dans une autre voiture (`updateGhost`).
+   * Les voitures se traversent.
    */
   ghost: boolean;
-  /** Pilote automatique d'un robot ; null pour Galahad (doigt de l'enfant, argument de `stepRace`). */
+  /** Pilote automatique d'un robot (`makeRobotDriver`, tâche 6) ; null pour Galahad (doigt et saut de l'enfant, arguments de `stepRace`). */
   driver: Driver | null;
   /** Facteur de vitesse du pilote, multiplié au turbo (élastique, tâche 7) ; 1 en 5b. */
   factor: number;
@@ -124,16 +124,10 @@ function colorHex(n: number): string {
 const defaultPilotSeed = (track: Track): number => (track.seed ^ 0x9e3779b9) >>> 0;
 
 /**
- * Driver provisoire de la tâche 5b : doigt posé dès rank × START_DELAY_PER_RANK (départ échelonné de
- * la grille). La conduite des robots (lever de pied, zone volcan) arrive en tâche 6.
+ * Voiture de rang `rank` posée sur la grille : xStart − 2 − rank × GRID_SPACING_FACTOR × CAR_LENGTH. Un copain (rang ≥ 1)
+ * reçoit son driver (`makeRobotDriver`, graine dérivée de `pilotSeed` et du rang).
  */
-function holdAfterStartDelay(rank: number, cfg: Config): Driver {
-  const start = rank * cfg.START_DELAY_PER_RANK;
-  return ({ t }) => t >= start;
-}
-
-/** Voiture de rang `rank` posée sur la grille : xStart − 2 − rank × GRID_SPACING_FACTOR × CAR_LENGTH. */
-function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cfg: Config): CarSim {
+function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, pilotSeed: number, cfg: Config): CarSim {
   const x0 = track.xStart - 2 - rank * cfg.GRID_SPACING_FACTOR * cfg.CAR_LENGTH;
   const body = createCar(world, pilot.id, rank, x0, cfg);
   const start: SafePoint = { x: x0, y: heightAt(track, x0), angle: 0 };
@@ -142,7 +136,7 @@ function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cf
   return {
     pilot, body, state, contact: newGroundContact(), airborneSince: null, grounded: false, lastGroundedAt: null,
     jumpFlight: false, invulnerable: false, ghost: false,
-    driver: rank === 0 ? null : holdAfterStartDelay(rank, cfg), factor: 1, throttle: false,
+    driver: rank === 0 ? null : makeRobotDriver(pilot, rank, track, pilotSeed, cfg), factor: 1, throttle: false,
   };
 }
 
@@ -160,17 +154,18 @@ export function createRaceSim(
   if (pilots.length > MAX_CARS) {
     throw new RangeError(`createRaceSim : ${pilots.length} voitures (Galahad + ${pilots.length - 1} copains), au plus MAX_CARS = ${MAX_CARS} (une catégorie de collision par voiture)`);
   }
-  const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, cfg));
+  const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, pilotSeed, cfg));
   const stars = newStarStates(track.stars, cars.length);
   const starBodies = createStarBodies(world, track.stars, cfg);
   return { track, world, cars, time: 0, events: [], stars, starBodies, cfg, pilotSeed };
 }
 
 /**
- * Un pas fixe de PHYSICS_DT pour toutes les voitures : pour chacune, état fantôme (`updateGhost`),
- * conduite (doigt de Galahad = `galahadThrottle`, robots = leur driver ; vitesse × turbo × `factor`),
- * contact au sol, mise à plat en l'air et saut (`galahadJump` : nouvelle demande de Galahad, `updateJump`, sur le
- * contact avec la piste seule) ;
+ * Un pas fixe de PHYSICS_DT pour toutes les voitures : contextes des drivers pris avant tout (`fillDriverContexts`) ;
+ * pour chacune, état fantôme (`updateGhost`), conduite (Galahad : doigt `galahadThrottle` et nouvelle demande de saut
+ * `galahadJump` ; robots : la réponse de leur driver ; vitesse × turbo × `factor`), contact au sol, mise à plat en l'air
+ * et saut (`updateJump`, sur le contact avec la piste seule ; garde : jamais de saut de robot dans `inNoJumpZone`, demande
+ * en mémoire comprise) ;
  * un seul pas physique ; puis, voiture par voiture dans
  * l'ordre des index : bornage des vitesses, progression, étoiles, arrivée, invulnérabilité et réapparition.
  * Après son arrivée (`state.finishedAt` défini), une voiture freine (FINISH_BRAKE) et ne réapparaît
@@ -183,22 +178,34 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
   const { cfg, world, track, time: t } = sim;
   const h = (x: number) => heightAt(track, x);
   sim.events = [];
-  const onGround = sim.cars.map((car) => {
+  // Contextes pris avant toute conduite : la réponse d'un driver ne dépend pas de l'ordre des voitures.
+  const contexts = sim.cars.some(hasDriver) ? fillDriverContexts(sim) : null;
+  const onGround = sim.cars.map((car, i) => {
     const { body, state } = car;
     updateGhost(sim, car);
+    let jump = car.driver ? false : galahadJump;
     if (state.finishedAt !== null) {
       car.throttle = false;
       applyBrake(body, cfg.FINISH_BRAKE);
     } else {
-      car.throttle = car.driver ? car.driver({ t, state, track, speed: carSpeedMps(body) }) : galahadThrottle;
+      if (car.driver) {
+        const order = car.driver(contexts![i]);
+        car.throttle = order.throttle;
+        jump = order.jump;
+      } else {
+        car.throttle = galahadThrottle;
+      }
       applyDrive(body, car.throttle, turboFactor(state, t, cfg) * car.factor, cfg);
     }
     const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
     detectLanding(sim, car, grounded[0] || grounded[1]);
     applyAirLevel(body, grounded, cfg);
-    // Robots (tâche 5g, ruling R-F9) : saut provisoire aux fosses, demandé à chaque pas tant que `fosseJumpWanted` est
-    // vrai, sans erreur, au centre `fosseJumpLead(v)` ; la tâche 6 le remplace par leur driver.
-    const jump = car.driver ? fosseJumpWanted(track, chassisX(car), carSpeedMps(body), cfg) : galahadJump;
+    // Garde (tâche 6, addendum « bouton saut » §3) : jamais de saut de robot dans [xLancement, xReception] d'un
+    // tremplin, ni par une demande du pas ni par une demande gardée en mémoire (JUMP_BUFFER).
+    if (car.driver && inNoJumpZone(track, chassisX(car))) {
+      jump = false;
+      state.jumpRequestedAt = null;
+    }
     updateJump(sim, car, jump, onTrack(car.contact, t));
     return grounded;
   });
@@ -305,6 +312,98 @@ function collectStars(sim: RaceSim, car: CarSim, index: number): void {
     activateTurbo(car.state, t, cfg);
     sim.events.push({ type: 'star', carId: car.state.id, t, id: star.id });
   }
+}
+
+const hasDriver = (car: CarSim): boolean => car.driver !== null;
+
+/** Contexte d'un driver et ses objets internes, réutilisés d'un pas à l'autre (aucune allocation par pas). */
+interface DriverSlot {
+  ctx: DriverContext;
+  others: { index: number; x: number; speed: number }[];
+  star: { index: number; x: number; available: boolean };
+  fosse: { xBord: number; index: number; attempt: 1 | 2 };
+}
+/** Par course : un emplacement par voiture (ordre des index), et la liste de leurs contextes. */
+const driverSlots = new WeakMap<RaceSim, { slots: DriverSlot[]; contexts: DriverContext[] }>();
+
+function newDriverSlot(sim: RaceSim, index: number): DriverSlot {
+  const car = sim.cars[index];
+  const others = sim.cars.flatMap((_, j) => (j === index ? [] : [{ index: j, x: 0, speed: 0 }]));
+  const ctx: DriverContext = {
+    t: 0, state: car.state, track: sim.track, speed: 0, x: 0, grounded: false, others, nextHighStar: null, nextFosse: null,
+  };
+  return { ctx, others, star: { index: -1, x: 0, available: false }, fosse: { xBord: 0, index: -1, attempt: 1 } };
+}
+
+/**
+ * Remplit le contexte du driver de chaque voiture (`DriverContext`) à l'état courant, avant tout pas : t, état, x et
+ * vitesse du châssis, contact avec la piste au pas précédent, autres voitures (ordre des index), étoile haute la plus
+ * proche devant à moins de JUMP_LOOKAHEAD (et sa disponibilité pour cette voiture), prochaine fosse devant à moins de
+ * JUMP_LOOKAHEAD (bord amont, rang parmi les fosses, tentative : 2 après une chute dans sa lave, 1 sinon). Les objets
+ * rendus sont réutilisés au pas suivant : un driver ne les garde pas.
+ */
+function fillDriverContexts(sim: RaceSim): DriverContext[] {
+  const { cfg, track, time: t } = sim;
+  let cached = driverSlots.get(sim);
+  if (!cached || cached.slots.length !== sim.cars.length) {
+    const fresh = sim.cars.map((_, i) => newDriverSlot(sim, i));
+    cached = { slots: fresh, contexts: fresh.map((slot) => slot.ctx) };
+    driverSlots.set(sim, cached);
+  }
+  const { slots, contexts } = cached;
+  sim.cars.forEach((car, i) => {
+    const { ctx } = slots[i];
+    ctx.t = t;
+    ctx.state = car.state;
+    ctx.track = track;
+    ctx.x = chassisX(car);
+    ctx.speed = carSpeedMps(car.body);
+    ctx.grounded = car.grounded;
+  });
+  slots.forEach((slot, i) => {
+    const { ctx, others, star, fosse } = slot;
+    for (const o of others) {
+      o.x = slots[o.index].ctx.x;
+      o.speed = slots[o.index].ctx.speed;
+    }
+    const x = ctx.x;
+    ctx.nextHighStar = null;
+    for (let k = 0; k < track.stars.length; k++) {
+      const s = track.stars[k];
+      if (!s.high || s.x <= x) continue;
+      if (s.x - x <= cfg.JUMP_LOOKAHEAD) {
+        star.index = k;
+        star.x = s.x;
+        star.available = isStarActiveFor(sim.stars[k], i, t, cfg);
+        ctx.nextHighStar = star;
+      }
+      break;
+    }
+    ctx.nextFosse = null;
+    let rank = 0;
+    for (const v of track.volcanoes) {
+      if (v.kind !== 'fosse') continue;
+      if (v.xBord > x) {
+        if (v.xBord - x <= cfg.JUMP_LOOKAHEAD) {
+          fosse.xBord = v.xBord;
+          fosse.index = rank;
+          fosse.attempt = ctx.state.lastRespawnLavaX === v.xLava && ctx.state.consecutiveRespawns >= 1 ? 2 : 1;
+          ctx.nextFosse = fosse;
+        }
+        break;
+      }
+      rank++;
+    }
+  });
+  return contexts;
+}
+
+/**
+ * Contexte du driver de la voiture d'index `index` à l'état courant, tel que `stepRace` le passerait au pas suivant
+ * (variante « Galahad sauteur » du rattrapage : un driver de copain décide du saut de Galahad). Objet réutilisé.
+ */
+export function driverContext(sim: RaceSim, index: number): DriverContext {
+  return fillDriverContexts(sim)[index];
 }
 
 /** Toutes les voitures de la course sauf `car`. */

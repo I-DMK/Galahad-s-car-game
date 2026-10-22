@@ -64,6 +64,16 @@ export function nextFosse(track: Track, x: number): Fosse | undefined {
   return undefined;
 }
 
+/**
+ * Vrai si x est dans [xLancement, xReception] d'un volcan à tremplin, bornes incluses : jamais de saut de copain là
+ * (addendum « bouton saut » §3, tâche 6 ; garde du driver et de `stepRace`). Toujours faux sur une fosse, devant
+ * laquelle le copain saute (saut §6.8). Sans allocation : appelé à chaque pas pour chaque copain.
+ */
+export function inNoJumpZone(track: Track, x: number): boolean {
+  for (const v of track.volcanoes) if (v.kind === 'tremplin' && x >= v.xLancement && x <= v.xReception) return true;
+  return false;
+}
+
 /** Premier volcan (tremplin ou fosse, dans l'ordre de la piste) dont la lave est strictement devant x. */
 export function volcanoAhead(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => v.xLava > x);

@@ -49,14 +49,14 @@ test('doigt posé 3 s : la voiture avance', async ({ page }) => {
 });
 
 /**
- * Temps de course (s) avant lequel aucun copain ne peut toucher Galahad : le rang 1 part à
- * START_DELAY_PER_RANK = 0,3 s avec 0,9 m entre ses roues avant et les roues arrière de Galahad, soit
- * un contact vers 0,3 + √(2 × 0,9 / 4,3) ≈ 0,95 s. Au-delà, sans doigt, les copains poussent Galahad
- * (course à 5 voitures, tâche 5b ; pas encore de décompte).
+ * Temps de course (s) pendant lequel les copains ne poussent pas Galahad arrêté sur la grille : robots polis (tâche 6,
+ * décision du papa) : le copain de rang 1, derrière une voiture presque arrêtée (< POLITE_SPEED) à moins de POLITE_GAP,
+ * lève le pied, au plus POLITE_MAX_WAIT = 3 s (ruling Q8 : l'e2e en exige au moins 2). Avant la tâche 6, il le poussait
+ * dès ≈ 0,95 s.
  */
-const BEFORE_ROBOTS_S = 0.8;
+const BEFORE_ROBOTS_S = 2;
 
-test('sans doigt : la voiture ne part pas toute seule (avant que les copains la rejoignent)', async ({ page }) => {
+test('sans doigt : la voiture ne part pas toute seule, et les copains ne la poussent pas pendant au moins 2 s', async ({ page }) => {
   await page.goto('/?seed=1&debug=1');
   await waitForGame(page);
   const before = await gameState(page);

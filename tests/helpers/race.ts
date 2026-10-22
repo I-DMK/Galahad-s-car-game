@@ -1,5 +1,6 @@
-// Course complète à 5 voitures (tâche 5b, addendum §2) : Galahad doigt toujours posé, les 4 copains au
-// driver provisoire (doigt posé dès n × START_DELAY_PER_RANK), arrêt à l'arrivée de Galahad + 1,5 s.
+// Course complète à 5 voitures (tâche 5b, addendum §2) : Galahad doigt toujours posé, les 4 copains à leur
+// driver (tâche 6 : départ échelonné, lever de pied, robots polis, sauts d'étoile et de fosse), arrêt à l'arrivée de
+// Galahad + 1,5 s.
 // Invariants partagés par la CI (tests/race-smoke.test.ts, graines 1 et 2) et la suite lente
 // (tests/slow/race-invariants-*.test.ts). `lavaByCar.galahad === 0` date de la tâche 5b (tour de
 // correction 1 : CI graines 1 et 2, lent graines 0 à 9) ; la tâche 5c a élargi la suite lente aux
@@ -8,10 +9,15 @@
 // avec le saut parfait aux fosses (`sauteurParfait`, `lavaByCar.galahad === 0` garde son sens), les copains provisoires
 // y sautent sans erreur ; une chute dans une fosse sans saut est « fosse » (attendue), ni « choc » ni « propre » ;
 // `race-sans-saut-*` fait courir Galahad sans saut (2 chutes par fosse, au plus 2 par série, 0 au tremplin).
+// Tâche 6 : les copains ratent parfois une fosse (erreur × FOSSE_SKILL_FACTOR, décision Q-F3) : toute chute d'un copain
+// dans une fosse est « fosse » (attendue), au plus 2 par série ; ≤ 3 réapparitions par copain hors chutes dans une fosse
+// (saut §6.8) ; aucun saut de copain dans [xLancement, xReception] d'un tremplin.
 import { CONFIG, type Config } from '../../src/config';
 import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/harness';
-import type { RespawnEvent } from '../../src/sim/simulate';
-import { nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
+import { makeRobotDriver, type Driver } from '../../src/ai/driver';
+import { GALAHAD, type Pilot } from '../../src/cars/pilots';
+import { driverContext, GALAHAD_INDEX, type RaceSim, type RespawnEvent } from '../../src/sim/simulate';
+import { inNoJumpZone, nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
 import type { Track } from '../../src/track/types';
 import { sauteurParfait } from './fosses';
 import { describeRespawns, f1, f2, trackFor } from './runs';
@@ -29,7 +35,8 @@ export const MAX_STUCK_SECONDS = 2.1;
 
 /**
  * Une chute dans la lave (toute voiture) et sa cause : « fosse » si c'est une fosse et que la voiture n'a pas sauté
- * depuis le début de son approche (attendue sans saut, ruling R-F11) ; sinon « choc » si la voiture a touché une
+ * depuis le début de son approche (attendue sans saut, ruling R-F11), ou si c'est un copain (tâche 6 : il rate parfois
+ * son saut, décision Q-F3) ; sinon « choc » si la voiture a touché une
  * autre voiture dans les CONTACT_WINDOW secondes qui précèdent (approche du volcan : plat de lancement, élan, rampe,
  * vol ; dans la zone fantôme les voitures se traversent), « propre » sinon. Tous les drivers ont le doigt
  * posé (Galahad tout du long, les copains dès leur départ échelonné) : une chute propre contredit la
@@ -54,6 +61,8 @@ export const describeFall = (f: Fall): string =>
 
 export interface FiveCarRace {
   r: SimulateResult;
+  /** Piste de la course. */
+  track: Track;
   /** Chutes dans la lave de toutes les voitures, avec leur cause. */
   falls: Fall[];
   /** Étoiles prises par voiture (événements 'star' relevés par l'observateur), toutes les voitures. */
@@ -62,6 +71,8 @@ export interface FiveCarRace {
   firstStar: { carId: string; t: number } | null;
   /** Voitures (ordre des index) qui ont pris une étoile au pas de `firstStar` : plus d'une = égalité. */
   firstStarCars: string[];
+  /** Sauts de copain dans [xLancement, xReception] d'un tremplin (`inNoJumpZone` au x du saut) : 0 attendu (tâche 6). */
+  noJumpZoneJumps: string[];
   /** Résumé lisible (par voiture), imprimé et repris dans les messages d'assertion. */
   summary: string;
   /** Durée mur de la simulation (s). */
@@ -71,21 +82,54 @@ export interface FiveCarRace {
 /**
  * Course à 5 : durée maximale (défaut RACE_MAX_SECONDS ; réduite pour le test de l'observateur), doigt de Galahad
  * (défaut : toujours posé), son saut (défaut 'parfait' : `sauteurParfait` aux fosses ; 'jamais' : aucun saut, tâche
- * 5g) et configuration, pistes comprises (défaut CONFIG ; pistes d'avant : `withAnciennesPistes`).
+ * 5g ; 'sauteur' : variante « Galahad sauteur » du rattrapage, ruling Q9, tâche 6) et configuration, pistes comprises
+ * (défaut CONFIG ; pistes d'avant : `withAnciennesPistes`).
  */
 export interface FiveCarOptions {
-  maxSeconds?: number; throttle?: (t: number) => boolean; cfg?: Config; jump?: 'parfait' | 'jamais';
+  maxSeconds?: number; throttle?: (t: number) => boolean; cfg?: Config; jump?: 'parfait' | 'jamais' | 'sauteur';
   /** Galahad seul (sans copains), même harnais : `race-sans-saut-*` (saut §4). */
   solo?: boolean;
+  /**
+   * Traits de saut imposés aux 4 copains (mesure appariée « fonceurs contre prudents », tâche 6) : leurs drivers sont
+   * refaits avec ces traits, le reste du pilote (base, lift) inchangé.
+   */
+  traits?: Pick<Pilot, 'jumpTry' | 'jumpSkill'>;
+  /** Observateur de plus, appelé après chaque pas, après celui de `fiveCarRace` (sans effet sur la course). */
+  observe?: (sim: RaceSim) => void;
+}
+
+/**
+ * Traits de Galahad dans la variante « Galahad sauteur » (ruling Q9) : un driver de copain décide de ses sauts, il
+ * tente toutes les étoiles hautes (jumpTry 1) et vise à 0,05 s près (jumpSkill).
+ */
+export const SAUTEUR_TRAITS = { jumpTry: 1, jumpSkill: 0.05 } as const;
+
+/**
+ * Option `jump` de `simulateRace`, variante « Galahad sauteur » (tâche 6, ruling Q9) : la demande de saut de Galahad
+ * est celle d'un driver de copain (`makeRobotDriver`, rang 0, traits SAUTEUR_TRAITS) appelé sur son contexte
+ * (`driverContext`) ; son doigt reste celui de `throttle`.
+ */
+export function sauteurRobot(track: Track, cfg: Config = CONFIG): (t: number, sim: RaceSim) => boolean {
+  let driver: Driver | null = null;
+  return (_t, sim) => {
+    driver ??= makeRobotDriver({ ...GALAHAD, ...SAUTEUR_TRAITS }, GALAHAD_INDEX, track, sim.pilotSeed, cfg);
+    return driver(driverContext(sim, GALAHAD_INDEX)).jump;
+  };
 }
 
 /** Options de `simulateRace` de la course à 5 (hors observateur) sur `track`. */
 export const fiveCarOptions = (
-  { maxSeconds = RACE_MAX_SECONDS, throttle = () => true, cfg = CONFIG, jump = 'parfait', solo = false }: FiveCarOptions = {},
+  { maxSeconds = RACE_MAX_SECONDS, throttle = () => true, cfg = CONFIG, jump = 'parfait', solo = false, traits }: FiveCarOptions = {},
   track?: Track,
 ) => ({
   throttle, maxSeconds, cfg, robots: !solo,
   ...(jump === 'parfait' && track ? { jump: sauteurParfait(track, cfg) } : {}),
+  ...(jump === 'sauteur' && track ? { jump: sauteurRobot(track, cfg) } : {}),
+  ...(traits && track ? {
+    setup: (sim: RaceSim) => sim.cars.forEach((car, rank) => {
+      if (car.driver) car.driver = makeRobotDriver({ ...car.pilot, ...traits }, rank, track, sim.pilotSeed, cfg);
+    }),
+  } : {}),
 });
 
 /**
@@ -101,6 +145,7 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
   /** Dernier saut de chaque voiture (x du châssis), pour classer une chute dans une fosse. */
   const lastJumpX = new Map<string, number>();
   const falls: Fall[] = [];
+  const noJumpZoneJumps: string[] = [];
   const starCounts: Record<string, number> = {};
   let firstStar: FiveCarRace['firstStar'] = null;
   const firstStarCars: string[] = [];
@@ -113,7 +158,10 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
         lastContact.set(b, { t, with: a });
       }
       for (const e of sim.events) {
-        if (e.type === 'jump') lastJumpX.set(e.carId, e.x);
+        if (e.type === 'jump') {
+          lastJumpX.set(e.carId, e.x);
+          if (e.carId !== sim.cars[GALAHAD_INDEX].state.id && inNoJumpZone(track, e.x)) noJumpZoneJumps.push(`${e.carId} t = ${f1(e.t)} s, x = ${f1(e.x)}`);
+        }
         if (e.type === 'star') {
           starCounts[e.carId] = (starCounts[e.carId] ?? 0) + 1;
           firstStar ??= { carId: e.carId, t: e.t };
@@ -125,7 +173,8 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
           const c = lastContact.get(e.carId) ?? null;
           const jx = lastJumpX.get(e.carId);
           const jumped = v !== undefined && jx !== undefined && jx >= v.xLancement && jx <= v.xLava;
-          const cause: Fall['cause'] = v?.kind === 'fosse' && !jumped ? 'fosse'
+          const robot = e.carId !== sim.cars[GALAHAD_INDEX].state.id;
+          const cause: Fall['cause'] = v?.kind === 'fosse' && (!jumped || robot) ? 'fosse'
             : c && e.t - c.t <= CONTACT_WINDOW ? 'choc' : 'propre';
           falls.push({
             carId: e.carId, t: e.t, x: e.x, volcano: v ? track.volcanoes.indexOf(v) : -1, kind: v?.kind ?? '?',
@@ -136,6 +185,7 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
         lastContact.delete(e.carId);
         lastJumpX.delete(e.carId);
       }
+      opts.observe?.(sim);
     },
   });
   const seconds = (performance.now() - t0) / 1000;
@@ -145,10 +195,12 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
     return `${id} : respawns ${rs.length}, lave ${r.lavaByCar[id]}, étoiles ${stars[id]}, blocage max ${f2(r.maxStuckByCar[id])} s, `
       + `arrivée ${f1(r.finishedAtByCar[id])} s [${describeRespawns(rs).join(' ; ')}]`;
   });
-  const summary = `seed ${seed}${opts.solo ? ' (Galahad seul)' : ''}${opts.jump === 'jamais' ? ', Galahad sans saut' : ''} : Galahad arrivé à ${f1(r.finishedAt)} s, fin à ${f1(r.time)} s, classement ${r.ranking.join(' > ')}, `
+  const variant = opts.jump === 'jamais' ? ', Galahad sans saut' : opts.jump === 'sauteur' ? ', Galahad sauteur' : '';
+  const summary = `seed ${seed}${opts.solo ? ' (Galahad seul)' : ''}${variant}${opts.traits ? `, copains ${opts.traits.jumpTry} / ${opts.traits.jumpSkill}` : ''} : Galahad arrivé à ${f1(r.finishedAt)} s, fin à ${f1(r.time)} s, classement ${r.ranking.join(' > ')}, `
     + `meanStepMs ${f2(r.meanStepMs)} (indicateur, cible < 4), maxStepMs ${f1(r.maxStepMs)}, durée ${f1(seconds)} s\n  ${cars.join('\n  ')}`
-    + `\n  chutes dans la lave : ${falls.length ? falls.map(describeFall).join(' ; ') : 'aucune'}`;
-  return { r, falls, stars, firstStar, firstStarCars, summary, seconds };
+    + `\n  chutes dans la lave : ${falls.length ? falls.map(describeFall).join(' ; ') : 'aucune'}`
+    + (noJumpZoneJumps.length ? `\n  sauts de copain dans la zone d'un tremplin : ${noJumpZoneJumps.join(' ; ')}` : '');
+  return { r, track, falls, noJumpZoneJumps, stars, firstStar, firstStarCars, summary, seconds };
 }
 
 /**
@@ -170,25 +222,35 @@ export function lavaSeries(respawns: readonly RespawnEvent[], track: Track): num
   return out;
 }
 
+/** Réapparitions de `id` hors chutes dans une fosse (la limite de 3 par course ne les compte pas, saut §6.8). */
+export const respawnsHorsFosses = (race: FiveCarRace, id: string): number =>
+  race.r.respawnsByCar[id].length - race.falls.filter((f) => f.carId === id && f.kind === 'fosse').length;
+
 /**
- * ≤ 3 réapparitions par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive avant
- * 240 s sans tomber dans la lave (tâche 5b), aucun choc dans une zone fantôme, aucune chute propre
- * d'aucune voiture (tous les drivers ont le doigt posé ; tâche 5c, mesuré 0 sur les graines 0 à 23) ;
- * cohérence des mesures de `simulateRace` (classement, chutes, arrivée).
+ * ≤ 3 réapparitions par voiture hors chutes dans une fosse, au plus 2 chutes par série, aucun garde-fou de vitesse,
+ * personne bloqué > 2 s, Galahad arrive avant 240 s sans tomber dans la lave (tâche 5b ; saut parfait aux fosses), aucun
+ * choc dans une zone fantôme, aucune chute propre d'aucune voiture (tâche 5c, mesuré 0 sur les graines 0 à 23 ; les
+ * chutes des copains dans une fosse sont « fosse », attendues, tâche 6), aucun saut de copain dans la zone d'un
+ * tremplin ; cohérence des mesures de `simulateRace` (classement, chutes, arrivée).
  */
-export function expectRaceInvariants({ r, falls, summary }: FiveCarRace): void {
+export function expectRaceInvariants(race: FiveCarRace): void {
+  const { r, falls, summary } = race;
   expect(Object.keys(r.respawnsByCar), summary).toHaveLength(5);
   expect(r.finishedAt, summary).not.toBeNull();
   expect(r.finishedAt!, summary).toBeLessThan(RACE_MAX_SECONDS);
   expect(r.finishedAtByCar.galahad, summary).toBe(r.finishedAt);
   expect(r.lavaByCar.galahad, summary).toBe(0);
   expect(falls.filter((f) => f.cause === 'propre').map(describeFall), summary).toEqual([]);
-  // Saut parfait de Galahad, saut au centre des copains provisoires (relecture standard M4) : aucune chute « fosse ».
-  expect(falls.filter((f) => f.cause === 'fosse').map(describeFall), summary).toEqual([]);
+  // Saut parfait de Galahad (relecture standard M4 de la 5g) : aucune chute « fosse » de Galahad ; celles des copains
+  // (sauts ratés, tâche 6) sont attendues, mais jamais à un tremplin.
+  expect(falls.filter((f) => f.cause === 'fosse' && f.carId === 'galahad').map(describeFall), summary).toEqual([]);
+  expect(falls.filter((f) => f.cause === 'fosse' && f.kind !== 'fosse').map(describeFall), summary).toEqual([]);
+  expect(race.noJumpZoneJumps, summary).toEqual([]);
   // Fantômes près des volcans : aucune paire active entre deux voitures dont l'une est dans une zone fantôme.
   expect(r.ghostContacts, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {
-    expect(rs.length, `${id} : ${summary}`).toBeLessThanOrEqual(MAX_RESPAWNS_PER_CAR);
+    expect(respawnsHorsFosses(race, id), `${id} : ${summary}`).toBeLessThanOrEqual(MAX_RESPAWNS_PER_CAR);
+    expect(Math.max(0, ...lavaSeries(rs, race.track)), `${id} : ${summary}`).toBeLessThanOrEqual(2);
     expect(rs.filter((e) => e.reason === 'speed'), `${id} : ${summary}`).toEqual([]);
     expect(r.lavaByCar[id], `${id} : ${summary}`).toBe(rs.filter((e) => e.reason === 'lava').length);
     expect(r.maxStuckByCar[id], `${id} : ${summary}`).toBeLessThanOrEqual(MAX_STUCK_SECONDS);
@@ -207,7 +269,7 @@ export function expectRaceInvariants({ r, falls, summary }: FiveCarRace): void {
  */
 export function registerRaceInvariants(seeds: number[]): void {
   const falls: (Fall & { seed: number })[] = [];
-  describe(`course à 5 voitures, doigt posé, saut parfait aux fosses (robots : driver provisoire, sauteurs), graines ${seeds[0]} à ${seeds[seeds.length - 1]}`, () => {
+  describe(`course à 5 voitures, doigt posé, saut parfait aux fosses (copains à leur driver, tâche 6), graines ${seeds[0]} à ${seeds[seeds.length - 1]}`, () => {
     test.each(seeds)('seed %i : ≤ 3 respawns par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive sans tomber', (seed) => {
       const race = fiveCarRace(seed);
       console.log(`course à 5 ${race.summary}`);

@@ -44,8 +44,8 @@ export function fosseJumpLead(v: number, cfg: Config): number {
  * Saut voulu devant une fosse (tâche 5g) : le châssis (x) est sur l'approche de la prochaine fosse, [xLancement,
  * xBord[, et le bord est à au plus `fosseJumpLead(v)` secondes à la vitesse v, mais à plus de JUMP_BUFFER : une demande
  * gardée en mémoire (0,1 s) partirait sinon au-dessus de la lave (tour 1 de la 5g). Vrai à chaque pas de cette fin
- * d'approche : le demandeur redemande tant qu'il ne s'est pas envolé (copains provisoires de la 5g, `sauteurParfait`
- * des tests). Parcourt les volcans sans allouer (appelé à chaque pas par chaque copain).
+ * d'approche : le demandeur redemande tant qu'il ne s'est pas envolé (`sauteurParfait` des tests ; les copains, depuis
+ * la tâche 6, visent ce même centre plus leur erreur, dans `ai/driver.ts`). Parcourt les volcans sans allouer.
  */
 export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config): boolean {
   const f = nextFosse(track, x);
