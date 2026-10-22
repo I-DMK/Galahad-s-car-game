@@ -5,12 +5,13 @@
 // {10, 15, 20}, atterrissage {10, 15, 20, 25}), placement statique recalculé et garde hors ligne de chaque étoile
 // haute placée, à chaque hauteur de 3,60 à 4,05 m (`clearanceProfile`, marge 5 cm). Mesure : seule la fin du
 // balayage est assertée. Sortie : tests/slow/out/calibration-saut-vols-12-23.json.
-import { describeVols, RECORD_CFG, volsForSeeds, writeOut } from '../helpers/calibration-saut';
+import { describeVols, expectNonVacuous, RECORD_CFG, volsForSeeds, writeOut } from '../helpers/calibration-saut';
 import { recordRace } from '../helpers/recorded';
 
 const SEEDS = Array.from({ length: 23 - 12 + 1 }, (_, i) => 12 + i);
 
 test('vols à 5 voitures doigt posé, graines 12 à 23 : garde des étoiles hautes de chaque jeu, à chaque hauteur', () => {
+  expectNonVacuous(SEEDS);
   const rows = volsForSeeds(SEEDS, (seed) => recordRace(seed, { robots: true, cfg: RECORD_CFG }));
   console.log(`vols, graines 12 à 23 :\n${describeVols(rows)}`);
   console.log(rows.map((r) => `g${r.seed} arrivées ${r.finishedAt.map((t) => (t === null ? '—' : t.toFixed(1))).join('/')} s, `

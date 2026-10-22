@@ -6,12 +6,13 @@
 // haute placée, à chaque hauteur de 3,60 à 4,05 m (`clearanceProfile`, marge 5 cm). Mesure : seule la fin du
 // balayage est assertée. Sortie : tests/slow/out/calibration-saut-vols-0-11.json. Ce fichier compte aussi, pour
 // chaque jeu, les étoiles hautes des pistes des graines 0 à 49 (statique) : tests/slow/out/calibration-saut-comptes.json.
-import { describeVols, highXs, JEUX, jeuKey, RECORD_CFG, volsForSeeds, writeOut } from '../helpers/calibration-saut';
+import { describeVols, expectNonVacuous, highXs, JEUX, jeuKey, RECORD_CFG, volsForSeeds, writeOut } from '../helpers/calibration-saut';
 import { recordRace } from '../helpers/recorded';
 
 const SEEDS = Array.from({ length: 11 - 0 + 1 }, (_, i) => 0 + i);
 
 test('vols à 5 voitures doigt posé, graines 0 à 11 : garde des étoiles hautes de chaque jeu, à chaque hauteur', () => {
+  expectNonVacuous(SEEDS);
   const rows = volsForSeeds(SEEDS, (seed) => recordRace(seed, { robots: true, cfg: RECORD_CFG }));
   console.log(`vols, graines 0 à 11 :\n${describeVols(rows)}`);
   console.log(rows.map((r) => `g${r.seed} arrivées ${r.finishedAt.map((t) => (t === null ? '—' : t.toFixed(1))).join('/')} s, `

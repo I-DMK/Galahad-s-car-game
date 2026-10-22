@@ -12,14 +12,15 @@ import { createRaceSim, posesOf, rebuildCars, sceneOf, stepRace, type RaceSim } 
 import { heightAt } from '../src/track/query';
 import { frameTimesMs, recordTrajectory, replayScreenX, shakeEpisodes, VIEW_W, type RenderMode, type ScreenModel } from './helpers/frames';
 import { stepFingerprint } from './helpers/fingerprint';
+import { AP } from './helpers/anciennes-pistes';
 import { trackFor } from './helpers/runs';
 
 const DT = CONFIG.PHYSICS_DT;
 
 describe('Galahad seul, graine 1, 40 s doigt posé : épisodes de tremblement au rejeu', () => {
   const seed = 1;
-  const traj = recordTrajectory(seed, 40, false);
-  const track = trackFor(seed);
+  const traj = recordTrajectory(seed, 40, false, AP);
+  const track = trackFor(seed, AP);
   const screens: ScreenModel[] = [0, 1, 2].flatMap((s) => [
     { hz: 60.05, jitterMs: 0.2, seed: s },
     { hz: 59.94, jitterMs: 0.1, seed: s },
@@ -64,7 +65,7 @@ function frameState(sim: RaceSim): FrameState {
 }
 
 describe('téléportation : Galahad posé à xLava du premier volcan de la graine 1', () => {
-  const track = trackFor(1);
+  const track = trackFor(1, AP);
   const v = track.volcanoes[0];
   const fresh = (): RaceSim => {
     const sim = createRaceSim(track, CONFIG);
@@ -113,7 +114,7 @@ describe('téléportation : Galahad posé à xLava du premier volcan de la grain
 });
 
 test('rebuildCars : la pose dessinée est la cible reconstruite, sans interpolation', () => {
-  const sim = createRaceSim(trackFor(1), CONFIG);
+  const sim = createRaceSim(trackFor(1, AP), CONFIG);
   const s = frameState(sim);
   for (let k = 0; k < 120; k++) runFrame(s, DT, CONFIG, stepOf(sim));
   const xBefore = posesOf(sim)[0].chassis.x;
@@ -128,7 +129,7 @@ test('rebuildCars : la pose dessinée est la cible reconstruite, sans interpolat
 });
 
 test('physique inchangée : 600 pas à 5 voitures (graine 2), avec et sans runFrame, même empreinte à chaque pas', () => {
-  const track = trackFor(2);
+  const track = trackFor(2, AP);
   const direct = createRaceSim(track, CONFIG, { robots: true });
   const expected: string[] = [];
   for (let k = 0; k < 600; k++) {
@@ -156,7 +157,7 @@ test('physique inchangée : 600 pas à 5 voitures (graine 2), avec et sans runFr
 });
 
 test('sceneOf(sim, poses, α) : voitures aux poses données (Galahad dessiné en dernier), t = sim.time − (1 − α)·dt', () => {
-  const sim = createRaceSim(trackFor(2), CONFIG, { robots: true });
+  const sim = createRaceSim(trackFor(2, AP), CONFIG, { robots: true });
   for (let k = 0; k < 90; k++) stepRace(sim, true);
   const poses = posesOf(sim).map((p, i) => ({
     chassis: { x: p.chassis.x - 1 - i, y: p.chassis.y + 0.5, angle: 0.1 * i },

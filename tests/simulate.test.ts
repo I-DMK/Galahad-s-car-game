@@ -12,10 +12,13 @@ import {
   carView, chassisX, createRaceSim, rebuildCars, sceneOf, stepRace, type RaceSim, type SimEvent,
 } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
+import { AP } from './helpers/anciennes-pistes';
 import type { Track } from '../src/track/types';
 import { heightAt, slopeAt } from '../src/track/query';
 
 const TRACK = generateTrack(1, 1680, CONFIG);
+/** Graine 1 sur les pistes d'avant (tâche 5e) : `PLAN_A_TRACE` y reste comparable au plan A. */
+const AP_TRACK = generateTrack(1, 1680, AP);
 const DT = CONFIG.PHYSICS_DT;
 /** Espacement de la grille entre deux centres de châssis (m) : 1,5 × CAR_LENGTH = 3,3. */
 const GRID_GAP = CONFIG.GRID_SPACING_FACTOR * CONFIG.CAR_LENGTH;
@@ -54,7 +57,7 @@ describe('Galahad seul (défaut robots: false, comme au plan A)', () => {
   });
 
   test('non-régression du plan A : graine 1, doigt posé 20 s, progression = trace figée à ±0,01 m chaque seconde', () => {
-    const r = simulateRace(TRACK, { throttle: () => true, maxSeconds: 20, cfg: CONFIG }); // défaut : Galahad seul
+    const r = simulateRace(AP_TRACK, { throttle: () => true, maxSeconds: 20, cfg: AP }); // défaut : Galahad seul, pistes d'avant
     const got = PLAN_A_TRACE.map((_, t) => Number(r.progressAt(t).toFixed(4)));
     PLAN_A_TRACE.forEach((x, t) => {
       expect(Math.abs(r.progressAt(t) - x), `t = ${t} s : ${JSON.stringify(got)}`).toBeLessThanOrEqual(0.01);

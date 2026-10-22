@@ -33,6 +33,7 @@
 // Un candidat s'évalue par `cfg` surchargé (piste regénérée avec lui).
 import Matter from 'matter-js';
 import { CONFIG, type Config } from '../../src/config';
+import { withAnciennesPistes } from './anciennes-pistes';
 import { carAngle, carSpeedMps, wheelsBelowChassis, type CarBody } from '../../src/physics/car';
 import { physToWorld } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
@@ -90,9 +91,10 @@ export const FAMILIES: Family[] = ['échelonné', 'motif', 'turbo', 'turbo dense
 /** Un candidat : configuration (la piste est regénérée avec elle). */
 export interface Variant { id: string; label: string; cfg: Config }
 
-export const REFERENCE: Variant = { id: 'reference', label: 'configuration actuelle (congé au pied de la rampe, R = 10 m)', cfg: CONFIG };
+/** Pistes d'avant (`withAnciennesPistes`, tâche 5e) : les 43 volcans et les 2 924 + 4 601 historiques restent ceux de la 5c. */
+export const REFERENCE: Variant = { id: 'reference', label: 'configuration actuelle (congé au pied de la rampe, R = 10 m)', cfg: withAnciennesPistes(CONFIG) };
 /** Pied de rampe d'avant la tâche 5c (pli 0° → 22°) : le protocole doit y retrouver des chutes propres. */
-export const SHARP_FOOT: Variant = { id: 'pli', label: 'pied de rampe d\'avant la tâche 5c (pli 0° → 22°, RAMP_FOOT_RADIUS 0)', cfg: { ...CONFIG, RAMP_FOOT_RADIUS: 0 } };
+export const SHARP_FOOT: Variant = { id: 'pli', label: 'pied de rampe d\'avant la tâche 5c (pli 0° → 22°, RAMP_FOOT_RADIUS 0)', cfg: { ...withAnciennesPistes(CONFIG), RAMP_FOOT_RADIUS: 0 } };
 export const VARIANTS: Variant[] = [REFERENCE, SHARP_FOOT];
 export const variantById = (id: string): Variant => {
   const v = VARIANTS.find((x) => x.id === id);

@@ -16,6 +16,7 @@
 // lancement, mêmes volcans ; runs arrêtés au sommet : l'issue de ces runs est assertée par
 // tests/volcans.test.ts et tests/slow/volcans-slow.test.ts sur tous les volcans des graines 0 à 9).
 import { CONFIG, type Config } from '../../src/config';
+import { AP } from '../helpers/anciennes-pistes';
 import type { World } from '../../src/physics/world';
 import type { Volcano } from '../../src/track/types';
 import { expectFalls, expectPasses, passesVolcano, scenariosFor, type CaseId } from '../helpers/cases';
@@ -74,7 +75,8 @@ describe(`(a) L_ELAN de ${L_ELAN_FROM} à ${L_ELAN_TO} m au pas de ${L_ELAN_STEP
   const rows: string[] = [];
   test.each(L_ELANS)('L_ELAN = %s m', (lElan) => {
     const isConfig = Math.abs(lElan - CONFIG.L_ELAN) < 1e-9;
-    const cfg: Config = isConfig ? CONFIG : { ...CONFIG, L_ELAN: lElan };
+    // Pistes d'avant (tâche 5e) : les chiffres restent ceux de la tâche 4 et de la 5c.
+    const cfg: Config = isConfig ? AP : { ...AP, L_ELAN: lElan };
     const world = buildWorld(TABLE_SEED, cfg);
     const v = firstVolcano(world);
     const [c1] = scenariosFor(1, world.track, v, cfg);
@@ -95,7 +97,7 @@ describe(`(a) L_ELAN de ${L_ELAN_FROM} à ${L_ELAN_TO} m au pas de ${L_ELAN_STEP
 describe(`(b) à CONFIG.L_ELAN (${CONFIG.L_ELAN} m) : lancée à V_MAX, doigt levé pendant T s à partir de xElanStart − ${RELEASE_BEFORE_ELAN}, puis gaz`, () => {
   const rows: string[] = [];
   test.each(RELEASE_SECONDS)('T = %s s', (T) => {
-    const world = worldFor(TABLE_SEED);
+    const world = worldFor(TABLE_SEED, AP);
     const v = firstVolcano(world);
     const xRelease = v.xElanStart - RELEASE_BEFORE_ELAN;
     let releasedAt: number | null = null;
@@ -113,7 +115,7 @@ describe(`(b) à CONFIG.L_ELAN (${CONFIG.L_ELAN} m) : lancée à V_MAX, doigt le
 describe(`(c) à CONFIG.L_ELAN (${CONFIG.L_ELAN} m) : arrêt complet à xElanStart − k, doigt posé`, () => {
   const rows: string[] = [];
   test.each(STOP_BEFORE_ELAN)('k = %i m', (k) => {
-    const world = worldFor(TABLE_SEED);
+    const world = worldFor(TABLE_SEED, AP);
     const v = firstVolcano(world);
     const r = runFrom(world, v.xElanStart - k, { throttle: () => true, maxSeconds: RUN_SECONDS, volcano: v });
     rows.push(`k ${String(k).padStart(2)} m | ${cell(r, v)}`);
@@ -130,7 +132,7 @@ describe('bissection du seuil de franchissement au sommet (LIP_SPEED_THRESHOLD)'
     const case2: number[] = [];
     const lines: string[] = [];
     for (const seed of SEEDS) {
-      const world = worldFor(seed);
+      const world = worldFor(seed, AP);
       for (const v of world.track.volcanoes) {
         for (const c of [2, '2-lancement'] as CaseId[]) {
           for (const sc of scenariosFor(c, world.track, v)) case2.push(runFrom(world, sc.x0, { ...sc.opts, stopAtLip: true }).lipSpeed ?? NaN);

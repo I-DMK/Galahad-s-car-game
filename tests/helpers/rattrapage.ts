@@ -12,6 +12,12 @@
 // de l'étape au commit courant, comparées à l'étape de référence (RATTRAPAGE_REF, défaut « avant ») au
 // commit de sa dernière ligne ; la dernière ligne d'une course (graine, motif) fait foi. Mesure seule :
 // pas d'assertion chiffrée (ruling Q9).
+//
+// Pistes (tâche 5e, Step 10) : RATTRAPAGE_PISTES=anciennes mesure sur les pistes d'avant (`withAnciennesPistes`) :
+// contrôle de non-régression, identique à la mesure de la 5d course par course ; sinon (défaut) sur CONFIG : effet
+// des plats étoile (et des fosses en 5g), nouvelle référence, non appariée.
+import { CONFIG } from '../../src/config';
+import { AP } from './anciennes-pistes';
 import { fiveCarRace } from './race';
 import { f1, liftedPattern } from './runs';
 
@@ -44,6 +50,8 @@ export const OUT_DIR = 'tests/slow/out';
 export const ETAPE = nodeProcess.env.RATTRAPAGE_ETAPE ?? 'courant';
 export const REF = nodeProcess.env.RATTRAPAGE_REF ?? 'avant';
 export const outFile = (etape: string): string => `${OUT_DIR}/rattrapage-${etape}.jsonl`;
+/** Pistes mesurées : celles d'avant (`anciennes`) ou celles de CONFIG (défaut). */
+export const PISTES: 'anciennes' | 'config' = nodeProcess.env.RATTRAPAGE_PISTES === 'anciennes' ? 'anciennes' : 'config';
 
 /**
  * Commit mesuré : RATTRAPAGE_COMMIT, sinon HEAD (court) ; si l'arbre a des modifications suivies, HEAD suivi de
@@ -99,7 +107,8 @@ export interface RattrapageRow {
 
 /** Course (graine, motif) à 5 voitures, mesurée et ajoutée au fichier de l'étape. */
 export function runRattrapage(seed: number, motif: Motif): RattrapageRow {
-  const race = fiveCarRace(seed, motif === 'levé' ? { throttle: liftedPattern(seed, LIFTED_P) } : {});
+  const cfg = PISTES === 'anciennes' ? AP : CONFIG;
+  const race = fiveCarRace(seed, motif === 'levé' ? { throttle: liftedPattern(seed, LIFTED_P), cfg } : { cfg });
   const { r } = race;
   const ids = Object.keys(r.respawnsByCar);
   const row: RattrapageRow = {

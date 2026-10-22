@@ -52,13 +52,17 @@ export const BOTH_WHEELS_WINDOW = 6;
 /** Après l'atterrissage sur la réception, la voiture est encore suivie 1 s (retournement tardif). */
 const AFTER_LANDING_SECONDS = 1;
 
-const tracks = new Map<number, Track>();
-/** Piste de longueur par défaut (1 680 m) de la graine, avec CONFIG, mise en cache. */
-export function trackFor(seed: number): Track {
-  let t = tracks.get(seed);
+const tracks = new Map<string, Track>();
+/**
+ * Piste de longueur par défaut (1 680 m) de la graine, générée avec `cfg` (CONFIG par défaut ; pistes d'avant :
+ * `withAnciennesPistes`, tests/helpers/anciennes-pistes.ts), mise en cache par graine et par configuration.
+ */
+export function trackFor(seed: number, cfg: Config = CONFIG): Track {
+  const key = `${seed}:${JSON.stringify(cfg)}`;
+  let t = tracks.get(key);
   if (!t) {
-    t = generateTrack(seed, TRACK_LENGTH, CONFIG);
-    tracks.set(seed, t);
+    t = generateTrack(seed, TRACK_LENGTH, cfg);
+    tracks.set(key, t);
   }
   return t;
 }
@@ -72,13 +76,14 @@ export function firstVolcano(): { track: Track; v: Volcano } {
   throw new Error('aucune piste avec volcan');
 }
 
-const worlds = new Map<number, World>();
-/** Un monde (CONFIG) par graine, partagé par les scénarios de la graine. */
-export function worldFor(seed: number): World {
-  let world = worlds.get(seed);
+const worlds = new Map<string, World>();
+/** Un monde par graine et par configuration (piste `trackFor(seed, cfg)`), partagé par les scénarios de la graine. */
+export function worldFor(seed: number, cfg: Config = CONFIG): World {
+  const key = `${seed}:${JSON.stringify(cfg)}`;
+  let world = worlds.get(key);
   if (!world) {
-    world = createWorld(trackFor(seed), CONFIG);
-    worlds.set(seed, world);
+    world = createWorld(trackFor(seed, cfg), cfg);
+    worlds.set(key, world);
   }
   return world;
 }

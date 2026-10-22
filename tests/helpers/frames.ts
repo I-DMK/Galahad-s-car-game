@@ -45,7 +45,7 @@ export interface Trajectory { poses: CarPose[][]; teleported: ReadonlySet<number
 
 /** Course doigt posé de `seconds` sur la piste de 1 680 m de `seed` (`stepOutcome` après chaque `stepRace`, comme `Game`). */
 export function recordTrajectory(seed: number, seconds: number, robots: boolean, cfg: Config = CONFIG): Trajectory {
-  const sim = createRaceSim(trackFor(seed), cfg, { robots });
+  const sim = createRaceSim(trackFor(seed, cfg), cfg, { robots });
   const poses: CarPose[][] = [posesOf(sim)];
   const teleported: ReadonlySet<number>[] = [new Set()];
   for (let i = 0; i < Math.round(seconds / cfg.PHYSICS_DT); i++) {

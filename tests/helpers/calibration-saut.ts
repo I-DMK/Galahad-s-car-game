@@ -1,7 +1,9 @@
 // Calibration des étoiles hautes (plan B, tâche 5e, Step 8) : jeux candidats (dégagements, élan, atterrissage),
 // hauteurs candidates, placement statique recalculé pour chaque jeu, garde hors ligne sur des courses
 // enregistrées une fois (`recordRace`, sans étoile haute : STAR_HIGH_PER_RACE 0), sorties JSON pour le Step 9.
+// Tâche 5e, Step 10 : tout se joue sur les pistes d'avant (`withAnciennesPistes`), celles de la calibration (4a414c6).
 import { CONFIG, type Config } from '../../src/config';
+import { withAnciennesPistes } from './anciennes-pistes';
 import { generateTrack } from '../../src/track/generate';
 import { heightAt } from '../../src/track/query';
 import { highStarCandidates } from '../../src/track/stars';
@@ -19,23 +21,20 @@ export const LANDINGS = [10, 15, 20, 25];
 /** 144 jeux : dégagement après rampe-saut × après bosses × élan × atterrissage. */
 export const JEUX: Jeu[] = RAMPS.flatMap((ramp) => BUMPS.flatMap((bump) => TAKEOFFS.flatMap((takeoff) =>
   LANDINGS.map((landing) => ({ ramp, bump, takeoff, landing })))));
-/** Jeu de départ du plan (valeurs provisoires de config.ts). */
-export const DEFAULT_JEU: Jeu = {
-  ramp: CONFIG.STAR_HIGH_RAMP_CLEARANCE, bump: CONFIG.STAR_HIGH_BUMP_CLEARANCE,
-  takeoff: CONFIG.STAR_HIGH_TAKEOFF_ROOM, landing: CONFIG.STAR_HIGH_LANDING_ROOM,
-};
+/** Jeu de départ du plan (valeurs provisoires de 4a414c6), figé : les tableaux de la calibration restent comparables. */
+export const DEFAULT_JEU: Jeu = { ramp: 70, bump: 12, takeoff: 15, landing: 15 };
 export const jeuKey = (j: Jeu): string => `${j.ramp}/${j.bump}/${j.takeoff}/${j.landing}`;
 
-/** Configuration d'un jeu (hauteur `y` en option). */
+/** Configuration d'un jeu (hauteur `y` en option), sur les pistes d'avant, avec au plus 3 étoiles hautes. */
 export function cfgFor(j: Jeu, y: number = CONFIG.STAR_HIGH_Y): Config {
   return {
-    ...CONFIG, STAR_HIGH_RAMP_CLEARANCE: j.ramp, STAR_HIGH_BUMP_CLEARANCE: j.bump,
+    ...withAnciennesPistes(CONFIG), STAR_HIGH_PER_RACE: 3, STAR_HIGH_RAMP_CLEARANCE: j.ramp, STAR_HIGH_BUMP_CLEARANCE: j.bump,
     STAR_HIGH_TAKEOFF_ROOM: j.takeoff, STAR_HIGH_LANDING_ROOM: j.landing, STAR_HIGH_Y: y,
   };
 }
 
-/** Configuration des courses enregistrées : sans étoile haute (étoiles basses identiques, voir tests/high-stars.test.ts). */
-export const RECORD_CFG: Config = { ...CONFIG, STAR_HIGH_PER_RACE: 0 };
+/** Configuration des courses enregistrées : pistes d'avant, sans étoile haute (étoiles basses identiques, voir tests/high-stars.test.ts). */
+export const RECORD_CFG: Config = withAnciennesPistes(CONFIG);
 
 /** x des étoiles hautes placées par le jeu (tirage compris, STAR_HIGH_PER_RACE de CONFIG) sur la piste de la graine. */
 export function highXs(seed: number, j: Jeu): number[] {
@@ -45,6 +44,18 @@ export function highXs(seed: number, j: Jeu): number[] {
 /** Candidates (avant tirage) du jeu sur `track` (étoiles basses de la piste). */
 export function candidatesOf(track: Track, j: Jeu): number[] {
   return highStarCandidates(track, track.stars.filter((s) => !s.high).map((s) => s.x), cfgFor(j));
+}
+
+/**
+ * Non-vacuité (tâche 5e, Step 10) : chaque jeu a au moins une candidate sur les graines `seeds` ; sinon les tableaux
+ * de la calibration se videraient sans faire échouer le test (par exemple si les pistes d'avant changeaient).
+ */
+export function expectNonVacuous(seeds: readonly number[]): void {
+  const tracks = seeds.map((seed) => generateTrack(seed, RECORD_TRACK_LENGTH, RECORD_CFG));
+  for (const j of JEUX) {
+    const n = tracks.reduce((a, t) => a + candidatesOf(t, j).length, 0);
+    expect(n, `jeu ${jeuKey(j)} : aucune candidate sur les graines ${seeds[0]} à ${seeds[seeds.length - 1]}`).toBeGreaterThan(0);
+  }
 }
 
 /** Union (dédoublonnée au µm) des candidates de tous les jeux, triée. */

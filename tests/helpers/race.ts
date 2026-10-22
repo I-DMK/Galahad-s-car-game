@@ -5,7 +5,7 @@
 // correction 1 : CI graines 1 et 2, lent graines 0 à 9) ; la tâche 5c a élargi la suite lente aux
 // graines 0 à 23 (quatre fichiers parallèles), classé la cause de chaque chute dans la lave et ajouté
 // « aucune chute propre, toutes voitures ».
-import { CONFIG } from '../../src/config';
+import { CONFIG, type Config } from '../../src/config';
 import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/harness';
 import { nearestVolcanoZone, volcanoAhead } from '../../src/track/query';
 import { describeRespawns, f1, f2, trackFor } from './runs';
@@ -58,12 +58,15 @@ export interface FiveCarRace {
   seconds: number;
 }
 
-/** Course à 5 : durée maximale (défaut RACE_MAX_SECONDS ; réduite pour le test de l'observateur) et doigt de Galahad (défaut : toujours posé). */
-export interface FiveCarOptions { maxSeconds?: number; throttle?: (t: number) => boolean }
+/**
+ * Course à 5 : durée maximale (défaut RACE_MAX_SECONDS ; réduite pour le test de l'observateur), doigt de Galahad
+ * (défaut : toujours posé) et configuration, pistes comprises (défaut CONFIG ; pistes d'avant : `withAnciennesPistes`).
+ */
+export interface FiveCarOptions { maxSeconds?: number; throttle?: (t: number) => boolean; cfg?: Config }
 
 /** Options de `simulateRace` de la course à 5 (hors observateur). */
-export const fiveCarOptions = ({ maxSeconds = RACE_MAX_SECONDS, throttle = () => true }: FiveCarOptions = {}) => (
-  { throttle, maxSeconds, cfg: CONFIG, robots: true }
+export const fiveCarOptions = ({ maxSeconds = RACE_MAX_SECONDS, throttle = () => true, cfg = CONFIG }: FiveCarOptions = {}) => (
+  { throttle, maxSeconds, cfg, robots: true }
 );
 
 /**
@@ -73,7 +76,7 @@ export const fiveCarOptions = ({ maxSeconds = RACE_MAX_SECONDS, throttle = () =>
  * d'avant la 5d : la mesure « avant » du rattrapage reste rejouable et comparable.
  */
 export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRace {
-  const track = trackFor(seed);
+  const track = trackFor(seed, opts.cfg ?? CONFIG);
   const t0 = performance.now();
   const lastContact = new Map<string, { t: number; with: string }>();
   const falls: Fall[] = [];

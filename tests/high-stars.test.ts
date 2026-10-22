@@ -5,6 +5,7 @@
 // (Step 9, validée par le papa).
 import { CONFIG, type Config } from '../src/config';
 import { simulateRace } from '../src/sim/harness';
+import { AP } from './helpers/anciennes-pistes';
 import type { SimEvent } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import { heightAt, sliceAt } from '../src/track/query';
@@ -15,13 +16,19 @@ import type { Slice, SliceType, Star, Track } from '../src/track/types';
 const LEN = 1680;
 const SEEDS = Array.from({ length: 50 }, (_, i) => i);
 const tracks = SEEDS.map((seed) => generateTrack(seed, LEN, CONFIG));
+/** Mêmes pistes que CONFIG, sans étoiles hautes : les étoiles basses doivent y être les mêmes (décision P1). */
 const OFF: Config = { ...CONFIG, STAR_HIGH_PER_RACE: 0 };
 const tracksOff = SEEDS.map((seed) => generateTrack(seed, LEN, OFF));
+/** Pistes d'avant (tâche 5e, Step 10) : celles de e02dcae sans étoiles hautes, figées par `PRE_5E_STARS`. */
+const tracksPre = SEEDS.map((seed) => generateTrack(seed, LEN, AP));
 
 const high = (stars: Star[]): Star[] => stars.filter((s) => s.high);
 const low = (stars: Star[]): Star[] => stars.filter((s) => !s.high);
 
-/** sha1 des Float64 (id, x, y) des étoiles des graines 0 à 49, code d'avant la tâche 5e (HEAD ab5aa5d, avant le Step 7). */
+/**
+ * sha1 des Float64 (id, x, y) des étoiles des graines 0 à 49, code d'avant la tâche 5e (HEAD ab5aa5d, avant le Step 7),
+ * redonné par les pistes d'avant (`withAnciennesPistes`, Step 10).
+ */
 const PRE_5E_STARS = { count: 451, sha1: 'ad06a1aa695ab09290913d715c871d1e25288091' };
 
 interface Hash { update(data: Uint8Array): Hash; digest(encoding: 'hex'): string }
@@ -120,10 +127,10 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
 });
 
 describe('étoiles basses inchangées (décision P1 : les étoiles hautes s’ajoutent)', () => {
-  test('STAR_HIGH_PER_RACE 0 : étoiles égales au code d’avant la tâche 5e (id, x, y au bit près), toutes high: false', () => {
+  test('pistes d’avant (ANCIENNES_PISTES) : étoiles égales au code d’avant la tâche 5e (id, x, y au bit près), toutes high: false', () => {
     const h = sha1();
     let count = 0;
-    for (const t of tracksOff) {
+    for (const t of tracksPre) {
       expect(t.stars.every((s) => s.high === false), `graine ${t.seed}`).toBe(true);
       count += t.stars.length;
       h.update(new Uint8Array(Float64Array.from(t.stars.flatMap((s) => [s.id, s.x, s.y])).buffer));

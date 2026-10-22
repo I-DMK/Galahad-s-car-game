@@ -15,6 +15,7 @@
 // épisode), sans réapparition à moins de 1 s.
 import { CONFIG } from '../../src/config';
 import { classifyEpisodes, recordTrajectory, replayScreenX, shakeEpisodes, type RenderMode, type ScreenModel } from '../helpers/frames';
+import { AP } from '../helpers/anciennes-pistes';
 import { trackFor } from '../helpers/runs';
 
 const SEEDS = Array.from({ length: 12 }, (_, i) => i);
@@ -37,8 +38,8 @@ interface Row extends Record<RenderMode, number> {
 const rows: Row[][] = SCREENS.map(() => []);
 
 test.each(SEEDS)('graine %i : 0 épisode interpolé dû à la cadence, sur chaque écran', (seed) => {
-  const traj = recordTrajectory(seed, SECONDS, true);
-  const track = trackFor(seed);
+  const traj = recordTrajectory(seed, SECONDS, true, AP);
+  const track = trackFor(seed, AP);
   const dtMs = CONFIG.PHYSICS_DT * 1000;
   const respawnMs = traj.teleported.flatMap((set, k) => (set.size > 0 ? [k * dtMs] : []));
   SCREENS.forEach((screen, si) => {

@@ -6,13 +6,14 @@
 // Mesure : seule la fin du balayage est assertée. Sortie : tests/slow/out/calibration-saut-sol.json.
 import { generateTrack } from '../../src/track/generate';
 import {
-  candidateUnion, candidatesOf, clearanceProfile, DEFAULT_JEU, f3, HEIGHTS, isTaken, RECORD_CFG, writeOut,
+  candidateUnion, candidatesOf, clearanceProfile, DEFAULT_JEU, expectNonVacuous, f3, HEIGHTS, isTaken, RECORD_CFG, writeOut,
 } from '../helpers/calibration-saut';
 import { recordRace, RECORD_TRACK_LENGTH } from '../helpers/recorded';
 
 const SEEDS = Array.from({ length: 10 }, (_, i) => i);
 
 test('garde au sol des étoiles hautes candidates, Galahad seul doigt posé, à V_MAX et en turbo forcé (graines 0 à 9)', () => {
+  expectNonVacuous(SEEDS);
   const rows: { seed: number; x: number; inDefault: boolean; vmax: number[]; turbo: number[] }[] = [];
   for (const seed of SEEDS) {
     const track = generateTrack(seed, RECORD_TRACK_LENGTH, RECORD_CFG);
