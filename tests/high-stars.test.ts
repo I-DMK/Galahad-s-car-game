@@ -85,7 +85,7 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
     }
   });
 
-  test('plafond 5 (fixture) : les 3 des plats étoile toujours présentes, les autres à ≥ 45 m d’elles, sur des plats ordinaires', () => {
+  test('plafond 5 (fixture) : les 3 des plats étoile toujours présentes, les autres à ≥ 45 m de toute étoile haute, sur des plats ordinaires', () => {
     let extra = 0;
     tracks5.forEach((t, k) => {
       const flatsX = high(tracks[k].stars).map((s) => s.x);
@@ -94,7 +94,8 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
       for (const x of flatsX) expect(hs, `graine ${t.seed}`).toContain(x);
       for (const s of ordinary(t)) {
         extra++;
-        for (const x of flatsX) {
+        // À élan + atterrissage (45 m) au moins de toute autre étoile haute, de plat étoile ou de plat ordinaire.
+        for (const x of hs.filter((h) => h !== s.x)) {
           expect(Math.abs(s.x - x), `graine ${t.seed}, étoile x = ${s.x.toFixed(1)}`)
             .toBeGreaterThanOrEqual(CONFIG.STAR_HIGH_TAKEOFF_ROOM + CONFIG.STAR_HIGH_LANDING_ROOM - 1e-9);
         }
@@ -106,7 +107,7 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
     expect(extra).toBeGreaterThan(10);
   });
 
-  test('plats ordinaires (plafond 5) : chaque étoile haute est sur une tranche plat éligible (ni départ ni arrivée), hors dégagements, à STAR_HIGH_GAP au moins de toute étoile basse', () => {
+  test('plats ordinaires (plafond 5) : chaque étoile haute est sur une tranche plat éligible (ni départ, ni arrivée, ni juste après un volcan), hors dégagements, à STAR_HIGH_GAP au moins de toute étoile basse', () => {
     let seen = 0;
     for (const t of tracks5) {
       const cl = clearances(t);
@@ -119,6 +120,8 @@ describe('étoiles hautes, graines 0 à 49 (1 680 m)', () => {
         const where = `graine ${t.seed}, étoile haute x = ${s.x.toFixed(2)} (${sl.type} [${sl.xStart.toFixed(1)}, ${sl.xEnd.toFixed(1)}])`;
         expect(sl.type, where).toBe('plat');
         expect(i, where).toBeGreaterThan(0);
+        // Décision du papa (relectures de la 5e) : pas sur un plat juste après un volcan, comme les plats étoile.
+        expect(t.slices[i - 1].type, where).not.toBe('rampe-volcan');
         expect(sl.xEnd, where).toBeLessThan(t.xFinish - 1e-9);
         for (const c of cl) expect(inOpen(s.x, c), `${where} dans le dégagement [${c[0].toFixed(1)}, ${c[1].toFixed(1)}]`).toBe(false);
         for (const b of lows) expect(Math.abs(s.x - b.x), `${where}, étoile basse ${b.x.toFixed(2)}`).toBeGreaterThanOrEqual(CONFIG.STAR_HIGH_GAP - 1e-9);
@@ -198,8 +201,39 @@ describe('étoiles basses inchangées (décision P1 : les étoiles hautes s’aj
   });
 });
 
+describe('pistes courtes (graines 0 à 199) : étoiles hautes de repli sur les plats ordinaires', () => {
+  const SHORT = [300, 600, 1000] as const;
+  const short = SHORT.map((len) => ({ len, ts: Array.from({ length: 200 }, (_, seed) => generateTrack(seed, len, CONFIG)) }));
+
+  test('jamais sur un plat juste après un volcan, à 45 m au moins les unes des autres ; nombres imprimés', () => {
+    const away = CONFIG.STAR_HIGH_TAKEOFF_ROOM + CONFIG.STAR_HIGH_LANDING_ROOM;
+    const lines: string[] = [];
+    for (const { len, ts } of short) {
+      const flatsN: number[] = [];
+      const highN: number[] = [];
+      for (const t of ts) {
+        const hs = high(t.stars);
+        flatsN.push(starFlats(t).length);
+        highN.push(hs.length);
+        expect(hs.length, `graine ${t.seed}, ${len} m`).toBeLessThanOrEqual(CONFIG.STAR_HIGH_PER_RACE);
+        for (const s of ordinary(t)) {
+          const sl = t.slices.find((x) => x.type === 'plat' && s.x >= x.xStart - 1e-9 && s.x <= x.xEnd + 1e-9)!;
+          const i = t.slices.indexOf(sl);
+          expect(t.slices[i - 1].type, `graine ${t.seed}, ${len} m, étoile haute x = ${s.x.toFixed(1)}`).not.toBe('rampe-volcan');
+        }
+        hs.forEach((s, k) => {
+          if (k > 0) expect(s.x - hs[k - 1].x, `graine ${t.seed}, ${len} m`).toBeGreaterThanOrEqual(away - 1e-9);
+        });
+      }
+      const range = (xs: number[]) => `${Math.min(...xs)} à ${Math.max(...xs)} (moyenne ${(xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(2)})`;
+      lines.push(`${len} m : plats étoile ${range(flatsN)}, étoiles hautes ${range(highN)}`);
+    }
+    console.log(`pistes courtes, graines 0 à 199 : ${lines.join(' ; ')}`);
+  });
+});
+
 describe('choix et fusion', () => {
-  test('sans plat étoile, plus de candidates que STAR_HIGH_PER_RACE : tirage sans remise par le rng de piste, dans l’ordre de la piste', () => {
+  test('sans plat étoile, plus de candidates que STAR_HIGH_PER_RACE : tirage sans remise par le rng de piste, candidates à 45 m au moins entre elles, dans l’ordre de la piste', () => {
     let drawn = 0;
     for (const t of SEEDS.map((seed) => generateTrack(seed, LEN, { ...CONFIG, STAR_FLATS_PER_RACE: 0 }))) {
       const lowXs = low(t.stars).map((s) => s.x);
@@ -208,8 +242,10 @@ describe('choix et fusion', () => {
         const cfg = { ...CONFIG, STAR_HIGH_PER_RACE: n };
         const a = chooseHighStars(t, lowXs, mulberry32(t.seed), cfg);
         expect(a).toEqual(chooseHighStars(t, lowXs, mulberry32(t.seed), cfg));
-        expect(a.length).toBe(Math.min(n, cands.length));
+        expect(a.length).toBeLessThanOrEqual(Math.min(n, cands.length));
+        if (cands.length > 0) expect(a.length).toBeGreaterThan(0);
         for (const x of a) expect(cands).toContain(x);
+        for (const x of a) for (const y of a.filter((z) => z !== x)) expect(Math.abs(x - y)).toBeGreaterThanOrEqual(CONFIG.STAR_HIGH_TAKEOFF_ROOM + CONFIG.STAR_HIGH_LANDING_ROOM - 1e-9);
         expect(new Set(a).size).toBe(a.length);
         expect([...a].sort((p, q) => p - q)).toEqual(a);
         if (cands.length > n) drawn++;

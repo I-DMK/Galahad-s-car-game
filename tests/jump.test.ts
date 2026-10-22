@@ -365,14 +365,4 @@ describe('après l’arrivée, bouton prêt, déterminisme', () => {
     }
     expect(jumps).toBeGreaterThanOrEqual(2);
   });
-
-  test('sans demande : stepRace(sim, gaz) ≡ stepRace(sim, gaz, false)', () => {
-    const a = createRaceSim(RAMP.track, CONFIG);
-    const b = createRaceSim(RAMP.track, CONFIG);
-    for (let i = 0; i < 600; i++) {
-      stepRace(a, true);
-      stepRace(b, true, false);
-      expect(stepFingerprint(a), `pas ${i}`).toBe(stepFingerprint(b));
-    }
-  });
 });

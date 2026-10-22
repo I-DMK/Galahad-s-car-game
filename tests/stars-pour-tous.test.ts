@@ -19,8 +19,9 @@ const DT = CONFIG.PHYSICS_DT;
 const CARS = [0, 1, 2, 3, 4];
 const STARS = [{ id: 4, x: 100, y: 1, high: false }, { id: 9, x: 200, y: 2, high: false }];
 /**
- * Graine 1, 1 680 m : sa première étoile basse (x ≈ 443 m) est sur un plat, hors zone fantôme. Repérée par `high`
- * (tâche 5e : une étoile haute peut la précéder) ; STAR_INDEX est son rang dans `track.stars`, `sim.stars` et la scène.
+ * Graine 1, 1 680 m : sa première étoile basse (x ≈ 504,9 m depuis les plats étoile de la 5e) est sur un plat, hors
+ * zone fantôme. Repérée par `high` (une étoile haute la précède : celle du 1er plat étoile, en 340 m) ; STAR_INDEX est
+ * son rang dans `track.stars`, `sim.stars` et la scène.
  */
 const TRACK = trackFor(1);
 const STAR_INDEX = TRACK.stars.findIndex((s) => !s.high);

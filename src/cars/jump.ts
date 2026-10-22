@@ -5,9 +5,10 @@ import type { Config } from '../config';
 const EPS = 1e-9;
 
 /**
- * Une voiture peut-elle sauter à l'instant t ? Tolérance de sol (décision P11) : une roue a eu le contact de jeu
- * (débouncé) au plus JUMP_GROUND_GRACE avant t (`lastGroundedAt`, null : jamais depuis la création ou la dernière
- * téléportation) ; course pas finie pour elle ; JUMP_COOLDOWN écoulé depuis son dernier saut (à EPS près).
+ * Une voiture peut-elle sauter à l'instant t ? Tolérance de sol (décision P11) : une roue a touché la piste (sol, mur,
+ * écart roue-sol, débouncé ; jamais une autre voiture) au plus JUMP_GROUND_GRACE avant t (`lastGroundedAt`, null :
+ * jamais depuis la création ou la dernière téléportation) ; course pas finie pour elle ; JUMP_COOLDOWN écoulé depuis
+ * son dernier saut (à EPS près).
  */
 export function canJump(
   o: { lastJumpAt: number | null; lastGroundedAt: number | null; finished: boolean; t: number }, cfg: Config,

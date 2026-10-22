@@ -67,7 +67,8 @@ export class Game {
     this.loop.history.reset(posesOf(this.sim));
     this.throttle = new Throttle(window);
     this.jumpButton = new JumpButton(hudRoot, this.cfg);
-    this.jumpInput = new JumpInput(window, this.jumpButton.el);
+    // Espace n'est pris que pendant la course (ni sur ENCORE, ni après une erreur).
+    this.jumpInput = new JumpInput(window, this.jumpButton.el, () => this._state === 'racing');
     if (opts.debug) (window as unknown as { __game: Game }).__game = this;
   }
 
@@ -108,6 +109,8 @@ export class Game {
   private readonly onResize = (): void => this.renderer.resize();
 
   private readonly onVisibility = (): void => {
+    // Un appui d'avant le changement d'onglet ne part jamais au retour.
+    this.jumpInput.clear();
     if (document.visibilityState !== 'visible') return;
     // `last` suffit : l'image suivante n'avance que du temps écoulé depuis le retour (le reste de
     // l'accumulateur est gardé, sinon la voiture dessinée reculerait d'une fraction de pas).
@@ -144,16 +147,18 @@ export class Game {
   };
 
   /**
-   * Pas `i` de l'image pour `runFrame` : la demande de saut est prise au premier pas (`i === 0`) ; une image
-   * sans pas la laisse en attente. Événements recueillis dans `events`, sauts et arrivée de Galahad ; poses
-   * après le pas et voitures réapparues (téléportées : pas d'interpolation depuis l'ancienne position).
-   * Sur exception : `rebuildCars` (historique remis à zéro), ou abandon au MAX_ERRORS-ième échec.
+   * Pas `i` de l'image pour `runFrame` : la demande de saut est donnée au premier pas (`i === 0`) et consommée
+   * seulement s'il réussit ; une image sans pas, ou un pas qui lève, la laisse en attente. Événements recueillis
+   * dans `events`, sauts et arrivée de Galahad ; poses après le pas et voitures réapparues (téléportées : pas
+   * d'interpolation depuis l'ancienne position). Sur exception : `rebuildCars` (historique remis à zéro), ou
+   * abandon au MAX_ERRORS-ième échec.
    */
   private step(i: number, pressed: boolean, events: SimEvent[]): StepOutcome {
     const { sim } = this;
     try {
-      const jump = i === 0 && this.jumpInput.take();
+      const jump = i === 0 && this.jumpInput.pending;
       stepRace(sim, pressed, jump);
+      if (jump) this.jumpInput.clear();
       events.push(...sim.events);
       const galahad = sim.cars[GALAHAD_INDEX].state;
       for (const e of sim.events) if (e.type === 'jump' && e.carId === galahad.id) this.jumpCount++;
@@ -189,7 +194,8 @@ export class Game {
     for (const e of events) {
       if (e.type === 'respawn' && shown(e.carId, e.target.x)) this.effects.spawnSparks(e.target.x, e.target.y + 0.5);
       else if (e.type === 'landing' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, heightAt(sim.track, e.x), e.strength);
-      else if (e.type === 'jump' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, heightAt(sim.track, e.x), JUMP_DUST_STRENGTH);
+      // Poussière du saut au sol si la voiture le touchait, sinon à la hauteur du châssis (`y` de l'événement).
+      else if (e.type === 'jump' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, e.y, JUMP_DUST_STRENGTH);
     }
     this.effects.update(elapsed, sim.track, this.camera.x, half);
     this.renderer.draw(scene, this.camera, this.effects);

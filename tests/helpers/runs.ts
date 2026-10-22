@@ -52,17 +52,24 @@ export const BOTH_WHEELS_WINDOW = 6;
 /** Après l'atterrissage sur la réception, la voiture est encore suivie 1 s (retournement tardif). */
 const AFTER_LANDING_SECONDS = 1;
 
-const tracks = new Map<string, Track>();
+/** Cache par graine d'une configuration (objet `Config`, clé de `WeakMap` : deux objets égaux ne partagent rien). */
+function perSeed<T>(cache: WeakMap<Config, Map<number, T>>, cfg: Config): Map<number, T> {
+  let m = cache.get(cfg);
+  if (!m) { m = new Map(); cache.set(cfg, m); }
+  return m;
+}
+
+const tracks = new WeakMap<Config, Map<number, Track>>();
 /**
  * Piste de longueur par défaut (1 680 m) de la graine, générée avec `cfg` (CONFIG par défaut ; pistes d'avant :
- * `withAnciennesPistes`, tests/helpers/anciennes-pistes.ts), mise en cache par graine et par configuration.
+ * `withAnciennesPistes`, tests/helpers/anciennes-pistes.ts), mise en cache par graine et par objet de configuration.
  */
 export function trackFor(seed: number, cfg: Config = CONFIG): Track {
-  const key = `${seed}:${JSON.stringify(cfg)}`;
-  let t = tracks.get(key);
+  const m = perSeed(tracks, cfg);
+  let t = m.get(seed);
   if (!t) {
     t = generateTrack(seed, TRACK_LENGTH, cfg);
-    tracks.set(key, t);
+    m.set(seed, t);
   }
   return t;
 }
@@ -76,14 +83,14 @@ export function firstVolcano(): { track: Track; v: Volcano } {
   throw new Error('aucune piste avec volcan');
 }
 
-const worlds = new Map<string, World>();
-/** Un monde par graine et par configuration (piste `trackFor(seed, cfg)`), partagé par les scénarios de la graine. */
+const worlds = new WeakMap<Config, Map<number, World>>();
+/** Un monde par graine et par objet de configuration (piste `trackFor(seed, cfg)`), partagé par les scénarios de la graine. */
 export function worldFor(seed: number, cfg: Config = CONFIG): World {
-  const key = `${seed}:${JSON.stringify(cfg)}`;
-  let world = worlds.get(key);
+  const m = perSeed(worlds, cfg);
+  let world = m.get(seed);
   if (!world) {
     world = createWorld(trackFor(seed, cfg), cfg);
-    worlds.set(key, world);
+    m.set(seed, world);
   }
   return world;
 }
@@ -131,7 +138,7 @@ export interface StepState {
 }
 
 /** Contact au sol débouncé d'une voiture (comme dans le pas de course), à créer par run. */
-export const newContact = (): GroundContact => ({ groundedUntil: [-1, -1] });
+export const newContact = (): GroundContact => ({ groundedUntil: [-1, -1], trackUntil: [-1, -1] });
 
 /**
  * Un pas de conduite : applyDrive(throttle, factor) → contact débouncé (t en s, comme stepRace) →

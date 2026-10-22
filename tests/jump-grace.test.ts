@@ -62,6 +62,8 @@ describe('tolérance de sol (P11)', () => {
     }
     expect(respawned).toBe(true);
     expect(g.lastGroundedAt).toBeNull();
+    // Contact avec la piste remis à zéro aussi (relectures de la 5e) : rien d'avant la téléportation ne reste.
+    expect(g.grounded).toBe(false);
     expect(jumpReady(sim, 0)).toBe(false);
   });
 
@@ -83,9 +85,12 @@ describe('au décollage d’une rampe-saut (tolérance de sol)', () => {
     expect(pilot.grounded.slice(last + 1, last + STEPS(1)).every((g) => !g)).toBe(true);
   });
 
-  test('demande 0,30 s après le dernier contact de jeu : saut', () => {
+  test('demande 0,30 s après le dernier contact de jeu : saut, poussière à la hauteur du châssis (en l’air)', () => {
     const r = jumpRun(world, { x0, v: 14, jumpAtStep: last + STEPS(0.3), maxSeconds: 4 });
     expect(r.jumpStep).toBe(last + STEPS(0.3));
+    // Saut en l'air : la poussière part du châssis (relectures de la 5e), pas du sol.
+    expect(r.jumpEvent!.y).toBeCloseTo(r.trace[last + STEPS(0.3) - 1].chassis.y, 1);
+    expect(r.jumpEvent!.y - heightAt(RAMP.track, r.jumpEvent!.x)).toBeGreaterThan(1);
   });
 
   test.each([0.4, 0.7])('demande %f s après le dernier contact de jeu : aucun saut, trajectoire inchangée', (dt) => {

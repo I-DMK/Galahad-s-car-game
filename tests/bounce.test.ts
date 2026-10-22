@@ -1,11 +1,11 @@
 import Matter from 'matter-js';
 import { CONFIG, type Config } from '../src/config';
 import {
-  applyAirLevel, applyDrive, carAngle, clampVelocities, createCar, updateGroundContact, wheelsOnGround,
+  applyAirLevel, applyDrive, carAngle, clampVelocities, createCar, onTrack, updateGroundContact, wheelsOnGround,
   type CarBody, type GroundContact,
 } from '../src/physics/car';
 import { physToWorld, worldToPhys } from '../src/physics/units';
-import { createWorld, stepWorld } from '../src/physics/world';
+import { CAT, carCategory, createWorld, stepWorld } from '../src/physics/world';
 import { generateTrack } from '../src/track/generate';
 import { heightAt } from '../src/track/query';
 
@@ -37,7 +37,7 @@ function measureBounce(factor: number, cfg: Config = CONFIG): BounceStats {
   const world = createWorld(track, cfg);
   const car = createCar(world, 'galahad', 0, 10, cfg);
   const ground = (x: number) => heightAt(track, x);
-  const contact: GroundContact = { groundedUntil: [0, 0] };
+  const contact: GroundContact = { groundedUntil: [0, 0], trackUntil: [0, 0] };
   let grounded: [boolean, boolean] = [true, true];
   let any = 0;
   let both = 0;
@@ -81,21 +81,21 @@ test('updateGroundContact : contact brut ou écart < GROUND_CONTACT_GAP, puis GR
   expect(CONFIG.GROUND_DEBOUNCE_SECONDS).toBe(0.1);
   expect(CONFIG.GROUND_CONTACT_GAP).toBe(0.03);
   const R = CONFIG.WHEEL_RADIUS;
-  /** Corps factice dont le bas (centre − R) est à `gap` m au-dessus d'un sol plat à y = 0. */
-  const body = (label: string, gap = 1) => {
-    const b = { label, isSensor: false, position: worldToPhys({ x: 0, y: R + gap }) } as Matter.Body;
+  /** Corps factice (catégorie de collision `category`) dont le bas (centre − R) est à `gap` m au-dessus d'un sol plat à y = 0. */
+  const body = (label: string, category: number, gap = 1) => {
+    const b = { label, isSensor: false, position: worldToPhys({ x: 0, y: R + gap }), collisionFilter: { category } } as Matter.Body;
     b.parent = b;
     return b;
   };
   const flat = () => 0;
-  const ground = body('ground');
-  const sensor = { ...body('lava'), isSensor: true } as Matter.Body;
+  const ground = body('ground', CAT.GROUND);
+  const sensor = { ...body('lava', CAT.SENSOR), isSensor: true } as Matter.Body;
   sensor.parent = sensor;
-  const [rear, front] = [body('rear'), body('front')];
+  const [rear, front] = [body('rear', carCategory(0)), body('front', carCategory(0))];
   const car = { wheels: [rear, front] } as unknown as CarBody;
   const engineWith = (pairs: { bodyA: Matter.Body; bodyB: Matter.Body; isActive: boolean }[]) =>
     ({ pairs: { list: pairs } }) as unknown as Matter.Engine;
-  const contact: GroundContact = { groundedUntil: [0, 0] };
+  const contact: GroundContact = { groundedUntil: [0, 0], trackUntil: [0, 0] };
   const update = (engine: Matter.Engine, t: number) => updateGroundContact(engine, car, contact, t, flat, CONFIG);
 
   // Roues à 1 m du sol. t = 0 : roue arrière en contact brut, roue avant sur un capteur seulement.
@@ -117,6 +117,17 @@ test('updateGroundContact : contact brut ou écart < GROUND_CONTACT_GAP, puis GR
   front.position = worldToPhys({ x: 0, y: R + 0.04 });
   expect(update(none, 0.55)).toEqual([false, true]);
   expect(update(none, 0.61)).toEqual([false, false]);
+  // Piste seule (tâche 5e, relectures : seule la piste compte) : le sol et l'écart datent `trackUntil` comme le
+  // contact de jeu ; une autre voiture date le contact de jeu, jamais `trackUntil`.
+  expect(onTrack(contact, 0.61)).toBe(false);
+  front.position = worldToPhys({ x: 0, y: R + 1 });
+  const copain = body('copain', carCategory(1));
+  const onCopain = engineWith([{ bodyA: copain, bodyB: rear, isActive: true }]);
+  expect(update(onCopain, 1)).toEqual([true, false]);
+  expect(onTrack(contact, 1)).toBe(false);
+  expect(update(touching, 1.2)).toEqual([true, false]);
+  expect(onTrack(contact, 1.2)).toBe(true);
+  expect(onTrack(contact, 1.35)).toBe(false);
 });
 
 /*

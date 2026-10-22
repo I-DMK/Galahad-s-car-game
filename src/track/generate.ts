@@ -1,6 +1,6 @@
 import type { Config } from '../config';
 import { mulberry32, pickWeighted } from './rng';
-import { placeStars } from './stars';
+import { placeStars, starFlatStarX } from './stars';
 import { bosses, doubleBosse, plat, platEtoile, rampeSaut, rampeVolcan, type SliceProfile } from './slices';
 import type { Slice, SliceType, Track, TrackPoint, Volcano } from './types';
 
@@ -61,9 +61,33 @@ function draw(
   }
 }
 
+/** Essais de pose des plats étoile (`generateTrack`) : jeu des ancres de 0, puis 1, 2… STAR_FLAT_LENGTH. */
+const STAR_FLAT_ATTEMPTS = 12;
+
+/**
+ * Piste de `targetLength` m pour la graine `seed`. Plats étoile (tâche 5e, saut §6.6, ruling R-F8) : si la pose
+ * régulière n'en met pas autant que prévu (fin de piste atteinte avant le dernier, graine 128), la piste est
+ * refaite depuis la même graine avec du jeu sur les ancres (`slack`), qui les rapproche du départ ; la première
+ * pose qui les met tous est gardée (graines 0 à 999 : 3 plats étoile à 1 680 m, testé). Une piste posée du premier
+ * coup est inchangée.
+ */
 export function generateTrack(
   seed: number, targetLength: number, cfg: Config, opts: { onlyPlat?: boolean } = {},
 ): Track {
+  const flatLength = cfg.STAR_HIGH_BUMP_CLEARANCE + cfg.STAR_HIGH_TAKEOFF_ROOM + cfg.STAR_HIGH_LANDING_ROOM;
+  if (Math.abs(cfg.STAR_FLAT_LENGTH - flatLength) > 1e-9) {
+    throw new Error(`generateTrack : STAR_FLAT_LENGTH ${cfg.STAR_FLAT_LENGTH} ≠ STAR_HIGH_BUMP_CLEARANCE + STAR_HIGH_TAKEOFF_ROOM + STAR_HIGH_LANDING_ROOM = ${flatLength} (configuration incohérente)`);
+  }
+  let built = buildTrack(seed, targetLength, cfg, opts, 0);
+  for (let k = 1; k < STAR_FLAT_ATTEMPTS && built.flatsPlaced < built.flatsWanted; k++) {
+    built = buildTrack(seed, targetLength, cfg, opts, k * cfg.STAR_FLAT_LENGTH);
+  }
+  return built.track;
+}
+
+function buildTrack(
+  seed: number, targetLength: number, cfg: Config, opts: { onlyPlat?: boolean }, slack: number,
+): { track: Track; flatsPlaced: number; flatsWanted: number } {
   const rng = mulberry32(seed);
   const s = cfg.TRACK_POINT_SPACING;
   const points: TrackPoint[] = [{ x: 0, y: 0 }];
@@ -92,22 +116,25 @@ export function generateTrack(
 
   append(plat(rng, cfg, cfg.START_LENGTH));
   const limit = targetLength - cfg.FINISH_PLAT_BEFORE - cfg.AFTER_FINISH;
-  // Plats étoile (tâche 5e, saut §6.6) : N ancres régulières entre la fin du plat de départ et la limite ; avant chaque
-  // tirage, si x a passé l'ancre suivante, si la dernière tranche tirée n'est ni une rampe-saut ni un volcan et si le
-  // plat étoile tient avant la limite, il est posé (sans tirage). S'il ne tient plus, les suivants sont abandonnés.
-  // Pas juste après un volcan (ruling de la tâche 5e, Step 14) : à la sortie d'une réception, les voitures se
-  // rattrapent et se cognent ; un choc arrière y a catapulté Galahad à 4,75 m au-dessus de l'étoile (graine 7).
+  // Plats étoile (tâche 5e, saut §6.6, ruling R-F8) : N ancres régulières entre la fin du plat de départ et la limite
+  // moins `slack` ; avant chaque tirage, si x a passé l'ancre suivante et si le plat étoile est permis ici
+  // (`starFlatAllowed`) et tient avant la limite, il est posé (sans tirage). S'il ne tient plus, les suivants sont
+  // abandonnés (`generateTrack` refait alors la piste avec plus de jeu).
   const x0 = xNow();
   const nFlats = opts.onlyPlat ? 0 : Math.max(0, Math.min(cfg.STAR_FLATS_PER_RACE, Math.floor((limit - x0) / cfg.STAR_FLAT_SPACING)));
-  const anchors = Array.from({ length: nFlats }, (_, k) => x0 + ((k + 0.5) * (limit - x0)) / nFlats);
+  const span = Math.max(0, limit - slack - x0);
+  const anchors = Array.from({ length: nFlats }, (_, k) => x0 + ((k + 0.5) * span) / nFlats);
   let nextFlat = 0;
+  let flatsPlaced = 0;
   let lastDrawn: SliceType = slices[slices.length - 1].type;
+  let lastRampSautEnd: number | null = null;
   for (;;) {
-    if (nextFlat < anchors.length && xNow() >= anchors[nextFlat] - 1e-9 && lastDrawn !== 'rampe-saut' && lastDrawn !== 'rampe-volcan') {
+    if (nextFlat < anchors.length && xNow() >= anchors[nextFlat] - 1e-9 && starFlatAllowed(xNow(), lastDrawn, lastRampSautEnd, cfg)) {
       const flat = platEtoile(cfg);
       if (xNow() + flat.length <= limit + 1e-9) {
         append(flat);
         nextFlat++;
+        flatsPlaced++;
         continue;
       }
       nextFlat = anchors.length;
@@ -116,6 +143,7 @@ export function generateTrack(
     if (xNow() + profile.length > limit + 1e-9) break;
     append(profile);
     lastDrawn = profile.type;
+    if (profile.type === 'rampe-saut') lastRampSautEnd = xNow();
   }
 
   const finalLength = targetLength - cfg.AFTER_FINISH - xNow();
@@ -132,5 +160,18 @@ export function generateTrack(
     xStart: cfg.START_LENGTH - 5, xFinish, xWall,
   };
   track.stars = placeStars(track, rng, cfg);
-  return track;
+  return { track, flatsPlaced, flatsWanted: nFlats };
+}
+
+/**
+ * Un plat étoile peut-il commencer en `x` (tâche 5e, ruling R-F8) ? Jamais juste après une rampe-saut ni juste après
+ * un volcan (décision du papa : à la sortie d'une réception, les voitures se rattrapent et se cognent ; un choc
+ * arrière y a catapulté Galahad à 4,75 m au-dessus de l'étoile, graine 7), et jamais avec l'élan de son étoile
+ * ([x★ − STAR_HIGH_TAKEOFF_ROOM, x★]) dans les STAR_HIGH_RAMP_CLEARANCE après la fin de la dernière rampe-saut
+ * (rampe-saut puis plat court : la voiture qui en sort vole encore).
+ */
+function starFlatAllowed(x: number, lastDrawn: SliceType, lastRampSautEnd: number | null, cfg: Config): boolean {
+  if (lastDrawn === 'rampe-saut' || lastDrawn === 'rampe-volcan') return false;
+  const takeoff = starFlatStarX({ xStart: x }, cfg) - cfg.STAR_HIGH_TAKEOFF_ROOM;
+  return lastRampSautEnd === null || takeoff >= lastRampSautEnd + cfg.STAR_HIGH_RAMP_CLEARANCE - 1e-9;
 }

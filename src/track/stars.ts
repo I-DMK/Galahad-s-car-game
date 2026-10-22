@@ -97,9 +97,10 @@ export const starFlatStarX = (sl: { xStart: number }, cfg: Config): number =>
 /**
  * Étoiles hautes d'une piste (x), au plus STAR_HIGH_PER_RACE (0 : aucune, et aucun tirage) :
  * 1. d'abord celle de chaque plat étoile (ruling R-F8), dans l'ordre de la piste, sans tirage ;
- * 2. s'il reste de la place, les candidates des plats ordinaires (`highStarCandidates`) à au moins
- *    STAR_HIGH_TAKEOFF_ROOM + STAR_HIGH_LANDING_ROOM d'une étoile de plat étoile : toutes si elles tiennent, sinon
- *    tirées sans remise par `rng` (Fisher-Yates partiel).
+ * 2. s'il reste de la place, les candidates des plats ordinaires (`highStarCandidates`), chacune à au moins
+ *    STAR_HIGH_TAKEOFF_ROOM + STAR_HIGH_LANDING_ROOM (élan + atterrissage) de toute étoile haute déjà retenue
+ *    (plat étoile ou candidate) : dans l'ordre de la piste si elles sont au plus `place`, sinon tirées sans remise
+ *    par `rng` (Fisher-Yates partiel), une candidate trop proche d'une étoile déjà retenue étant écartée.
  * Résultat dans l'ordre de la piste.
  */
 export function chooseHighStars(track: Track, lowXs: readonly number[], rng: () => number, cfg: Config): number[] {
@@ -109,15 +110,17 @@ export function chooseHighStars(track: Track, lowXs: readonly number[], rng: () 
   const room = n - flats.length;
   if (room <= 0) return flats;
   const away = cfg.STAR_HIGH_TAKEOFF_ROOM + cfg.STAR_HIGH_LANDING_ROOM;
-  const cands = highStarCandidates(track, lowXs, cfg).filter((x) => flats.every((f) => Math.abs(x - f) >= away - 1e-9));
-  if (cands.length > room) {
-    for (let i = 0; i < room; i++) {
+  const cands = highStarCandidates(track, lowXs, cfg);
+  const chosen = [...flats];
+  const draw = cands.length > room;
+  for (let i = 0; i < cands.length && chosen.length < n; i++) {
+    if (draw) {
       const j = i + Math.floor(rng() * (cands.length - i));
       [cands[i], cands[j]] = [cands[j], cands[i]];
     }
-    cands.length = room;
+    if (chosen.every((x) => Math.abs(cands[i] - x) >= away - 1e-9)) chosen.push(cands[i]);
   }
-  return [...flats, ...cands].sort((p, q) => p - q);
+  return chosen.sort((p, q) => p - q);
 }
 
 // ——— Étoiles hautes (plan B, tâche 5e ; addendum « bouton saut » §2, amendé [plan], décision P1 du papa) ———
@@ -168,13 +171,15 @@ export function highStarTerrain(track: Track, cfg: Config): Interval[] {
 }
 
 /**
- * Segments éligibles (où une étoile haute peut se trouver) : tranches `plat` hors plat de départ (indice 0) et
- * hors plat d'arrivée (et d'après l'arrivée), les plats voisins fusionnés, moins les dégagements.
+ * Segments éligibles (où une étoile haute peut se trouver) : tranches `plat` hors plat de départ (indice 0), hors
+ * plat d'arrivée (et d'après l'arrivée) et hors plat juste après un volcan (décision du papa, comme les plats étoile :
+ * à la sortie d'une réception, les voitures se cognent), les plats voisins fusionnés, moins les dégagements.
  */
 export function highStarSegments(track: Track, cfg: Config): Interval[] {
   const merged: Interval[] = [];
   track.slices.forEach((sl, i) => {
     if (sl.type !== 'plat' || i === 0 || sl.xEnd > track.xFinish - 1e-9) return;
+    if (track.slices[i - 1].type === 'rampe-volcan') return;
     const last = merged[merged.length - 1];
     if (last && Math.abs(last[1] - sl.xStart) < 1e-9) last[1] = sl.xEnd;
     else merged.push([sl.xStart, sl.xEnd]);

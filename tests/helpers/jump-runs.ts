@@ -10,7 +10,7 @@ import { newCarState } from '../../src/cars/state';
 import { activateTurbo } from '../../src/cars/turbo';
 import { CONFIG, type Config } from '../../src/config';
 import type { CarPose } from '../../src/loop/interpolation';
-import { carAngle, createCar, placeCar } from '../../src/physics/car';
+import { carAngle, createCar, newGroundContact, placeCar } from '../../src/physics/car';
 import { createStarBodies } from '../../src/physics/stars';
 import { mpsToPxPerStep, toPx } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
@@ -36,8 +36,8 @@ function soloSim(world: World, x0: number, stars: Star[], cfg: Config): RaceSim 
   placeCar(body, x0, (x) => heightAt(track, x), slopeAt(track, x0), cfg);
   const state = newCarState(GALAHAD.id, GALAHAD.name, hex(GALAHAD.color), hex(GALAHAD.accent), { x: x0, y: heightAt(track, x0), angle: 0 });
   const car: CarSim = {
-    pilot: GALAHAD, body, state, contact: { groundedUntil: [-1, -1] }, airborneSince: null, grounded: false,
-    lastGroundedAt: null, invulnerable: false, ghost: false, driver: null, factor: 1, throttle: false,
+    pilot: GALAHAD, body, state, contact: newGroundContact(), airborneSince: null, grounded: false,
+    lastGroundedAt: null, jumpFlight: false, invulnerable: false, ghost: false, driver: null, factor: 1, throttle: false,
   };
   const starBodies = createStarBodies(world, stars, cfg);
   return { track, world, cars: [car], time: 0, events: [], stars: newStarStates(stars, 1), starBodies, cfg, pilotSeed: 0 };
@@ -76,7 +76,12 @@ export interface JumpRunResult {
   xs: number[];
   /** Pas du saut, null sans saut. */
   jumpStep: number | null;
-  /** Contact de jeu (débouncé) de la voiture à chaque pas, tel que le pas l'a utilisé (`CarSim.grounded`). */
+  /** Événement 'jump' : x du châssis et hauteur de la poussière (`y`), null sans saut. */
+  jumpEvent: { x: number; y: number } | null;
+  /**
+   * Contact avec la piste (débouncé) de la voiture à chaque pas, tel que le pas l'a utilisé (`CarSim.grounded`) ;
+   * Galahad seul : c'est aussi le contact de jeu.
+   */
   grounded: boolean[];
   /** Réapparitions du run (raison, instant, x du châssis). */
   respawns: { reason: string; t: number; x: number }[];
@@ -117,7 +122,7 @@ export function jumpRun(world: World, opts: JumpRunOptions): JumpRunResult {
   try {
     launchSolo(sim, opts.x0, opts.v, cfg, opts.factor);
     const out: JumpRunResult = {
-      jumped: false, starTaken: [], respawnWithin3s: false, apexY: NaN, trace: [], xs: [], jumpStep: null,
+      jumped: false, starTaken: [], respawnWithin3s: false, apexY: NaN, trace: [], xs: [], jumpStep: null, jumpEvent: null,
       grounded: [], respawns: [], landingX: null, landingAngle: NaN, flippedAfterJump: false,
     };
     const car = sim.cars[0];
@@ -136,7 +141,7 @@ export function jumpRun(world: World, opts: JumpRunOptions): JumpRunResult {
       const pose = posesOf(sim)[0];
       out.trace.push(pose);
       for (const e of sim.events) {
-        if (e.type === 'jump') { out.jumped = true; out.jumpStep = i; out.apexY = pose.chassis.y; }
+        if (e.type === 'jump') { out.jumped = true; out.jumpStep = i; out.apexY = pose.chassis.y; out.jumpEvent = { x: e.x, y: e.y }; }
         else if (e.type === 'star') out.starTaken.push(e.id);
         else if (e.type === 'landing' && out.jumped && stopAt === Infinity) {
           stopAt = e.t + AFTER_LANDING_SECONDS;
@@ -179,15 +184,14 @@ export function rampSautTrack(cfg: Config = CONFIG): { track: Track; ramp: Track
   throw new Error('aucune rampe-saut précédée d’un plat de 20 m');
 }
 
-const flatWorlds = new Map<string, World>();
-/** Piste plate (tranches `plat` seulement) de 400 m sans étoile, monde mis en cache par configuration. */
+const flatWorlds = new WeakMap<Config, World>();
+/** Piste plate (tranches `plat` seulement) de 400 m sans étoile, monde mis en cache par objet de configuration. */
 function flatWorld(cfg: Config): World {
-  const key = JSON.stringify(cfg);
-  let w = flatWorlds.get(key);
+  let w = flatWorlds.get(cfg);
   if (!w) {
     const track: Track = { ...generateTrack(3, 400, cfg, { onlyPlat: true }), stars: [] };
     w = createWorld(track, cfg);
-    flatWorlds.set(key, w);
+    flatWorlds.set(cfg, w);
   }
   return w;
 }

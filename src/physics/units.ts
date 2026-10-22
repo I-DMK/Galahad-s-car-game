@@ -15,5 +15,7 @@ export const physToWorld = (p: Vec): Vec => ({ x: p.x / PPM, y: -p.y / PPM });
 
 /** Vitesse Matter (px par pas de 1/60 s) -> m/s. */
 export const speedMps = (v: Vec): number => (Math.hypot(v.x, v.y) * STEPS_PER_SECOND) / PPM;
+/** Composante de vitesse Matter (px par pas de 1/60 s) -> m/s, même signe. */
+export const pxPerStepToMps = (v: number): number => toM(v) * STEPS_PER_SECOND;
 /** m/s -> px par pas de 1/60 s. */
 export const mpsToPxPerStep = (v: number): number => (v * PPM) / STEPS_PER_SECOND;

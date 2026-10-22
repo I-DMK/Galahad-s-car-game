@@ -2,7 +2,7 @@ import Matter from 'matter-js';
 import { normalizeAngle } from '../cars/angle';
 import type { Config } from '../config';
 import { heightAt as trackHeightAt } from '../track/query';
-import { mpsToPxPerStep, physToWorld, speedMps, toM, toPx, worldToPhys } from './units';
+import { mpsToPxPerStep, physToWorld, pxPerStepToMps, speedMps, toPx, worldToPhys } from './units';
 import { CAT, carCategory, type World } from './world';
 
 const { Bodies, Body, Composite, Constraint, Vector } = Matter;
@@ -153,9 +153,6 @@ export function applyDrive(car: CarBody, throttle: boolean, speedFactor: number,
   }
 }
 
-/** Pas par seconde de PHYSICS_DT (vitesses Matter en px par pas de 1/60 s). */
-const STEPS_PER_SECOND = 60;
-
 /**
  * Saut, même hauteur partout (décision P3 du papa, plan B tâche 5e) : vy0 = vitesse verticale du châssis vers
  * le haut (m/s). vy = √(vy0² + JUMP_VY²) si vy0 > 0 : avec JUMP_VY = √(2 g JUMP_APEX), l'apogée monte de
@@ -165,7 +162,7 @@ const STEPS_PER_SECOND = 60;
  * les deux roues, vx de chaque pièce inchangée. À appeler hors de tout callback de collision.
  */
 export function applyJump(car: CarBody, cfg: Config): void {
-  const vy0 = -toM(car.chassis.velocity.y) * STEPS_PER_SECOND;
+  const vy0 = pxPerStepToMps(-car.chassis.velocity.y);
   const vy = vy0 > 0 ? Math.sqrt(vy0 * vy0 + cfg.JUMP_VY * cfg.JUMP_VY) : cfg.JUMP_VY;
   const vyPx = -mpsToPxPerStep(vy);
   for (const p of car.parts) Body.setVelocity(p, { x: p.velocity.x, y: vyPx });
@@ -176,18 +173,30 @@ export function applyBrake(car: CarBody, factor: number): void {
   for (const wheel of car.wheels) Body.setAngularVelocity(wheel, wheel.angularVelocity * factor);
 }
 
-/** Pour chaque roue : en contact actif avec un corps non capteur (sol, mur, autre voiture). */
-export function wheelsOnGround(engine: Matter.Engine, car: CarBody): [boolean, boolean] {
-  const on: [boolean, boolean] = [false, false];
+/**
+ * Pour chaque roue, contact actif : `any` avec un corps non capteur (sol, mur, autre voiture) ; `track` avec la piste
+ * seule (sol, mur : catégorie CAT.GROUND), jamais avec une autre voiture.
+ */
+export function wheelContacts(engine: Matter.Engine, car: CarBody): { any: [boolean, boolean]; track: [boolean, boolean] } {
+  const any: [boolean, boolean] = [false, false];
+  const track: [boolean, boolean] = [false, false];
   for (const pair of engine.pairs.list) {
     if (!pair.isActive) continue;
     const a = pair.bodyA.parent;
     const b = pair.bodyB.parent;
     car.wheels.forEach((wheel, i) => {
-      if ((a === wheel && !pair.bodyB.isSensor) || (b === wheel && !pair.bodyA.isSensor)) on[i] = true;
+      const other = a === wheel ? pair.bodyB : b === wheel ? pair.bodyA : null;
+      if (other === null || other.isSensor) return;
+      any[i] = true;
+      if (other.collisionFilter.category === CAT.GROUND) track[i] = true;
     });
   }
-  return on;
+  return { any, track };
+}
+
+/** Pour chaque roue : en contact actif avec un corps non capteur (sol, mur, autre voiture). */
+export function wheelsOnGround(engine: Matter.Engine, car: CarBody): [boolean, boolean] {
+  return wheelContacts(engine, car).any;
 }
 
 /** Seuil (m) sous l'axe du châssis en deçà duquel une roue est jugée « remontée ». */
@@ -203,26 +212,40 @@ export function wheelsBelowChassis(car: CarBody): boolean {
 
 /** Contact au sol anti-rebond : instant (s) jusqu'auquel chaque roue [arrière, avant] compte comme au sol. */
 export interface GroundContact {
+  /** Contact de jeu : sol, mur ou autre voiture (mise à plat en l'air, atterrissage, points sûrs). */
   groundedUntil: [number, number];
+  /**
+   * Contact avec la piste seule (sol, mur, écart roue-sol), jamais avec une autre voiture : il date la tolérance de sol
+   * du saut (décision du papa, relectures de la 5e : seule la piste compte, pas de saut depuis le toit d'un copain).
+   */
+  trackUntil: [number, number];
 }
+
+/** Contact au sol neuf (aucune roue au sol). */
+export const newGroundContact = (): GroundContact => ({ groundedUntil: [-1, -1], trackUntil: [-1, -1] });
+
+/** Une roue au moins touche-t-elle la piste (sol, mur), au sens du contact débouncé, à l'instant t ? */
+export const onTrack = (contact: GroundContact, t: number): boolean => t < contact.trackUntil[0] || t < contact.trackUntil[1];
 
 /**
  * Contact au sol pour le jeu, à appeler une fois par pas après stepWorld (t en secondes). Une roue
- * est au sol si, ce pas-ci, elle a un contact brut (`wheelsOnGround`) ou si l'écart vertical entre
+ * est au sol si, ce pas-ci, elle a un contact brut (`wheelContacts`) ou si l'écart vertical entre
  * le bas de la roue et le sol (centre − heightAt(x) − WHEEL_RADIUS) est < GROUND_CONTACT_GAP ; elle
  * le reste ensuite GROUND_DEBOUNCE_SECONDS. À grande vitesse la roue polygonale décolle de sommet en
  * sommet (contact brut ≈ 1 pas sur 4 à V_MAX), d'où l'écart et la fenêtre. L'écart est vertical :
  * sur une pente θ une roue posée lit R(1/cos θ − 1) (0,055 m à 27°), le contact brut prend le relais.
+ * Met aussi à jour `contact.trackUntil` (même règle, contact brut avec la piste seule). Rend le contact de jeu.
  */
 export function updateGroundContact(
   engine: Matter.Engine, car: CarBody, contact: GroundContact, t: number,
   heightAt: (x: number) => number, cfg: Config,
 ): [boolean, boolean] {
-  const raw = wheelsOnGround(engine, car);
+  const raw = wheelContacts(engine, car);
   car.wheels.forEach((wheel, i) => {
     const p = physToWorld(wheel.position);
     const gap = p.y - heightAt(p.x) - cfg.WHEEL_RADIUS;
-    if (raw[i] || gap < cfg.GROUND_CONTACT_GAP) contact.groundedUntil[i] = t + cfg.GROUND_DEBOUNCE_SECONDS;
+    if (raw.any[i] || gap < cfg.GROUND_CONTACT_GAP) contact.groundedUntil[i] = t + cfg.GROUND_DEBOUNCE_SECONDS;
+    if (raw.track[i] || gap < cfg.GROUND_CONTACT_GAP) contact.trackUntil[i] = t + cfg.GROUND_DEBOUNCE_SECONDS;
   });
   return [t < contact.groundedUntil[0], t < contact.groundedUntil[1]];
 }

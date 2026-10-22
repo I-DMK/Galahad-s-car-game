@@ -187,13 +187,47 @@ describe('generateTrack (seeds 0..49 × longueurs 300, 1680, 6000)', () => {
 describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
   const flats = (t: Track): Slice[] => t.slices.filter((s) => s.type === 'plat-étoile');
 
-  test('N plats étoile : 3 à 1 680 m (graines 0 à 49) et à 6 000 m (graines 0 à 19), 1 à 600 m, 0 à 300 m', () => {
-    for (const seed of SEEDS) expect(flats(track(seed, 1680)), `graine ${seed}`).toHaveLength(3);
+  /** Graines 0 à 999 à 1 680 m (génération seule, ≈ 0,7 s) : garantie des 3 plats étoile (relecture de la 5e, graine 128). */
+  const WIDE = Array.from({ length: 1000 }, (_, i) => i);
+  const wide = new Map<number, Track>();
+  const wideTrack = (seed: number): Track => {
+    let t = wide.get(seed);
+    if (!t) { t = seed < 50 ? track(seed, 1680) : generateTrack(seed, 1680, CONFIG); wide.set(seed, t); }
+    return t;
+  };
+
+  /** Fin de la dernière rampe-saut qui finit au plus tard en x, ou null. */
+  const lastRampSautEnd = (t: Track, x: number): number | null => {
+    const ends = t.slices.filter((s) => s.type === 'rampe-saut' && s.xEnd <= x + 1e-9).map((s) => s.xEnd);
+    return ends.length ? ends[ends.length - 1] : null;
+  };
+  /** Élan de l'étoile d'un plat étoile qui commencerait en x : [x + STAR_HIGH_BUMP_CLEARANCE, x★]. */
+  const takeoffAt = (x: number): number => x + CONFIG.STAR_HIGH_BUMP_CLEARANCE;
+  /**
+   * Frontière en x refusée à un plat étoile : la dernière tranche tirée avant x est une rampe-saut ou un volcan, ou
+   * l'élan de son étoile tomberait dans les STAR_HIGH_RAMP_CLEARANCE après la dernière rampe-saut.
+   */
+  const refusedAt = (t: Track, x: number): boolean => {
+    const before = drawn(t).filter((s) => s.xEnd <= x + 1e-9);
+    const last = before[before.length - 1];
+    if (last.type === 'rampe-saut' || last.type === 'rampe-volcan') return true;
+    const r = lastRampSautEnd(t, x);
+    return r !== null && takeoffAt(x) < r + CONFIG.STAR_HIGH_RAMP_CLEARANCE - 1e-9;
+  };
+
+  test('N plats étoile : 3 à 1 680 m (graines 0 à 999) et à 6 000 m (graines 0 à 19), 2 à 1 000 m, 1 à 600 m, 0 à 300 m', () => {
+    for (const seed of WIDE) expect(flats(wideTrack(seed)), `graine ${seed}`).toHaveLength(3);
     for (const seed of SEEDS.slice(0, 20)) expect(flats(track(seed, 6000)), `graine ${seed}`).toHaveLength(3);
     for (const seed of SEEDS) {
+      expect(flats(generateTrack(seed, 1000, CONFIG)), `graine ${seed}`).toHaveLength(2);
       expect(flats(generateTrack(seed, 600, CONFIG)), `graine ${seed}`).toHaveLength(1);
       expect(flats(track(seed, 300)), `graine ${seed}`).toHaveLength(0);
     }
+  });
+
+  test('STAR_FLAT_LENGTH incohérente avec les dégagements : refusée', () => {
+    expect(() => generateTrack(0, 1680, { ...CONFIG, STAR_FLAT_LENGTH: 50 })).toThrow(/STAR_FLAT_LENGTH/);
+    expect(() => generateTrack(0, 1680, { ...CONFIG, STAR_HIGH_TAKEOFF_ROOM: 25 })).toThrow(/STAR_FLAT_LENGTH/);
   });
 
   test('longueur STAR_FLAT_LENGTH (57 m) à une maille près, hauteur 0, jamais juste après une rampe-saut ni un volcan', () => {
@@ -205,29 +239,55 @@ describe('plats étoile (tâche 5e, saut §6.6, ruling R-F8)', () => {
         if (s.type !== 'plat-étoile') return;
         expect(Math.abs(s.xEnd - s.xStart - CONFIG.STAR_FLAT_LENGTH), `graine ${seed}`).toBeLessThanOrEqual(S + 1e-9);
         expect(t.slices[i - 1].type, `graine ${seed}, plat étoile en ${s.xStart}`).not.toBe('rampe-saut');
-        // Ruling de la tâche 5e (Step 14) : pas juste après un volcan (chocs à la sortie des réceptions).
+        // Décision du papa (relectures de la 5e) : pas juste après un volcan (chocs à la sortie des réceptions).
         expect(t.slices[i - 1].type, `graine ${seed}, plat étoile en ${s.xStart}`).not.toBe('rampe-volcan');
         expect(t.points.filter((p) => p.x >= s.xStart - 1e-9 && p.x <= s.xEnd + 1e-9 && p.y !== 0)).toEqual([]);
       });
     }
   });
 
-  test('le k-ième plat étoile commence à la première frontière ≥ a_k permise (frontières sautées : après une rampe-saut ou un volcan seulement)', () => {
-    for (const [seed, len] of CASES) {
-      const t = track(seed, len);
+  test('élan de l’étoile d’un plat étoile hors des STAR_HIGH_RAMP_CLEARANCE après une rampe-saut (graines 0 à 999)', () => {
+    let refusedByRule = 0;
+    for (const seed of WIDE) {
+      const t = wideTrack(seed);
+      for (const f of flats(t)) {
+        const r = lastRampSautEnd(t, f.xStart);
+        if (r !== null) expect(takeoffAt(f.xStart), `graine ${seed}, plat étoile en ${f.xStart.toFixed(1)}`).toBeGreaterThanOrEqual(r + CONFIG.STAR_HIGH_RAMP_CLEARANCE - 1e-9);
+      }
+      // Frontières refusées par la seule règle de l'élan (rampe-saut puis plat court) : la règle sert.
+      for (const s of drawn(t)) {
+        const last = drawn(t).filter((d) => d.xEnd <= s.xEnd + 1e-9).pop()!;
+        if (last.type !== 'rampe-saut' && last.type !== 'rampe-volcan' && refusedAt(t, s.xEnd)) refusedByRule++;
+      }
+    }
+    expect(refusedByRule).toBeGreaterThan(0);
+  });
+
+  test('le k-ième plat étoile commence à la première frontière ≥ a_k permise ; ancres sans jeu, sauf rares graines (jeu j × STAR_FLAT_LENGTH)', () => {
+    const slackUsed: string[] = [];
+    const check = (seed: number, len: number, t: Track): void => {
       const x0 = t.slices[0].xEnd;
       const limit = len - CONFIG.FINISH_PLAT_BEFORE - CONFIG.AFTER_FINISH;
       const fs = flats(t);
       const n = fs.length;
-      fs.forEach((f, k) => {
-        const a = x0 + ((k + 0.5) * (limit - x0)) / n;
-        const where = `graine ${seed}, ${len} m, plat étoile ${k} en ${f.xStart.toFixed(1)} (ancre ${a.toFixed(1)})`;
-        expect(f.xStart, where).toBeGreaterThanOrEqual(a - 1e-9);
-        // Toute frontière de [a_k, début du plat étoile[ suit une rampe-saut ou un volcan (frontière refusée).
-        const skipped = t.slices.filter((s) => s.xEnd >= a - 1e-9 && s.xEnd < f.xStart - 1e-9);
-        for (const s of skipped) expect(['rampe-saut', 'rampe-volcan'], where).toContain(s.type);
+      const fits = (j: number): boolean => fs.every((f, k) => {
+        const a = x0 + ((k + 0.5) * Math.max(0, limit - j * CONFIG.STAR_FLAT_LENGTH - x0)) / n;
+        if (f.xStart < a - 1e-9) return false;
+        // Toute frontière de [a_k, début du plat étoile[ est refusée (`refusedAt`), sauf celle où le plat étoile
+        // précédent a été posé (une frontière sert au plus un plat étoile : graine 504, deux plats étoile accolés).
+        const used = fs.slice(0, k).map((g) => g.xStart);
+        return t.slices.filter((s) => s.xEnd >= a - 1e-9 && s.xEnd < f.xStart - 1e-9 && !used.some((u) => Math.abs(u - s.xEnd) < 1e-9))
+          .every((s) => refusedAt(t, s.xEnd));
       });
-    }
+      const j = Array.from({ length: 12 }, (_, i) => i).find(fits);
+      expect(j, `graine ${seed}, ${len} m : aucun jeu j × STAR_FLAT_LENGTH (j < 12) n'explique la pose`).toBeDefined();
+      if (j! > 0) slackUsed.push(`g${seed}/${len} : j = ${j}`);
+    };
+    for (const [seed, len] of CASES) check(seed, len, track(seed, len));
+    for (const seed of WIDE.slice(50)) check(seed, 1680, wideTrack(seed));
+    console.log(`plats étoile posés avec du jeu sur les ancres (graines 0 à 49 × 300, 1 680, 6 000 m ; 50 à 999 à 1 680 m) : ${slackUsed.length} (${slackUsed.join(' ; ')})`);
+    // Les graines de l'empreinte (0, 1, 2 à 1 680 m) sont posées sans jeu.
+    expect(slackUsed.filter((x) => /^g[012]\/1680/.test(x))).toEqual([]);
   });
 
   test('la suite des tranches tirées a un préfixe commun d’au moins 20 tranches avec les pistes d’avant (graines 0 à 49)', () => {

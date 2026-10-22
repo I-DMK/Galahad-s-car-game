@@ -1457,8 +1457,8 @@ Chacun est à confirmer par les relectures de la v1.6 ; « coût si faux » comm
   - Coût si faux : quelques étoiles.
 - **R-F7 — Jeu de la 5e : 50 / 12 / 20 / 25.** C'est le plus permissif des 4 jeux à 0 prise sans saut à 3,90 m (calibration de la 5e). Coût si faux : 4 constantes.
 - **R-F8 — Plat étoile.**
-  - Tranche `'plat-étoile'` de 57 m, étoile à + 32 m, jamais juste après une rampe-saut, pas de fusion, pas d'étoile basse dessus.
-  - Les étoiles des plats étoile passent d'abord ; `STAR_HIGH_PER_RACE` plafonne le total.
+  - Tranche `'plat-étoile'` de 57 m, étoile à + 32 m, jamais juste après une rampe-saut, **pas après un volcan** (décision du papa, relectures de la 5e, a105e2b ; en 5g, pas non plus après une fosse), élan de l'étoile hors des 50 m qui suivent une rampe-saut, pas de fusion, pas d'étoile basse dessus. Jeu des ancres si les N plats étoile ne tiennent pas (spec §6.6).
+  - Les étoiles des plats étoile passent d'abord ; `STAR_HIGH_PER_RACE` plafonne le total. Les étoiles hautes de repli des plats ordinaires (pistes courtes) suivent la même règle « pas après un volcan » et restent à 45 m les unes des autres.
   - Coût si faux : une règle d'insertion.
 - **R-F9 — Copains provisoires en 5g** : ils redemandent le saut à chaque pas de leur fenêtre, sans erreur, au centre `fosseJumpLead(v)`, jusqu'à la tâche 6. Sans cela, les invariants à 5 voitures n'auraient plus de sens entre la 5g et la 6. Coût si faux : nul (code retiré en tâche 6).
 - **R-F10 — Empreinte.**

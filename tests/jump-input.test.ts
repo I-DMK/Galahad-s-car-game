@@ -86,6 +86,41 @@ describe('JumpInput et JumpButton', () => {
     expect(throttle.pressed).toBe(false);
   });
 
+  it('Espace hors de la course (isActive faux) : ni demande, ni défaut empêché', () => {
+    let racing = false;
+    const gated = new JumpInput(window, button.el, () => racing);
+    input.dispose();
+    const ev = key('Space');
+    expect(ev.defaultPrevented).toBe(false);
+    expect(gated.take()).toBe(false);
+    racing = true;
+    expect(key('Space').defaultPrevented).toBe(true);
+    expect(gated.take()).toBe(true);
+    gated.dispose();
+  });
+
+  it('Espace sur un bouton qui a le focus (ENCORE) : ni demande, ni défaut empêché', () => {
+    const encore = document.createElement('button');
+    encore.textContent = 'ENCORE';
+    document.body.appendChild(encore);
+    encore.focus();
+    const ev = new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true, cancelable: true });
+    encore.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(false);
+    expect(input.take()).toBe(false);
+  });
+
+  it('blur et changement de visibilité jettent la demande en attente (comme Throttle) ; pending ne la consomme pas', () => {
+    pointer('pointerdown', button.el, 3);
+    expect(input.pending).toBe(true);
+    expect(input.pending).toBe(true);
+    window.dispatchEvent(new Event('blur'));
+    expect(input.pending).toBe(false);
+    pointer('pointerdown', button.el, 3);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(input.take()).toBe(false);
+  });
+
   it('pointerdown ailleurs : du gaz, aucune demande', () => {
     pointer('pointerdown', document.body, 1);
     expect(throttle.pressed).toBe(true);

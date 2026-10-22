@@ -61,7 +61,7 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
   const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
   const internals = game as unknown as {
     sim: RaceSim; loop: { acc: number; history: { reset(p: CarPose[]): void } }; step: (...a: unknown[]) => unknown;
-    stop(): void; throttle: { dispose(): void };
+    stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void };
   };
   const { sim } = internals;
   // Galahad et le copain 2 posés sur la lave du premier volcan : ils réapparaissent au même pas pendant le test
@@ -122,4 +122,55 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
   expect(interpolatedFrames).toBeGreaterThan(20);
   internals.stop();
   internals.throttle.dispose();
+  internals.jumpInput.dispose();
+});
+
+/** pointerdown (pointeur `id`) sur `target`, comme un doigt. */
+function pointerDown(target: EventTarget, id: number): void {
+  const ev = new Event('pointerdown', { bubbles: true, cancelable: true });
+  Object.defineProperty(ev, 'pointerId', { value: id });
+  target.dispatchEvent(ev);
+}
+
+test('Game : demande de saut gardée sur une image sans pas et donnée au pas suivant ; après l’arrivée, bouton grisé, appui jeté, Espace rendu', () => {
+  const canvas = document.createElement('canvas');
+  const hud = document.createElement('div');
+  document.body.append(canvas, hud);
+  const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
+  const internals = game as unknown as { sim: RaceSim; stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void } };
+  const { sim } = internals;
+  const button = hud.querySelector('.jump-button')!;
+  game.start();
+
+  // Tap sur le bouton, puis une image trop courte pour un pas : aucun saut, la demande attend.
+  pointerDown(button, 7);
+  let now = 5;
+  raf!(now);
+  expect(sim.time).toBe(0);
+  expect(game.jumps).toBe(0);
+  // Image suivante à un pas : la demande part à ce pas.
+  now += DT * 1000;
+  raf!(now);
+  expect(sim.time).toBeCloseTo(DT, 12);
+  expect(game.jumps).toBe(1);
+
+  // Galahad posé au sol 3 m avant la ligne, doigt posé : il arrive.
+  const x = sim.track.xFinish - 3;
+  placeCar(sim.cars[0].body, x, (xx) => heightAt(sim.track, xx), 0, CONFIG);
+  pressFinger();
+  for (let f = 0; f < 600 && game.state !== 'finished'; f++) { now += DT * 1000; raf!(now); }
+  expect(game.state).toBe('finished');
+  // Une seconde plus tard, voiture freinée au sol : bouton grisé ; un tap et Espace ne font rien.
+  for (let f = 0; f < 60; f++) { now += DT * 1000; raf!(now); }
+  expect(button.classList.contains('is-waiting')).toBe(true);
+  pointerDown(button, 8);
+  const space = new KeyboardEvent('keydown', { code: 'Space', key: ' ', bubbles: true, cancelable: true });
+  window.dispatchEvent(space);
+  expect(space.defaultPrevented).toBe(false);
+  for (let f = 0; f < 10; f++) { now += DT * 1000; raf!(now); }
+  expect(game.jumps).toBe(1);
+  expect(button.classList.contains('is-waiting')).toBe(true);
+  internals.stop();
+  internals.throttle.dispose();
+  internals.jumpInput.dispose();
 });
