@@ -52,6 +52,15 @@ describe('CONFIG', () => {
     expect(rearWheel).toBeGreaterThan(0);
   });
 
+  it('bouton saut (tâche 5e) : apogée 2,5 m, JUMP_VY dérivée de la gravité, délai, mémoire 0,1 s, bouton ≥ 140 px', () => {
+    expect(CONFIG.JUMP_APEX).toBe(2.5);
+    expect(CONFIG.JUMP_VY).toBeCloseTo(Math.sqrt(2 * CONFIG.GRAVITY * CONFIG.JUMP_APEX), 12);
+    expect(CONFIG.JUMP_VY).toBeCloseTo(4.95, 2);
+    expect(CONFIG.JUMP_COOLDOWN).toBe(0.5);
+    expect(CONFIG.JUMP_BUFFER).toBe(0.1);
+    expect(CONFIG.JUMP_BUTTON_SIZE_PX).toBeGreaterThanOrEqual(140);
+  });
+
   it('dimensionne la zone de départ pour 5 longueurs de voiture à vitesse turbo plus 10 m', () => {
     expect(CONFIG.START_LENGTH).toBeGreaterThanOrEqual(5 * 1.5 * CONFIG.CAR_LENGTH + 10);
   });

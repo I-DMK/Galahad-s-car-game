@@ -1,5 +1,5 @@
-// HUD en DOM au-dessus du canvas : chrono, fps et compteur d'images à 0 / 2+ pas (debug), calque d'arrivée,
-// message d'erreur.
+// HUD en DOM au-dessus du canvas : chrono, fps et compteur d'images à 0 / 2+ pas (debug, sous le bouton saut
+// de `ui/jump-button.ts`, tâche 5e), calque d'arrivée, message d'erreur.
 // Le conteneur (#hud) est en `pointer-events: none` : seul le calque d'arrivée capte le toucher.
 import type { StepCounts } from '../loop/frame-stats';
 
@@ -7,10 +7,10 @@ const STYLE_ID = 'hud-style';
 const CSS = `
 .hud-time{position:absolute;top:16px;right:28px;font:700 64px system-ui,sans-serif;color:#fff;
   text-shadow:0 3px 0 #000a,0 0 12px #000c;font-variant-numeric:tabular-nums;letter-spacing:2px}
-.hud-fps{position:absolute;left:12px;bottom:8px;font:500 16px system-ui,sans-serif;color:#fffc;
-  text-shadow:0 1px 2px #000}
-.hud-steps{position:absolute;left:96px;bottom:8px;font:500 16px system-ui,sans-serif;color:#fffc;
-  text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums}
+.hud-fps{position:absolute;left:28px;bottom:6px;font:500 16px system-ui,sans-serif;color:#fffc;
+  text-shadow:0 1px 2px #000;line-height:20px}
+.hud-steps{position:absolute;left:112px;bottom:6px;font:500 16px system-ui,sans-serif;color:#fffc;
+  text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums;line-height:20px;white-space:nowrap}
 .hud-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:24px;background:rgba(0,0,20,.65);pointer-events:auto;color:#fff;
   font-family:system-ui,sans-serif;text-align:center;text-shadow:0 3px 0 #000a}

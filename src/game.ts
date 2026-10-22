@@ -1,7 +1,9 @@
 // Boucle de jeu : une image (`runFrame` : pas fixes de l'accumulateur, pas de course de Galahad et ses 4 copains,
-// poses interpolées entre les deux derniers pas) → caméra sur la pose dessinée de Galahad → rendu → HUD.
+// poses interpolées entre les deux derniers pas) → caméra sur la pose dessinée de Galahad → rendu → HUD et
+// bouton saut (tâche 5e : la demande de saut est prise au premier pas de l'image, et reste en attente sans pas).
 import type { Pilot } from './cars/pilots';
 import { CONFIG, type Config } from './config';
+import { JumpInput } from './input/jump';
 import { Throttle } from './input/throttle';
 import { runFrame, type FrameState, type StepOutcome } from './loop/frame';
 import { StepHistogram, type StepCounts } from './loop/frame-stats';
@@ -10,10 +12,13 @@ import { Camera } from './render/camera';
 import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
 import { presentFrame, stepOutcome } from './sim/present';
-import { createRaceSim, GALAHAD_INDEX, posesOf, rebuildCars, stepRace, type RaceSim, type SimEvent } from './sim/simulate';
+import {
+  createRaceSim, GALAHAD_INDEX, jumpReady, posesOf, rebuildCars, stepRace, type RaceSim, type SimEvent,
+} from './sim/simulate';
 import { generateTrack } from './track/generate';
 import { heightAt } from './track/query';
 import { Hud } from './ui/hud';
+import { JumpButton } from './ui/jump-button';
 
 export type GameState = 'racing' | 'finished' | 'error';
 
@@ -21,6 +26,8 @@ export type GameState = 'racing' | 'finished' | 'error';
 const MAX_ERRORS = 3;
 /** m : marge au-delà du bord de l'écran où les effets d'une voiture sont encore joués. */
 const EFFECTS_MARGIN_M = 3;
+/** Force de la poussière d'un saut (comme un atterrissage à 4 m/s : 8 grains). */
+const JUMP_DUST_STRENGTH = 4;
 
 export class Game {
   private readonly cfg: Config = CONFIG;
@@ -30,6 +37,10 @@ export class Game {
   private readonly effects: Effects;
   private readonly hud: Hud;
   private readonly throttle: Throttle;
+  private readonly jumpButton: JumpButton;
+  private readonly jumpInput: JumpInput;
+  /** Sauts de Galahad depuis le départ (événements 'jump', `?debug=1` : `jumps`). */
+  private jumpCount = 0;
   private _state: GameState = 'racing';
   /** Reste de l'accumulateur et poses des deux derniers pas (rendu interpolé, tâche 5f). */
   private readonly loop: FrameState = { acc: 0, history: new PoseHistory() };
@@ -55,6 +66,8 @@ export class Game {
     this.hud = new Hud(hudRoot);
     this.loop.history.reset(posesOf(this.sim));
     this.throttle = new Throttle(window);
+    this.jumpButton = new JumpButton(hudRoot, this.cfg);
+    this.jumpInput = new JumpInput(window, this.jumpButton.el);
     if (opts.debug) (window as unknown as { __game: Game }).__game = this;
   }
 
@@ -63,6 +76,10 @@ export class Game {
   get seed(): number { return this.opts.seed; }
   /** Images de la dernière seconde : total, à 0 pas, à 2 pas ou plus (debug, tremblement §8). */
   get frameSteps(): StepCounts { return { ...this.stepStats.last }; }
+  /** Sauts de Galahad depuis le départ (debug, e2e). */
+  get jumps(): number { return this.jumpCount; }
+  /** Doigt de gaz posé (debug, e2e : un tap sur le bouton saut n'en est jamais un). */
+  get throttlePressed(): boolean { return this.throttle.pressed; }
 
   /** Pilotes de la course, dans l'ordre de la grille (Galahad en premier). */
   get pilots(): Pilot[] { return this.sim.cars.map((c) => c.pilot); }
@@ -106,8 +123,11 @@ export class Game {
     const pressed = this.throttle.pressed;
     // `sim.events` ne contient que le dernier pas : on les recueille à chaque pas.
     const events: SimEvent[] = [];
-    const frame = runFrame(this.loop, elapsed, this.cfg, () => this.step(pressed, events));
+    const frame = runFrame(this.loop, elapsed, this.cfg, (i) => this.step(i, pressed, events));
     if (frame.stopped) return;
+    // Après l'arrivée, les appuis sont jetés (stepRace les ignorerait de toute façon).
+    if (this._state !== 'racing') this.jumpInput.clear();
+    this.jumpButton.setReady(this._state === 'racing' && jumpReady(this.sim, GALAHAD_INDEX));
     if (this.stepStats.record(frame.steps, now) && this.opts.debug) this.hud.setFrameSteps(this.stepStats.last);
 
     try {
@@ -124,16 +144,19 @@ export class Game {
   };
 
   /**
-   * Un pas de course pour `runFrame` : événements recueillis dans `events`, arrivée de Galahad ; poses
+   * Pas `i` de l'image pour `runFrame` : la demande de saut est prise au premier pas (`i === 0`) ; une image
+   * sans pas la laisse en attente. Événements recueillis dans `events`, sauts et arrivée de Galahad ; poses
    * après le pas et voitures réapparues (téléportées : pas d'interpolation depuis l'ancienne position).
    * Sur exception : `rebuildCars` (historique remis à zéro), ou abandon au MAX_ERRORS-ième échec.
    */
-  private step(pressed: boolean, events: SimEvent[]): StepOutcome {
+  private step(i: number, pressed: boolean, events: SimEvent[]): StepOutcome {
     const { sim } = this;
     try {
-      stepRace(sim, pressed);
+      const jump = i === 0 && this.jumpInput.take();
+      stepRace(sim, pressed, jump);
       events.push(...sim.events);
       const galahad = sim.cars[GALAHAD_INDEX].state;
+      for (const e of sim.events) if (e.type === 'jump' && e.carId === galahad.id) this.jumpCount++;
       if (this.finishTime === null && sim.events.some((e) => e.type === 'finish' && e.carId === galahad.id)) {
         this._state = 'finished';
         this.finishTime = galahad.finishedAt;
@@ -166,6 +189,7 @@ export class Game {
     for (const e of events) {
       if (e.type === 'respawn' && shown(e.carId, e.target.x)) this.effects.spawnSparks(e.target.x, e.target.y + 0.5);
       else if (e.type === 'landing' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, heightAt(sim.track, e.x), e.strength);
+      else if (e.type === 'jump' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, heightAt(sim.track, e.x), JUMP_DUST_STRENGTH);
     }
     this.effects.update(elapsed, sim.track, this.camera.x, half);
     this.renderer.draw(scene, this.camera, this.effects);

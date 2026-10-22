@@ -26,6 +26,10 @@ export interface CarState {
   invulnerableUntil: number;
   turboUntil: number;
   finishedAt: number | null;
+  /** Instant (s) du dernier saut de la voiture, null si jamais (délai JUMP_COOLDOWN, tâche 5e). */
+  lastJumpAt: number | null;
+  /** Instant (s) de la demande de saut pas encore servie, null sans demande (mémoire JUMP_BUFFER, tâche 5e). */
+  jumpRequestedAt: number | null;
 }
 
 export function newCarState(id: string, name: string, color: string, accent: string, start: SafePoint): CarState {
@@ -46,5 +50,7 @@ export function newCarState(id: string, name: string, color: string, accent: str
     invulnerableUntil: 0,
     turboUntil: 0,
     finishedAt: null,
+    lastJumpAt: null,
+    jumpRequestedAt: null,
   };
 }

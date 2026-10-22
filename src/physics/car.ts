@@ -2,7 +2,7 @@ import Matter from 'matter-js';
 import { normalizeAngle } from '../cars/angle';
 import type { Config } from '../config';
 import { heightAt as trackHeightAt } from '../track/query';
-import { mpsToPxPerStep, physToWorld, speedMps, toPx, worldToPhys } from './units';
+import { mpsToPxPerStep, physToWorld, speedMps, toM, toPx, worldToPhys } from './units';
 import { CAT, carCategory, type World } from './world';
 
 const { Bodies, Body, Composite, Constraint, Vector } = Matter;
@@ -151,6 +151,24 @@ export function applyDrive(car: CarBody, throttle: boolean, speedFactor: number,
     omega = throttle ? Math.min(omega + cfg.WHEEL_SPINUP, omegaMax) : omega * cfg.ENGINE_BRAKE;
     Body.setAngularVelocity(wheel, Math.max(omega, 0));
   }
+}
+
+/** Pas par seconde de PHYSICS_DT (vitesses Matter en px par pas de 1/60 s). */
+const STEPS_PER_SECOND = 60;
+
+/**
+ * Saut, même hauteur partout (décision P3 du papa, plan B tâche 5e) : vy0 = vitesse verticale du châssis vers
+ * le haut (m/s). vy = √(vy0² + JUMP_VY²) si vy0 > 0 : avec JUMP_VY = √(2 g JUMP_APEX), l'apogée monte de
+ * JUMP_APEX au-dessus du vol sans saut ; sinon JUMP_VY (voiture à plat ou qui descend : même poussée vers le
+ * haut, apogée ≈ JUMP_APEX au-dessus du point de départ). L'écriture en JUMP_VY² rend la formule continue en
+ * vy0 = 0 et la fait suivre une valeur de JUMP_VY corrigée ou surchargée. Cette vy est posée sur le châssis et
+ * les deux roues, vx de chaque pièce inchangée. À appeler hors de tout callback de collision.
+ */
+export function applyJump(car: CarBody, cfg: Config): void {
+  const vy0 = -toM(car.chassis.velocity.y) * STEPS_PER_SECOND;
+  const vy = vy0 > 0 ? Math.sqrt(vy0 * vy0 + cfg.JUMP_VY * cfg.JUMP_VY) : cfg.JUMP_VY;
+  const vyPx = -mpsToPxPerStep(vy);
+  for (const p of car.parts) Body.setVelocity(p, { x: p.velocity.x, y: vyPx });
 }
 
 /** Freinage (après l'arrivée) : rotation des roues × factor. */

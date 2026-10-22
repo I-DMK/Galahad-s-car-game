@@ -3,9 +3,13 @@ const DEG = Math.PI / 180;
 const D_LANCE = (14 * 14) / (2 * 4.3) * 1.2;
 /** m : points sûrs admis strictement avant xLancement + SAFE_LANCEMENT_MARGIN sur le plat de lancement (addendum §1.6). */
 const SAFE_LANCEMENT_MARGIN = 5;
+/** m/s² : gravité du jeu (Lune « jouable »), réutilisée par JUMP_VY. */
+const GRAVITY = 4.9;
+/** m : hauteur gagnée par un saut au-dessus du vol sans saut, quelle que soit la pente (décision P3 du papa, plan B tâche 5e). */
+const JUMP_APEX = 2.5;
 export const CONFIG = {
   PIXELS_PER_METER: 40,
-  GRAVITY: 4.9,                 // m/s²
+  GRAVITY,                      // m/s²
   V_MAX: 14,                    // m/s
   V_CRUISE: 0.8 * 14,
   V_JUMP: 10,                   // m/s au sommet de rampe : vitesse de calibration des volcans (à 22°, LAVA_MARGIN 0,8 et capteur à +0,3 m). Le seuil réel n'est pas net (bissection de tests/slow/dosage.test.ts, 15 volcans des graines 0 à 2, roues bridées : tombe 9,75–10,14 m/s, passe 9,96–10,75 ; tâche 5c). Avant le congé du pied (RAMP_FOOT_RADIUS, tâche 5c), des chutes doigt posé étaient mesurées jusqu'à 11,44 m/s au sommet : ce n'est pas la vitesse mais la direction au décollage qui décidait
@@ -62,5 +66,11 @@ export const CONFIG = {
   BACKING_MAX_WIDTH: 1920,
   CAMERA_LEAD_SECONDS: 0.6, CAMERA_SMOOTHING: 0.08, VISIBLE_HEIGHT_M: 14,   // 57 px/m à 800 px CSS → voiture ≈ 125 px
   GALAHAD_COLOR: 0x1e5cff, GALAHAD_ACCENT: 0xe2231a,
+  // Bouton saut (plan B, tâche 5e ; addendum « bouton saut » §1, amendé [plan]).
+  JUMP_APEX,
+  JUMP_VY: Math.sqrt(2 * GRAVITY * JUMP_APEX),   // ≈ 4,95 m/s : vitesse verticale d'un saut depuis l'arrêt (applyJump) ; apogée mesuré du châssis (tests/jump.test.ts) : voir le registre, tâche 5e
+  JUMP_COOLDOWN: 0.5,           // s depuis le dernier saut de cette voiture
+  JUMP_BUFFER: 0.1,             // s : mémoire d'une demande de saut pas encore servie (décision P2 du papa)
+  JUMP_BUTTON_SIZE_PX: 150,     // px CSS (≥ 140), bouton rond en bas à gauche
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

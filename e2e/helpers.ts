@@ -66,3 +66,66 @@ export async function frameSteps(page: Page): Promise<StepCounts & { hud: string
     hud: document.querySelector('.hud-steps')?.textContent ?? null,
   }));
 }
+
+type Point = { x: number; y: number };
+
+/** Centre (px CSS) du bouton saut. */
+export async function jumpButtonCenter(page: Page): Promise<Point> {
+  const box = await page.locator('.jump-button').boundingBox();
+  if (!box) throw new Error('bouton saut introuvable');
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** Sauts de Galahad et doigt de gaz (`window.__game.jumps`, `throttlePressed`, ?debug=1). */
+export async function jumpState(page: Page): Promise<{ jumps: number; throttlePressed: boolean }> {
+  return page.evaluate(() => {
+    const g = (window as any).__game;
+    return { jumps: g.jumps as number, throttlePressed: g.throttlePressed as boolean };
+  });
+}
+
+/**
+ * Tap seul sur le bouton saut (CDP tactile) : doigt posé au centre du bouton pendant `holdMs`, puis levé.
+ * Rend `throttlePressed` lu pendant l'appui.
+ */
+export async function tapJump(page: Page, holdMs = 150): Promise<{ throttleDuring: boolean }> {
+  const b = await jumpButtonCenter(page);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...b, id: 1 }] });
+    await page.waitForTimeout(holdMs);
+    const { throttlePressed } = await jumpState(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    return { throttleDuring: throttlePressed };
+  } finally {
+    await cdp.detach();
+  }
+}
+
+/**
+ * Gaz d'un doigt et tap de l'autre (CDP tactile, deux points) : doigt A posé en (640, 400) ; `afterS` s plus
+ * tard, doigt B posé au centre du bouton ; 0,2 s plus tard, `touchMove` avec A seul (CDP relâche B par
+ * comparaison avec l'événement précédent) ; `holdS` s plus tard, A levé. Rend `throttlePressed` lu juste
+ * après la pose de B et juste après son relâchement : le gaz doit rester posé.
+ */
+export async function holdFingerAndTapJump(
+  page: Page, afterS = 1, holdS = 2,
+): Promise<{ throttleWithB: boolean; throttleAfterB: boolean }> {
+  const a = { x: 640, y: 400, id: 0 };
+  const b = { ...(await jumpButtonCenter(page)), id: 1 };
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] });
+    await page.waitForTimeout(afterS * 1000);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a, b] });
+    const throttleWithB = (await jumpState(page)).throttlePressed;
+    await page.waitForTimeout(200);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [a] });
+    const throttleAfterB = (await jumpState(page)).throttlePressed;
+    await page.waitForTimeout(holdS * 1000);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    return { throttleWithB, throttleAfterB };
+  } finally {
+    await cdp.detach();
+  }
+}

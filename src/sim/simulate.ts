@@ -4,6 +4,7 @@
 // départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B).
 import Matter from 'matter-js';
 import type { Config } from '../config';
+import { canJump, wantsJump } from '../cars/jump';
 import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
 import { rankCars } from '../cars/ranking';
 import {
@@ -15,7 +16,7 @@ import { newCarState, type CarState, type SafePoint } from '../cars/state';
 import { activateTurbo, turboFactor } from '../cars/turbo';
 import type { CarPose } from '../loop/interpolation';
 import {
-  applyAirLevel, applyBrake, applyDrive, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
+  applyAirLevel, applyBrake, applyDrive, applyJump, carAngle, carSpeedMps, clampVelocities, createCar, placeCar,
   setCarInvulnerable, updateGroundContact, type CarBody, type GroundContact,
 } from '../physics/car';
 import { createStarBodies, syncStarBodies } from '../physics/stars';
@@ -31,7 +32,9 @@ export type SimEvent =
   | { type: 'respawn'; carId: string; t: number; reason: RespawnReason; x: number; target: SafePoint }
   | { type: 'landing'; carId: string; t: number; x: number; strength: number }
   | { type: 'star'; carId: string; t: number; id: number }
-  | { type: 'finish'; carId: string; t: number };
+  | { type: 'finish'; carId: string; t: number }
+  /** Saut (tâche 5e) : `x` = position du châssis (m) au moment du saut. */
+  | { type: 'jump'; carId: string; t: number; x: number };
 
 export type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 export type StarEvent = Extract<SimEvent, { type: 'star' }>;
@@ -48,6 +51,8 @@ export interface CarSim {
   contact: GroundContact;
   /** Instant (s) où plus aucune roue ne touche le sol, null si au moins une roue touche. */
   airborneSince: number | null;
+  /** Au moins une roue au sol au dernier pas, au sens du contact de jeu débouncé (saut possible, tâche 5e). */
+  grounded: boolean;
   /** Collisions avec les autres voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
   invulnerable: boolean;
   /**
@@ -120,7 +125,7 @@ function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cf
   const state = newCarState(pilot.id, pilot.name, colorHex(pilot.color), colorHex(pilot.accent), start);
   state.progress = physToWorld(body.chassis.position).x;
   return {
-    pilot, body, state, contact: newContact(), airborneSince: null, invulnerable: false, ghost: false,
+    pilot, body, state, contact: newContact(), airborneSince: null, grounded: false, invulnerable: false, ghost: false,
     driver: rank === 0 ? null : holdAfterStartDelay(rank, cfg), factor: 1, throttle: false,
   };
 }
@@ -148,7 +153,8 @@ export function createRaceSim(
 /**
  * Un pas fixe de PHYSICS_DT pour toutes les voitures : pour chacune, état fantôme (`updateGhost`),
  * conduite (doigt de Galahad = `galahadThrottle`, robots = leur driver ; vitesse × turbo × `factor`),
- * contact au sol et mise à plat en l'air ; un seul pas physique ; puis, voiture par voiture dans
+ * contact au sol, mise à plat en l'air et saut (`galahadJump` : nouvelle demande de Galahad, `updateJump`) ;
+ * un seul pas physique ; puis, voiture par voiture dans
  * l'ordre des index : bornage des vitesses, progression, étoiles, arrivée, invulnérabilité et réapparition.
  * Après son arrivée (`state.finishedAt` défini), une voiture freine (FINISH_BRAKE) et ne réapparaît
  * plus jamais (elle s'arrête sur le plat avant le mur de fin). Une étoile touchée par une voiture pour qui
@@ -156,7 +162,7 @@ export function createRaceSim(
  * tard ; les autres peuvent la prendre) et lui lance TURBO_SECONDS de turbo. Les capteurs sont alignés
  * sur l'état des étoiles à la fin du pas (`syncStarBodies`).
  */
-export function stepRace(sim: RaceSim, galahadThrottle: boolean): void {
+export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = false): void {
   const { cfg, world, track, time: t } = sim;
   const h = (x: number) => heightAt(track, x);
   sim.events = [];
@@ -173,6 +179,8 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean): void {
     const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
     detectLanding(sim, car, grounded[0] || grounded[1]);
     applyAirLevel(body, grounded, cfg);
+    // Robots : leur driver demandera le saut en tâche 6.
+    updateJump(sim, car, car.driver ? false : galahadJump, grounded[0] || grounded[1]);
     return grounded;
   });
   stepWorld(world);
@@ -191,6 +199,40 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean): void {
   });
   syncStarBodies(sim.starBodies, sim.stars, t, cfg);
   sim.time += cfg.PHYSICS_DT;
+}
+
+/**
+ * Saut d'une voiture, après son contact au sol et avant le pas physique (tâche 5e) : une nouvelle demande
+ * (`request`) est datée de t ; si elle est encore valable (`wantsJump`, mémoire JUMP_BUFFER) et que la voiture
+ * peut sauter (`canJump` : au sol, délai écoulé, course pas finie pour elle), `applyJump`, événement 'jump' ;
+ * une demande servie ou périmée est oubliée. Sans demande, rien ne touche la physique.
+ */
+function updateJump(sim: RaceSim, car: CarSim, request: boolean, grounded: boolean): void {
+  const { cfg, time: t } = sim;
+  const { state, body } = car;
+  car.grounded = grounded;
+  if (request) state.jumpRequestedAt = t;
+  if (state.jumpRequestedAt === null) return;
+  if (!wantsJump(state.jumpRequestedAt, t, cfg)) {
+    state.jumpRequestedAt = null;
+    return;
+  }
+  if (!canJump({ lastJumpAt: state.lastJumpAt, grounded, finished: state.finishedAt !== null, t }, cfg)) return;
+  applyJump(body, cfg);
+  state.lastJumpAt = t;
+  state.jumpRequestedAt = null;
+  sim.events.push({ type: 'jump', carId: state.id, t, x: physToWorld(body.chassis.position).x });
+}
+
+/**
+ * Bouton prêt pour la voiture d'index `index` à l'instant du prochain pas : elle pourrait sauter (`canJump`
+ * avec son contact au sol du dernier pas). Faux en l'air (à partir du 7e pas sans contact, contact
+ * débouncé), pendant le délai JUMP_COOLDOWN et après son arrivée.
+ */
+export function jumpReady(sim: RaceSim, index: number): boolean {
+  const car = sim.cars[index];
+  const { state } = car;
+  return canJump({ lastJumpAt: state.lastJumpAt, grounded: car.grounded, finished: state.finishedAt !== null, t: sim.time }, sim.cfg);
 }
 
 /** Atterrissage : retour au sol après au moins LANDING_MIN_AIRTIME en l'air. */
@@ -332,6 +374,8 @@ function placeInvulnerable(sim: RaceSim, car: CarSim, target: SafePoint, lavaX: 
   applyRespawnToState(car.state, { ...target }, lavaX, consecutive, sim.time, cfg);
   car.contact.groundedUntil = [-1, -1];
   car.airborneSince = null;
+  // Une téléportation oublie la demande de saut en attente (tâche 5e) : pas de saut surprise au point sûr.
+  car.state.jumpRequestedAt = null;
 }
 
 /**
