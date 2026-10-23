@@ -287,6 +287,19 @@ describe('scénarios forcés (vrai pas de course)', () => {
     expect(r.passed).toBe(true);
   });
 
+  test('copain sous élastique : `factor` n’est pas lu (R7-3) ; son facteur appliqué est celui de l’élastique', () => {
+    const sim = forced(NO_NEUTRAL, X);
+    const c = sim.cars[1];
+    c.driver = () => ({ throttle: true, jump: false });
+    place(sim, c, X - 50);
+    c.rubber = 1.2;
+    c.factor = 0.05;
+    stepRace(sim, false);
+    expect(c.rubber).toBeCloseTo(1.2 + STEP, 12); // 50 m derrière Galahad : cible 1,3, montée d'un cran
+    expect(c.speedFactor).toBe(c.rubber);
+    expect(c.torqueFactor).toBe(c.rubber);
+  });
+
   test('élastique coupé (R7-3) : launchSolo sur un copain met rubber = null ; il roule alors à turbo × factor, couple 1', () => {
     const sim = forced(CONFIG, X);
     const c = sim.cars[1];

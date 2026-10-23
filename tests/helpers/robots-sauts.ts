@@ -11,7 +11,9 @@
 //   sans saut ; tentative 2 = la voiture est déjà tombée dans cette fosse (départ arrêté au point sûr), comptée par fosse
 //   comme le driver (`CarSim.lavaFalls`), une autre réapparition ne la remet pas à 1.
 // Les invariants de course (tests/helpers/race.ts) valent pour les trois courses. Mesure seule pour les taux ; assertions :
-// au moins MIN_ATTEMPTS tentatives par bras, raté « fonceurs » > raté « prudents » aux étoiles hautes et aux fosses.
+// au moins MIN_ATTEMPTS tentatives par bras, raté « fonceurs » > raté « prudents » aux étoiles hautes et aux fosses ;
+// tâche 7 (élastique, copains jusqu'à 18,2 m/s, R-F16) : par bras, atterrissage le plus long d'un copain après le bord aval
+// d'une fosse passée ≤ FOSSE_GHOST_AFTER − 5 (35 m).
 import { PILOTS, type Pilot } from '../../src/cars/pilots';
 import { CONFIG } from '../../src/config';
 import { carSpeedMps } from '../../src/physics/car';
@@ -45,6 +47,8 @@ export interface FosseAttempt {
   /** Vitesse (m/s) au saut (pas de la décision), sinon à la chute. */
   speed: number;
   outcome: 'passe' | 'chute' | 'autre';
+  /** Premier atterrissage après le saut, en m après le bord aval (xReception) ; null sans saut ou sans atterrissage relevé. */
+  landing: number | null;
 }
 export interface RaceMeasure {
   arm: Arm; seed: number; stars: StarAttempt[]; fosses: FosseAttempt[];
@@ -58,7 +62,10 @@ export interface RaceMeasure {
   race: FiveCarRace;
 }
 
-interface OpenFosse { f: Fosse; index: number; attempt: 1 | 2; t: number; jumped: boolean; speed: number }
+interface OpenFosse { f: Fosse; index: number; attempt: 1 | 2; t: number; jumped: boolean; speed: number; landing: number | null }
+
+/** Atterrissage le plus long exigé après le bord aval d'une fosse (tâche 7, tableau « Fosses » ; R-F16) : 35 m. */
+export const FOSSE_LANDING_MAX = CONFIG.FOSSE_GHOST_AFTER - 5;
 
 /** Observateur d'une course : sauts d'étoile et tentatives aux fosses de chaque copain. */
 function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttempt[]; fosses: FosseAttempt[]; jumps: string[] }) {
@@ -69,6 +76,8 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
   const open = new Map<string, OpenFosse | null>();
   /** Chutes de chaque copain par fosse (clé « id/rang ») : tentative 2 dès une chute. */
   const fallsAt = new Map<string, number>();
+  /** Tentative passée encore en l'air à sa clôture : son atterrissage est relevé au premier événement 'landing'. */
+  const awaiting = new Map<string, FosseAttempt>();
   return (sim: RaceSim): void => {
     const t = sim.time;
     const galahad = sim.cars[0].state.id;
@@ -85,15 +94,23 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
         } else {
           mine.push({ arm, seed, carId: e.carId, t: e.t, x: e.x, speed: prevSpeed.get(e.carId) ?? NaN, taken: false, respawn: false });
         }
+      } else if (e.type === 'landing') {
+        if (o && o.jumped && o.landing === null && e.x > o.f.xBord) o.landing = e.x - o.f.xReception;
+        const a = awaiting.get(e.carId);
+        if (a) {
+          a.landing = e.x - fs[a.fosse].xReception;
+          awaiting.delete(e.carId);
+        }
       } else if (e.type === 'star' && highIds.has(e.id)) {
         const a = mine.find((s) => !s.taken && e.t - s.t <= STAR_TAKE_WINDOW);
         if (a) a.taken = true;
       } else if (e.type === 'respawn') {
         for (const s of mine) if (e.t - s.t <= RESPAWN_WINDOW) s.respawn = true;
+        awaiting.delete(e.carId);
         if (o) {
           out.fosses.push({
             arm, seed, carId: e.carId, t: o.t, fosse: o.index, attempt: o.attempt, jumped: o.jumped,
-            speed: o.jumped ? o.speed : prevSpeed.get(e.carId) ?? NaN, outcome: e.reason === 'lava' ? 'chute' : 'autre',
+            speed: o.jumped ? o.speed : prevSpeed.get(e.carId) ?? NaN, outcome: e.reason === 'lava' ? 'chute' : 'autre', landing: null,
           });
           if (e.reason === 'lava') fallsAt.set(`${e.carId}/${o.index}`, (fallsAt.get(`${e.carId}/${o.index}`) ?? 0) + 1);
           open.set(e.carId, null);
@@ -112,7 +129,9 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
       }));
       const o = open.get(id) ?? null;
       if (o && x > o.f.xReception + CONFIG.FOSSE_RESPAWN_AFTER) {
-        out.fosses.push({ arm, seed, carId: id, t: o.t, fosse: o.index, attempt: o.attempt, jumped: o.jumped, speed: o.speed, outcome: 'passe' });
+        const a: FosseAttempt = { arm, seed, carId: id, t: o.t, fosse: o.index, attempt: o.attempt, jumped: o.jumped, speed: o.speed, outcome: 'passe', landing: o.landing };
+        out.fosses.push(a);
+        if (o.jumped && o.landing === null) awaiting.set(id, a);
         open.set(id, null);
       }
       if (!open.get(id) && car.state.finishedAt === null) {
@@ -120,7 +139,7 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
         if (index >= 0) {
           const f = fs[index];
           const attempt = (fallsAt.get(`${id}/${index}`) ?? 0) >= 1 ? 2 : 1;
-          open.set(id, { f, index, attempt, t, jumped: false, speed: NaN });
+          open.set(id, { f, index, attempt, t, jumped: false, speed: NaN, landing: null });
         }
       }
       prevSpeed.set(id, carSpeedMps(car.body));
@@ -228,6 +247,22 @@ export function registerRobotsSauts(seeds: number[], determinism?: number): void
         + `réapparitions hors fosses par copain et par course : max ${Math.max(...respawns)}, moyenne ${f1(respawns.reduce((a, b) => a + b, 0) / respawns.length)}`);
       fs().mkdirSync('tests/slow/out', { recursive: true });
       fs().writeFileSync(`tests/slow/out/${name}.json`, JSON.stringify(all.map(({ race, ...m }) => ({ ...m, summary: race.summary, falls: race.falls }))));
+    });
+
+    test(`tâche 7 (élastique) : par bras, atterrissage le plus long d'un copain après le bord aval d'une fosse passée ≤ FOSSE_GHOST_AFTER − 5 (${FOSSE_LANDING_MAX} m)`, () => {
+      const lines = (['fonceurs', 'prudents', 'normal'] as const).map((k) => {
+        const passes = all.filter((m) => m.arm === k).flatMap((m) => m.fosses).filter((a) => a.outcome === 'passe' && a.jumped);
+        const landed = passes.filter((a) => a.landing !== null);
+        const longest = landed.reduce<FosseAttempt | null>((b, a) => (b === null || a.landing! > b.landing! ? a : b), null);
+        return { k, passes: passes.length, landed: landed.length, longest };
+      });
+      const what = lines.map((l) => `${l.k} : ${l.passes} sauts passés, ${l.landed} atterrissages relevés, le plus long `
+        + `${l.longest ? `${f1(l.longest.landing!)} m (g${l.longest.seed} ${l.longest.carId}, fosse ${l.longest.fosse}, ${f1(l.longest.speed)} m/s au saut)` : '—'}`).join(' ; ');
+      console.log(`atterrissages après une fosse (tâche 7) : ${what}`);
+      for (const l of lines) {
+        expect(l.landed, what).toBeGreaterThan(0);
+        expect(l.longest!.landing!, what).toBeLessThanOrEqual(FOSSE_LANDING_MAX);
+      }
     });
 
     test('fonceurs contre prudents (appariés par graine) : au moins 40 tentatives par bras, les fonceurs ratent plus, aux étoiles hautes et aux fosses', () => {
