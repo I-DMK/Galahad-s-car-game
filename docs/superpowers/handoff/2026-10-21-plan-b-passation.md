@@ -108,8 +108,8 @@ sans le contexte de celle-ci.
   la roue dessinée par-dessus en cache le bord, sans jour visible), tolérance du contrôle passée à
   [43 ; 55] cm ; carrosserie rendue opaque (le générateur livre alpha 250 à 254). `wheel.png`
   corrigée (liseré magenta de 2 px hérité de Grok) ; même liseré sur étoile, Terre et flammes, à
-  corriger à la 8b (`assets/README.md`). **À valider par le papa** : la planche (couleurs, arches
-  serrées), puis sur la tablette à la 8b.
+  corriger à la 8b (`assets/README.md`). **Planche validée par le papa le 2026-10-23, arches
+  serrées gardées** ; jugement final sur la tablette à la 8b.
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
@@ -241,8 +241,8 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 
 Session 3 (2026-10-21/22) : 5c et 5f validées et déployées ensemble. Plan des tâches 5f, 5d, 5e, 6 : `docs/superpowers/plans/2026-10-21-plan-b-saut-et-rendu.md` (v1.3 : relectures standard, adversariale, deux re-relectures ; décisions du papa Q-P1 à Q-P5 au registre ; étoiles hautes réalistes ≈ 1 par course, seuil fixé à la calibration du Step 9 de la 5e et présenté au papa). La branche de sauvegarde `wip-plan-b` est gardée (décision du papa) et sert aux tâches non validées.
 
-0. Sprites (session dédiée) : gabarit fait, sept sprites contrôlés et rangés (2026-10-23) ;
-   validation de la planche par le papa. Ensuite, reprise du plan B par la 5e, puis 6, 7, 8 et 8b
+0. Sprites (session dédiée) : **terminé** (2026-10-23) : gabarit, sept sprites contrôlés et rangés,
+   planche validée par le papa (arches serrées gardées). Suite : reprise du plan B par la 5e, puis 6, 7, 8 et 8b
    (la 8b part de `assets/sprites/` : cadre 2,80 × 1,40 m centré sur le châssis, roues par-dessus).
 1. Retour tablette du papa sur le tremplin (5c) et le tremblement (5f, compteur en `?debug=1`).
 2. 5d faite et déployée. Exécuter **5e** (bouton saut et étoiles hautes ; Step 9 : tableau de calibration et nombre d'étoiles hautes à faire valider par le papa) sur `wip-plan-b`, méthode habituelle ; puis **6 → 7** (l'élastique doit rendre l'avantage à Galahad : il gagne 52 % des courses doigt posé depuis la 5d). À chaque validation : `git checkout ccr-5b6fabc4-n96ofo && git merge --ff-only wip-plan-b`, push.

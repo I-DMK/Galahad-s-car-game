@@ -21,7 +21,8 @@ près, pente ≤ 0,73°, rien de coupé par le cadre, rien à effacer dans les a
 **serrées** (≈ la roue de 45 cm, au lieu des 50 cm visés) : la roue, dessinée par-dessus, en cache
 le bord, sans jour visible (planche `docs/sprites-planche.png`) ; la tolérance du contrôle est
 passée de [47 ; 55] à [43 ; 55] cm. Couleurs conformes à la palette 5a (carrosserie, bandes,
-casque), à revoir sur la tablette.
+casque). **Planche validée par le papa le 2026-10-23, arches serrées gardées** ; jugement final
+sur la tablette à la 8b.
 
 Les sprites Grok qu'elles remplacent (carrosseries renommées par pilote selon l'addendum §1.4,
 refusées au contrôle : arches de 0,26 m à notre échelle) restent dans l'historique git (commit
