@@ -41,15 +41,47 @@ export function fosseJumpLead(v: number, cfg: Config): number {
 }
 
 /**
- * Saut voulu devant une fosse (tâche 5g) : le châssis (x) est sur l'approche de la prochaine fosse, [xLancement,
- * xBord[, et le bord est à au plus `fosseJumpLead(v)` secondes à la vitesse v, mais à plus de JUMP_BUFFER : une demande
- * gardée en mémoire (0,1 s) partirait sinon au-dessus de la lave (tour 1 de la 5g). Vrai à chaque pas de cette fin
- * d'approche : le demandeur redemande tant qu'il ne s'est pas envolé (copains provisoires de la 5g, `sauteurParfait`
- * des tests). Parcourt les volcans sans allouer (appelé à chaque pas par chaque copain).
+ * Bord au plus tard de la fenêtre de saut d'une fosse, en s avant le bord amont, à la vitesse v :
+ * FOSSE_JUMP_LATE_DISTANCE / max(v, 1) + FOSSE_JUMP_LATE_TIME (saut §6.2, CALCULÉ : la roue avant doit avoir quitté le
+ * sol avant de toucher le coin du capteur, s ≥ ≈ 1,2 m + 0,06 s × v). 0,21 s à 8 m/s, 0,17 à 11,2, 0,15 à 14, 0,12 à 21.
+ * Prudent : les bords mesurés (s min 1,45 à 2,10 m, §6.2) sont plus près de la lave. Toujours sous `fosseJumpLead(v)`
+ * (au moins 0,07 s d'écart, à 6 m/s) : le sauteur sans erreur n'est jamais en retard.
  */
-export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config): boolean {
+export function fosseLatestLead(v: number, cfg: Config): number {
+  return cfg.FOSSE_JUMP_LATE_DISTANCE / Math.max(v, 1) + cfg.FOSSE_JUMP_LATE_TIME;
+}
+
+/**
+ * Fenêtre de demande du saut d'une fosse dont le bord amont est en `xBord` (une seule formule, tour 3 de la tâche 6 :
+ * `fosseJumpWanted` et le driver des copains, qui lit sa fosse dans son contexte) : le bord est à au plus `visé`
+ * secondes à la vitesse v, mais à plus de JUMP_BUFFER : une demande gardée en mémoire (0,1 s) partirait sinon au-dessus
+ * de la lave (tour 1 de la 5g).
+ * - `visé` = `fosseJumpLead(v)` + `error` (centre de la fenêtre, plus l'erreur du copain) ;
+ * - erreur trop tardive (décision du papa, tour 2 de la tâche 6) : si `fosseJumpLead(v)` + `error` <
+ *   `fosseLatestLead(v)` (bord au plus tard CALCULÉ), le saut partirait si près de la lave qu'elle reprendrait la
+ *   voiture au pas du saut (raté invisible, re-relecture du tour 1) ; il devient un saut trop tôt du même écart :
+ *   `visé` = `fosseJumpLead(v)` − `error`. Le copain décolle, vole et retombe dans la fosse (ou avant) : le raté se voit.
+ *   Un saut basculé de justesse vise le bord au plus tôt CALCULÉ (le milieu des deux bords est `fosseJumpLead`) ;
+ * - filet : jamais moins de JUMP_BUFFER + PHYSICS_DT (dernier pas permis).
+ * Sans erreur, rien ne bascule (`fosseJumpLead` ≥ `fosseLatestLead` + 0,07 s) et le filet ne joue jamais
+ * (`fosseJumpLead` ≥ 0,33 s). L'appelant vérifie que le châssis est sur l'approche, [xLancement, xBord[.
+ */
+export function inFosseJumpWindow(xBord: number, x: number, v: number, cfg: Config, error = 0): boolean {
+  const tte = (xBord - x) / Math.max(v, 1);
+  const centre = fosseJumpLead(v, cfg);
+  const aim = centre + error < fosseLatestLead(v, cfg) ? centre - error : centre + error;
+  const lead = Math.max(aim, cfg.JUMP_BUFFER + cfg.PHYSICS_DT);
+  return tte <= lead + EPS && tte > cfg.JUMP_BUFFER + EPS;
+}
+
+/**
+ * Saut voulu devant une fosse (tâche 5g ; erreur des copains, tâche 6) : le châssis (x) est sur l'approche de la
+ * prochaine fosse, [xLancement, xBord[, et dans sa fenêtre de demande (`inFosseJumpWindow`). Vrai à chaque pas de cette
+ * fenêtre : le demandeur redemande tant qu'il ne s'est pas envolé (`sauteurParfait` des tests). Parcourt les volcans
+ * sans allouer.
+ */
+export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config, error = 0): boolean {
   const f = nextFosse(track, x);
   if (!f || x < f.xLancement) return false;
-  const tte = (f.xBord - x) / Math.max(v, 1);
-  return tte <= fosseJumpLead(v, cfg) + EPS && tte > cfg.JUMP_BUFFER + EPS;
+  return inFosseJumpWindow(f.xBord, x, v, cfg, error);
 }

@@ -20,7 +20,7 @@ const place = (car: CarSim, x: number): void => placeCar(car.body, x, h, slopeAt
 /** Course à 5 voitures, copains à l'arrêt (conduite coupée). */
 function parked(): RaceSim {
   const sim = createRaceSim(track, CONFIG, { robots: true });
-  for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+  for (const robot of sim.cars.slice(1)) robot.driver = () => ({ throttle: false, jump: false });
   return sim;
 }
 
@@ -65,7 +65,7 @@ test('une voiture plus rapide rattrape une autre sur l’élan : elle la travers
   const sim = parked();
   const [g, slow] = sim.cars;
   // Copain lent (≤ 0,7 m/s) au début du plat d'élan ; Galahad part arrêté de xLancement + 1, doigt posé.
-  slow.driver = () => true;
+  slow.driver = () => ({ throttle: true, jump: false });
   slow.factor = 0.05;
   const xSlow = v.xElanStart - 1;
   place(g, v.xLancement + 1);
@@ -110,7 +110,7 @@ test('deux voitures qui se chevauchent en sortant de la zone restent fantômes j
   // Même conduite bridée à 4,2 m/s : elles roulent ensemble, recouvertes, hors zone.
   g.factor = 0.3;
   r.factor = 0.3;
-  r.driver = () => true;
+  r.driver = () => ({ throttle: true, jump: false });
   for (let i = 0; i < 60; i++) { step(true); pairs.push(...carPairs(sim)); }
   expect(inGhostZone(track, chassisX(g), CONFIG) || inGhostZone(track, chassisX(r), CONFIG)).toBe(false);
   expect(overlap(g, r)).toBe(true);
@@ -118,7 +118,7 @@ test('deux voitures qui se chevauchent en sortant de la zone restent fantômes j
   expect([carBits(g), carBits(r)]).toEqual([PASS, PASS]);
   // 2. Galahad accélère, le copain lève le pied : elles se séparent, toujours sans se toucher.
   g.factor = 1;
-  r.driver = () => false;
+  r.driver = () => ({ throttle: false, jump: false });
   while (overlap(g, r) && sim.time < 10) { step(true); pairs.push(...carPairs(sim)); }
   expect(overlap(g, r)).toBe(false);
   step(true);
@@ -127,7 +127,7 @@ test('deux voitures qui se chevauchent en sortant de la zone restent fantômes j
   expect([g.ghost, r.ghost]).toEqual([false, false]);
   expect([carBits(g), carBits(r)]).toEqual([SOLID, SOLID]);
   // 3. Galahad lève le pied, le copain fonce : il le percute (collision rétablie), hors de toute zone.
-  r.driver = () => true;
+  r.driver = () => ({ throttle: true, jump: false });
   r.factor = 1;
   const t0 = sim.time;
   let hit: string[] = [];

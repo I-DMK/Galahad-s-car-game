@@ -1,12 +1,16 @@
 // Courses doigt posé SANS saut (plan B, tâche 5g, Step 6 ; addendum « bouton saut » §4 et §6.1, décision P9) : Galahad
-// seul, puis à 5 voitures (copains provisoires sauteurs, ruling R-F9), graines données. Exactement 2 chutes par fosse
-// (la 2e pose la voiture juste après, option B), au plus 2 par série, 0 au tremplin, arrivée avant 240 s ; copains 0
-// chute. Temps perdu par fosse imprimé, contre la même course de Galahad seul avec le saut parfait (≈ 4,3 à 4,6 s
+// seul, puis à 5 voitures (copains à leur driver, tâche 6), graines données. Exactement 2 chutes par fosse
+// (la 2e pose la voiture juste après, option B), au plus 2 par série, 0 au tremplin, arrivée avant 240 s ; copains :
+// chutes aux fosses seulement (sauts ratés, décision Q-F3), au plus 2 par série. Temps perdu par fosse imprimé, contre
+// la même course de Galahad seul avec le saut parfait (≈ 4,3 à 4,6 s
 // attendus). Étoiles basses des réceptions (demande du papa) : chaque étoile basse d'une réception est prise par
 // Galahad seul doigt posé avec le saut parfait, et les atterrissages restent avant leur début, marge comprise.
 import { CONFIG } from '../../src/config';
 import { fosses } from '../../src/track/query';
-import { CONTACT_WINDOW, MAX_STUCK_SECONDS, RACE_MAX_SECONDS, describeFall, fiveCarRace, lavaSeries, type FiveCarRace } from './race';
+import {
+  CONTACT_WINDOW, MAX_STUCK_SECONDS, RACE_MAX_SECONDS, describeFall, fiveCarRace, isSansTentative, lavaSeries,
+  respawnsHorsFosses, type FiveCarRace,
+} from './race';
 import { describeRow, expectReceptionStars, receptionRun, type ReceptionRow } from './reception';
 import { trackFor } from './runs';
 
@@ -24,11 +28,15 @@ function expectSansSaut(race: FiveCarRace, nF: number, seed: number): void {
   expect(g.map((f) => `${f.kind} ${f.cause}`), summary).toEqual(Array.from({ length: 2 * nF }, () => 'fosse fosse'));
   expect(r.lavaByCar.galahad, summary).toBe(2 * nF);
   expect(lavaSeries(r.respawnsByCar.galahad, track), summary).toEqual(Array.from({ length: nF }, () => 2));
-  // Copains provisoires (saut au centre, sans erreur) : aucune chute.
-  expect(falls.filter((f) => f.carId !== 'galahad').map(describeFall), summary).toEqual([]);
+  // Copains (tâche 6) : ils ratent parfois une fosse (attendu), jamais un tremplin ; jamais de saut dans la zone d'un
+  // tremplin.
+  expect(falls.filter((f) => f.carId !== 'galahad' && f.kind !== 'fosse').map(describeFall), summary).toEqual([]);
+  expect(falls.filter(isSansTentative).map(describeFall), summary).toEqual([]);
+  expect(race.noJumpZoneJumps, summary).toEqual([]);
   expect(r.ghostContacts, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {
-    expect(rs.filter((e) => e.reason !== 'lava').length, `${id} : ${summary}`).toBeLessThanOrEqual(MAX_OTHER_RESPAWNS);
+    expect(respawnsHorsFosses(race, id), `${id} : ${summary}`).toBeLessThanOrEqual(MAX_OTHER_RESPAWNS);
+    expect(Math.max(0, ...lavaSeries(rs, track)), `${id} : ${summary}`).toBeLessThanOrEqual(2);
     expect(rs.filter((e) => e.reason === 'speed'), `${id} : ${summary}`).toEqual([]);
     expect(r.maxStuckByCar[id], `${id} : ${summary}`).toBeLessThanOrEqual(MAX_STUCK_SECONDS);
   }

@@ -200,7 +200,7 @@ describe('invulnérabilité après une réapparition', () => {
   test('roue d’une autre voiture dans une roue, châssis séparés : invulnérable jusqu’au plafond (toutes les pièces comptent)', () => {
     const { track, v } = firstTremplin();
     const sim = createRaceSim(track, CONFIG, { robots: true });
-    for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+    for (const robot of sim.cars.slice(1)) robot.driver = () => ({ throttle: false, jump: false });
     const g = sim.cars[0];
     const xSafe = v.xLancement + 1;
     g.state.safePoint = { x: xSafe, y: heightAt(track, xSafe), angle: 0 };
@@ -232,7 +232,7 @@ describe('invulnérabilité après une réapparition', () => {
     const { track, v } = firstTremplin();
     // 5 voitures : le copain de rang 1 sert de châssis superposé ; les copains restent à l'arrêt sur la grille.
     const sim = createRaceSim(track, CONFIG, { robots: true });
-    for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+    for (const robot of sim.cars.slice(1)) robot.driver = () => ({ throttle: false, jump: false });
     placeCar(sim.cars[0].body, v.xLava, h(track), 0, CONFIG);
     const e = stepUntilRespawn(sim, false, 5);
     expect(e).toBeDefined();

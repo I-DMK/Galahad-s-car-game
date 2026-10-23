@@ -17,6 +17,11 @@ export interface CarState {
   /** x de la lave de la dernière chute dans la lave ; remis à null par tout autre respawn (tâche 10a du plan A, série « même volcan »). */
   lastRespawnLavaX: number | null;
   consecutiveRespawns: number;
+  /**
+   * Réapparitions depuis le départ (toute raison, et chaque reconstruction `rebuildCars`) : chaque téléportation
+   * l'incrémente (`applyRespawnToState`). Le driver d'un copain y lit une nouvelle tentative (tâche 6).
+   */
+  respawnCount: number;
   /** Instants (s) de début de retournement / de voiture sur le côté / de blocage, null sinon. */
   flippedSince: number | null;
   sideSince: number | null;
@@ -43,6 +48,7 @@ export function newCarState(id: string, name: string, color: string, accent: str
     lastSafePointAt: 0,
     lastRespawnLavaX: null,
     consecutiveRespawns: 0,
+    respawnCount: 0,
     flippedSince: null,
     sideSince: null,
     stuckSince: null,

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. À chaque tâche : implémenteur frais, puis relecture standard + relecture adversariale par sous-agents frais **et** le skill `code-review` sur le diff de la tâche ; tours de correction (≤ 5) ; validation du papa ; passation mise à jour et commitée ; push.
 
-**Statut :** v1.6.
+**Statut :** v1.7 (tâche 7, élastique, réécrite le 2026-10-23 avec les décisions du papa ; v1.6 avant).
 - v1 (04d458a) : brouillon.
 - v1.1 : tour de relecture 1 (standard, adversariale avec calculs physiques, rulings du coordinateur).
 - v1.2 : décisions du papa intégrées (registre 567ee13) et constats de la re-relecture.
@@ -46,7 +46,7 @@ v1.3 validée par le papa et exécutée jusqu'au Step 8 de la 5e. **v1.6 en atte
 | `input/jump.ts` | front d'appui (à côté de `input/throttle.ts`) |
 | `ui/jump-button.ts` | bouton DOM (à côté de `ui/hud.ts`) |
 
-**Ordre d'exécution :** **5f → 5d → 5e → 5g → 6**, puis la tâche 7 du plan v2.1. Prérequis : la tâche 5c est validée et fusionnée sur `ccr-5b6fabc4-n96ofo` (passation, « Prochaine action » 2).
+**Ordre d'exécution :** **5f → 5d → 5e → 5g → 6**, puis la **tâche 7 (v1.7, ci-dessous)**, qui remplace celle du plan v2.1. Prérequis : la tâche 5c est validée et fusionnée sur `ccr-5b6fabc4-n96ofo` (passation, « Prochaine action » 2).
 
 **Spec :**
 - `docs/superpowers/specs/2026-10-21-bouton-saut-design.md` (validé) fait autorité pour 5d, 5e et 6. Le Step 1 de la 5e l'amende avec les décisions du papa. Référence : « saut §n ». [fosses] Son §6 (fosses et plats étoile, décisions du 2026-10-22) fait autorité pour la fin de la 5e, la 5g et les sauts des copains aux fosses ; il l'emporte sur l'addendum plan B (§1.4 à §1.8) pour les fosses.
@@ -1313,6 +1313,596 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
   - [fosses] Les copains tombent-ils parfois dans une fosse, de façon crédible (taux mesurés du Step 3) ?
 
   Puis commit `docs: tâche 6 validée, passation et registre`, `git status -sb`, push. On enchaîne sur la tâche 7 du plan v2.1. Après les tâches 6 et 7, le papa rejuge la difficulté (`ENGINE_BRAKE`, plan C).
+
+---
+
+### Task 7 (v1.7) : Élastique (remplace la tâche 7 du plan v2.1)
+
+**Statut.**
+- v1 (2026-10-23) : écrit en lecture seule sur `wip-plan-b` à 5a3f0fb.
+- v2 : corrigé après la relecture standard (I1 à I6, M1 à M9) et la relecture adversariale (I1, I2, M1 à M4). La correspondance est à l'annexe C.
+- **v3 : décisions du papa du 2026-10-23 intégrées** dans le texte même de la tâche (§ « Décisions du papa »).
+- v3.1 : re-relecture de la v3 ; N1 corrigé par le ruling R7-16 (plafond du turbo hors écran, même définition de l'écran que le compteur) et deux mineurs.
+- v1.7 du plan (2026-10-23) : ce texte, intégré tel quel ; corrections du § « Corrections à reporter » faites avec la doc de la tâche.
+
+**Prérequis.**
+- La tâche 6 est validée et fusionnée, tour de correction 3 compris (graine du « Galahad sauteur » salée pour ne plus être corrélée à `drawPilots` ; chutes par volcan comptées à une seule source).
+- BASE = le dernier commit de la tâche 6, noté au registre.
+- **Toutes les mesures « avant » se font à BASE.** Celles du tour 1 de la 6 (registre l. 209) ne servent que de repères.
+
+**Pourquoi un amendement.** La tâche 7 du plan v2.1 date d'avant la course à 5 voitures (5b), le saut fiabilisé (5c), le rendu interpolé (5f), les étoiles pour tous (5d), le bouton saut et les plats étoile (5e), les fosses (5g) et la conduite des robots (6).
+- Sa liste de consommateurs d'`applyDrive` est fausse.
+- Elle ne dit rien des fosses.
+- Son objectif mesuré suppose « doigt posé = jamais de chute », ce qui n'est plus vrai depuis P9.
+- La passation demande de mesurer « ce que le bouton rend à Galahad ».
+- **Mesuré, l'élastique tel qu'écrit au plan v2.1 rendait la course jouée d'avance et vidait l'écran** (§ 0.2). D'où les décisions D7-2 et D7-3.
+
+**Conventions des chiffres** (comme saut §6.0) :
+- **MESURÉ (registre, l. n)** : registre `sdd-ledger-plan-b.md`.
+- **MESURÉ (adversaire)** : relecture adversariale du brouillon : prototype de l'élastique câblé dans `stepRace`, courses `fiveCarRace` (CONFIG, saut parfait), émulations avec phases (`scratchpad/r7-sondes/`).
+- **MESURÉ (sonde du brouillon)** : tour 1 (annexe A, une trajectoire par cas) et tour 2 (annexe B, options de fenêtre et de `base` sur le prototype de l'adversaire).
+- **CALCULÉ** : formule donnée. **ESTIMÉ** : jugement, à remplacer par une mesure de la tâche.
+- Bruit : sur 10 courses, ± 1,6 victoire d'écart-type à p = 0,5 ; sur 20 courses, ± 2,2 (CALCULÉ, binomiale).
+
+---
+
+#### Décisions du papa (2026-10-23)
+
+Le papa a retenu toutes les recommandations du brouillon v2. Les options écartées ne sont plus dans le plan.
+
+| # | Question | Décision | Mesures qui l'ont fondée |
+|---|---|---|---|
+| D7-1 | Quel Galahad sert de référence pour l'objectif ? | **Doigt posé, saut parfait à chaque fosse, jamais de saut d'étoile** | joueur modèle des invariants depuis la 5g (P9) ; 12/48 victoires au tour 1 de la 6 (registre l. 209) |
+| D7-2 | Forme de la fenêtre | **La fenêtre est la vue : 20 m devant, 3 m derrière** (`RUBBER_WINDOW_AHEAD_M` 20, `RUBBER_WINDOW_BEHIND_M` 3) | Copain à l'écran 14 % du temps avec la fenêtre de 12 m, 40 % sans élastique, 32 % avec 20/3 et les `base` d'avant (MESURÉ). Avec 12 m, la marche du turbo était visible |
+| D7-3 | Caractère de vitesse des copains | **`base` regroupées entre 0,97 et 1,00, dans le même ordre** : Pablo 1,00, Matthis 0,995, Malo 0,9875, Diego 0,985, Liam 0,975, Timothé 0,97. Le caractère reste porté par `lift`, `jumpTry` et `jumpSkill` | Avec les `base` d'avant et la fenêtre de 12 m, Galahad gagnait 19/20 (adversaire). Avec D7-2 et D7-3 : Galahad 1er 4/10, 1er ou 2e 8/10, dernier 0, place 1,80, **copain à l'écran 49 % (31 à 97 %)** (sonde du brouillon, graines 0 à 9) |
+| D7-4 | Cibles de l'objectif | **Le spec (1er ou 2e ≥ 10/20, dernier ≤ 2/20, ≤ 3 réapparitions par copain), plus Galahad 1er dans 5 à 15 des 20 courses, et un copain à l'écran au moins 30 % du temps en moyenne** | même ligne que D7-3 |
+| D7-5 | Cibles des autres variantes | **Sauteur** : place moyenne ≤ celle du modèle D7-1, sur les mêmes graines. **Doigt levé 30 %** : imprimé, seules les limites des copains sont exigées. **Sans saut** : imprimé par le rattrapage et `test:slow:bouton` | doigt levé, élastique du plan v2.1 : 2/10, dernier 2 fois, place 3,0 (adversaire) |
+
+**Règle qui reste.** Hors cible, on montre les chiffres au papa ; aucun levier sans lui (R7-14).
+
+---
+
+#### 0. Ce que la tâche change, et pourquoi
+
+##### 0.1 Pour un copain (règles du spec, décisions D7-2 et D7-3)
+
+Galahad ne change pas : 14 m/s doigt posé, turbo 21 m/s, couple 1 (addendum §2 [plan]).
+
+| Copain | Aujourd'hui (tâche 6) | Après la tâche 7 |
+|---|---|---|
+| dans la fenêtre (de 3 m derrière Galahad à 20 m devant), sans turbo | 14 m/s, couple 1 | `base` × 14 : 13,6 (Timothé, 0,97) à 14,0 m/s (Pablo, 1,00), couple × `base` |
+| loin devant (> 20 m) | 14 m/s | jusqu'à 8,4 m/s (0,6), couple × 0,6 ; facteur remonté vers 1,0 dans les 40 m de pré-zone, au moins 1,0 dans `[xLancement, xLava]` |
+| loin derrière (> 3 m) | 14 m/s | jusqu'à 18,2 m/s (1,3), couple × 1,3 |
+| en turbo | 21 m/s, couple 1 | min(1,3 ; élastique × 1,5) au plafond **et** au couple, donc ≤ 18,2 m/s ; ≤ 14 m/s hors écran devant Galahad (au-delà de 11,2 + 0,6 v + 1,6 m, v sa vitesse : 21,2 m à 14 m/s, R7-16), flammes gardées (spec §7) |
+
+- **Équilibre sans étoile** (CALCULÉ : là où la cible vaut 1,0, soit 3 + 40 × (1 − `base`) / (1,3 − `base`) m derrière Galahad doigt posé) : de 3 m (Pablo) à 6,6 m (Timothé). C'est au bord de la vue : 2,8 m derrière Galahad à 14 m/s. Avec la fenêtre de 12 m et les `base` d'avant, c'était 14,5 à 24,7 m, hors de la vue.
+- **Vitesse maximale conduite d'un copain.**
+  - 18,2 m/s CALCULÉ (14 × 1,3) ; 18,8 m/s MESURÉ (sonde du brouillon, facteur 1,3 tenu, pentes comprises) ; facteur maximal 1,30 sur 60 courses (MESURÉ, adversaire). Elle ne vaut pas 27,3 m/s (R7-1).
+  - Ce n'est pas la vitesse maximale du châssis (MESURÉ, adversaire) : juste après un contact entre voitures, vx atteint 21,4 à 21,8 m/s ; en descente, la vitesse totale monte jusqu'à 25 m/s. La règle des catapultes (R-F12) couvre ces cas, et la suite lente les imprime (Step 5).
+- **Enveloppe.** La vitesse conduite d'un copain (≤ 18,8 m/s) reste dans celle de Galahad en turbo (21 m/s), déjà mesurée pour les fosses, les tremplins et les plats étoile. Ce qui est neuf : le couple × 1,3 ou × 0,6, et le 1,3 **tenu** (le turbo de Galahad dure 3 s).
+
+##### 0.2 Ce que l'élastique fait à la course (MESURÉ)
+
+- Conditions : graines 0 à 9, sauf mention ; Galahad doigt posé avec le saut parfait aux fosses ; 5 voitures ; `CONFIG`.
+- « Copain à l'écran » : part du temps (après les 5 s neutres, avant l'arrivée de Galahad) où au moins un copain est dans [0,6 v − 12,8 ; 0,6 v + 12,8] m de Galahad (v sa vitesse). C'est la vue de 1 280 × 800 (11,2 m de demi-largeur, avance de caméra 0,6 s × v) plus 1,6 m ; définition de l'adversaire.
+- La tâche en fait **une seule fonction pure, `onScreen(gap, vGalahad, cfg)`** (§ Interfaces). Elle sert à la fois au plafond « ≤ 1 hors écran devant » de `finalFactor` (R7-16), au compteur « freinage net » et à la part « copain à l'écran » (Steps 2 et 5).
+
+| Réglage | Galahad 1er | 1er ou 2e | dernier | place moyenne | copain à l'écran (moyenne, min–max) | Source |
+|---|---|---|---|---|---|---|
+| sans élastique (code de la 6) | 5/10 | 6/10 | 0 | 2,00 | 40 % (4 à 86) | adversaire |
+| plan v2.1 : `base` d'avant, fenêtre 12/12 | 9/10 (19/20 sur 0 à 19) | 10/10 (20/20) | 0 | 1,10 (1,05) | 14 % (0 à 42) | adversaire |
+| `base` d'avant, fenêtre 20/3 | 4/10 | 8/10 | 0 | 1,90 | 32 % (1 à 90) | sonde du brouillon |
+| **décidé : `base` 0,97 à 1,00, fenêtre 20/3** | **4/10** | **8/10** | **0** | **1,80** | **49 % (31 à 97)** | sonde du brouillon |
+| plan v2.1, Galahad doigt levé 30 % | 2/10 | 3/10 | 2 | 3,0 | — | adversaire |
+
+**La physique tient** (MESURÉ, adversaire, fenêtre de 12 m) : aucune chute aux tremplins, aucune étoile haute prise sans saut, aucun choc plus fort. Le Step 4 la remesure avec la fenêtre décidée.
+
+---
+
+**Files:**
+- Create :
+  - `src/ai/rubberband.ts` : élastique, pur.
+  - `tests/rubberband.test.ts` : pur, CI.
+  - `tests/elastique.test.ts` : simulations courtes, CI.
+  - `tests/slow/elastique-volcans.test.ts` : Review Focus n° 3, tremplins à 1,3 avec phases, marche au pied, fosses, plats étoile, départ à 0,6, Galahad arrêté.
+  - `tests/slow/race-objective.test.ts` : modèle D7-1 et sauteur, 2 × 20 courses.
+  - `tests/slow/race-objective-leve.test.ts` : doigt levé 30 %, 10 courses.
+  - `tests/helpers/objective.ts` : lignes, tableau, cibles de D7-4 et D7-5, compteurs « copain à l'écran » et « freinage net à l'écran ». Réutilise `fiveCarRace` et la forme `RattrapageRow`.
+  - `tests/slow/bouton.test.ts` et `vitest.slow-bouton.config.ts`, script `test:slow:bouton` : « ce que le bouton rend » (Step 6).
+- Modify :
+  - `src/physics/car.ts` : `applyDrive`, nouvelle signature (§ Interfaces).
+  - `src/sim/simulate.ts` :
+    - champs `CarSim.rubber`, `speedFactor`, `torqueFactor` ;
+    - élastique de chaque copain avant `applyDrive` ;
+    - commentaire du champ `factor` réécrit (« 1 en 5b » est périmé).
+  - `src/track/query.ts` : `inVolcanoZone(track, x)`, utilisée par le driver (sa copie locale, `driver.ts:158`, disparaît) et par l'élastique.
+  - `src/ai/driver.ts` : appel de `inVolcanoZone`, aucun changement de règle.
+  - `src/config.ts` : constantes `RUBBER_*` (§ Constantes).
+  - **`src/cars/pilots.ts`** : `base` du papa (D7-3), commentaire du champ (« [0,97 ; 1], décision du papa du 2026-10-23 ») ; **`tests/pilots.test.ts`** : bornes, valeurs, ordre (Step 2).
+  - Tests à migrer :
+    - `tests/helpers/runs.ts` (`step`), `tests/car.test.ts`, `tests/bounce.test.ts` ;
+    - `tests/helpers/jump-runs.ts` : littéral `CarSim`, et `launchSolo` qui coupe l'élastique ;
+    - `tests/fantomes.test.ts` : copains à vitesse imposée ;
+    - `tests/query.test.ts` : `inVolcanoZone` ;
+    - `tests/smoke.test.ts` : constantes ;
+    - `tests/helpers/rattrapage.ts` : indicateurs « 1er ou 2e » et « dernier », et lecteur pour `bouton.test.ts`.
+  - `tests/helpers/robots-sauts.ts` : assertion nouvelle, au Step 4.
+  - `package.json` et configs de Vitest :
+    - `vitest.slow-race.config.ts` : `include: ['tests/slow/race-objective*.test.ts']` ;
+    - `vitest.slow.config.ts` : `exclude` de ce glob et de `tests/slow/bouton.test.ts` ;
+    - `vitest.slow-bouton.config.ts` : nouveau ;
+    - script `test:slow:bouton`.
+  - Documents : § « Corrections à reporter ».
+- Test :
+  - CI : `tests/rubberband.test.ts`, `tests/pilots.test.ts`, `tests/query.test.ts`, `tests/car.test.ts`, `tests/elastique.test.ts`, `tests/race-smoke.test.ts` (inchangé, élastique actif).
+  - Lent : `tests/slow/elastique-volcans.test.ts` et `tests/slow/race-objective*.test.ts`.
+  - Lent, relancés : liste du Step 6.
+
+**Interfaces :**
+```ts
+// src/physics/car.ts : positionnel, aucun objet alloué par pas. Le compilateur signale les 8 appels (grep à BASE :
+// src/sim/simulate.ts, tests/helpers/runs.ts, tests/car.test.ts ×5, tests/bounce.test.ts). Les mentions dans des
+// commentaires (phases.ts, phases-dense.test.ts, game-frame.test.ts, runs.ts) ne changent pas.
+export function applyDrive(car: CarBody, throttle: boolean, speedFactor: number, torqueFactor: number, cfg: Config): void;
+//   omegaMax = V_MAX × speedFactor ; montée de rotation = WHEEL_SPINUP × torqueFactor (x × 1 = x : Galahad au bit près)
+
+// src/ai/rubberband.ts (pur ; import type de Track et Config ; query.ts). Arguments positionnels : aucune allocation par pas.
+// Wa = RUBBER_WINDOW_AHEAD_M (20), Wb = RUBBER_WINDOW_BEHIND_M (3), R = RUBBER_RAMP_M (40).
+export function targetFactor(gap: number /* xCopain − xGalahad, m */, base: number, cfg: Config): number;
+//   base sur [−Wb, Wa] ; de base à RUBBER_MIN, linéaire, sur [Wa, Wa + R] ; de base à RUBBER_MAX sur [−(Wb + R), −Wb] ;
+//   constante au-delà (R7-15)
+export function rampFactor(prev: number, target: number, dt: number, cfg: Config): number; // |Δ| ≤ RUBBER_RATE_PER_S × dt
+export function zoneFloor(track: Track, x: number, cfg: Config): number;
+//   1 dans [xLancement − RUBBER_PREZONE_M, xLava] d'un volcan (tremplin ou fosse ; xLancement d'une fosse = début de
+//   l'approche, la garde est dans la pré-zone), 0 sinon
+// Vue de référence (R7-16) : écran de 1 280 × 800, caméra en avance de CAMERA_LEAD_SECONDS × vGalahad (vitesse du châssis
+// de Galahad au début du pas, `carSpeedMps`, comme `cameraTarget`). Une seule définition, partagée par l'élastique et les tests.
+export function screenAheadEdge(vGalahad: number, cfg: Config): number;  // SCREEN_REF_HALF_WIDTH_M + CAMERA_LEAD_SECONDS × v + SCREEN_EDGE_MARGIN_M (21,2 m à 14 m/s)
+export function screenBehindEdge(vGalahad: number, cfg: Config): number; // CAMERA_LEAD_SECONDS × v − SCREEN_REF_HALF_WIDTH_M − SCREEN_EDGE_MARGIN_M (−4,4 m à 14 m/s)
+export function onScreen(gap: number, vGalahad: number, cfg: Config): boolean; // screenBehindEdge ≤ gap ≤ screenAheadEdge
+export function finalFactor(rubber: number, turbo: number, gap: number, vGalahad: number, cfg: Config): number;
+//   min(RUBBER_MAX, rubber × turbo) ; si gap > screenAheadEdge(vGalahad) (copain hors écran devant) : min(·, 1).
+//   Reçoit donc la vitesse de Galahad. La fenêtre de targetFactor (20 m / 3 m) ne bouge pas.
+export function stepRubber(prev: number, t: number, gap: number, base: number, x: number, track: Track, cfg: Config): number;
+//   règles 1 à 4 ci-dessous, dans cet ordre
+
+// src/track/query.ts
+export function inVolcanoZone(track: Track, x: number): boolean; // [xLancement, xLava] d'un tremplin ou d'une fosse, sans allocation
+
+// src/sim/simulate.ts : CarSim gagne
+rubber: number | null;  // élastique après rampe (copain : 1 à la création) ; null = coupé (Galahad toujours ; copain dont un test impose `factor`)
+speedFactor: number;    // facteurs appliqués au dernier pas, pour TOUTE voiture (mesures, tests)
+torqueFactor: number;   // Galahad : 1 toujours
+onScreen: boolean;      // copain à l'écran au début du pas (onScreen(gap, vGalahad)), les valeurs mêmes de finalFactor ; faux pour Galahad
+// `factor` garde son rôle : multiplicateur imposé du plafond (tests, mesures ; 1 en jeu), lu seulement quand rubber === null.
+
+// src/cars/pilots.ts (D7-3) : base = 1,00 (Pablo), 0,995 (Matthis), 0,9875 (Malo), 0,985 (Diego), 0,975 (Liam), 0,97 (Timothé)
+```
+`Driver`, `DriverContext` et `makeRobotDriver` ne changent pas.
+
+**Règles** (spec §7, addendum §1.8 et §2, plan v2.1, décisions D7-2 et D7-3), à chaque pas, pour chaque voiture pas encore arrivée, **avant** `applyDrive` :
+- **Voiture sans élastique** (`rubber === null` : Galahad, ou un copain d'un test) : `applyDrive(body, throttle, turbo × factor, 1, cfg)`, puis `speedFactor = turbo × factor` et `torqueFactor = 1`. C'est exactement le pas d'aujourd'hui.
+- **Copain sous élastique.** L'écart vaut `gap = x(copain) − x(Galahad)`, x du châssis au début du pas : aucune voiture n'a bougé dans le pas, donc l'ordre des voitures ne compte pas. Puis, dans l'ordre :
+  1. **Cible.** 1,0 tant que `t < RUBBER_NEUTRAL_SECONDS`, sinon `targetFactor(gap, pilot.base)` : `base` de 3 m derrière Galahad à 20 m devant.
+  2. **Plancher.** cible = max(cible, `zoneFloor(track, x)`).
+  3. **Rampe.** `rubber = rampFactor(rubber, cible, PHYSICS_DT)`.
+  4. **Clamp de zone.** Si `inVolcanoZone(track, x)` : `rubber = max(rubber, 1)`, immédiat et **stocké** (R7-5). Il agit surtout sur un copain réapparu dans la zone avec un facteur < 1 ; ailleurs, la pré-zone suffit (2,7 s depuis 0,6, CALCULÉ).
+  5. **Facteur final.** `vG` = vitesse du châssis de Galahad au début du pas (instantané). `f = finalFactor(rubber, turboFactor(state, t), gap, vG)`, puis `applyDrive(body, throttle, f, f, cfg)`, `speedFactor = torqueFactor = f` et `onScreen = onScreen(gap, vG)`.
+- **Ce que le taux ne borne pas.** Seul l'élastique est limité à 0,15/s ; ces marches restent :
+  - le début et la fin d'un turbo, comme pour Galahad (flammes qui s'allument ou s'éteignent, R7-6) ;
+  - le clamp de zone (étape 4), qui ne fait que monter ;
+  - le plafond « ≤ 1 hors écran devant » (R7-16). Il tombe **toujours hors de la vue** : le copain passe le bord avant de l'écran (21,2 m à 14 m/s, 25,4 m quand Galahad roule à 21 m/s), quelle que soit la vitesse de Galahad.
+  - Sa levée, quand le copain revient dans la vue, relève seulement le plafond. Le copain accélère alors à son couple ; ce n'est pas un freinage.
+- **Voiture arrivée.** Elle freine (pas inchangé) ; son élastique est figé.
+- **Réapparition.** L'élastique est gardé ; le plancher et le clamp font le reste.
+- **Interactions avec la tâche 6** (driver inchangé) :
+  - un copain poli lève le pied : son facteur ne compte plus pendant l'attente, et il repart avec le facteur du moment ;
+  - lever de pied avant une rampe-saut ou une double-bosse : inchangé ; un copain à 1,3 y arrive à 18,2 m/s au plus, dans l'enveloppe de Galahad en turbo ;
+  - fosses : le driver vise avec sa **vitesse réelle** (`fosseJumpLead(v)`) ; l'élastique ne touche ni l'instant visé ni l'erreur.
+
+**Constantes** (`src/config.ts`) :
+
+| Constante | Valeur | Rôle |
+|---|---|---|
+| `RUBBER_WINDOW_AHEAD_M` | 20 | m devant Galahad où le facteur vaut `base` (D7-2 : 11,2 + 0,6 × 14 = 19,6 m visibles à `V_MAX`) |
+| `RUBBER_WINDOW_BEHIND_M` | 3 | m derrière Galahad (D7-2 : 2,8 m visibles à `V_MAX`) |
+| `RUBBER_RAMP_M` | 40 | m : de `base` à la borne (R7-15) |
+| `RUBBER_MIN` | 0,6 | spec §7 |
+| `RUBBER_MAX` | 1,3 | spec §7 ; aussi le plafond total du turbo d'un copain |
+| `RUBBER_RATE_PER_S` | 0,15 | spec §7 : à 14 m/s, une baisse coûte au plus 2,1 m/s² (CALCULÉ) |
+| `RUBBER_NEUTRAL_SECONDS` | 5 | spec §6 « Collisions » |
+| `RUBBER_PREZONE_M` | 40 | addendum §1.8 : de 0,6 à 1,0 en 2,7 s |
+| `SCREEN_REF_HALF_WIDTH_M` | 11,2 (dérivée : `VISIBLE_HEIGHT_M` × 1 280 / 800 / 2, déclarée avant le littéral comme `D_LANCE`) | m : demi-largeur de la vue de référence (tablette 1 280 × 800), R7-16 |
+| `SCREEN_EDGE_MARGIN_M` | 1,6 | m : marge pour qu'un copain « hors écran » le soit en entier (définition de l'adversaire, § 0.2), R7-16 |
+
+`RUBBER_WINDOW_M` (12, plan v2.1) n'est pas créée. La demi-largeur visible suit la forme de l'écran (`visibleHalfWidthM`) : 11,2 m en 1 280 × 800, 12,4 m en 16:9. Les 20 m sont calculés pour la tablette.
+
+**Aucun levier sans le papa** (R7-14). `base`, bornes, taux, neutre, pré-zone, fenêtre et rampe sont des valeurs validées. Si une cible du Step 5 n'est pas tenue : on mesure, on montre les chiffres au papa, et le papa choisit.
+
+**Galahad seul : identique au bit près**, avec `ANCIENNES_PISTES` comme avec `CONFIG` (`tests/empreinte.test.ts`, `PLAN_A_TRACE`).
+- Sans copain, aucun élastique ne tourne, et les `base` ne sont pas lues.
+- Le pas de Galahad calcule `turbo × factor` comme aujourd'hui, avec `factor = 1`.
+- Le couple vaut `WHEEL_SPINUP × 1`, exact en flottant.
+- MESURÉ (adversaire) : 6 empreintes sur 6 identiques avec le couple positionnel.
+- Ligne à ajouter au tableau « Galahad seul » des Global Constraints : « 7 | **identique** | l'élastique ne s'applique qu'aux copains ; Galahad : couple × 1 ».
+
+**Ce qui doit être mesuré, et les garde-fous.**
+
+Un garde-fou ne s'applique jamais d'office. Formulation commune : « si la mesure du Step n est mauvaise, on mesure les options et le papa choisit », car chacune change une valeur validée.
+
+| Sujet | Déjà su | À mesurer dans la tâche | Si la mesure est mauvaise (papa) |
+|---|---|---|---|
+| **Review Focus n° 3** : copain freiné à 0,6 loin devant qui aborde un volcan | MESURÉ :<br>• sonde du brouillon : 17 tremplins, 0 chute, 12,0 à 14,0 m/s à `xLancement`, sommet ≥ 12,6 m/s ; 18 fosses, saut centré, 0 chute ;<br>• adversaire, 10 phases : 0 chute sur 180 aux fosses, 13,9 à 14,1 m/s au bord ;<br>• même résultat avec une pré-zone qui part de `xLancement − 40` ou du début de la garde − 40 | Step 4 (vrai élastique, tous les volcans des graines 0 à 9) :<br>• facteur appliqué ≥ 1,0 à chaque pas de `[xLancement, xLava]` ;<br>• tremplin : pas de lave, sommet ≥ `LIP_SPEED_THRESHOLD` + 1 ;<br>• fosse : le saut d'un copain sans erreur passe ;<br>• variante « réapparu à `xLancement` + 1 avec 0,6 » : clamp au 1er pas | pré-zone plus longue, ou partant du début de la garde |
+| **Tremplins** : copain à 1,3 (plafond et couple), « doigt posé, jamais de chute » | MESURÉ (adversaire, émulation avec phases) :<br>• 510 runs (arrêt au pire point sûr, arrêt en − 30, lancée à 18,2 m/s) : 0 lave, 0 retournement, garde ≥ 3,72 m, marge ≥ 27,4 m avant `xEnd` ;<br>• **marche 1,3 → 1,0 au pied**, balayée au pas de 1 m de `xLancement − 10` au sommet, lancée en − 45 et − 50, 1 836 runs : 0 lave, garde ≥ 1,84 m (Galahad en fin de turbo : 0,63 m), sommet ≥ 12,2 m/s ;<br>• facteur qui redescend dès `xLava`, 170 runs : 0 réapparition, angle ≤ 10° | Step 4 :<br>• mêmes familles, départs arrêtés décalés de 0,05 m, départs lancés de 0,37 m ;<br>• balayage de la marche au pied ;<br>• exigé : 0 chute, atterrissage avant `xEnd − 10`, garde ≥ 0,3 m (seuil de la 5c) ; garde minimale imprimée.<br>Step 6 : `race-invariants` (0 chute propre au tremplin, toutes voitures) | facteur plafonné à 1,0 dans `[xLancement, xLava]` (addendum §1.8 : « ≥ 1,0 »), ou couple plafonné à 1 en zone (spec §7) |
+| **Fosses** : fenêtre, ratés, atterrissage | La tranche 20–22 m/s de la tâche 6 (fonceurs 13,8 %, registre l. 209) disparaît.<br>Ratés CALCULÉS (demi-fenêtre MESURÉE à 17,5 m/s, 0,665 s, saut §6.2 ; loi normale) : Pablo 14 %, Matthis 7,6 %, Diego 0,8 %, Malo 0,3 %, prudents 0 ; à 14 m/s : 19 / 12 / 1,8 / 0,9 % (saut §6.8).<br>MESURÉ (adversaire, 10 phases, règle du tour 2 de la 6) :<br>• saut centré : 0 chute sur 180, atterrissage ≤ bord aval + 15,5 m ;<br>• saut le plus tardif permis : 1 chute sur 180, atterrissage ≤ + 26,8 m.<br>C'est sous `FOSSE_GHOST_AFTER` = 40 m | **Step 4** :<br>• `elastique-volcans` : saut centré et saut le plus tardif permis à 1,3, atterrissage exigé ≤ 35 m ;<br>• `tests/helpers/robots-sauts.ts`, assertion ajoutée dans ce même Step : par bras, atterrissage le plus long d'un copain après le bord aval ≤ `FOSSE_GHOST_AFTER − 5` (35 m).<br>Imprimés en plus : chutes par tentative par tranche de vitesse, facteur au saut.<br>Exécutée au Step 6. R-F16 se ferme sur les deux | zone fantôme d'une fosse plus longue (R-F16) |
+| **Plats étoile** : prise sans saut à 1,3 | MESURÉ :<br>• sonde du brouillon : 0 prise sur 30 ;<br>• adversaire, 300 runs : 0 prise, haut du châssis ≤ 1,93 m au-dessus du sol (bas du capteur à 3,40 m) | Step 6 : `high-stars-sim` (5 voitures, graines 0 à 23) : 0 prise sans saut ni contact ; catapultes (R-F12) comptées avant et après | — (R-F12 tolère et compte ; un surplus va au papa) |
+| **Départ à 0,6** (couple 0,6) au pied d'une bosse ou d'une rampe | MESURÉ : sonde du brouillon, 234 tranches, 0 réapparition ; adversaire, 568 runs, 0 réapparition | Step 4 : même balayage (exigé : 0 réapparition) ; Step 6 : `race-invariants` (blocage ≤ 2,1 s) | couple plancher à 1 sous un facteur 1,0 (spec §7) |
+| **Galahad arrêté, copains derrière** (fenêtre de 3 m : des copains boostés jusqu'à lui) | MESURÉ (adversaire, fenêtre 12 m, graines 0 à 4, Galahad doigt levé 10 s à t = 40 et 70 s) : impact relatif ≤ 10,8 m/s (12,2 sans élastique), 0 réapparition de Galahad | Step 4 : même sonde avec la fenêtre 20/3 : vitesse d'impact, réapparitions de Galahad. Step 5 : contacts Galahad–copain par course | cible ≤ 1,0 derrière un Galahad plus lent que `POLITE_SPEED` |
+| **Freinage net à l'écran** (spec §7 : « jamais d'arrêt net visible ») | CALCULÉ : vue à 14 m/s [−2,8 ; 19,6] m (sans la marge de 1,6 m). Le plafond « ≤ 1 » tombe au bord avant de la vue, marge comprise (R7-16), donc jamais à l'écran | **Seuil exigé** : aucune baisse de `speedFactor` de plus de 0,15 × dt (+ 1e-9) en un pas pour un copain dont `onScreen` est vrai à ce pas ; **seule exception : la fin de son propre turbo**. Test CI dans `elastique.test` ; compteur et décélération maximale hors contact dans `race-objective` (exigé : 0) | montrer au papa (aucun levier sans lui) |
+
+**Galahad au bit près, effet physique.** Le test de champs (`torqueFactor === 1`) ne suffit pas. MESURÉ (adversaire) : le mutant « élastique sur Galahad » ne change l'empreinte que si un turbo tombe dans les 30 s (4 empreintes sur 6). D'où le test du Step 2 : Galahad dépasse 19 m/s en turbo dans une course à 5 voitures.
+
+---
+
+- [ ] **Step 0 : Décisions du papa consignées** au registre (D7-1 à D7-5, 2026-10-23) ; prérequis vérifiés : tâche 6 validée (tour 3 compris) et fusionnée, BASE noté.
+- [ ] **Step 1 : Mesures « avant »** (BASE, aucun changement de code).
+  - Un worktree dédié : `git worktree add --detach scratchpad/wt-t7-mesures <BASE>`. Les mesures « après » du Step 6 se font **dans ce même worktree** (`git -C … checkout --detach <commit de la tâche 7>`). Raison : `tests/slow/out/` est ignoré par git, et `readStage(REF)` lit le dossier courant. À défaut, copier les trois `tests/slow/out/rattrapage-7-avant*.jsonl` dans l'arbre de l'après.
+  - Trois mesures, une à la fois :
+    - `RATTRAPAGE_ETAPE=7-avant npm run test:slow:rattrapage` (saut parfait aux fosses : modèle D7-1) ;
+    - `RATTRAPAGE_ETAPE=7-avant-sauteur RATTRAPAGE_SAUT=sauteur npm run test:slow:rattrapage` ;
+    - `RATTRAPAGE_ETAPE=7-avant-jamais RATTRAPAGE_SAUT=jamais npm run test:slow:rattrapage`.
+  - ≈ 8 à 10 min mur chacune (MESURÉ : 7 min 36 à 10 min 09 par étape, registre l. 142, 173, 209).
+  - Les lignes jsonl ont déjà `galahadPlace` : « 1er ou 2e » et « dernier » se recalculent au Step 6.
+  - Repères :
+    - tour 1 de la 6 : doigt posé, Galahad gagne 12/48 (25 %), place moyenne 2,46, vainqueur = 1re étoile 11/48 ; doigt levé 0/16 ; place totale 3,09 (registre l. 209) ;
+    - sauteur à 12a876d : 42/48, 1,15 (registre l. 203), à remesurer (graine salée au tour 3) ;
+    - sans saut, en 5g : 0/48, place 4,92, 178 chutes (registre l. 173).
+- [ ] **Step 2 : Tests rouges.**
+  - `tests/pilots.test.ts` (D7-3) :
+    - `base` exacte de chaque copain : Pablo 1,00, Matthis 0,995, Malo 0,9875, Diego 0,985, Liam 0,975, Timothé 0,97 ;
+    - bornes [0,97 ; 1] (au lieu de [0,85 ; 1]) ;
+    - ordre gardé : `base` strictement décroissante quand `lift` croît strictement (test existant, inchangé) ;
+    - Galahad à 1.
+  - `tests/rubberband.test.ts` (pur) :
+    - `targetFactor` :
+      - `base` sur [−3, 20] ;
+      - 0,6 au-delà de 60 m devant ; 1,3 en deçà de 43 m derrière ; linéaire entre les deux ;
+      - bornes [0,6 ; 1,3] pour toute `base` de [0,97 ; 1] ;
+      - non croissante en `gap` (balayage de −120 à 120 m au pas de 0,1) ;
+    - `rampFactor` : |Δ| ≤ 0,15 × dt, et la cible est atteinte sans la dépasser ;
+    - `zoneFloor` : 1 sur `[xLancement − 40, xLava]` de chaque tremplin et de chaque fosse des graines 0 à 19 (garde comprise), 0 à ± 1 cm hors de ces bornes ;
+    - `screenAheadEdge`, `screenBehindEdge`, `onScreen` :
+      - 21,2 m et −4,4 m à 14 m/s ; 25,4 m à 21 m/s ; ± 12,8 m à l'arrêt ;
+      - `SCREEN_REF_HALF_WIDTH_M` = `VISIBLE_HEIGHT_M` × 1 280 / 800 / 2 ;
+    - `finalFactor` :
+      - 0,97 × 1,5 → 1,3 ; 1 × 1,5 → 1,3 ; 0,8 × 1,5 → 1,2 ;
+      - avec `vGalahad` 14 : turbo et `gap` 15 → 1,3 (à l'écran, pas de plafond ; tue le mutant « plafond à 12 m ») ;
+      - `gap` 20,5 → 1,3 (tue le mutant « plafond à 20 m, la fenêtre ») ;
+      - `gap` 21,3 → 1,0 ;
+      - avec `vGalahad` 21 : `gap` 24 → 1,3, `gap` 25,5 → 1,0 ;
+    - `stepRubber` :
+      - neutre : cible 1 pour t < 5 s, même avec un `gap` de ± 100 m ;
+      - clamp ≥ 1 au premier pas dans `[xLancement, xLava]` depuis 0,6 ;
+      - en sortant de la zone, la baisse part de ≥ 1 à 0,15/s au plus (clamp stocké).
+  - `tests/query.test.ts` : `inVolcanoZone` vrai sur `[xLancement, xLava]` des tremplins et des fosses des graines 0 à 9 (bornes incluses), faux à ± 1 cm.
+  - `tests/car.test.ts` :
+    - `torqueFactor` 0,6 : accélération sur 2 s ≈ 0,6 × 4,3 ± 15 % (≈ linéaire en `WHEEL_SPINUP`, registre plan A 7c) ;
+    - `torqueFactor` 1 et `speedFactor` 1,5 : 4,3 ± 10 % (turbo de Galahad inchangé) ;
+    - `torqueFactor` 1,3 : imprimée, plus grande qu'avec 1 (limite d'adhérence possible : μ g ≈ 4,9 m/s², CALCULÉ).
+  - `tests/elastique.test.ts` (CI, vrai `stepRace`) :
+    - **Galahad, champs** : 5 voitures, graine 1, 30 s doigt posé : à chaque pas `torqueFactor === 1` et `speedFactor === turbo × factor`.
+    - **Galahad, effet physique** : même course jusqu'à son premier turbo + 3 s : sa vitesse dépasse 19 m/s (avec l'élastique appliqué à Galahad, elle plafonnerait à 18,2).
+    - **Neutre** : pour t < 5 s, les copains ont 1, ou 1,3 en turbo ; les étoiles prises avant 5 s sont imprimées (R7-8).
+    - **Taux** : à chaque pas **hors pas de clamp de zone**, |Δ`rubber`| ≤ 0,15 × dt + 1e-12, sur 30 s de course.
+    - **Fenêtre** : copain à 2,5 m derrière Galahad, cible `base` ; à 3,5 m derrière, cible > `base` ; à 19,5 m devant, `base` ; à 20,5 m devant, < `base`.
+    - **Turbo loin devant** : copain 60 m devant, turbo forcé : `speedFactor` ≤ 1, `carView(...).turbo` vrai.
+    - **Freinage net à l'écran** : seuil du tableau, exigé à 0, dans deux cas :
+      - graine 1, 60 s ;
+      - scénario forcé : Galahad tenu à 14 m/s sur un plat, un copain en turbo (`rubber` 1,3, `RUBBER_NEUTRAL_SECONDS: 0`) qui part 15 m devant et s'éloigne.
+      - Attendu dans le scénario : `speedFactor` du copain à 1,3 tant que `gap` ≤ 21,2 m, à 1,0 au premier pas au-delà, `onScreen` faux à ce pas, compteur à 0.
+      - Le mutant « plafond à 12 m » fait baisser le facteur à l'écran : compteur > 0, tué.
+    - **Review Focus n° 3**, premier tremplin et première fosse de la graine 1 :
+      - réglage : Galahad garé 150 m derrière ; un copain (`jumpSkill` 0) posé 100 m avant `xLancement`, ou juste après le `xEnd` du volcan précédent s'il est plus près (précaution de la sonde de la v1 : la première fosse peut suivre le premier tremplin de moins de 100 m) ; `rubber` 0,6, `RUBBER_NEUTRAL_SECONDS: 0` ;
+      - attendu : facteur ≥ 1 à chaque pas de `[xLancement, xLava]` ; tremplin sans lave ; fosse passée ;
+      - variante : le même copain posé à `xLancement` + 1 avec 0,6 (clamp au premier pas).
+    - **Élastique coupé** : `launchSolo` sur un copain met `rubber = null`. Le test « copain à 3 m/s tenus » de `fosses.test.ts` tue le mutant « sans coupure ».
+  - Commande : `npx vitest run tests/pilots.test.ts tests/rubberband.test.ts tests/query.test.ts tests/car.test.ts tests/elastique.test.ts`. Attendu : **ROUGE**.
+- [ ] **Step 3 : Implémenter**, puis **VERT**.
+  - Code :
+    - `applyDrive` et ses 8 appels ;
+    - `rubberband.ts` ; `inVolcanoZone` ; câblage dans `stepRace` ; constantes ;
+    - **`base` des six copains dans `src/cars/pilots.ts`** (D7-3), commentaire du champ et de la table (« caractère de vitesse regroupé près de 1 : le caractère est porté par `lift`, `jumpTry`, `jumpSkill` ») ; la grep de `base` à BASE ne trouve aucun autre lecteur.
+  - Migrations :
+    - `launchSolo` met `rubber = null` quand il impose `factor` ;
+    - `tests/fantomes.test.ts` l. 69, 112 et 131 (grep à BASE) : `rubber = null` sur les copains à vitesse imposée ;
+    - littéral `CarSim` de `jump-runs.ts` (le compilateur le signale) ;
+    - `smoke` : nouvelles constantes.
+  - Outillage de mesure (commit `test:`) :
+    - `indicators` de `rattrapage.ts` imprime « 1er ou 2e » et « dernier » ;
+    - `tests/slow/bouton.test.ts` et `vitest.slow-bouton.config.ts` (`include: ['tests/slow/bouton.test.ts']`, exclu de `vitest.slow.config.ts`), script `"test:slow:bouton"` :
+      - il lit, par `readStage`, trois étapes pour l'avant (`BOUTON_AVANT`, défaut `7-avant,7-avant-sauteur,7-avant-jamais`) et trois pour l'après (`BOUTON_APRES`, défaut `7,7-sauteur,7-jamais`) ;
+      - il exige 64 courses par étape au même commit (non-vacuité) ;
+      - il imprime, pour chaque motif (doigt posé 48, doigt levé 16), avant puis après :
+        - victoires, « 1er ou 2e », « dernier » et place moyenne de Galahad pour sans saut, saut parfait et sauteur ;
+        - les écarts appariés par graine : saut parfait − sans saut (ce que rendent les fosses), sauteur − saut parfait (ce que rendent les étoiles hautes) ;
+        - la liste des places par graine ;
+      - il n'a aucune assertion chiffrée (ruling Q9, D7-5) et dure moins de 1 s.
+  - Puis `npm run typecheck` (0 erreur) et `npm test` (vert, empreinte inchangée sans recapture).
+- [ ] **Step 4 : Suites lentes « volcans sous élastique » et `robots-sauts`** (commit `test:`).
+  - `tests/slow/elastique-volcans.test.ts` : budget en tête < 15 min mur. ESTIMÉ ≈ 5 à 8 min : les émulations de l'adversaire coûtent 0,15 à 0,25 s par run en monde rogné, et la marche au pied en compte 1 836.
+    - Contenu : les lignes « à mesurer » du tableau (Review Focus n° 3, tremplins à 1,3 avec phases, marche 1,3 → 1,0 au pied, fosses à 1,3, plats étoile à 1,3, départ à 0,6, Galahad arrêté avec la fenêtre 20/3).
+    - Avec le vrai élastique : un copain forcé par `rubber` et par la position de Galahad garé, les autres garés derrière la grille.
+    - Exigé : 0 chute aux tremplins, garde ≥ 0,3 m, facteur ≥ 1 dans la zone, 0 prise d'étoile haute sans saut, 0 réapparition au départ à 0,6, atterrissage après une fosse ≤ 35 m, 0 réapparition de Galahad arrêté.
+    - Imprimé : vitesse à `xLancement`, au sommet et au bord ; garde minimale ; vitesse maximale conduite ; vx maximale après contact ; vitesses d'impact sur Galahad arrêté (repère : 10,8 m/s avec la fenêtre de 12 m).
+  - `tests/helpers/robots-sauts.ts` : assertion « atterrissage ≤ `FOSSE_GHOST_AFTER − 5` » (tableau, ligne Fosses), à partir de la version du tour 3 de la 6.
+  - Commande : `npx vitest run -c vitest.slow.config.ts tests/slow/elastique-volcans.test.ts`.
+- [ ] **Step 5 : Objectif** (`npm run test:slow:race`).
+  - Fichiers et coût (≈ 13,7 s par course à 5 voitures, MESURÉ (relecture), budget v1.6) :
+    - `race-objective.test.ts` : modèle D7-1 et sauteur, graines 0 à 19, 40 courses, ≈ 9 min ;
+    - `race-objective-leve.test.ts` : doigt levé 30 % avec saut parfait, graines 0 à 9, ≈ 2,5 min.
+    - Ce sont des sous-ensembles des graines du rattrapage : les lignes « 7 » du rattrapage sont les mêmes courses, et la comparaison sert de contrôle de déterminisme.
+  - Exigé dans chaque course (les deux fichiers) :
+    - ≤ 3 réapparitions par copain hors chutes dans une fosse ;
+    - au plus 2 chutes par série ;
+    - arrivée de Galahad < 240 s ;
+    - 0 chute « sans tentative » ;
+    - compteur « freinage net à l'écran » à 0.
+  - Exigé au total, modèle D7-1 (20 courses, D7-4) :
+    - Galahad 1er ou 2e dans au moins 10 courses ;
+    - dernier au plus 2 fois ;
+    - 1er dans 5 à 15 courses ;
+    - un copain à l'écran au moins 30 % du temps, en moyenne sur les 20 courses.
+  - Exigé au total, sauteur (D7-5) : place moyenne ≤ celle du modèle D7-1 sur les mêmes 20 graines.
+  - Doigt levé 30 % (D7-5) : places imprimées ; seules les limites des copains sont exigées.
+  - Tableau imprimé par graine :
+    - place, vainqueur, première étoile ;
+    - étoiles et réapparitions par voiture ;
+    - facteur moyen des copains ;
+    - part du temps avec un copain à l'écran, et devant Galahad ;
+    - contacts Galahad–copain ;
+    - vx maximale d'un copain après contact.
+  - Repère (MESURÉ, sonde du brouillon, graines 0 à 9, mêmes réglages) : 4/10 victoires, 8/10 « 1er ou 2e », 0 dernier, copain à l'écran 49 %.
+  - Bruit : ± 2,2 victoires d'écart-type sur 20 courses (CALCULÉ).
+  - **Hors cible : on montre les chiffres au papa, aucun levier sans lui** (R7-14). On mesure les options s'il en demande. On compare aussi au rattrapage sur 48 graines.
+- [ ] **Step 6 : Suites ciblées et rattrapage « après ».**
+  - Fichiers lents à 5 voitures, sans changement d'assertion sauf `robots-sauts` (Step 4) :
+    - `race-invariants-*` (4), `robots-sauts-*` (2), `high-stars-sim`, `race-sans-saut-*` (2), `interpolation-replay-slow` ;
+    - commande : `npx vitest run -c vitest.slow.config.ts` suivi de ces fichiers ;
+    - repère : 9 fichiers ciblés en 33 min 14 au tour 1 de la 6 (registre l. 209).
+  - Rattrapage, dans le worktree du Step 1 :
+    - `RATTRAPAGE_ETAPE=7 RATTRAPAGE_REF=7-avant npm run test:slow:rattrapage` ;
+    - `RATTRAPAGE_ETAPE=7-sauteur RATTRAPAGE_SAUT=sauteur RATTRAPAGE_REF=7-avant-sauteur npm run test:slow:rattrapage` ;
+    - `RATTRAPAGE_ETAPE=7-jamais RATTRAPAGE_SAUT=jamais RATTRAPAGE_REF=7-avant-jamais npm run test:slow:rattrapage`.
+  - Puis **`npm run test:slow:bouton`** : « ce que le bouton rend à Galahad », avant et après ; sans saut imprimé ici (D7-5). À la passation et au papa.
+  - Pas de mesure sur `ANCIENNES_PISTES` (R7-10).
+- [ ] **Step 7 : Suites de fin de tâche** (une fois) :
+  - `npm run typecheck` ;
+  - `npm test` (< 6 min ; ajout ESTIMÉ ≈ + 20 s de CPU dans des fichiers à part, mur inchangé) ;
+  - `npm run test:slow` en entier (≈ 36 min) et `npm run test:slow:race` ;
+  - `npm run e2e` : les 2 premières secondes sont neutres, « sans doigt » est donc inchangé ; captures refaites si l'écran change.
+- [ ] **Step 8 : Commits** `feat: élastique des copains (facteur au couple et au plafond, fenêtre de la vue, base regroupées près de 1)`, puis `test:` pour l'outillage et les suites lentes (Steps 3 à 5).
+- [ ] **Step 9 : Relectures** (quatre sièges, méthode de la session 4).
+  - **Standard.**
+  - **Adversariale**, sondes et mutants dans une copie (worktree du scratchpad).
+    - Mutants :
+      - élastique appliqué à Galahad (tué par l'effet physique du Step 2) ;
+      - clamp de zone retiré, et clamp appliqué sans être stocké ;
+      - pré-zone comptée depuis `xBord` ;
+      - taux non borné ;
+      - neutre retiré ;
+      - plafond du turbo retiré (1,5) ;
+      - « ≤ 1 loin devant » retiré ;
+      - signe de `gap` inversé ;
+      - fenêtre symétrique (20/20 ou 3/3) ;
+      - `base` d'avant remises ;
+      - couple non multiplié pour les copains ;
+      - `launchSolo` sans coupure ;
+      - `factor` lu par un copain sous élastique ;
+      - plafond « ≤ 1 » appliqué à 12 m, ou à la fenêtre de 20 m au lieu du bord de l'écran (tués par `rubberband.test` et le compteur « freinage net ») ;
+      - `finalFactor` et le compteur avec deux définitions différentes de l'écran (une seule fonction `onScreen` exigée).
+    - Sondes :
+      - Review Focus n° 3 avec des phases ;
+      - copain en turbo qui franchit les 20 m devant un Galahad en turbo ;
+      - Galahad arrêté 10 s en course ;
+      - téléportation de Galahad (réapparition 40 à 60 m en arrière) ;
+      - deux copains boostés qui se cognent ;
+      - copain réapparu dans la pré-zone ;
+      - déterminisme (graine jouée deux fois) ;
+      - allocations par pas.
+  - **Skill `code-review`** sur le diff de la tâche.
+  - **Skill `security-review`** : attendu sans objet hors des helpers de test qui écrivent du jsonl (`tests/slow/out`) et lisent `RATTRAPAGE_*` et `BOUTON_*` ; le dire.
+  - Tours de correction (5 au plus), un commit `fix:` chacun.
+- [ ] **Step 10 : Validation du papa** (tablette, 5 voitures).
+  - Questions, avec les chiffres du Step 5 :
+    - Les copains restent-ils à l'écran, et proches ? (part du temps avec un copain à l'écran)
+    - Un copain qui ralentit ou qui perd son turbo à l'écran se voit-il ?
+    - Les caractères (fonceurs, prudents) se voient-ils encore, maintenant que leurs vitesses sont proches ?
+    - Galahad gagne-t-il trop souvent, ou jamais ?
+  - Puis commit `docs: tâche 7 validée, passation et registre`, `git status -sb`, push.
+  - **Après les tâches 6 et 7, le papa rejuge la difficulté** (`ENGINE_BRAKE`, plan C).
+
+**Budget (tâche 7).**
+
+| Où | Ajout | Coût |
+|---|---|---|
+| `npm test` | `rubberband` (pur), `pilots`, `inVolcanoZone`, 3 tests de `car.test`, `elastique.test` (≈ 9 simulations courtes) | ESTIMÉ ≈ + 20 s de CPU dans des fichiers à part ; mur fixé par `rampes.test.ts` ; aujourd'hui 625 tests en 2 min 42 (registre l. 209) |
+| `test:slow` | `elastique-volcans` (nouveau) | < 15 min mur (budget écrit en tête) |
+| `test:slow:race` | `race-objective` (40 courses), `race-objective-leve` (10) | ≈ 9 et ≈ 2,5 min, en parallèle ; budget en tête : 20 min chacun |
+| `test:slow:rattrapage` | 3 étapes avant, 3 après | ≈ 8 à 10 min mur chacune, ≈ 1 h en tout, dans le worktree du Step 1 |
+| `test:slow:bouton` | lecture des 6 étapes | < 1 s |
+
+**Tableau de migration (tâche 7).** Les numéros de ligne sont ceux de 5a3f0fb : grep à BASE.
+
+| Test | Ce qu'il suppose | Migration |
+|---|---|---|
+| `tests/car.test.ts`, `tests/bounce.test.ts`, `tests/helpers/runs.ts` (`step`) | `applyDrive(car, throttle, factor, cfg)` | couple 1 explicite ; + tests de couple (Step 2) |
+| `tests/helpers/jump-runs.ts` | littéral `CarSim` ; `launchSolo` tient la vitesse par `factor`, sur Galahad **et** sur des copains (`robots.test.ts` ×4, `fosses.test.ts` ×2) | `rubber: null`, `speedFactor`, `torqueFactor` dans le littéral ; `launchSolo` met `rubber = null` |
+| `tests/fantomes.test.ts` l. 69, 112, 131 | `factor` imposé à un copain (0,05 ; 0,3 ; 1). Les l. 111 et 120 visent Galahad : inchangées | `rubber = null` sur ce copain |
+| `tests/pilots.test.ts` | `base` ∈ [0,85 ; 1], ordre des caractères | valeurs du papa, bornes [0,97 ; 1], ordre gardé (Step 2) |
+| `tests/simulate.test.ts` (`factor === 1` à la création) | — | inchangé ; + `rubber` 1 pour les copains, null pour Galahad |
+| `tests/stars-pour-tous.test.ts`, `tests/robots.test.ts` (grille, politesse) | copains au facteur 1 | inchangé attendu (5 premières secondes neutres) ; turbo d'un copain à 1,3 au lieu de 1,5 : vérifier les tests qui chronomètrent un turbo |
+| `tests/race-smoke.test.ts` | invariants à 5 voitures, graines 1 et 2 | inchangé, élastique actif |
+| `tests/empreinte.test.ts`, `PLAN_A_TRACE` | Galahad seul | inchangés (preuve du bit près) |
+| `tests/helpers/rattrapage.ts`, `tests/helpers/robots-sauts.ts` | indicateurs ; pas de borne d'atterrissage | Steps 3 et 4 |
+| `vitest.slow-race.config.ts`, `vitest.slow.config.ts` | un seul fichier `race-objective.test.ts` | glob `race-objective*.test.ts` ; `bouton.test.ts` exclu de `test:slow` |
+
+---
+
+#### Review Focus de la tâche 7
+
+1. **Copain freiné à 0,6 loin devant qui aborde un volcan** (n° 3 du plan v2.1) : facteur ≥ 1 de `xLancement` à `xLava`, aucune chute au tremplin, fosse passée par un saut sans erreur.
+2. **Galahad seul** : empreinte identique sans recapture, et Galahad au-dessus de 19 m/s en turbo dans une course à 5 voitures.
+3. **Copain à 1,3 sur un tremplin**, plafond et couple :
+   - depuis le pire point sûr et lancé, avec des phases ;
+   - marche 1,3 → 1,0 au pied ;
+   - attendu : aucune chute, garde ≥ 0,3 m, atterrissage avant `xEnd − 10`.
+4. **Copains à l'écran** : au moins 30 % du temps en moyenne (D7-4) ; aucune baisse de facteur plus rapide que 0,15/s à l'écran, sauf la fin du turbo du copain lui-même (le plafond « ≤ 1 » tombe toujours au bord de la vue, R7-16) ; Galahad arrêté sans réapparition malgré les copains tirés jusqu'à 3 m derrière lui.
+5. **Test qui impose une vitesse à un copain** : élastique coupé, comportement de la tâche 6.
+
+---
+
+#### À dire au papa, sans question
+
+- Les « 27,3 m/s » de la spec bouton saut étaient une erreur de calcul (R7-1). Un copain conduit ne dépasse pas 18,2 m/s (18,8 MESURÉ en descente). Il peut aller plus vite poussé par un choc (21,8 m/s MESURÉ) : la règle des catapultes s'applique.
+- En turbo, les copains iront **moins vite qu'aujourd'hui** (21 → 18,2 m/s). Loin devant, ils gardent les flammes sans gagner de vitesse (spec §7).
+- Aux fosses, les ratés des fonceurs se calculent désormais à ≈ 14 et ≈ 18 m/s (Pablo 19 % et 14 %, Matthis 12 % et 7,6 %, CALCULÉ).
+- Autour de chaque volcan, un copain loin devant n'est pas freiné : ≈ 97 m par tremplin et ≈ 76 m par fosse, CALCULÉ ; ≈ 19 % de la piste avec 3,6 volcans par course.
+- Avec la fenêtre de 3 m derrière, des copains roulent souvent juste derrière Galahad. Plus de contacts sont possibles s'il lève le doigt ; c'est mesuré au Step 4 (chocs lancés acceptés, décision 3 du 2026-10-23).
+
+---
+
+#### Rulings proposés (le coordinateur peut trancher seul)
+
+Aucun ne change une valeur ou un comportement validé par le papa ; ce qui en changerait est dans les décisions D7-1 à D7-5 ou dans la colonne « papa » du tableau.
+
+- **R7-1 — Vitesse maximale conduite d'un copain : 18,2 m/s, pas 27,3.**
+  - Le plafond « 1,3 au total » du spec §7 tient : saut §3 laisse l'élastique inchangé, et addendum §2 ne dit rien d'autre.
+  - MESURÉ (adversaire) : f ≤ 1,30 sur tous les chemins, 60 courses.
+  - Saut §6.2, §6.4, §6.6 et R-F16 sont corrigés ; R-F16 se ferme sur le Step 4 (émulation) et le Step 6 (vrai driver).
+  - Coût si faux : tout refaire à 27 m/s ; 27,3 m/s sortirait de l'enveloppe des tremplins (Galahad en turbo permanent n'a plus que 3,6 m avant `xEnd`).
+- **R7-2 — `applyDrive(car, throttle, speedFactor, torqueFactor, cfg)` positionnel** : aucune allocation par pas, et le compilateur signale les 8 appels. Coût si faux : nul.
+- **R7-3 — `CarSim.rubber: number | null`.**
+  - `null` coupe l'élastique : Galahad, et un copain dont un test impose `factor` (`launchSolo` le coupe). Un copain sous élastique ne lit pas `factor`.
+  - `speedFactor` et `torqueFactor` sont stockés pour toute voiture.
+  - Coût si faux : un test qui croit tenir la vitesse d'un copain ne la tient pas (mutant du Step 9).
+- **R7-4 — Pré-zone d'une fosse : `[xLancement − 40, xLancement)`**, `xLancement` étant le début de l'approche : lecture littérale de l'addendum §1.8, la garde de 20 m est dans la pré-zone.
+  - MESURÉ : même résultat que depuis le début de la garde − 40.
+  - Coût si faux : 20 m de pré-zone de plus devant chaque fosse (ce serait un choix du papa).
+- **R7-5 — Le clamp ≥ 1 de la zone est stocké dans `rubber`.** À la sortie de la zone, le facteur redescend de ≥ 1 à 0,15/s, sans marche. Le test du taux exclut le pas du clamp. Coût si faux : une marche de facteur au-dessus de la lave.
+- **R7-6 — Début et fin d'un turbo de copain : marches, comme le turbo de Galahad** (spec « Étoile / turbo » ; les flammes montrent la cause). La marche du plafond « ≤ 1 » relève de R7-16. Coût si faux : un turbo de copain sans effet visible.
+- **R7-7 — Écart lu au début du pas** (x du châssis, avant toute conduite), donc indépendant de l'ordre des voitures. Rien de spécial après l'arrivée de Galahad. Coût si faux : nul.
+- **R7-8 — Neutre : la cible de l'élastique vaut 1 pendant 5 s**, mais le plafond du turbo (1,3) s'applique déjà : un copain qui prend une étoile avant 5 s va à 18,2 m/s, pas 21.
+  - Coût si faux : un turbo de copain moins fort au départ (ESTIMÉ rare ; imprimé par `elastique.test`).
+- **R7-9 — Le plancher s'arrête à `xLava`** (addendum §1.8). En vol, le facteur peut redescendre (au plus 0,3 en 2 s, CALCULÉ).
+  - MESURÉ (adversaire, 170 runs) : 0 réapparition, angle ≤ 10° à l'atterrissage. Remesuré au Step 4.
+  - Coût si faux : des atterrissages roues freinées. Le garde-fou « pas de baisse en l'air » serait un choix du papa.
+- **R7-10 — Pas de mesure du rattrapage sur `ANCIENNES_PISTES`.** Écart assumé avec saut §4 (l. 126) : le contrôle « identique à la 5d » n'existe plus depuis la tâche 6. Coût : nul.
+- **R7-11 — Graines de l'objectif : 0 à 19 doigt posé, 0 à 9 doigt levé.** Ce sont des sous-ensembles du rattrapage. Coût : nul.
+- **R7-12 — Galahad arrêté en course, copains derrière : mesure seulement.**
+  - Les chocs lancés sont acceptés (décision du papa 3, 2026-10-23).
+  - Exigé au Step 4 : 0 réapparition de Galahad.
+  - Les vitesses d'impact avec la fenêtre 20/3 sont montrées au papa si elles dépassent celles de la tâche 6 (12,2 m/s).
+  - Coût si faux : des chocs plus forts sur Galahad arrêté.
+- **R7-13 — `inVolcanoZone` déplacée dans `track/query.ts`** : une copie privée aujourd'hui (`driver.ts:158`), une deuxième utilisation avec l'élastique, et un test propre. Coût : nul.
+- **R7-14 — Aucun levier de réglage sans le papa.** Le plan v2.1 permettait d'« ajuster `base` et `RUBBER_RAMP_M` » : retiré, ce sont des valeurs validées. Hors cible, on montre les chiffres. Coût : un aller-retour avec le papa.
+- **R7-15 — Lectures des interfaces du plan v2.1.**
+  - `RUBBER_RAMP_M` va de `base` à la borne, pas de 1,0 (v2.1 l. 246). Depuis 1,0, la cible sauterait de `base` à 1,0 au bord de la fenêtre.
+  - `zoneFloor(track, x, cfg)` prend l'ordre de `query.ts`.
+  - Coût si faux : nul.
+- **R7-16 — Le plafond « ≤ 1,0 » d'un copain s'applique quand il est hors écran devant Galahad** (ruling du coordinateur, re-relecture de la v3, constat N1). C'est la lettre du spec §7 : « un robot hors écran devant Galahad garde les flammes mais ne dépasse jamais le facteur 1,0 ».
+  - La fenêtre de l'élastique ne bouge pas : 20 m devant, 3 m derrière (D7-2).
+  - Le bord avant du plafond vaut `screenAheadEdge(vGalahad)` = 11,2 + 0,6 × vGalahad + 1,6 m. C'est la même définition que le compteur « freinage net » et la part « copain à l'écran » : une seule fonction pure, `onScreen`, et `finalFactor` reçoit la vitesse de Galahad.
+  - La marge de 1,6 m vient de la définition du § 0.2, que le coordinateur a demandé de garder identique au compteur. Sans elle (11,2 + 0,6 v), le compteur, qui la compte, verrait la marche.
+  - La marche tombe donc toujours au bord de la vue, hors écran, et le compteur exige 0 sans autre exception que la fin du turbo du copain lui-même.
+  - Limite (ESTIMÉ) : la vue de référence est celle de la tablette (1 280 × 800) et de la cible de caméra, pas de la caméra lissée (`CAMERA_SMOOTHING`) ; la marge couvre une partie du retard. Un écran 16:9 (12,4 m de demi-largeur) montrerait la marche à 1,2 m du bord.
+  - Coût si faux : le bord du plafond bouge avec la vitesse de Galahad. En turbo, un copain peut garder 1,3 jusqu'à 25,4 m devant lui (23,8 m sans la marge), soit une portion de piste où il reste dopé hors de la vue.
+
+---
+
+#### Corrections à reporter (avec la doc de la tâche, après sa validation)
+
+- **Addendum plan B §2** (il l'emporte sur le spec), nouvelle puce « [tâche 7] Élastique (décisions du papa, 2026-10-23) ». Elle amende le spec §7 sur trois points :
+  - « `base` des copains regroupées près de 1, ordre gardé : Pablo 1,00, Matthis 0,995, Malo 0,9875, Diego 0,985, Liam 0,975, Timothé 0,97 ; le caractère est porté par le lever de pied et les sauts ». Dans la borne 0,85 à 1,0 du spec §7, mais ce ne sont plus les valeurs du 5a ;
+  - « fenêtre de l'élastique = la vue : 20 m devant Galahad, 3 m derrière ». Le spec §7 disait « X = au moins la demi-largeur visible, donc hors écran », des deux côtés : derrière, le papa veut les copains à l'écran ;
+  - objectif mesuré (spec §7, §11 ; addendum §2) : « modèle doigt posé + saut parfait aux fosses ; Galahad 1er dans 5 à 15 des 20 courses ; un copain à l'écran au moins 30 % du temps ; variantes de D7-5 ».
+- **Spec bouton saut :**
+  - §6.2 (détail W = 8, puce « turbo »), « copains sous élastique et turbo (27,3 m/s, tâche 7) : ≈ 44 m (CALCULÉ) », devient : « copains sous élastique : vitesse conduite ≤ 18,2 m/s (CALCULÉ ; 18,8 MESURÉ) ; atterrissage ≤ bord aval + 26,8 m (MESURÉ, relecture de la tâche 7 ; Step 4) » ;
+  - §6.4 (« À revérifier en tâche 7 ») : fermé par les Steps 4 et 6 ;
+  - §6.6 (« 44 à 79 m de portée ») devient : « à 18,2 m/s, 0 prise sans saut (sonde et relecture de la tâche 7) ; `high-stars-sim` relancé ».
+- **Plan v1.6 :**
+  - R-F16 : « À revérifier en tâche 7 » est fermé ;
+  - tableau de migration, ligne `race-objective` : « modèle doigt posé + saut parfait (D7-1) ; sauteur et doigt levé en variantes (D7-5) » ;
+  - nouvelles lignes `pilots.test` et `bouton.test` (renvoi au tableau de cette tâche) ;
+  - « Ordre d'exécution » et « Ce document remplace la tâche 6 » : la tâche 7 est désormais la v1.7 de ce plan ;
+  - tableau « Galahad seul » : ligne 7 ;
+  - section « Décisions du papa » : D7-1 à D7-5.
+- **Registre :** « DÉCISION PAPA (2026-10-23, tâche 7) » avec D7-1 à D7-5 (Step 0).
+- Le texte du plan v2.1 reste tel quel, pour l'historique ; une ligne en tête de sa tâche 7 renvoie ici.
+
+---
+
+#### Annexe A — Sonde du brouillon, tour 1
+
+**Où.** `scratchpad/wt-t7/tests/zz-probe-t7.test.ts`, worktree détaché à 5a3f0fb. ≈ 1 min pour 387 runs. Rien n'a été touché dans le dépôt.
+
+**Émulation d'un copain.**
+- Galahad seul (`soloSim`, `launchSolo`), vrai `stepRace`, monde rogné.
+- Facteur f au plafond (`car.factor`) et au couple (`sim.cfg.WHEEL_SPINUP` × f, remplacé à chaque pas).
+- Sauts de fosse par `fosseJumpWanted` (règle de 5a3f0fb).
+
+**Graines 0 à 9.** Une trajectoire par cas (l'adversaire a refait ces familles avec des phases).
+
+| Famille | Résultat (MESURÉ) |
+|---|---|
+| Tremplin à 1,3 : arrêt au pire point sûr, et lancée à 18,2 m/s | 0 lave sur 34, 0 retournement ; sommet 16,5 à 17,2 m/s ; atterrissage ≤ `xReception` + 32,5 m ; marge ≥ 31,8 m avant `xEnd` |
+| Tremplin, copain freiné : 8,4 m/s à 0,6, puis + 0,15/s dès `xLancement − 40`, clamp à `xLancement` | 0 lave sur 17 ; 12,0 à 14,0 m/s à `xLancement` ; sommet ≥ 12,6 m/s |
+| Fosse à 1,3, saut centré | 0 chute sur 18 ; atterrissage ≤ bord aval + 14,7 m |
+| Fosse à 1,3, saut au dernier pas permis (règle d'avant le tour 2 de la 6) | 5 chutes sur 18 (sauts à 1,8–1,9 m du bord) ; sinon atterrissage ≤ + 26,7 m |
+| Fosse, copain freiné, saut centré ; pré-zone depuis `xLancement − 40` ou depuis le début de la garde − 40 | 0 chute sur 18 dans les deux cas ; 13,9 à 14,1 m/s au bord |
+| Plat étoile à 1,3, lancée à 18,2 m/s, sans saut | 0 prise sur 30 ; châssis ≤ 0,8 m au-dessus du sol à ± 3 m de l'étoile |
+| Départ arrêté à 0,6 au pied des bosses, double-bosses et rampes-saut | 234 tranches, 0 réapparition |
+| Vitesse maximale du châssis à 1,3 | 18,8 m/s |
+
+#### Annexe B — Sonde du brouillon, tour 2 : options de fenêtre et de `base`
+
+**Où.**
+- Prototype de l'adversaire (`scratchpad/r7-sondes/prototype-elastique.diff`) appliqué dans `scratchpad/wt-t7`, plus un crochet `baseFn` (`base` remappée par pilote, ordre gardé). Le tout est sauvegardé dans `scratchpad/r7-options-prototype.diff`.
+- Courses `objRace` de l'adversaire : `fiveCarRace`, `CONFIG`, doigt posé, saut parfait.
+- 4 réglages × graines 0 à 9, 4 fichiers en parallèle : 6 min 29 mur. Sorties : `scratchpad/r7-options/probe-t7-options.out`. Worktree remis à 5a3f0fb ensuite.
+
+**Réglages.** Rampe 40 m, bornes 0,6 et 1,3, 0,15/s, neutre 5 s, pré-zone 40 m, clamp stocké.
+
+| Réglage | `base` | Fenêtre (devant / derrière) | Galahad 1er | 1er ou 2e | dernier | place moyenne | copain à l'écran |
+|---|---|---|---|---|---|---|---|
+| C1 | 0,97 + (b − 0,86) × 0,25 | 12 / 12 | 7/10 | 10/10 | 0 | 1,30 | 21 % (0 à 59) |
+| **C2 (décidé)** | 0,97 + (b − 0,86) × 0,25 | 20 / 3 | 4/10 | 8/10 | 0 | 1,80 | 49 % (31 à 97) |
+| C3 | celles des pilotes | 20 / 3 | 4/10 | 8/10 | 0 | 1,90 | 32 % (1 à 90) |
+| C4 | 0,97 + (b − 0,86) × 0,5 | 20 / 3 | 3/10 | 6/10 | 1 | 2,40 | 57 % (27 à 91) |
+
+- Dans les 40 courses, aucun copain n'a dépassé 1 réapparition, chacune après une chute dans la lave ; le type de volcan n'a pas été relevé.
+- Galahad : 0 chute.
+
+#### Annexe C — Constats des relectures et leur traitement
+
+| Constat | Traitement |
+|---|---|
+| Standard I1 (avant et après dans des arbres différents) | Step 1 : un seul worktree pour l'avant et l'après, ou copie des jsonl |
+| Standard I2 (« ce que le bouton rend » sans outil) | `tests/slow/bouton.test.ts`, `test:slow:bouton` (Steps 3 et 6) |
+| Standard I3 (`robots-sauts` : impression ou assertion ?) | assertion ≤ 35 m, posée au Step 4, exécutée au Step 6 |
+| Standard I4 (garde-fous qui changent des valeurs validées) | colonne « papa » du tableau ; R7-14 |
+| Standard I5 (« pas de freinage net » sans seuil) | seuil exigé et tests (Steps 2 et 5), D7-2, Review Focus 4 |
+| Standard I6 (questions dépendantes) | questions posées dans l'ordre ; tranchées (D7-1 à D7-5) |
+| Adversaire I1 (19/20 victoires ; leviers) | § 0.2, D7-3, R7-14 |
+| Adversaire I2 (copains hors écran) | § 0.2, D7-2, D7-4 (cible d'écran), Step 5 |
+| Adversaire M1 (marche au pied) | tableau (Tremplins), Step 4, Review Focus 3 |
+| Standard M6 et adversaire M2 (test du taux et clamp) | Step 2 « hors pas de clamp », R7-5 |
+| Adversaire M3 (vitesse après choc) | § 0.1, Step 5, « À dire au papa » |
+| Adversaire M4 (couple de Galahad sans effet physique) | Step 2 (> 19 m/s en turbo), Review Focus 2 |
+| Standard M1 à M5, M7 à M9 | remplacé par la mesure (M1) ; tableau de migration (M2) ; arguments positionnels (M3) ; R7-13 et `query.test` (M4) ; constantes nommées, note sur la forme de l'écran (M5) ; `RATTRAPAGE_SAUT` aux Steps 1 et 6 (M7) ; Step 6 ciblé, Step 7 entier, « grep à BASE » (M8) ; R7-15, R7-3, R7-10 (M9) |
+| Coordinateur (tour 3 de la 6, BASE) | Prérequis, Step 1 |
+| Re-relecture de la v3, N1 (le compteur voyait la marche du plafond à 20 m) | R7-16 : plafond hors écran, défini par la même fonction `onScreen` que le compteur ; Interfaces (`finalFactor` reçoit la vitesse de Galahad, `CarSim.onScreen`) ; constantes `SCREEN_*` ; Steps 2 et 9 (mutants « 12 m » et « 20 m » distinguables) |
+| Re-relecture de la v3, mineurs | Step 5 « les deux fichiers » ; Step 2, Review Focus n° 3 : départ après le `xEnd` du volcan précédent |
+| Décisions du papa (2026-10-23) | § « Décisions du papa », intégrées aux Files, Interfaces, Constantes, Règles, Steps 2, 3 et 5, et aux Corrections à reporter |
 
 ---
 

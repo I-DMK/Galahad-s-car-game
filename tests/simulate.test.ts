@@ -7,9 +7,10 @@ import { isStarActiveFor } from '../src/cars/stars';
 import { CONFIG } from '../src/config';
 import { placeCar } from '../src/physics/car';
 import { CAT, carCategory } from '../src/physics/world';
-import { simulateRace } from '../src/sim/harness';
+import { makeRobotDriver } from '../src/ai/driver';
+import { carPairsTouching, simulateRace } from '../src/sim/harness';
 import {
-  carView, chassisX, createRaceSim, rebuildCars, sceneOf, stepRace, type RaceSim, type SimEvent,
+  carView, chassisX, createRaceSim, driverContext, rebuildCars, sceneOf, stepRace, type RaceSim, type SimEvent,
 } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import { AP } from './helpers/anciennes-pistes';
@@ -118,28 +119,45 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
   test('aucune paire active entre deux voitures au pas 0', () => {
     const sim = createRaceSim(TRACK, CONFIG, { robots: true });
     stepRace(sim, false);
-    const carOf = (b: Matter.Body): string | undefined => (b.parent.plugin as { carId?: string } | undefined)?.carId;
-    const between = sim.world.engine.pairs.list.filter((p: Matter.Pair) => {
-      const a = carOf(p.bodyA);
-      const b = carOf(p.bodyB);
-      return p.isActive && a !== undefined && b !== undefined && a !== b;
-    });
-    expect(between).toEqual([]);
+    expect(carPairsTouching(sim)).toEqual([]);
     for (const car of sim.cars) {
       expect(car.invulnerable).toBe(false);
       for (const p of car.body.parts) expect((p.collisionFilter.mask ?? 0) & CAT.ALL_CARS).toBe(CAT.ALL_CARS);
     }
   });
 
-  test('délai de départ : le robot de rang n ne pose le doigt qu’à partir de n × START_DELAY_PER_RANK', () => {
+  test('délai de départ : le robot de rang n ne pose le doigt qu’à partir de n × START_DELAY_PER_RANK (route libre devant lui)', () => {
     const sim = createRaceSim(TRACK, CONFIG, { robots: true });
     for (let n = 1; n <= 4; n++) {
-      const { driver, state, body } = sim.cars[n];
-      const ctx = (t: number) => ({ t, state, track: TRACK, speed: Matter.Vector.magnitude(body.chassis.velocity) });
+      const { driver } = sim.cars[n];
+      // Contexte réel de la grille (`driverContext`), sans les autres voitures : la politesse n'entre pas en jeu.
+      const ctx = (t: number) => ({ ...driverContext(sim, n), t, others: [] });
       const start = n * CONFIG.START_DELAY_PER_RANK;
-      expect(driver!(ctx(start - DT / 2)), `rang ${n}`).toBe(false);
-      expect(driver!(ctx(start + DT / 2)), `rang ${n}`).toBe(true);
+      expect(driver!(ctx(start - DT / 2)), `rang ${n}`).toEqual({ throttle: false, jump: false });
+      expect(driver!(ctx(start + DT / 2)), `rang ${n}`).toEqual({ throttle: true, jump: false });
     }
+  });
+
+  test('drivers des copains : `makeRobotDriver(pilote, rang, piste, pilotSeed)`, mêmes réponses qu’un driver neuf sur 20 s de course', () => {
+    const sim = createRaceSim(TRACK, CONFIG, { robots: true });
+    const diffs: string[] = [];
+    let calls = 0;
+    sim.cars.forEach((car, n) => {
+      if (n === 0) return;
+      // Le jumeau reçoit le contexte que `stepRace` passe au vrai driver, une fois par pas, comme lui.
+      const real = car.driver!;
+      const twin = makeRobotDriver(car.pilot, n, TRACK, sim.pilotSeed, CONFIG);
+      car.driver = (ctx) => {
+        const got = real(ctx);
+        const want = twin(ctx);
+        calls++;
+        if (want.throttle !== got.throttle || want.jump !== got.jump) diffs.push(`rang ${n} à t = ${ctx.t.toFixed(3)}`);
+        return got;
+      };
+    });
+    for (let i = 0; i < Math.round(20 / DT); i++) stepRace(sim, true);
+    expect(calls).toBe(4 * Math.round(20 / DT));
+    expect(diffs).toEqual([]);
   });
 
   test('même graine → même course (5 voitures, doigt posé 6 s)', () => {
@@ -194,7 +212,7 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
 
 test('une étoile prise par une voiture reste active pour les autres, inactive pour elle seule : au même pas et au pas suivant', () => {
   const sim = createRaceSim(TRACK, CONFIG, { robots: true });
-  for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+  for (const robot of sim.cars.slice(1)) robot.driver = () => ({ throttle: false, jump: false });
   // Première étoile basse (les étoiles hautes de la tâche 5e sont hors de portée d'une voiture au sol) ; repérée par
   // `high` et son rang dans `track.stars`, qui est aussi celui de `sim.stars` et `sim.starBodies`.
   const k = TRACK.stars.findIndex((s) => !s.high);

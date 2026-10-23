@@ -72,6 +72,7 @@ sans le contexte de celle-ci.
 - **Tâche 5d faite, validée et déployée** (étoiles pour tous : `0cabe30` mesure « avant », `39cda73` feat, `1110f14` tour 1, `da1166f` tour 2) : état d'étoile par voiture (`takenAt[k]`, `isStarActiveFor`, `takeStarFor`), catégorie de collision par voiture (`carCategory(k)`, `CAT.ALL_CARS`, `MAX_CARS` 5), masque des capteurs = OU des voitures actives (empreinte de Galahad seul identique), rendu de l'état vu par Galahad (`GALAHAD_INDEX`), `firstStar`/`firstStarCars`, `starsByCar`. Rattrapage (48 courses doigt posé, appariées) : vainqueur = première étoile 94 % → 58 %, Galahad gagne 81 % → 52 %, place moyenne 1,33 → 1,77, étoiles par voiture 341/128/88/79/67 → ≈ 390 chacune (McNemar p ≈ 4·10⁻⁵) ; mesure à la demande : `npm run test:slow:rattrapage` (≈ 7 min, lignes étiquetées par commit). npm test 386/386, e2e 7/7, test:slow 252/252 (avant sortie du rattrapage).
 - **Tâche 5e faite, validée et déployée avec la 5g** (commits `96556a2`…`f435108`) : bouton saut (`applyJump` même hauteur partout ≈ 2,46 m, délai 0,5 s, mémoire 0,1 s, tolérance de sol 0,35 s sur la **piste seule**, front d'appui bouton ou Espace, vol non compté dans le blocage, plafond ≈ 4 s) ; **exactement 3 étoiles hautes à 3,90 m par course** sur des **plats étoile** de 57 m (pas après un volcan, ni dans les 50 m après une rampe-saut ; ancres avancées si un plat ne tient pas) ; toutes les pistes ont changé (`ANCIENNES_PISTES` redonne les anciennes au bit près, empreinte recapturée par ruling R-F10) ; fenêtres ≥ 0,52 s, appuis perdus 0 sauf 0,41 % à 21 m/s tenus ; doigt posé sans saut : 0 chute, 0 étoile haute prise. npm test 485/485, e2e 12/12.
 - **Tâche 5g faite, validée et déployée** (fosses de lave : `c6c06e7`…`83f6ff5`) : environ 1 volcan sur 2 est une **fosse de 8 m** à sauter au bouton (garde de 20 m, approche 32,4 m, panneau, halo) ; sans saut 100 % lave, 2 chutes de suite → posée à bord aval + 5 m (≈ 4,4 s perdues) ; zone interdite prolongée à bord aval + 1,5 m, série comptée sur la lave touchée ; **pas de tremplin juste après une double-bosse** (0 chute doigt posé aux tremplins) ; poids des volcans 4 → 3,62 volcans par course (1,86 fosses), 8,50 étoiles basses ; étoiles de réception décalées (plus de survol doigt posé, sauf rare cas en turbo toléré) ; catapulte par un copain tolérée dans les 2 s après un choc (R-F12) ; copains sautent les fosses sans erreur (driver complet en tâche 6). npm test 561/561, e2e 13/13, test:slow vert.
+- **Tâche 6 faite, validée et déployée** (conduite des robots : `12a876d` feat, `9558085` test, `452b47b` tour 1, `6874c72` tour 2, `29ed7e8` tour 3, docs jusqu'à `bd2d516`) : `src/ai/driver.ts` (`Driver` → `{ throttle, jump }`), départ à rang × 0,3 + 0,38 s, lever de pied, **robots polis seulement derrière une voiture arrêtée, doigt levé, non fantôme ni invulnérable** (attente cumulée ≤ 3 s), sauts d'étoile haute (`jumpTry`/`jumpSkill`) et de fosse (erreur × 2,5, instant visé centré, plancher 2 m) ; **raté visible** (décision du papa, tour 2) : une erreur trop tardive devient un saut trop tôt du même écart, le copain vole ≈ 1,93 s puis retombe dans la fosse (0 chute sans saut, `SANS_TENTATIVE_MAX_SPEED` retiré) ; zone fantôme d'une fosse dès le plat de garde (confirmée par le papa) ; R-F12 « 2 s après un contact ou pendant le vol qui suit » (confirmé) ; tentative et chutes comptées par volcan à une seule source ; fenêtre de saut de fosse unique (`inFosseJumpWindow`). Mesures (48 graines) : fosses, bras fonceurs 17,5 %, Pablo 19,0 %, Matthis 20,3 %, autres 0 % ; étoiles hautes ratées fonceurs 10,2 %, prudents 3,9 % ; 0 chute de Galahad sauteur parfait, 0 au tremplin ; Galahad seul identique au bit près. Rattrapage doigt posé (tour 1) : **Galahad gagne 12/48** (33/48 avant la 6) → l'élastique (tâche 7) rééquilibre. Relectures : standard, adversariale (mutants), `code-review`, **`security-review`** (aucune vulnérabilité), trois tours. npm test 635/635, test:slow 334/334, e2e 13/13. **Validée par le papa le 2026-10-23, déployée.**
 - **Addendum « présentation »** (2026-10-22, `docs/superpowers/specs/2026-10-22-addendum-presentation.md`,
   **VALIDÉ par le papa le 2026-10-22**, décisions au §8) : après comparaison avec la reproduction
   Grok du jeu (archive du papa), reprise de sa présentation seulement : sprites
@@ -113,6 +114,7 @@ sans le contexte de celle-ci.
   corriger à la 8b (`assets/README.md`). **Planche validée par le papa le 2026-10-23, arches
   serrées gardées** ; jugement final sur la tablette à la 8b. Branche des sprites fusionnée dans
   `ccr-5b6fabc4-n96ofo` le 2026-10-23 (images, docs et outils seulement, aucun code de jeu).
+- **Fusion de la session « sprites » sur la branche déployée** (2026-10-23, autre session, à la demande du papa) : `ccr-5b6fabc4-n96ofo` est à `775dad3` = `568ec91` + addendum « présentation », gabarit, sept carrosseries dans `assets/`, `docs/sprites-*`, `tools/sprites/` (aucun fichier de `src/`, `tests/`, `e2e/` ni de config). **Conséquence** : `git merge --ff-only wip-plan-b` ne passe plus ; faire `git fetch origin ccr-5b6fabc4-n96ofo && git checkout -B ccr-5b6fabc4-n96ofo origin/ccr-5b6fabc4-n96ofo && git merge wip-plan-b` (fusion normale), ou fusionner d'abord `origin/ccr-5b6fabc4-n96ofo` dans `wip-plan-b`. En cas de conflit sur cette passation, **garder les deux côtés** (puce « Addendum « présentation » », ligne « 8b » du tableau, point « 0. Sprites » de « Prochaine action précise »).
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
@@ -158,8 +160,8 @@ sans le contexte de celle-ci.
 | 5d (ajoutée) étoiles pour tous | **faite, validée**, déployée |
 | 5e (ajoutée) bouton saut et étoiles hautes (+ plats étoile) | **faite, validée**, déployée avec la 5g |
 | 5g (ajoutée) fosses de lave (1 volcan sur 2) | **faite, validée**, déployée → test tablette |
-| 6 conduite des robots (+ robots polis + sauts des copains) | à faire |
-| 7 élastique (+ suite `test:slow:race`) | à faire |
+| 6 conduite des robots (+ robots polis + sauts des copains) | **faite, validée, déployée** (2026-10-23) → test tablette |
+| 7 élastique (+ suite `test:slow:race`) | **plan v1.7 écrit, relu, décisions du papa prises** (D7-1 à D7-5) → implémentation |
 | 8 position, barre de progression, classement | à faire |
 | 8b (ajoutée, addendum « présentation ») images : carrosseries, roue, flammes, étoile, ombre | Step 0 **fait, validé** (gabarit, sept sprites dans `assets/sprites/`) ; code à faire |
 | 9 (conditionnelle) fenêtre glissante de sol | fps OK à 5 voitures → non ; à remesurer avec le décor (tâche 16) |
@@ -179,6 +181,13 @@ sans le contexte de celle-ci.
   standard frais, un relecteur adversarial frais, **et le skill `code-review`**
   sur le diff de la tâche ; tours de correction (≤ 5) ; rapports ≤ 30 lignes ;
   validation du papa ; passation et registre mis à jour et commités ; push.
+- **Quatre relectures par tâche** (décision du papa, 2026-10-23) : standard,
+  adversariale (sondes et mutants), skill `code-review` **et skill
+  `security-review`** sur le diff de la tâche. Pas de Codex dans le cloud
+  (domaines OpenAI bloqués, login à refaire à chaque conteneur) : le papa
+  s'en passe. La commande `.claude/commands/xreview.md` (copie de celle du PC
+  du papa, avec `code-review` et `security-review` lancés même sans Codex)
+  reste disponible.
 - Typecheck et tests verts à chaque commit (la CI lance `npm run typecheck`
   puis `npm test` avant de déployer) ; jamais de `.skip`.
 - Jamais de PR sans demande explicite.
@@ -208,6 +217,22 @@ que les copains ajouteront du défi. `L_ELAN` reste à 6 m. À reconsidérer
 après la tâche 5b : durcir `ENGINE_BRAKE` (levier continu, voir registre
 tâche 4) et, si le défi manque encore, proposer au papa d'avancer une part du
 plan C (obstacles qui ralentissent, bouton « bond lunaire »).
+
+## Leçons de la session 4 (2026-10-23, fin de la tâche 6, plan de la tâche 7)
+
+- Un « raté visible » se vérifie à l'écran, pas dans le code : la re-relecture a mesuré que le saut tardif partait ≤ 33 ms avant la reprise par la lave. Mesurer le temps de vol avant la lave a été la bonne preuve.
+- Les relectures d'un plan peuvent câbler un prototype dans un worktree : l'adversaire a montré, avant tout code, que l'élastique du plan v2.1 faisait gagner Galahad 19/20 et cachait les copains hors de l'écran.
+- Une valeur validée par le papa (caractères, fenêtre, pré-zone) ne devient jamais un garde-fou réglé par le coordinateur : on la lui pose en question chiffrée.
+- Quatre relectures par tâche : standard, adversariale, `code-review`, `security-review` (le skill a besoin de `origin/HEAD` : `git remote set-head origin ccr-5b6fabc4-n96ofo`). Pas de Codex dans le cloud.
+- La commande `/xreview` du papa est dans `.claude/commands/` ; une commande ajoutée en cours de session n'est vue qu'à la session suivante.
+
+## Leçons de la session 3 (2026-10-21 → 23, tâches 5c à 6)
+
+- Un conteneur peut redémarrer en plein travail d'un sous-agent : le reprendre par son identifiant (SendMessage) ; vérifier `git status` d'abord. Commits ciblés (`git commit -- <chemins>`) pour ne jamais embarquer le travail d'un autre agent.
+- Les relectures adversariales avec sondes physiques et mutants ont trouvé à chaque tâche un vrai défaut (tests aveugles au câblage de `Game`, réapparition au bord d'une fosse, saut depuis l'arrêt pris pour un blocage, politesse qui étirait la grille) : les garder, et faire tuer les mutants par les tests.
+- Les questions au papa en choix multiples avec recommandation et chiffres mesurés marchent bien ; il aime trancher sur un tableau ou une capture.
+- Toute modification du générateur change toutes les pistes : prévoir la recapture de l'empreinte (ruling R-F10) et l'interrupteur `ANCIENNES_PISTES` pour les mesures comparatives.
+- Le hook d'arrêt réclame un commit quand un sous-agent travaille : ne jamais commiter son travail à sa place.
 
 ## Leçons des sessions du 2026-10-21 (tâches 1 à 5b)
 
@@ -270,12 +295,14 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 
 ## Prochaine action précise
 
-Session 3 (2026-10-22) : 5c, 5f, 5d, 5e et 5g validées et déployées. Points à regarder au test tablette : bouton saut, étoiles hautes (3 par course, 3,90 m), fosses (8 m), appuis perdus à très grande vitesse (0,41 % à 21 m/s), étoile de réception survolée en turbo, Galahad catapulté par un copain, rien qui s'allume à l'approche d'une fosse (Q-F5).
+Session 4 (2026-10-23) : tâche 6 finie (re-relecture, rulings confirmés par le papa, tours 2 et 3, quatre relectures), **validée et déployée** par fusion normale sur `ccr-5b6fabc4-n96ofo`. Plan **v1.7** : la tâche 7 (élastique) est réécrite dans `docs/superpowers/plans/2026-10-21-plan-b-saut-et-rendu.md` (section « Task 7 (v1.7) »), relue (standard, adversariale avec prototype, re-relecture), avec les décisions du papa D7-1 à D7-5 et le ruling R7-16 (registre). Spec : `docs/superpowers/specs/2026-10-21-bouton-saut-design.md` ; ses « 27,3 m/s » sont une erreur connue (R7-1), corrigée avec la doc de la tâche 7.
 
 0. Sprites (session dédiée) : **terminé et session close** (2026-10-23) : gabarit, sept sprites
    contrôlés et rangés, planche validée par le papa (arches serrées gardées), fusionnés et
    déployés (`775dad3`, run 39 vert). La 8b part de `assets/sprites/` (cadre
    2,80 × 1,40 m centré sur le châssis, roues par-dessus ; liseré magenta de l'étoile, de la Terre
    et des flammes à corriger, `assets/README.md`).
-1. Retour tablette du papa sur 5e + 5g.
-2. Exécuter **6** (robots : délai de départ, lever de pied, robots polis, sauts des étoiles hautes et des fosses avec erreur × 2,5 aux fosses, `fosseJumpLead` centré, plancher de 2 m) selon le plan v1.6 amendé, puis **7** (élastique ; Galahad gagne ≈ 52–60 % doigt posé depuis la 5d).
+1. Nouvelle session : `git fetch origin wip-plan-b && git checkout -B wip-plan-b origin/wip-plan-b`, `npm ci`. Lire cette passation, la fin du registre (depuis « Session 4 ») et la Task 7 (v1.7) du plan.
+2. **Tâche 7** selon la v1.7 : implémenteur frais (BASE = dernier commit de la tâche 6 sur `wip-plan-b`), mesures « avant » dans le même arbre que les « après », quatre relectures, validation du papa (tablette : les caractères des copains se voient-ils encore ? trop de chocs quand Galahad s'arrête ?), passation, registre, fusion normale, push.
+3. Après 6 et 7, le papa rejuge la difficulté (`ENGINE_BRAKE`, plan C).
+4. Points à regarder au test tablette : bouton saut, étoiles hautes, fosses, copains qui ratent (Pablo, Matthis : ils sautent puis retombent dans la fosse), robots polis, Galahad qui gagne moins souvent (avant l'élastique), Q-F5 (rien ne s'allume avant une fosse), appuis perdus à 21 m/s, étoile de réception survolée en turbo, catapultes.

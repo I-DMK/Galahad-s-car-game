@@ -14,12 +14,19 @@ export interface Pilot {
   readonly base: number;
   /** Probabilité de lever le pied avant une rampe-saut ou une double-bosse : [0 ; 0,6]. */
   readonly lift: number;
+  /** Probabilité de tenter une étoile haute encore disponible pour lui : [0 ; 1] (tâche 6, addendum « bouton saut » §3). */
+  readonly jumpTry: number;
+  /**
+   * Écart-type (s) de l'erreur sur l'instant du saut : [0,02 ; 0,25]. Multiplié par FOSSE_SKILL_FACTOR devant une fosse
+   * (décision Q-F3 du papa).
+   */
+  readonly jumpSkill: number;
 }
 
 /**
- * Galahad, le pilote humain. Ses `base` et `lift` n'ont pas de sens (c'est l'enfant qui
- * conduit, pas le pilote automatique) : valeurs neutres. Couleurs reprises de CONFIG,
- * source unique ; le casque est rouge comme les bandes (aspect du plan A).
+ * Galahad, le pilote humain. Ses `base`, `lift`, `jumpTry` et `jumpSkill` n'ont pas de sens (c'est
+ * l'enfant qui conduit et saute, pas le pilote automatique) : valeurs neutres. Couleurs reprises de
+ * CONFIG, source unique ; le casque est rouge comme les bandes (aspect du plan A).
  */
 export const GALAHAD: Pilot = Object.freeze({
   id: 'galahad',
@@ -29,6 +36,8 @@ export const GALAHAD: Pilot = Object.freeze({
   helmet: CONFIG.GALAHAD_ACCENT,
   base: 1,
   lift: 0,
+  jumpTry: 0,
+  jumpSkill: 0,
 });
 
 /** Fige une entrée de la table : aucun appelant ne doit pouvoir la modifier. */
@@ -45,20 +54,24 @@ const pilote = (p: Pilot): Pilot => Object.freeze(p);
  * contraintes de couleur sont vérifiées par tests/pilots.test.ts. Le contraste avec le sol
  * (gris moyen 0x8b8b8b) n'est pas testé : certaines carrosseries s'y détachent peu (vert,
  * orange, rose, rouge), il sera jugé au rendu, en 5b.
+ *
+ * Sauts (tâche 6, décision P4 du papa : tableau des traits gardé) : les fonceurs tentent souvent
+ * les étoiles hautes et visent moins bien (`jumpTry` haut, `jumpSkill` grand), les prudents
+ * tentent rarement et visent juste.
  */
 export const PILOTS: readonly Pilot[] = Object.freeze([
   // Fonceur : rouge vif, casque rouge clair, bandes crème dorée.
-  pilote({ id: 'pablo', name: 'Pablo', color: 0xc8001e, accent: 0xffdc64, helmet: 0xd64056, base: 0.98, lift: 0.05 }),
+  pilote({ id: 'pablo', name: 'Pablo', color: 0xc8001e, accent: 0xffdc64, helmet: 0xd64056, base: 0.98, lift: 0.05, jumpTry: 0.8, jumpSkill: 0.18 }),
   // Moyen : vert, casque vert foncé, bandes crème.
-  pilote({ id: 'diego', name: 'Diego', color: 0x2ecc40, accent: 0xfff096, helmet: 0x208f2d, base: 0.92, lift: 0.3 }),
+  pilote({ id: 'diego', name: 'Diego', color: 0x2ecc40, accent: 0xfff096, helmet: 0x208f2d, base: 0.92, lift: 0.3, jumpTry: 0.55, jumpSkill: 0.1 }),
   // Prudent : blanc, casque gris clair, bandes sarcelle.
-  pilote({ id: 'timothé', name: 'Timothé', color: 0xf5f5f5, accent: 0x00a8a0, helmet: 0xd0d0d0, base: 0.86, lift: 0.55 }),
+  pilote({ id: 'timothé', name: 'Timothé', color: 0xf5f5f5, accent: 0x00a8a0, helmet: 0xd0d0d0, base: 0.86, lift: 0.55, jumpTry: 0.3, jumpSkill: 0.04 }),
   // Fonceur : jaune, casque jaune clair, bandes marron (abeille).
-  pilote({ id: 'matthis', name: 'Matthis', color: 0xffff00, accent: 0x965a1e, helmet: 0xffff40, base: 0.96, lift: 0.1 }),
+  pilote({ id: 'matthis', name: 'Matthis', color: 0xffff00, accent: 0x965a1e, helmet: 0xffff40, base: 0.96, lift: 0.1, jumpTry: 0.75, jumpSkill: 0.15 }),
   // Moyen : orange, casque orange clair, bandes turquoise.
-  pilote({ id: 'malo', name: 'Malo', color: 0xff8000, accent: 0x3cd2be, helmet: 0xffa040, base: 0.93, lift: 0.25 }),
+  pilote({ id: 'malo', name: 'Malo', color: 0xff8000, accent: 0x3cd2be, helmet: 0xffa040, base: 0.93, lift: 0.25, jumpTry: 0.5, jumpSkill: 0.09 }),
   // Prudent : rose, casque rose clair, bandes citron vert.
-  pilote({ id: 'liam', name: 'Liam', color: 0xff77aa, accent: 0xbee63c, helmet: 0xffa0c4, base: 0.88, lift: 0.5 }),
+  pilote({ id: 'liam', name: 'Liam', color: 0xff77aa, accent: 0xbee63c, helmet: 0xffa0c4, base: 0.88, lift: 0.5, jumpTry: 0.3, jumpSkill: 0.05 }),
 ]);
 
 /**

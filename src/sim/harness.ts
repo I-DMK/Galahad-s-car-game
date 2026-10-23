@@ -113,6 +113,8 @@ export function carPairsTouching(sim: RaceSim, ids?: ReadonlySet<string>): [stri
  * appelé sans demande, comme avant la 5e). S'arrête `stopAfterFinish` secondes (défaut FINISH_COAST_SECONDS) après l'arrivée de
  * Galahad, ou à `maxSeconds`. `robots` et `pilotSeed` : comme `createRaceSim` (Galahad seul par défaut).
  * `onStep` : observateur appelé après chaque pas (`sim.events` = événements du pas), sans effet sur la course.
+ * `setup` : appelé une fois sur la course neuve, avant le premier pas (mesures de la tâche 6 : traits de saut des
+ * copains remplacés, drivers refaits).
  */
 export function simulateRace(
   track: Track,
@@ -121,10 +123,12 @@ export function simulateRace(
     jump?: (t: number, sim: RaceSim) => boolean;
     robots?: boolean; pilotSeed?: number; stopAfterFinish?: number;
     onStep?: (sim: RaceSim) => void;
+    setup?: (sim: RaceSim) => void;
   },
 ): SimulateResult {
   const { cfg } = opts;
   const sim = createRaceSim(track, cfg, { robots: opts.robots, pilotSeed: opts.pilotSeed });
+  opts.setup?.(sim);
   const galahad = sim.cars[GALAHAD_INDEX];
   const stopAfterFinish = opts.stopAfterFinish ?? cfg.FINISH_COAST_SECONDS;
   const steps = Math.round(opts.maxSeconds / cfg.PHYSICS_DT);

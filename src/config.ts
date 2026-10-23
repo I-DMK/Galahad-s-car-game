@@ -105,6 +105,8 @@ export const CONFIG = {
   FOSSE_STAR_AFTER: 25,         // m entre le bord aval et l'étoile de réception (tirée 1 fosse sur 2, comme l'étoile d'élan)
   FOSSE_JUMP_AIM: 1,            // s : fosseJumpLead(v) = max(FOSSE_JUMP_MIN_DISTANCE / v, FOSSE_JUMP_AIM − FOSSE_WIDTH / (2v)), centre de la fenêtre (saut §6.8)
   FOSSE_JUMP_MIN_DISTANCE: 2,   // m : fosseJumpLead(v) ≥ 2 / v (tour 1 de la 5g) : sous ≈ 6 m/s la formule visait plus près du bord que la lave ne reprend la voiture (≈ 1,15 m) et un robot lent ne tentait jamais son saut
+  FOSSE_JUMP_LATE_DISTANCE: 1.2, // m : bord au plus tard de la fenêtre d'une fosse, CALCULÉ (saut §6.2 : s ≥ ≈ 1,2 m + 0,06 s × v) ; fosseLatestLead(v) = FOSSE_JUMP_LATE_DISTANCE / max(v, 1) + FOSSE_JUMP_LATE_TIME ; une erreur de copain qui viserait plus tard devient un saut trop tôt du même écart (décision du papa, tour 2 de la tâche 6)
+  FOSSE_JUMP_LATE_TIME: 0.06,   // s : terme en vitesse du même bord au plus tard (saut §6.2) ; prudent : les bords mesurés (s min 1,45 à 2,10 m) sont plus près de la lave
   FOSSE_RESPAWN_AFTER: 5,       // m : 2e chute de suite dans une fosse → posée à bord aval + 5 (Q-F2, option B)
   FOSSE_GHOST_AFTER: 40,        // m : zone fantôme d'une fosse jusqu'à bord aval + 40 (atterrissage le plus long ≈ 32 m, R-F16)
   // Décision du papa (relectures de la 5g, d1012c6) : pas de tremplin juste après une double-bosse (refusé dans le tirage,
@@ -123,5 +125,16 @@ export const CONFIG = {
   // jusqu'à 17,6 m après le bord aval (sauts au centre, turbo compris). Voir le registre, tâche 5g.
   STAR_TREMPLIN_LANDING: 55,    // m après le pied de la descente aval d'un tremplin sans étoile basse (reste ≈ 9,3 m de réception)
   STAR_FOSSE_LANDING: 22,       // m après le bord aval d'une fosse sans étoile basse du curseur ; l'étoile de réception (FOSSE_STAR_AFTER) est au-delà
+  // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : driver de
+  // chaque copain (src/ai/driver.ts).
+  POLITE_SPEED: 2,              // m/s : robots polis (décision du papa, 5b) : une voiture plus lente que ça, doigt levé (vraiment arrêtée, tour 1 de la tâche 6), juste devant, fait lever le pied
+  POLITE_GAP: 4,                // m : « juste devant » = châssis à châssis dans (0, 4] (grille : 3,3 m entre deux centres)
+  POLITE_MAX_WAIT: 3,           // s d'attente cumulée derrière la même voiture, puis le robot repart (ruling Q8 ; l'e2e exige ≥ 2 s) ; remise à zéro quand elle repart d'elle-même
+  LIFT_LOOKAHEAD: 8,            // m avant une rampe-saut ou une double-bosse où le robot tire s'il lève le pied (pilot.lift)
+  LIFT_SECONDS: 0.4,            // s de doigt levé quand le tirage tombe
+  JUMP_LOOKAHEAD: 40,           // m : étoile haute ou fosse vue par le driver (DriverContext.nextHighStar, nextFosse)
+  JUMP_STAR_LEAD: 1,            // s avant l'étoile haute : centre de la fenêtre de saut sur un plat étoile, 0,98 à 1,02 s quelle que soit la vitesse (tâche 5e)
+  JUMP_STAR_MIN_LEAD: 0.7,      // s : sous ce temps restant jusqu'à l'étoile, la demande est abandonnée (un saut plus tardif passe dessous ; demi-fenêtre ≈ 0,28 s ; tour 1 de la tâche 6)
+  FOSSE_SKILL_FACTOR: 2.5,      // erreur aux fosses = N(0, 2,5 × jumpSkill) (décision Q-F3 du papa : les copains ratent parfois une fosse)
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

@@ -2,7 +2,7 @@
 // run de Galahad seul par le vrai `stepRace` (`fosseRun` : contact débouncé, tolérance de sol, saut, capteur de lave,
 // réapparitions), fenêtre de saut balayée pas à pas (`fosseWindow`, suite lente) ou bloc central de 0,4 s autour de
 // l'instant visé par les copains (`fosseBlock`, CI, ruling R-F17), et le sauteur parfait des courses (`sauteurParfait`).
-import { fosseJumpWanted } from '../../src/cars/jump';
+import { fosseJumpLead, fosseJumpWanted } from '../../src/cars/jump';
 import { activateTurbo } from '../../src/cars/turbo';
 import { CONFIG, type Config } from '../../src/config';
 import { carSpeedMps } from '../../src/physics/car';
@@ -10,7 +10,7 @@ import { physToWorld } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
 import { chassisX, GALAHAD_INDEX, stepRace, type RaceSim } from '../../src/sim/simulate';
 import { volcanoFromProfile } from '../../src/track/generate';
-import { fosses } from '../../src/track/query';
+import { fosses, nextFosse } from '../../src/track/query';
 import { fosse, plat, type SliceProfile } from '../../src/track/slices';
 import { mulberry32 } from '../../src/track/rng';
 import type { Fosse, Slice, Track, TrackPoint, Volcano } from '../../src/track/types';
@@ -312,13 +312,34 @@ export function fosseBlock(world: World, f: Fosse, v: number | 'arrêt', opts: {
   };
 }
 
+/** s : marge prise sur le bord au plus tôt de la fenêtre d'une fosse pour le saut de la dernière chance. */
+const EARLY_MARGIN = 0.1;
+
+/**
+ * Bord au plus tôt de la fenêtre de saut d'une fosse, en s avant le bord amont, à la vitesse v : (1,96 s × v − W − 1,2 m) / v
+ * (saut §6.8, CALCULÉ ; 1,44 s à 17,7 m/s, 1,30 s à 14, 0,81 s à 8).
+ */
+export const fosseEarliestLead = (v: number, cfg: Config = CONFIG): number => (1.96 * v - cfg.FOSSE_WIDTH - 1.2) / Math.max(v, 1);
+
 /**
  * Option `jump` de `simulateRace` : Galahad demande le saut à chaque pas où `fosseJumpWanted` est vrai (au centre de la
- * fenêtre, sans erreur, comme les copains provisoires de la 5g). Doigt posé avec ce saut : 0 chute attendue.
+ * fenêtre, sans erreur, comme les copains provisoires de la 5g ; depuis la tâche 6, un copain y ajoute son erreur). Doigt
+ * posé avec ce saut : 0 chute attendue. Saut de la dernière chance (tour 1 de la tâche 6, graine 9 : turbo à 20 m/s sur
+ * une double-bosse juste avant une fosse, atterrissage sur l'approche et rebond de 1,1 m, la voiture vole pendant tout le
+ * centre de la fenêtre) : sur l'approche, en l'air, au dernier pas de la tolérance de sol alors que le centre est plus
+ * loin, il saute tout de suite si le bord est déjà à portée d'un saut avancé (au plus `fosseEarliestLead(v)` − 0,1 s).
  */
 export function sauteurParfait(track: Track, cfg: Config = CONFIG): (t: number, sim: RaceSim) => boolean {
   return (_t, sim) => {
     const car = sim.cars[GALAHAD_INDEX];
-    return fosseJumpWanted(track, chassisX(car), carSpeedMps(car.body), cfg);
+    const x = chassisX(car);
+    const v = carSpeedMps(car.body);
+    if (fosseJumpWanted(track, x, v, cfg)) return true;
+    const f = nextFosse(track, x);
+    if (!f || x < f.xLancement || car.grounded || car.lastGroundedAt === null) return false;
+    const graceLeft = car.lastGroundedAt + cfg.JUMP_GROUND_GRACE - sim.time;
+    const tte = (f.xBord - x) / Math.max(v, 1);
+    return graceLeft >= -1e-9 && graceLeft < 1.5 * cfg.PHYSICS_DT && tte - fosseJumpLead(v, cfg) > graceLeft
+      && tte <= fosseEarliestLead(v, cfg) - EARLY_MARGIN && tte > cfg.JUMP_BUFFER;
   };
 }

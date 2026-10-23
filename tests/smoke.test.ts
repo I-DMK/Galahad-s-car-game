@@ -87,6 +87,23 @@ describe('CONFIG', () => {
     expect(CONFIG.FOSSE_GHOST_AFTER).toBe(40);
   });
 
+  it('conduite des robots (tâche 6) : robots polis 2 m/s, 4 m, 3 s au plus ; lever de pied 8 m, 0,4 s ; sauts vus à 40 m, étoile visée 1 s avant, erreur × 2,5 aux fosses', () => {
+    expect(CONFIG.POLITE_SPEED).toBe(2);
+    expect(CONFIG.POLITE_GAP).toBe(4);
+    // La grille (3,3 m entre deux centres) est « juste devant » : sans doigt, Galahad n'est pas poussé avant POLITE_MAX_WAIT.
+    expect(CONFIG.GRID_SPACING_FACTOR * CONFIG.CAR_LENGTH).toBeLessThanOrEqual(CONFIG.POLITE_GAP);
+    expect(CONFIG.POLITE_MAX_WAIT).toBe(3);
+    expect(CONFIG.LIFT_LOOKAHEAD).toBe(8);
+    expect(CONFIG.LIFT_SECONDS).toBe(0.4);
+    expect(CONFIG.JUMP_LOOKAHEAD).toBe(40);
+    // Une fosse est vue dès le début de son approche (LANCEMENT_LENGTH avant le bord).
+    expect(CONFIG.JUMP_LOOKAHEAD).toBeGreaterThanOrEqual(CONFIG.LANCEMENT_LENGTH);
+    expect(CONFIG.JUMP_STAR_LEAD).toBe(1);
+    // Demande d'étoile abandonnée sous 0,7 s (tour 1) : au-delà de la demi-fenêtre (≈ 0,28 s) autour du centre.
+    expect(CONFIG.JUMP_STAR_MIN_LEAD).toBe(0.7);
+    expect(CONFIG.FOSSE_SKILL_FACTOR).toBe(2.5);
+  });
+
   it('étoiles basses des réceptions (tâche 5g, demande du papa) : aucune avant l’atterrissage le plus long doigt posé', () => {
     expect(CONFIG.STAR_TREMPLIN_LANDING).toBe(55);
     expect(CONFIG.STAR_FOSSE_LANDING).toBe(22);

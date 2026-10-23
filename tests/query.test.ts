@@ -152,10 +152,14 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
     expect(inGhostZone(track, track.xStart, CONFIG)).toBe(false);
   });
 
-  test('inGhostZone : fosse, châssis dans [xLancement, bord aval + FOSSE_GHOST_AFTER] (ruling R-F16), garde exclue', () => {
+  test('inGhostZone : fosse, châssis dans [xLancement − FOSSE_GUARD, bord aval + FOSSE_GHOST_AFTER] (ruling R-F16, garde comprise depuis le tour 1 de la tâche 6)', () => {
     expect(CONFIG.FOSSE_GHOST_AFTER).toBe(40);
-    expect(inGhostZone(track, f0.xLancement - 0.01, CONFIG)).toBe(false);
-    expect(inGhostZone(track, f0.xLancement - CONFIG.FOSSE_GUARD + 1, CONFIG)).toBe(false);
+    const slice = sliceAt(track, f0.xLancement);
+    expect(slice.type).toBe('fosse');
+    expect(f0.xLancement - CONFIG.FOSSE_GUARD).toBeCloseTo(slice.xStart, 6);
+    expect(inGhostZone(track, f0.xLancement - CONFIG.FOSSE_GUARD - 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, f0.xLancement - CONFIG.FOSSE_GUARD, CONFIG)).toBe(true);
+    expect(inGhostZone(track, f0.xLancement - 0.01, CONFIG)).toBe(true);
     expect(inGhostZone(track, f0.xLancement, CONFIG)).toBe(true);
     expect(inGhostZone(track, f0.xBord, CONFIG)).toBe(true);
     expect(inGhostZone(track, f0.xReception, CONFIG)).toBe(true);

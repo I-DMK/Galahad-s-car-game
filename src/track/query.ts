@@ -64,6 +64,16 @@ export function nextFosse(track: Track, x: number): Fosse | undefined {
   return undefined;
 }
 
+/**
+ * Vrai si x est dans [xLancement, xReception] d'un volcan à tremplin, bornes incluses : jamais de saut de copain là
+ * (addendum « bouton saut » §3, tâche 6 ; garde du driver et de `stepRace`). Toujours faux sur une fosse, devant
+ * laquelle le copain saute (saut §6.8). Sans allocation : appelé à chaque pas pour chaque copain.
+ */
+export function inNoJumpZone(track: Track, x: number): boolean {
+  for (const v of track.volcanoes) if (v.kind === 'tremplin' && x >= v.xLancement && x <= v.xReception) return true;
+  return false;
+}
+
 /** Premier volcan (tremplin ou fosse, dans l'ordre de la piste) dont la lave est strictement devant x. */
 export function volcanoAhead(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => v.xLava > x);
@@ -90,14 +100,18 @@ export function inElanZone(track: Track, x: number): boolean {
  * Vrai si la voiture dont le châssis est en `chassisX` est dans la zone fantôme d'un volcan. Tremplin : du début
  * du plat de lancement (châssis ≥ xLancement) jusqu'à ce que la voiture entière ait passé la réception
  * (roue arrière, WHEEL_BASE/2 + WHEEL_RADIUS derrière le châssis, au-delà de xReception). Fosse (tâche 5g, ruling
- * R-F16) : du début de l'approche jusqu'au bord aval + FOSSE_GHOST_AFTER (les sauteurs atterrissent jusqu'à ≈ 32 m, et
- * une voiture posée à bord aval + FOSSE_RESPAWN_AFTER y attend). Les voitures s'y traversent, pour qu'aucun choc ne
- * fasse tomber une voiture dans la lave (décision du papa, tâche 5b) ; partout ailleurs, elles se cognent.
+ * R-F16, amendé au tour 1 de la tâche 6) : du début du plat de garde (xLancement − FOSSE_GUARD) jusqu'au bord aval +
+ * FOSSE_GHOST_AFTER (les sauteurs atterrissent jusqu'à ≈ 32 m, et une voiture posée à bord aval + FOSSE_RESPAWN_AFTER y
+ * attend). La garde en fait partie depuis la tâche 6 : Galahad en turbo qui percute un copain plus lent (ou reposé au
+ * point sûr) juste avant l'approche était catapulté par-dessus et tombait dans la lave (graines 33 et 36, à 2–4 m de
+ * xLancement). Les voitures s'y traversent, pour qu'aucun choc ne fasse tomber une voiture dans la lave (décision du
+ * papa, tâche 5b) ; partout ailleurs, elles se cognent.
  */
 export function inGhostZone(
-  track: Track, chassisX: number, cfg: Pick<Config, 'WHEEL_BASE' | 'WHEEL_RADIUS' | 'FOSSE_GHOST_AFTER'>,
+  track: Track, chassisX: number, cfg: Pick<Config, 'WHEEL_BASE' | 'WHEEL_RADIUS' | 'FOSSE_GHOST_AFTER' | 'FOSSE_GUARD'>,
 ): boolean {
   const rear = cfg.WHEEL_BASE / 2 + cfg.WHEEL_RADIUS;
-  return track.volcanoes.some((v) => chassisX >= v.xLancement
-    && chassisX <= v.xReception + (v.kind === 'fosse' ? cfg.FOSSE_GHOST_AFTER : rear));
+  return track.volcanoes.some((v) => (v.kind === 'fosse'
+    ? chassisX >= v.xLancement - cfg.FOSSE_GUARD && chassisX <= v.xReception + cfg.FOSSE_GHOST_AFTER
+    : chassisX >= v.xLancement && chassisX <= v.xReception + rear));
 }

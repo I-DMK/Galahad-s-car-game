@@ -1,10 +1,12 @@
 // Pas de course : relie la physique (matter-js) à l'état de course. Sans DOM : utilisable sous node
 // (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b),
 // ligne d'arrivée (11), étoiles et turbo (12) ; course à 5 voitures dans un seul monde, grille de
-// départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B).
+// départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B) ; conduite des
+// robots par leur driver (tâche 6 : `ai/driver.ts`).
 import Matter from 'matter-js';
+import { makeRobotDriver, type Driver, type DriverContext, type OtherCar } from '../ai/driver';
 import type { Config } from '../config';
-import { canJump, fosseJumpWanted, wantsJump } from '../cars/jump';
+import { canJump, wantsJump } from '../cars/jump';
 import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
 import {
   applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
@@ -22,7 +24,7 @@ import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
 import { MAX_CARS, createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
-import { heightAt, inElanZone, inGhostZone, slopeAt } from '../track/query';
+import { heightAt, inElanZone, inGhostZone, inNoJumpZone, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 
 /** Chaque événement porte l'id (`CarState.id`) de la voiture concernée. */
@@ -40,9 +42,6 @@ export type SimEvent =
 
 export type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 export type StarEvent = Extract<SimEvent, { type: 'star' }>;
-
-/** Pilote automatique : doigt posé à l'instant t ? (`speed` : vitesse du châssis, m/s). */
-export type Driver = (ctx: { t: number; state: CarState; track: Track; speed: number }) => boolean;
 
 /** Une voiture de la course : pilote, corps physique et état de course. */
 export interface CarSim {
@@ -72,13 +71,22 @@ export interface CarSim {
   /** Collisions avec les autres voitures coupées (après une réapparition) ; levé par `releaseInvulnerability`. */
   invulnerable: boolean;
   /**
-   * Fantôme : châssis dans la zone [xLancement, xReception] d'un volcan (`inGhostZone` ; fosse : jusqu'au bord aval +
-   * FOSSE_GHOST_AFTER, tâche 5g), ou sorti de la zone mais encore engagé dans une autre voiture (`updateGhost`). Les
-   * voitures se traversent.
+   * Fantôme : châssis dans la zone fantôme d'un volcan (`inGhostZone`) : tremplin, de xLancement jusqu'à ce que la roue
+   * arrière ait passé xReception (châssis ≤ xReception + WHEEL_BASE/2 + WHEEL_RADIUS, tâche 5b) ; fosse, jusqu'au bord
+   * aval + FOSSE_GHOST_AFTER (tâche 5g) ; ou sorti de la zone mais encore engagé dans une autre voiture (`updateGhost`).
+   * Les voitures se traversent.
    */
   ghost: boolean;
-  /** Pilote automatique d'un robot ; null pour Galahad (doigt de l'enfant, argument de `stepRace`). */
+  /** Pilote automatique d'un robot (`makeRobotDriver`, tâche 6) ; null pour Galahad (doigt et saut de l'enfant, arguments de `stepRace`). */
   driver: Driver | null;
+  /**
+   * Les demandes de saut viennent d'un pilote automatique (copains ; Galahad dans la variante « sauteur » du rattrapage) :
+   * jamais de saut dans [xLancement, xReception] d'un tremplin (garde de `updateJump`, demande en mémoire comprise).
+   * Faux pour le doigt de l'enfant : un saut mal placé dans l'élan se paie (addendum « bouton saut » §0).
+   */
+  autoJumps: boolean;
+  /** Chutes dans la lave de cette voiture, par volcan (indice dans `track.volcanoes`) : tentative à une fosse (tâche 6). */
+  lavaFalls: number[];
   /** Facteur de vitesse du pilote, multiplié au turbo (élastique, tâche 7) ; 1 en 5b. */
   factor: number;
   /** Doigt posé au dernier pas (décision du driver, ou de l'enfant pour Galahad ; false après l'arrivée). */
@@ -124,16 +132,10 @@ function colorHex(n: number): string {
 const defaultPilotSeed = (track: Track): number => (track.seed ^ 0x9e3779b9) >>> 0;
 
 /**
- * Driver provisoire de la tâche 5b : doigt posé dès rank × START_DELAY_PER_RANK (départ échelonné de
- * la grille). La conduite des robots (lever de pied, zone volcan) arrive en tâche 6.
+ * Voiture de rang `rank` posée sur la grille : xStart − 2 − rank × GRID_SPACING_FACTOR × CAR_LENGTH. Un copain (rang ≥ 1)
+ * reçoit son driver (`makeRobotDriver`, graine dérivée de `pilotSeed` et du rang).
  */
-function holdAfterStartDelay(rank: number, cfg: Config): Driver {
-  const start = rank * cfg.START_DELAY_PER_RANK;
-  return ({ t }) => t >= start;
-}
-
-/** Voiture de rang `rank` posée sur la grille : xStart − 2 − rank × GRID_SPACING_FACTOR × CAR_LENGTH. */
-function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cfg: Config): CarSim {
+function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, pilotSeed: number, cfg: Config): CarSim {
   const x0 = track.xStart - 2 - rank * cfg.GRID_SPACING_FACTOR * cfg.CAR_LENGTH;
   const body = createCar(world, pilot.id, rank, x0, cfg);
   const start: SafePoint = { x: x0, y: heightAt(track, x0), angle: 0 };
@@ -142,7 +144,8 @@ function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, cf
   return {
     pilot, body, state, contact: newGroundContact(), airborneSince: null, grounded: false, lastGroundedAt: null,
     jumpFlight: false, invulnerable: false, ghost: false,
-    driver: rank === 0 ? null : holdAfterStartDelay(rank, cfg), factor: 1, throttle: false,
+    driver: rank === 0 ? null : makeRobotDriver(pilot, rank, track, pilotSeed, cfg), autoJumps: rank !== 0,
+    lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false,
   };
 }
 
@@ -160,17 +163,18 @@ export function createRaceSim(
   if (pilots.length > MAX_CARS) {
     throw new RangeError(`createRaceSim : ${pilots.length} voitures (Galahad + ${pilots.length - 1} copains), au plus MAX_CARS = ${MAX_CARS} (une catégorie de collision par voiture)`);
   }
-  const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, cfg));
+  const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, pilotSeed, cfg));
   const stars = newStarStates(track.stars, cars.length);
   const starBodies = createStarBodies(world, track.stars, cfg);
   return { track, world, cars, time: 0, events: [], stars, starBodies, cfg, pilotSeed };
 }
 
 /**
- * Un pas fixe de PHYSICS_DT pour toutes les voitures : pour chacune, état fantôme (`updateGhost`),
- * conduite (doigt de Galahad = `galahadThrottle`, robots = leur driver ; vitesse × turbo × `factor`),
- * contact au sol, mise à plat en l'air et saut (`galahadJump` : nouvelle demande de Galahad, `updateJump`, sur le
- * contact avec la piste seule) ;
+ * Un pas fixe de PHYSICS_DT pour toutes les voitures : instantané des voitures pris avant tout (`snapshotCars`) pour les
+ * contextes des drivers ; pour chacune, état fantôme (`updateGhost`), conduite (Galahad : doigt `galahadThrottle` et
+ * nouvelle demande de saut `galahadJump` ; robots : la réponse de leur driver, `fillContext` ; vitesse × turbo × `factor`),
+ * contact au sol, mise à plat en l'air et saut (`updateJump`, sur le contact avec la piste seule ; garde des demandes
+ * d'un pilote automatique, `autoJumps`) ;
  * un seul pas physique ; puis, voiture par voiture dans
  * l'ordre des index : bornage des vitesses, progression, étoiles, arrivée, invulnérabilité et réapparition.
  * Après son arrivée (`state.finishedAt` défini), une voiture freine (FINISH_BRAKE) et ne réapparaît
@@ -183,22 +187,30 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
   const { cfg, world, track, time: t } = sim;
   const h = (x: number) => heightAt(track, x);
   sim.events = [];
-  const onGround = sim.cars.map((car) => {
+  // Contextes pris avant toute conduite, pour les seules voitures conduites par leur driver : la réponse d'un driver ne
+  // dépend pas de l'ordre des voitures.
+  const cache = sim.cars.some(drivenNow) ? driverCache(sim) : null;
+  if (cache) snapshotCars(sim, cache);
+  const onGround = sim.cars.map((car, i) => {
     const { body, state } = car;
     updateGhost(sim, car);
+    let jump = car.driver ? false : galahadJump;
     if (state.finishedAt !== null) {
       car.throttle = false;
       applyBrake(body, cfg.FINISH_BRAKE);
     } else {
-      car.throttle = car.driver ? car.driver({ t, state, track, speed: carSpeedMps(body) }) : galahadThrottle;
+      if (car.driver) {
+        const order = car.driver(fillContext(sim, cache!, i));
+        car.throttle = order.throttle;
+        jump = order.jump;
+      } else {
+        car.throttle = galahadThrottle;
+      }
       applyDrive(body, car.throttle, turboFactor(state, t, cfg) * car.factor, cfg);
     }
     const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
     detectLanding(sim, car, grounded[0] || grounded[1]);
     applyAirLevel(body, grounded, cfg);
-    // Robots (tâche 5g, ruling R-F9) : saut provisoire aux fosses, demandé à chaque pas tant que `fosseJumpWanted` est
-    // vrai, sans erreur, au centre `fosseJumpLead(v)` ; la tâche 6 le remplace par leur driver.
-    const jump = car.driver ? fosseJumpWanted(track, chassisX(car), carSpeedMps(body), cfg) : galahadJump;
     updateJump(sim, car, jump, onTrack(car.contact, t));
     return grounded;
   });
@@ -226,13 +238,20 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
  * t ; si elle est encore valable (`wantsJump`, mémoire JUMP_BUFFER) et que la voiture peut sauter (`canJump` :
  * contact avec la piste dans les JUMP_GROUND_GRACE précédentes, délai écoulé, course pas finie pour elle),
  * `applyJump`, événement 'jump', vol de saut (`jumpFlight`) ; une demande servie ou périmée est oubliée. Sans
- * demande, rien ne touche la physique.
+ * demande, rien ne touche la physique. Garde : une voiture dont les demandes viennent d'un pilote automatique
+ * (`autoJumps`) ne saute jamais dans `inNoJumpZone`, et y oublie sa demande en mémoire.
  */
 function updateJump(sim: RaceSim, car: CarSim, request: boolean, onTrackNow: boolean): void {
   const { cfg, time: t } = sim;
   const { state, body } = car;
   car.grounded = onTrackNow;
   if (onTrackNow) car.lastGroundedAt = t;
+  // Garde (tâche 6, addendum « bouton saut » §3) : jamais de saut d'un pilote automatique dans [xLancement, xReception]
+  // d'un tremplin, ni par une demande du pas ni par une demande gardée en mémoire (JUMP_BUFFER).
+  if (car.autoJumps && inNoJumpZone(sim.track, chassisX(car))) {
+    state.jumpRequestedAt = null;
+    return;
+  }
   if (request) state.jumpRequestedAt = t;
   if (state.jumpRequestedAt === null) return;
   if (!wantsJump(state.jumpRequestedAt, t, cfg)) {
@@ -305,6 +324,123 @@ function collectStars(sim: RaceSim, car: CarSim, index: number): void {
     activateTurbo(car.state, t, cfg);
     sim.events.push({ type: 'star', carId: car.state.id, t, id: star.id });
   }
+}
+
+/** Voiture conduite par son driver à ce pas : un copain pas encore arrivé. */
+const drivenNow = (car: CarSim): boolean => car.driver !== null && car.state.finishedAt === null;
+
+/** Contexte d'un driver et ses objets internes, réutilisés d'un pas à l'autre (aucune allocation par pas). */
+interface DriverSlot {
+  ctx: DriverContext;
+  others: OtherCar[];
+  star: { index: number; x: number; available: boolean };
+  fosse: { xBord: number; index: number; attempt: 1 | 2 };
+  /** Curseur dans `highStars` : première étoile haute strictement devant le dernier x vu. */
+  starCursor: number;
+}
+/**
+ * Par course : un emplacement par voiture (ordre des index), les indices (dans `track.stars`) des étoiles hautes, et
+ * l'instantané des voitures pris au début du pas (x, vitesse, doigt, traversable).
+ */
+interface DriverCache {
+  slots: DriverSlot[];
+  highStars: number[];
+  xs: number[]; speeds: number[]; throttles: boolean[]; traversables: boolean[];
+}
+const driverCaches = new WeakMap<RaceSim, DriverCache>();
+
+function driverCache(sim: RaceSim): DriverCache {
+  let cache = driverCaches.get(sim);
+  if (cache && cache.slots.length === sim.cars.length) return cache;
+  const n = sim.cars.length;
+  const slots = sim.cars.map((car, index): DriverSlot => {
+    const others = sim.cars.flatMap((_, j) => (j === index ? [] : [{ index: j, x: 0, speed: 0, throttle: false, traversable: false }]));
+    const ctx: DriverContext = {
+      t: 0, state: car.state, track: sim.track, speed: 0, x: 0, traversable: false, others, nextHighStar: null, nextFosse: null,
+    };
+    return { ctx, others, star: { index: -1, x: 0, available: false }, fosse: { xBord: 0, index: -1, attempt: 1 }, starCursor: 0 };
+  });
+  cache = {
+    slots,
+    highStars: sim.track.stars.flatMap((s, k) => (s.high ? [k] : [])),
+    xs: new Array<number>(n).fill(0), speeds: new Array<number>(n).fill(0),
+    throttles: new Array<boolean>(n).fill(false), traversables: new Array<boolean>(n).fill(false),
+  };
+  driverCaches.set(sim, cache);
+  return cache;
+}
+
+/** Instantané de toutes les voitures au début du pas : x et vitesse du châssis, doigt du pas précédent, traversable. */
+function snapshotCars(sim: RaceSim, cache: DriverCache): void {
+  sim.cars.forEach((car, i) => {
+    cache.xs[i] = chassisX(car);
+    cache.speeds[i] = carSpeedMps(car.body);
+    cache.throttles[i] = car.throttle;
+    cache.traversables[i] = car.ghost || car.invulnerable;
+  });
+}
+
+/**
+ * Contexte du driver de la voiture d'index `i` (`DriverContext`), d'après l'instantané : t, état, x et vitesse,
+ * traversable, autres voitures (ordre des index), étoile haute la plus proche devant à moins de JUMP_LOOKAHEAD (curseur
+ * sur les étoiles hautes ; disponibilité pour cette voiture), prochaine fosse devant à moins de JUMP_LOOKAHEAD (bord
+ * amont, rang parmi les fosses, tentative : 2 si la voiture est déjà tombée dans cette fosse, `CarSim.lavaFalls`).
+ */
+function fillContext(sim: RaceSim, cache: DriverCache, i: number): DriverContext {
+  const { cfg, track, time: t } = sim;
+  const slot = cache.slots[i];
+  const { ctx, star, fosse } = slot;
+  const x = cache.xs[i];
+  ctx.t = t;
+  ctx.state = sim.cars[i].state;
+  ctx.x = x;
+  ctx.speed = cache.speeds[i];
+  ctx.traversable = cache.traversables[i];
+  for (const o of slot.others) {
+    o.x = cache.xs[o.index];
+    o.speed = cache.speeds[o.index];
+    o.throttle = cache.throttles[o.index];
+    o.traversable = cache.traversables[o.index];
+  }
+  const hs = cache.highStars;
+  let c = slot.starCursor;
+  while (c < hs.length && track.stars[hs[c]].x <= x) c++;
+  while (c > 0 && track.stars[hs[c - 1]].x > x) c--;
+  slot.starCursor = c;
+  ctx.nextHighStar = null;
+  if (c < hs.length && track.stars[hs[c]].x - x <= cfg.JUMP_LOOKAHEAD) {
+    star.index = hs[c];
+    star.x = track.stars[hs[c]].x;
+    star.available = isStarActiveFor(sim.stars[hs[c]], i, t, cfg);
+    ctx.nextHighStar = star;
+  }
+  ctx.nextFosse = null;
+  let rank = 0;
+  for (let vi = 0; vi < track.volcanoes.length; vi++) {
+    const v = track.volcanoes[vi];
+    if (v.kind !== 'fosse') continue;
+    if (v.xBord > x) {
+      if (v.xBord - x <= cfg.JUMP_LOOKAHEAD) {
+        fosse.xBord = v.xBord;
+        fosse.index = rank;
+        fosse.attempt = sim.cars[i].lavaFalls[vi] >= 1 ? 2 : 1;
+        ctx.nextFosse = fosse;
+      }
+      break;
+    }
+    rank++;
+  }
+  return ctx;
+}
+
+/**
+ * Contexte du driver de la voiture d'index `index` à l'état courant, tel que `stepRace` le passerait au pas suivant
+ * (variante « Galahad sauteur » du rattrapage : un driver de copain décide du saut de Galahad ; tests). Objet réutilisé.
+ */
+export function driverContext(sim: RaceSim, index: number): DriverContext {
+  const cache = driverCache(sim);
+  snapshotCars(sim, cache);
+  return fillContext(sim, cache, index);
 }
 
 /** Toutes les voitures de la course sauf `car`. */
@@ -393,7 +529,9 @@ function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolea
     inElanZone: inElanZone(track, x),
   }, cfg);
   if (reason === null) return;
-  const { point, lavaX, consecutive, direction } = chooseRespawnTarget(state, track, cfg, reason, x);
+  const { point, lavaX, consecutive, direction, volcano } = chooseRespawnTarget(state, track, cfg, reason, x);
+  // Chutes par volcan (tentative d'un copain à une fosse) : le volcan retenu pour la série, une seule source.
+  if (volcano) car.lavaFalls[track.volcanoes.indexOf(volcano)]++;
   const target = shiftTarget(point, otherCars(sim, car).map(chassisX), track, cfg, direction);
   placeInvulnerable(sim, car, target, lavaX, consecutive);
   sim.events.push({ type: 'respawn', carId: state.id, t, reason, x, target: { ...target } });

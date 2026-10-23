@@ -113,8 +113,8 @@ describe('course à 5 voitures, graine 1 : une étoile prise par un copain reste
   test('copain 6 m avant la 1re étoile, Galahad 20 m derrière lui, doigt posé : un « star » du même id chacun, deux turbos', () => {
     const sim = createRaceSim(TRACK, CONFIG, { robots: true });
     const [g, copain, ...others] = sim.cars;
-    for (const robot of others) robot.driver = () => false;
-    copain.driver = () => true;
+    for (const robot of others) robot.driver = () => ({ throttle: false, jump: false });
+    copain.driver = () => ({ throttle: true, jump: false });
     place(copain, STAR.x - 6);
     place(g, STAR.x - 26);
     const taken: StarEvent[] = [];
@@ -146,7 +146,7 @@ describe('course à 5 voitures, graine 1 : une étoile prise par un copain reste
   // la fin de ce pas), aucun capteur d'étoile ne touche ses pièces, alors qu'elle reste active pour Galahad.
   test('réapparition par voiture : un copain garé dans le capteur, doigt levé, reprend l’étoile à chaque réapparition, 1 à 2 pas après la prise précédente + R, jamais entre', () => {
     const sim = createRaceSim(TRACK, CONFIG, { robots: true });
-    for (const robot of sim.cars.slice(1)) robot.driver = () => false;
+    for (const robot of sim.cars.slice(1)) robot.driver = () => ({ throttle: false, jump: false });
     const copain = sim.cars[1];
     place(copain, STAR.x);
     const taken: StarEvent[] = [];
