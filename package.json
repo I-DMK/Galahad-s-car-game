@@ -13,7 +13,8 @@
     "test:slow:rattrapage": "vitest run -c vitest.slow-rattrapage.config.ts",
     "test:slow:bouton": "vitest run -c vitest.slow-bouton.config.ts",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:live": "playwright test -c playwright.live.config.ts"
   },
   "repository": {
     "type": "git",

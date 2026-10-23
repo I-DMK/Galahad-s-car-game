@@ -203,6 +203,7 @@ sans le contexte de celle-ci.
 - Les skills `superpowers:*` et `code-review` étaient disponibles dans la
   2e session du 2026-10-21 ; s'ils manquent, appliquer la méthode telle que
   décrite ici et dans les plans.
+- **Site en ligne testable depuis le conteneur** (2026-10-23) : le domaine `i-dmk.github.io` est autorisé dans le réseau de l'environnement. `npm run e2e:live` rejoue les 13 e2e sur le site déployé (`playwright.live.config.ts`, adresse changeable par `E2E_LIVE_URL`, captures dans `test-results/live-screenshots`). **À lancer après chaque déploiement**, une fois le run GitHub Actions vert ; vérifier aussi que le hash du `index-*.js` servi est celui d'un `npm run build` local.
 - Clone frais : `npm ci` d'abord. Le clone est superficiel (`--depth 1`) :
   `git fetch origin ccr-5b6fabc4-n96ofo` avant un push.
 - Registre de travail des sous-agents (briefs, rapports, paquets de
@@ -309,3 +310,4 @@ Session 4 (2026-10-23) : **tâches 6 et 7 validées et déployées** (fusions no
 2. **Test tablette du papa** (6 + 7) puis **il rejuge la difficulté** (`ENGINE_BRAKE`, plan C : obstacles qui ralentissent, bond lunaire). Points à regarder : les caractères des copains se voient-ils encore (vitesses proches) ? course trop facile ou trop dure ? copains polis derrière Galahad doigt levé ; copains qui ratent une fosse (ils sautent puis retombent) ; peloton qui rate les étoiles hautes ; Q-F5 (rien ne s'allume avant une fosse) ; appuis perdus à 21 m/s ; étoile de réception survolée en turbo ; catapultes.
 3. Puis **tâche 8** (position, barre de progression, classement ; `rankCars` existe depuis la 5b) et **8b** (images ; plan à écrire depuis l'addendum « présentation », skill writing-plans), au **régime « écrans »** (tests jsdom et e2e, une relecture `code-review` + `security-review`, capture validée par le papa) ; puis 10, 11 et le **jalon « démo tablette »** (avant l'audio), puis 12, 13, 14, 15, 16 (choix de Galahad pour le décor à recueillir), 17.
 4. Mineurs reportés (registre, lignes « minor (deferred) ») : à trier à la relecture de branche (tâche 14 ou 17).
+5. Après chaque fusion sur `ccr-5b6fabc4-n96ofo` : run GitHub Actions vert, puis `npm run e2e:live` ; avancer `wip-plan-b` sur la même tête (la fusion suivante se fait alors en avance rapide).

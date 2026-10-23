@@ -4,6 +4,10 @@ import type { StepCounts } from '../src/loop/frame-stats';
 
 export type GameSnapshot = { state: string; time: number; seed: number; progress: number };
 
+/** Dossier des captures : `e2e/screenshots` en local ; celui que fixe `playwright.live.config.ts` sur le site en ligne. */
+export const SHOTS = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env
+  .E2E_SHOTS ?? 'e2e/screenshots';
+
 /** Pose un doigt au centre de l'écran pendant `seconds`, puis le lève. */
 export async function holdFinger(page: Page, seconds: number): Promise<void> {
   const cdp = await page.context().newCDPSession(page);

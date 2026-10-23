@@ -1,8 +1,7 @@
 // Course sur tablette simulée : chargement, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
 import { expect, test, type Page } from '@playwright/test';
-import { frameSteps, gameState, holdFinger, pilotIds, progressOf, waitForGame, waitForRaceTime, waitForState } from './helpers';
+import { SHOTS, frameSteps, gameState, holdFinger, pilotIds, progressOf, waitForGame, waitForRaceTime, waitForState } from './helpers';
 
-const SHOTS = 'e2e/screenshots';
 /** Durée maximale doigt posé pour finir une piste de 300 m. */
 const MAX_HOLD_S = 90;
 
@@ -26,7 +25,7 @@ function collectErrors(page: Page): string[] {
 }
 
 test('la page charge', async ({ page }) => {
-  await page.goto('/?seed=1&debug=1');
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   const dims = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -40,7 +39,7 @@ test('la page charge', async ({ page }) => {
 });
 
 test('doigt posé 3 s : la voiture avance', async ({ page }) => {
-  await page.goto('/?seed=1&debug=1');
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   const before = (await gameState(page)).progress;
   await holdFinger(page, 3);
@@ -58,7 +57,7 @@ test('doigt posé 3 s : la voiture avance', async ({ page }) => {
 const BEFORE_ROBOTS_S = 2;
 
 test('sans doigt : la voiture ne part pas toute seule, et les copains ne la poussent pas pendant au moins 2 s', async ({ page }) => {
-  await page.goto('/?seed=1&debug=1');
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   const before = await gameState(page);
   expect(before.time).toBeLessThan(0.3);
@@ -71,7 +70,7 @@ test('sans doigt : la voiture ne part pas toute seule, et les copains ne la pous
 });
 
 test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui partent ; capture course-5-voitures.png', async ({ page }) => {
-  await page.goto('/?seed=1&debug=1');
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   const ids = await pilotIds(page);
   expect(ids).toHaveLength(5);
@@ -89,7 +88,7 @@ test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui parten
 });
 
 test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; capture compteur-images.png', async ({ page }) => {
-  await page.goto('/?seed=1&debug=1');
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await page.waitForTimeout(2_000);
   const steps = page.locator('.hud-steps');
@@ -105,7 +104,7 @@ test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; 
 test('course courte : arrivée et calque ARRIVÉE, sans erreur console', async ({ page }) => {
   test.setTimeout(150_000);
   const errors = collectErrors(page);
-  await page.goto('/?seed=1&len=300&debug=1');
+  await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
   await driveToFinish(page);
   expect((await gameState(page)).state).toBe('finished');
@@ -116,12 +115,12 @@ test('course courte : arrivée et calque ARRIVÉE, sans erreur console', async (
 
 test('captures : course.png et arrivee.png', async ({ page }) => {
   test.setTimeout(150_000);
-  await page.goto('/?seed=1&debug=1');
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await holdFinger(page, 3);
   await page.screenshot({ path: `${SHOTS}/course.png`, fullPage: true });
 
-  await page.goto('/?seed=1&len=300&debug=1');
+  await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
   await driveToFinish(page);
   await expect(page.getByText('ARRIVÉE')).toBeVisible({ timeout: 5_000 });

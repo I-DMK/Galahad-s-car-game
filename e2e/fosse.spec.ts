@@ -9,16 +9,15 @@ import { expect, test } from '@playwright/test';
 import { CONFIG } from '../src/config';
 import { defaultTrackLength, generateTrack } from '../src/track/generate';
 import { fosses } from '../src/track/query';
-import { waitForGame } from './helpers';
+import { SHOTS, waitForGame } from './helpers';
 
-const SHOTS = 'e2e/screenshots';
 const SEED = 18;
 
 test('doigt tenu sans sauter jusqu’à la première fosse : captures, deux chutes, posé après la fosse, la course continue', async ({ page }) => {
   test.setTimeout(150_000);
   const f = fosses(generateTrack(SEED, defaultTrackLength(CONFIG), CONFIG))[0];
   expect(f.xBord).toBeLessThan(400);
-  await page.goto(`/?seed=${SEED}&debug=1`);
+  await page.goto(`./?seed=${SEED}&debug=1`);
   await waitForGame(page);
   const progress = (x: number) => page.waitForFunction((xx) => (window as any).__game.progress('galahad') >= xx, x, { timeout: 90_000 });
   const cdp = await page.context().newCDPSession(page);
