@@ -1,13 +1,26 @@
 // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : le
 // driver de chaque copain décide, à chaque pas, de son doigt (gaz) et de sa demande de saut. Pur (ni DOM, ni
 // matter-js) : `sim/simulate.ts` lui passe un `DriverContext` et applique sa réponse.
-import { fosseJumpLead } from '../cars/jump';
+import { fosseJumpWanted } from '../cars/jump';
 import type { Pilot } from '../cars/pilots';
 import type { CarState } from '../cars/state';
 import type { Config } from '../config';
-import { inNoJumpZone, sliceAt } from '../track/query';
+import { fosses, inNoJumpZone, sliceAt } from '../track/query';
 import { mulberry32 } from '../track/rng';
-import type { Fosse, Track } from '../track/types';
+import type { Track } from '../track/types';
+
+/** Une autre voiture, vue par un driver au début du pas. */
+export interface OtherCar {
+  /** Index dans `sim.cars`. */
+  index: number;
+  /** x du châssis (m) et vitesse du châssis (m/s). */
+  x: number;
+  speed: number;
+  /** Doigt posé au pas précédent (décision de son driver, ou de l'enfant) : une voiture qui démarre n'est pas arrêtée. */
+  throttle: boolean;
+  /** Fantôme ou invulnérable : les voitures se traversent, elle ne bloque personne. */
+  traversable: boolean;
+}
 
 /** Ce que voit un driver au début d'un pas (avant le pas physique). Rempli par `stepRace`, réutilisé d'un pas à l'autre. */
 export interface DriverContext {
@@ -18,13 +31,16 @@ export interface DriverContext {
   /** Vitesse du châssis (m/s) et x du châssis (m). */
   speed: number;
   x: number;
-  /** Une roue au moins sur la piste au pas précédent (contact débouncé, `CarSim.grounded`). */
-  grounded: boolean;
+  /** Cette voiture est fantôme ou invulnérable : elle traverse les autres, aucune ne la bloque. */
+  traversable: boolean;
   /** Autres voitures, dans l'ordre des index (index = celui de sim.cars). */
-  others: readonly { index: number; x: number; speed: number }[];
+  others: readonly OtherCar[];
   /** Étoile haute la plus proche devant, à moins de JUMP_LOOKAHEAD (40 m), avec sa disponibilité pour CETTE voiture ; null sinon. */
   nextHighStar: { index: number; x: number; available: boolean } | null;
-  /** Prochaine fosse devant, à moins de JUMP_LOOKAHEAD : bord amont, rang dans la piste, tentative (2 après une chute dans cette fosse, 1 sinon) ; null sinon. */
+  /**
+   * Prochaine fosse devant, à moins de JUMP_LOOKAHEAD : bord amont, rang parmi les fosses de la piste, tentative (2 si la
+   * voiture est déjà tombée dans cette fosse, 1 sinon) ; null sinon.
+   */
   nextFosse: { xBord: number; index: number; attempt: 1 | 2 } | null;
 }
 
@@ -51,9 +67,6 @@ function normal(rng: () => number): number {
   const u2 = rng();
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
 }
-
-/** Cible de la dernière demande de saut : étoile haute ou fosse (indices), et tentative (`respawnCount`) de la demande. */
-interface Pending { kind: 'star' | 'fosse'; index: number; epoch: number }
 
 /** Tranche devant laquelle un copain peut lever le pied : rampe-saut ou double-bosse. */
 const isLiftSlice = (s: { type: string }): boolean => s.type === 'rampe-saut' || s.type === 'double-bosse';
@@ -85,7 +98,7 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
     starTry[k] = rng() < pilot.jumpTry;
     starErr[k] = normal(rng) * pilot.jumpSkill;
   });
-  const fosseErr = track.volcanoes.filter((v) => v.kind === 'fosse')
+  const fosseErr = fosses(track)
     .map((): [number, number] => [normal(rng) * cfg.FOSSE_SKILL_FACTOR * pilot.jumpSkill, normal(rng) * cfg.FOSSE_SKILL_FACTOR * pilot.jumpSkill]);
   const lift = track.slices.filter(isLiftSlice).map(() => rng() < pilot.lift);
   return { starTry, starErr, fosseErr, lift };
@@ -98,37 +111,46 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
  * 1. après l'arrivée, `stepRace` n'appelle plus le driver (la voiture freine) ;
  * 2. délai de départ : ni gaz ni saut tant que t < rank × START_DELAY_PER_RANK ;
  * 3. zone volcan [xLancement, xLava] (tremplin ou fosse) : doigt posé, jamais de lever de pied ni de politesse ;
- * 4. robots polis : une voiture plus lente que POLITE_SPEED, devant à une distance de châssis à châssis dans
- *    (0, POLITE_GAP], fait lever le pied ; après POLITE_MAX_WAIT d'attente continue derrière la même voiture, le robot
- *    repart ; l'attente revient à zéro quand la voiture de devant repart (ou s'éloigne) ;
+ * 4. robots polis (décision du papa, tour 1 de la tâche 6 : seulement derrière une voiture vraiment arrêtée) : une
+ *    voiture devant, à une distance de châssis à châssis dans (0, POLITE_GAP], plus lente que POLITE_SPEED, doigt levé
+ *    (une voiture qui démarre ne compte pas), et qu'on ne traverserait pas (ni elle ni lui fantôme ou invulnérable),
+ *    fait lever le pied. L'attente se cumule derrière la même voiture : au bout de POLITE_MAX_WAIT, le robot repart et la
+ *    pousse ; elle ne revient à zéro que quand cette voiture repart d'elle-même (doigt posé), qu'une autre voiture
+ *    bloque, ou à une réapparition (une poussée qui la fait dépasser POLITE_SPEED ne relance pas l'attente) ;
  * 5. lever de pied : au premier pas dans les LIFT_LOOKAHEAD m avant une rampe-saut ou une double-bosse, si le tirage de
  *    cette tranche est tombé, doigt levé LIFT_SECONDS (une fois par tranche ; jamais dans un cratère) ;
  * 6. sinon, doigt posé.
  * Sauts, en plus du doigt :
- * - fosse (toujours tentée, sans tirage `jumpTry`) : sur l'approche [xLancement, xBord[, demande dès que
- *   (xBord − x) / max(v, 1) ≤ fosseJumpLead(v) + e (e : erreur de la tentative), et tant que la mémoire de la demande
- *   (JUMP_BUFFER) ne l'emmène pas au-delà du bord ; redemandée à chaque pas jusqu'au saut, puis plus aucune jusqu'à la
- *   tentative suivante (une réapparition) ;
- * - étoile haute disponible et tentée : demande dès que (xÉtoile − x) / max(v, 1) ≤ JUMP_STAR_LEAD + erreur, redemandée
- *   à chaque pas jusqu'au saut ou au passage de l'étoile ; après une réapparition, la même décision est rejouée ;
+ * - fosse (toujours tentée, sans tirage `jumpTry`) : `fosseJumpWanted` avec l'erreur de la tentative (sur l'approche,
+ *   bord à au plus fosseJumpLead(v) + e secondes ; une erreur trop tardive fait sauter au dernier pas permis, décision du
+ *   papa) ; redemandée à chaque pas jusqu'au saut, puis plus aucune jusqu'à la tentative suivante (une réapparition) ;
+ * - étoile haute disponible et tentée : demande tant que JUMP_STAR_MIN_LEAD ≤ (xÉtoile − x) / max(v, 1) ≤
+ *   JUMP_STAR_LEAD + erreur, redemandée à chaque pas jusqu'au saut ; abandonnée sous JUMP_STAR_MIN_LEAD (un saut plus
+ *   tardif passe sous l'étoile, par exemple après un survol en turbo) ; après une réapparition, la même décision est
+ *   rejouée ;
  * - jamais dans [xLancement, xReception] d'un tremplin (`inNoJumpZone`), ni de saut d'étoile dans une tranche fosse.
  * Une « tentative » change à chaque réapparition (`CarState.respawnCount`) : un saut fait pour une cible ne bloque que
  * la tentative où il a été demandé.
  */
 export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: number, cfg: Config): Driver {
   const { starTry, starErr, fosseErr, lift: liftDraw } = robotDraws(pilot, rank, track, seed, cfg);
-  const fosseList = track.volcanoes.filter((v): v is Fosse => v.kind === 'fosse');
+  const fosseList = fosses(track);
   const liftSlices = track.slices.filter(isLiftSlice);
   const liftUsed = liftSlices.map(() => false);
   /** Tentative (`respawnCount`) où la cible a été sautée ; −1 : jamais. */
-  const starDone = new Map<number, number>();
+  const starDone = track.stars.map(() => -1);
   const fosseDone = fosseList.map(() => -1);
 
   const startAt = rank * cfg.START_DELAY_PER_RANK;
   let liftUntil = -Infinity;
-  let politeTarget: number | null = null;
-  let politeSince = 0;
-  let pending: Pending | null = null;
+  /** Politesse : voiture attendue, attente cumulée derrière elle (s, un PHYSICS_DT par appel bloqué), tentative de l'attente. */
+  let waitTarget = -1;
+  let waited = 0;
+  let waitEpoch = 0;
+  /** Dernière demande de saut : cible (0 aucune, 1 étoile, 2 fosse), son indice, sa tentative. Sans allocation. */
+  let pendingKind = 0;
+  let pendingIndex = -1;
+  let pendingEpoch = -1;
   let seenJumpAt: number | null = null;
 
   /** Zone volcan [xLancement, xLava] (tremplin ou fosse) ? Sans allocation. */
@@ -137,29 +159,44 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
     return false;
   };
 
-  /** Demande de saut du pas, ou false ; note la cible demandée (`pending`). */
+  const request = (kind: number, index: number, epoch: number): boolean => {
+    pendingKind = kind;
+    pendingIndex = index;
+    pendingEpoch = epoch;
+    return true;
+  };
+
+  /** Demande de saut du pas, ou false ; note la cible demandée. */
   function wantJump(ctx: DriverContext, epoch: number): boolean {
     const { x, speed, nextFosse, nextHighStar } = ctx;
-    const v = Math.max(speed, 1);
     if (nextFosse) {
-      const f = fosseList[nextFosse.index];
-      if (f && x >= f.xLancement) {
-        if (fosseDone[nextFosse.index] === epoch) return false;
-        const tte = (f.xBord - x) / v;
-        const e = fosseErr[nextFosse.index][nextFosse.attempt - 1];
-        if (tte <= fosseJumpLead(speed, cfg) + e + EPS && tte > cfg.JUMP_BUFFER + EPS) {
-          pending = { kind: 'fosse', index: nextFosse.index, epoch };
-          return true;
-        }
-        return false;
+      const k = nextFosse.index;
+      if (x >= fosseList[k].xLancement) {
+        if (fosseDone[k] === epoch) return false;
+        return fosseJumpWanted(track, x, speed, cfg, fosseErr[k][nextFosse.attempt - 1]) && request(2, k, epoch);
       }
     }
     const s = nextHighStar;
-    if (!s || !s.available || !starTry[s.index] || starDone.get(s.index) === epoch) return false;
+    if (!s || !s.available || !starTry[s.index] || starDone[s.index] === epoch) return false;
     if (sliceAt(track, x).type === 'fosse' || inNoJumpZone(track, x)) return false;
-    if ((s.x - x) / v > cfg.JUMP_STAR_LEAD + starErr[s.index] + EPS) return false;
-    pending = { kind: 'star', index: s.index, epoch };
-    return true;
+    const tte = (s.x - x) / Math.max(speed, 1);
+    if (tte > cfg.JUMP_STAR_LEAD + starErr[s.index] + EPS || tte < cfg.JUMP_STAR_MIN_LEAD - EPS) return false;
+    return request(1, s.index, epoch);
+  }
+
+  /** Voiture devant qui fait lever le pied (la plus proche), ou −1. */
+  function blockerOf(ctx: DriverContext): number {
+    if (ctx.traversable) return -1;
+    let blocker = -1;
+    let gapMin = Infinity;
+    for (const o of ctx.others) {
+      const gap = o.x - ctx.x;
+      if (gap > 0 && gap <= cfg.POLITE_GAP && gap < gapMin && o.speed < cfg.POLITE_SPEED && !o.throttle && !o.traversable) {
+        gapMin = gap;
+        blocker = o.index;
+      }
+    }
+    return blocker;
   }
 
   return (ctx) => {
@@ -168,11 +205,11 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
     // Un saut a eu lieu depuis le pas précédent : il sert la dernière cible demandée, dans la tentative de la demande.
     if (state.lastJumpAt !== seenJumpAt) {
       seenJumpAt = state.lastJumpAt;
-      if (pending && state.lastJumpAt !== null) {
-        if (pending.kind === 'fosse') fosseDone[pending.index] = pending.epoch;
-        else starDone.set(pending.index, pending.epoch);
+      if (pendingKind !== 0 && state.lastJumpAt !== null) {
+        if (pendingKind === 2) fosseDone[pendingIndex] = pendingEpoch;
+        else starDone[pendingIndex] = pendingEpoch;
       }
-      pending = null;
+      pendingKind = 0;
     }
     if (t < startAt) return out(false, false);
     // Lever de pied : tirage de la tranche consommé au premier pas dans les LIFT_LOOKAHEAD m qui la précèdent.
@@ -184,28 +221,23 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
       }
     }
     const jump = wantJump(ctx, epoch);
-    if (inVolcanoZone(x)) {
-      politeTarget = null;
-      return out(true, jump);
+    // Attente polie : remise à zéro à une réapparition, ou quand la voiture attendue repart d'elle-même.
+    if (epoch !== waitEpoch) {
+      waitEpoch = epoch;
+      waitTarget = -1;
     }
-    // Robots polis : la voiture la plus proche devant, lente, à moins de POLITE_GAP.
-    let blocker = -1;
-    let gapMin = Infinity;
-    for (const o of ctx.others) {
-      const gap = o.x - x;
-      if (gap > 0 && gap <= cfg.POLITE_GAP && o.speed < cfg.POLITE_SPEED && gap < gapMin) {
-        gapMin = gap;
-        blocker = o.index;
+    for (const o of ctx.others) if (o.index === waitTarget && o.throttle) waitTarget = -1;
+    if (inVolcanoZone(x)) return out(true, jump);
+    const blocker = blockerOf(ctx);
+    if (blocker >= 0) {
+      if (blocker !== waitTarget) {
+        waitTarget = blocker;
+        waited = 0;
       }
-    }
-    if (blocker < 0) {
-      politeTarget = null;
-    } else {
-      if (politeTarget !== blocker) {
-        politeTarget = blocker;
-        politeSince = t;
+      if (waited < cfg.POLITE_MAX_WAIT - EPS) {
+        waited += cfg.PHYSICS_DT;
+        return out(false, jump);
       }
-      if (t - politeSince < cfg.POLITE_MAX_WAIT - EPS) return out(false, jump);
     }
     if (t < liftUntil - EPS && sliceAt(track, x).type !== 'cratère') return out(false, jump);
     return out(true, jump);

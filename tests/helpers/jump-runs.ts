@@ -37,7 +37,8 @@ export function soloSim(world: World, x0: number, stars: Star[], cfg: Config): R
   const state = newCarState(GALAHAD.id, GALAHAD.name, hex(GALAHAD.color), hex(GALAHAD.accent), { x: x0, y: heightAt(track, x0), angle: 0 });
   const car: CarSim = {
     pilot: GALAHAD, body, state, contact: newGroundContact(), airborneSince: null, grounded: false,
-    lastGroundedAt: null, jumpFlight: false, invulnerable: false, ghost: false, driver: null, factor: 1, throttle: false,
+    lastGroundedAt: null, jumpFlight: false, invulnerable: false, ghost: false, driver: null, autoJumps: false,
+    lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false,
   };
   const starBodies = createStarBodies(world, stars, cfg);
   return { track, world, cars: [car], time: 0, events: [], stars: newStarStates(stars, 1), starBodies, cfg, pilotSeed: 0 };

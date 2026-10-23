@@ -41,15 +41,20 @@ export function fosseJumpLead(v: number, cfg: Config): number {
 }
 
 /**
- * Saut voulu devant une fosse (tâche 5g) : le châssis (x) est sur l'approche de la prochaine fosse, [xLancement,
- * xBord[, et le bord est à au plus `fosseJumpLead(v)` secondes à la vitesse v, mais à plus de JUMP_BUFFER : une demande
- * gardée en mémoire (0,1 s) partirait sinon au-dessus de la lave (tour 1 de la 5g). Vrai à chaque pas de cette fin
- * d'approche : le demandeur redemande tant qu'il ne s'est pas envolé (`sauteurParfait` des tests ; les copains, depuis
- * la tâche 6, visent ce même centre plus leur erreur, dans `ai/driver.ts`). Parcourt les volcans sans allouer.
+ * Saut voulu devant une fosse (tâche 5g ; erreur des copains, tâche 6) : le châssis (x) est sur l'approche de la
+ * prochaine fosse, [xLancement, xBord[, et le bord est à au plus `fosseJumpLead(v)` + `error` secondes à la vitesse v,
+ * mais à plus de JUMP_BUFFER : une demande gardée en mémoire (0,1 s) partirait sinon au-dessus de la lave (tour 1 de la
+ * 5g). Une erreur trop tardive (`fosseJumpLead(v)` + `error` ≤ JUMP_BUFFER + PHYSICS_DT) ne supprime pas le saut : il
+ * part au dernier pas permis, avant que la mémoire de la demande n'atteigne le bord (décision du papa au tour 1 de la
+ * tâche 6 : le raté se voit ; à 11,2 et 14 m/s la voiture saute à 1,2–1,5 m du bord et tombe, à 8 m/s la lave la
+ * reprend avant). Sans erreur, la borne basse ne joue jamais (`fosseJumpLead` ≥ 0,33 s). Vrai à chaque pas de cette
+ * fenêtre : le demandeur redemande tant qu'il ne s'est pas envolé (`sauteurParfait` des tests, driver des copains).
+ * Parcourt les volcans sans allouer.
  */
-export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config): boolean {
+export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config, error = 0): boolean {
   const f = nextFosse(track, x);
   if (!f || x < f.xLancement) return false;
   const tte = (f.xBord - x) / Math.max(v, 1);
-  return tte <= fosseJumpLead(v, cfg) + EPS && tte > cfg.JUMP_BUFFER + EPS;
+  const lead = Math.max(fosseJumpLead(v, cfg) + error, cfg.JUMP_BUFFER + cfg.PHYSICS_DT);
+  return tte <= lead + EPS && tte > cfg.JUMP_BUFFER + EPS;
 }

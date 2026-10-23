@@ -140,17 +140,23 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
 
   test('drivers des copains : `makeRobotDriver(pilote, rang, piste, pilotSeed)`, mêmes réponses qu’un driver neuf sur 20 s de course', () => {
     const sim = createRaceSim(TRACK, CONFIG, { robots: true });
-    const twins = sim.cars.map((c, n) => (n === 0 ? null : makeRobotDriver(c.pilot, n, TRACK, sim.pilotSeed, CONFIG)));
     const diffs: string[] = [];
-    for (let i = 0; i < Math.round(20 / DT); i++) {
-      for (let n = 1; n <= 4; n++) {
-        // Le jumeau voit le même contexte que le vrai driver au pas qui suit.
-        const want = twins[n]!(driverContext(sim, n));
-        const got = sim.cars[n].driver!(driverContext(sim, n));
-        if (want.throttle !== got.throttle || want.jump !== got.jump) diffs.push(`rang ${n} à t = ${sim.time.toFixed(3)}`);
-      }
-      stepRace(sim, true);
-    }
+    let calls = 0;
+    sim.cars.forEach((car, n) => {
+      if (n === 0) return;
+      // Le jumeau reçoit le contexte que `stepRace` passe au vrai driver, une fois par pas, comme lui.
+      const real = car.driver!;
+      const twin = makeRobotDriver(car.pilot, n, TRACK, sim.pilotSeed, CONFIG);
+      car.driver = (ctx) => {
+        const got = real(ctx);
+        const want = twin(ctx);
+        calls++;
+        if (want.throttle !== got.throttle || want.jump !== got.jump) diffs.push(`rang ${n} à t = ${ctx.t.toFixed(3)}`);
+        return got;
+      };
+    });
+    for (let i = 0; i < Math.round(20 / DT); i++) stepRace(sim, true);
+    expect(calls).toBe(4 * Math.round(20 / DT));
     expect(diffs).toEqual([]);
   });
 

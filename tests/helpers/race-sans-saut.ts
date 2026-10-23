@@ -8,7 +8,8 @@
 import { CONFIG } from '../../src/config';
 import { fosses } from '../../src/track/query';
 import {
-  CONTACT_WINDOW, MAX_STUCK_SECONDS, RACE_MAX_SECONDS, describeFall, fiveCarRace, lavaSeries, respawnsHorsFosses, type FiveCarRace,
+  CONTACT_WINDOW, MAX_STUCK_SECONDS, RACE_MAX_SECONDS, SANS_TENTATIVE_MAX_SPEED, describeFall, fiveCarRace, lavaSeries,
+  respawnsHorsFosses, type FiveCarRace,
 } from './race';
 import { describeRow, expectReceptionStars, receptionRun, type ReceptionRow } from './reception';
 import { trackFor } from './runs';
@@ -30,6 +31,7 @@ function expectSansSaut(race: FiveCarRace, nF: number, seed: number): void {
   // Copains (tâche 6) : ils ratent parfois une fosse (attendu), jamais un tremplin ; jamais de saut dans la zone d'un
   // tremplin.
   expect(falls.filter((f) => f.carId !== 'galahad' && f.kind !== 'fosse').map(describeFall), summary).toEqual([]);
+  expect(falls.filter((f) => f.cause === 'sans-tentative' && !(f.speed <= SANS_TENTATIVE_MAX_SPEED)).map(describeFall), summary).toEqual([]);
   expect(race.noJumpZoneJumps, summary).toEqual([]);
   expect(r.ghostContacts, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {

@@ -8,7 +8,8 @@
 //   STAR_TAKE_WINDOW s qui suivent) ou ratée ; réapparition dans les RESPAWN_WINDOW s ;
 // - fosse : chaque approche [xLancement, xBord[ d'une fosse est une tentative, close par une chute dans la lave, un
 //   passage (x > bord aval + 5 m) ou une autre réapparition ; vitesse au saut (au pas de la décision), ou à la chute
-//   sans saut ; tentative 2 = départ arrêté au point sûr après une chute dans cette fosse.
+//   sans saut ; tentative 2 = la voiture est déjà tombée dans cette fosse (départ arrêté au point sûr), comptée par fosse
+//   comme le driver (`CarSim.lavaFalls`), une autre réapparition ne la remet pas à 1.
 // Les invariants de course (tests/helpers/race.ts) valent pour les trois courses. Mesure seule pour les taux ; assertions :
 // au moins MIN_ATTEMPTS tentatives par bras, raté « fonceurs » > raté « prudents » aux étoiles hautes et aux fosses.
 import { PILOTS, type Pilot } from '../../src/cars/pilots';
@@ -66,6 +67,8 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
   const prevSpeed = new Map<string, number>();
   const openStars = new Map<string, StarAttempt[]>();
   const open = new Map<string, OpenFosse | null>();
+  /** Chutes de chaque copain par fosse (clé « id/rang ») : tentative 2 dès une chute. */
+  const fallsAt = new Map<string, number>();
   return (sim: RaceSim): void => {
     const t = sim.time;
     const galahad = sim.cars[0].state.id;
@@ -92,6 +95,7 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
             arm, seed, carId: e.carId, t: o.t, fosse: o.index, attempt: o.attempt, jumped: o.jumped,
             speed: o.jumped ? o.speed : prevSpeed.get(e.carId) ?? NaN, outcome: e.reason === 'lava' ? 'chute' : 'autre',
           });
+          if (e.reason === 'lava') fallsAt.set(`${e.carId}/${o.index}`, (fallsAt.get(`${e.carId}/${o.index}`) ?? 0) + 1);
           open.set(e.carId, null);
         }
       }
@@ -115,7 +119,7 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
         const index = fs.findIndex((f) => x >= f.xLancement && x < f.xBord);
         if (index >= 0) {
           const f = fs[index];
-          const attempt = car.state.lastRespawnLavaX === f.xLava && car.state.consecutiveRespawns >= 1 ? 2 : 1;
+          const attempt = (fallsAt.get(`${id}/${index}`) ?? 0) >= 1 ? 2 : 1;
           open.set(id, { f, index, attempt, t, jumped: false, speed: NaN });
         }
       }
@@ -165,7 +169,8 @@ export function describeAttempts(label: string, stars: StarAttempt[], fs: FosseA
   const bins = [...new Set(counted.map(speedBin))].sort((a, b) => parseFloat(a) - parseFloat(b) || a.localeCompare(b));
   const byBin = bins.map((b) => {
     const xs = counted.filter((a) => speedBin(a) === b);
-    return `${b} ${pct(xs.filter((a) => a.outcome === 'chute').length, xs.length)}`;
+    const noJump = xs.filter((a) => !a.jumped).length;
+    return `${b} ${pct(xs.filter((a) => a.outcome === 'chute').length, xs.length)}${noJump ? `, sans saut ${noJump}` : ''}`;
   });
   return `${label} : étoiles hautes ${stars.length} tentatives, ${stars.filter((a) => a.taken).length} prises au saut, `
     + `ratés ${pct(stars.filter((a) => !a.taken).length, stars.length)}, réapparitions dans les ${RESPAWN_WINDOW} s ${stars.filter((a) => a.respawn).length} ; `

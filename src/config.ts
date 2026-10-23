@@ -125,13 +125,14 @@ export const CONFIG = {
   STAR_FOSSE_LANDING: 22,       // m après le bord aval d'une fosse sans étoile basse du curseur ; l'étoile de réception (FOSSE_STAR_AFTER) est au-delà
   // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : driver de
   // chaque copain (src/ai/driver.ts).
-  POLITE_SPEED: 2,              // m/s : robots polis (décision du papa, 5b) : une voiture plus lente que ça, juste devant, fait lever le pied
+  POLITE_SPEED: 2,              // m/s : robots polis (décision du papa, 5b) : une voiture plus lente que ça, doigt levé (vraiment arrêtée, tour 1 de la tâche 6), juste devant, fait lever le pied
   POLITE_GAP: 4,                // m : « juste devant » = châssis à châssis dans (0, 4] (grille : 3,3 m entre deux centres)
-  POLITE_MAX_WAIT: 3,           // s d'attente continue derrière la même voiture, puis le robot repart (ruling Q8 ; l'e2e exige ≥ 2 s)
+  POLITE_MAX_WAIT: 3,           // s d'attente cumulée derrière la même voiture, puis le robot repart (ruling Q8 ; l'e2e exige ≥ 2 s) ; remise à zéro quand elle repart d'elle-même
   LIFT_LOOKAHEAD: 8,            // m avant une rampe-saut ou une double-bosse où le robot tire s'il lève le pied (pilot.lift)
   LIFT_SECONDS: 0.4,            // s de doigt levé quand le tirage tombe
   JUMP_LOOKAHEAD: 40,           // m : étoile haute ou fosse vue par le driver (DriverContext.nextHighStar, nextFosse)
   JUMP_STAR_LEAD: 1,            // s avant l'étoile haute : centre de la fenêtre de saut sur un plat étoile, 0,98 à 1,02 s quelle que soit la vitesse (tâche 5e)
+  JUMP_STAR_MIN_LEAD: 0.7,      // s : sous ce temps restant jusqu'à l'étoile, la demande est abandonnée (un saut plus tardif passe dessous ; demi-fenêtre ≈ 0,28 s ; tour 1 de la tâche 6)
   FOSSE_SKILL_FACTOR: 2.5,      // erreur aux fosses = N(0, 2,5 × jumpSkill) (décision Q-F3 du papa : les copains ratent parfois une fosse)
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

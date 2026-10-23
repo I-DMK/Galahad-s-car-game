@@ -1,9 +1,9 @@
 // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : le driver
 // d'un copain, pur, avec un contexte fabriqué à la main (voiture menée à vitesse donnée le long de la piste, sans
 // physique). Délai de départ, zone volcan, lever de pied, robots polis, sauts d'étoile haute et de fosse, déterminisme.
-// Le câblage dans `stepRace` (contexte réel, garde `inNoJumpZone`) : tests/simulate.test.ts et tests/robots.test.ts.
-import { driverSeed, makeRobotDriver, robotDraws, type Driver, type DriverContext } from '../src/ai/driver';
-import { fosseJumpLead } from '../src/cars/jump';
+// Le câblage dans `stepRace` (contexte réel `driverContext`, garde `inNoJumpZone`) : tests/robots.test.ts.
+import { driverSeed, makeRobotDriver, robotDraws, type Driver, type DriverContext, type OtherCar } from '../src/ai/driver';
+import { fosseJumpLead, fosseJumpWanted } from '../src/cars/jump';
 import { PILOTS, type Pilot } from '../src/cars/pilots';
 import { newCarState, type CarState } from '../src/cars/state';
 import { CONFIG } from '../src/config';
@@ -23,10 +23,18 @@ const SEED = 12345;
 const freshState = (x = 0): CarState => newCarState('essai', 'Essai', '#000000', '#ffffff', { x, y: 0, angle: 0 });
 const flat = (length = 400): Track => trackOf([plat(mulberry32(1), CONFIG, length)]);
 
-type Other = { index: number; x: number; speed: number };
+/** Autre voiture : doigt levé et solide par défaut (une voiture arrêtée). */
+type Other = Partial<OtherCar> & { index: number; x: number; speed: number };
+const other = (o: Other): OtherCar => ({ throttle: false, traversable: false, ...o });
 
-/** Contexte comme `stepRace` le remplit (étoile haute et fosse devant, à moins de JUMP_LOOKAHEAD), fabriqué à la main. */
-function ctxOf(track: Track, o: { t: number; x: number; v: number; state: CarState; others?: Other[]; available?: boolean }): DriverContext {
+/**
+ * Contexte comme `stepRace` le remplit (étoile haute et fosse devant, à moins de JUMP_LOOKAHEAD), fabriqué à la main ;
+ * `falls` : chutes déjà faites dans la fosse devant (tentative 2 dès une chute).
+ */
+function ctxOf(
+  track: Track,
+  o: { t: number; x: number; v: number; state: CarState; others?: Other[]; available?: boolean; falls?: number; traversable?: boolean },
+): DriverContext {
   let nextHighStar: DriverContext['nextHighStar'] = null;
   const k = track.stars.findIndex((s) => s.high && s.x > o.x);
   if (k >= 0 && track.stars[k].x - o.x <= CONFIG.JUMP_LOOKAHEAD) nextHighStar = { index: k, x: track.stars[k].x, available: o.available ?? true };
@@ -35,9 +43,12 @@ function ctxOf(track: Track, o: { t: number; x: number; v: number; state: CarSta
   const r = fs.findIndex((f) => f.xBord > o.x);
   if (r >= 0 && fs[r].xBord - o.x <= CONFIG.JUMP_LOOKAHEAD) {
     const f = fs[r];
-    nextFosse = { xBord: f.xBord, index: r, attempt: o.state.lastRespawnLavaX === f.xLava && o.state.consecutiveRespawns >= 1 ? 2 : 1 };
+    nextFosse = { xBord: f.xBord, index: r, attempt: (o.falls ?? 0) >= 1 ? 2 : 1 };
   }
-  return { t: o.t, state: o.state, track, speed: o.v, x: o.x, grounded: true, others: o.others ?? [], nextHighStar, nextFosse };
+  return {
+    t: o.t, state: o.state, track, speed: o.v, x: o.x, traversable: o.traversable ?? false, others: (o.others ?? []).map(other),
+    nextHighStar, nextFosse,
+  };
 }
 
 interface Step { t: number; x: number; throttle: boolean; jump: boolean }
@@ -48,12 +59,15 @@ interface Step { t: number; x: number; throttle: boolean; jump: boolean }
  */
 function drive(
   driver: Driver, track: Track,
-  o: { x0: number; x1: number; v: number; t0: number; state: CarState; serve?: boolean; others?: (x: number) => Other[]; available?: boolean },
+  o: {
+    x0: number; x1: number; v: number; t0: number; state: CarState; serve?: boolean; others?: (x: number) => Other[]; available?: boolean;
+    falls?: number;
+  },
 ): Step[] {
   const steps: Step[] = [];
   let t = o.t0;
   for (let x = o.x0; x < o.x1; x += o.v * DT, t += DT) {
-    const out = driver(ctxOf(track, { t, x, v: o.v, state: o.state, others: o.others?.(x), available: o.available }));
+    const out = driver(ctxOf(track, { t, x, v: o.v, state: o.state, others: o.others?.(x), available: o.available, falls: o.falls }));
     steps.push({ t, x, throttle: out.throttle, jump: out.jump });
     if (out.jump && o.serve) o.state.lastJumpAt = t;
   }
@@ -153,19 +167,29 @@ describe('lever de pied', () => {
   });
 });
 
-describe('robots polis', () => {
+describe('robots polis : seulement derrière une voiture vraiment arrêtée (décision du papa, tour 1)', () => {
   const track = flat();
-  const run = (others: Other[], t = 1) => makeRobotDriver(PABLO, 1, track, SEED, CONFIG)(ctxOf(track, { t, x: 100, v: 0, state: freshState(), others }));
+  const run = (others: Other[], o: { traversable?: boolean } = {}) =>
+    makeRobotDriver(PABLO, 1, track, SEED, CONFIG)(ctxOf(track, { t: 1, x: 100, v: 0, state: freshState(), others, ...o }));
 
-  test('voiture devant à 3 m qui roule à 1 m/s : doigt levé', () => {
+  test('voiture devant à 3 m, à 1 m/s, doigt levé : doigt levé', () => {
     expect(run([{ index: 0, x: 103, speed: 1 }]).throttle).toBe(false);
   });
 
-  test('devant à 3 m mais à 5 m/s : doigt posé ; à 6 m : doigt posé ; derrière : doigt posé', () => {
+  test('voiture qui démarre (doigt posé, 1 m/s) : doigt posé — la grille part à 0,3 s × rang', () => {
+    expect(run([{ index: 0, x: 103, speed: 1, throttle: true }]).throttle).toBe(true);
+  });
+
+  test('devant à 3 m mais à 5 m/s : doigt posé ; à 6 m : doigt posé ; derrière ou à la même place : doigt posé', () => {
     expect(run([{ index: 0, x: 103, speed: 5 }]).throttle).toBe(true);
     expect(run([{ index: 0, x: 106, speed: 0 }]).throttle).toBe(true);
     expect(run([{ index: 2, x: 97, speed: 0 }]).throttle).toBe(true);
     expect(run([{ index: 2, x: 100, speed: 0 }]).throttle).toBe(true);
+  });
+
+  test('voiture qu’on traverse (fantôme ou invulnérable), ou copain lui-même fantôme : doigt posé', () => {
+    expect(run([{ index: 0, x: 103, speed: 0, traversable: true }]).throttle).toBe(true);
+    expect(run([{ index: 0, x: 103, speed: 0 }], { traversable: true }).throttle).toBe(true);
   });
 
   test('dans la zone volcan : doigt posé, même derrière une voiture arrêtée', () => {
@@ -175,21 +199,30 @@ describe('robots polis', () => {
     expect(driver(ctxOf(ft, { t: 1, x, v: 0, state: freshState(), others: [{ index: 0, x: x + 3, speed: 0 }] })).throttle).toBe(true);
   });
 
-  test('après 3 s d’attente continue derrière la même voiture, il repart ; l’attente revient à zéro quand elle repart', () => {
+  test('attente cumulée derrière la même voiture : il repart au bout de 3 s ; une poussée qui la fait rouler ne relance pas l’attente ; elle repart d’elle-même : remise à zéro', () => {
     const driver = makeRobotDriver(PABLO, 1, track, SEED, CONFIG);
     const state = freshState();
-    const at = (t: number, speed: number, index = 0) => driver(ctxOf(track, { t, x: 100, v: 0, state, others: [{ index, x: 103, speed }] })).throttle;
-    const t0 = 1;
-    for (let k = 0; k * DT < CONFIG.POLITE_MAX_WAIT - DT / 2; k++) expect(at(t0 + k * DT, 0), `${(k * DT).toFixed(3)} s`).toBe(false);
-    expect(at(t0 + CONFIG.POLITE_MAX_WAIT, 0)).toBe(true);
-    expect(at(t0 + CONFIG.POLITE_MAX_WAIT + 1, 0)).toBe(true);
-    // La voiture de devant repart (5 m/s) : attente remise à zéro ; elle ralentit de nouveau : nouvelle attente.
-    expect(at(t0 + 5, 5)).toBe(true);
-    expect(at(t0 + 5 + DT, 1)).toBe(false);
-    expect(at(t0 + 5 + DT + 2.9, 1)).toBe(false);
-    expect(at(t0 + 5 + DT + CONFIG.POLITE_MAX_WAIT, 1)).toBe(true);
-    // Une autre voiture lente devant : nouvelle attente.
-    expect(at(t0 + 9, 1, 2)).toBe(false);
+    let t = 1;
+    const step = (o: Partial<Other>, index = 0) => {
+      const out = driver(ctxOf(track, { t, x: 100, v: 0, state, others: [{ index, x: 103, speed: 0, ...o }] })).throttle;
+      t += DT;
+      return out;
+    };
+    const lifted = (n: number, o: Partial<Other>, index = 0) => Array.from({ length: n }, () => step(o, index)).filter((th) => !th).length;
+    // 1,5 s derrière Galahad arrêté, puis 0,5 s où il est poussé à 2,5 m/s (pas un bloqueur), puis de nouveau arrêté :
+    // l'attente reprend où elle en était (1,5 s de plus seulement), puis il repart.
+    expect(lifted(90, {})).toBe(90);
+    expect(lifted(30, { speed: 2.5 })).toBe(0);
+    expect(lifted(120, {})).toBe(90);
+    expect(lifted(60, {})).toBe(0);
+    // La voiture repart d'elle-même (doigt posé), puis s'arrête de nouveau : nouvelle attente de 3 s.
+    expect(lifted(1, { throttle: true })).toBe(0);
+    expect(lifted(200, {})).toBe(180);
+    // Une autre voiture arrêtée devant : nouvelle attente.
+    expect(lifted(10, {}, 2)).toBe(10);
+    // Une réapparition (nouvelle tentative) remet aussi l'attente à zéro.
+    state.respawnCount++;
+    expect(lifted(10, {}, 2)).toBe(10);
   });
 });
 
@@ -205,13 +238,19 @@ describe('saut d’étoile haute', () => {
   const k = track.stars.findIndex((s) => s.high);
   const star = track.stars[k];
 
-  test.each([11.2, 14, 21])('jumpTry 1, jumpSkill 0, %s m/s : demande au premier pas où (xÉtoile − x) / v ≤ JUMP_STAR_LEAD, redemandée jusqu’au passage', (v) => {
+  test.each([11.2, 14, 21])('jumpTry 1, jumpSkill 0, %s m/s : demande au premier pas où (xÉtoile − x) / v ≤ JUMP_STAR_LEAD, redemandée à chaque pas, abandonnée sous JUMP_STAR_MIN_LEAD', (v) => {
     const driver = makeRobotDriver(pilot({ jumpTry: 1, jumpSkill: 0 }), 1, track, SEED, CONFIG);
     const steps = drive(driver, track, { x0: star.x - 39, x1: star.x + 0.5, v, t0: 2, state: freshState() });
-    const expected = steps.findIndex((s) => (star.x - s.x) / v <= CONFIG.JUMP_STAR_LEAD + EPS);
-    const jumps = where(steps, (s) => s.jump);
-    expect(jumps[0]).toBe(expected);
-    expect(jumps).toEqual(where(steps, (s) => s.x < star.x).slice(expected));
+    const tte = (s: Step) => (star.x - s.x) / v;
+    expect(where(steps, (s) => s.jump)).toEqual(where(steps, (s) => tte(s) <= CONFIG.JUMP_STAR_LEAD + EPS && tte(s) >= CONFIG.JUMP_STAR_MIN_LEAD - EPS));
+    expect(where(steps, (s) => s.jump).length).toBeGreaterThan(10);
+  });
+
+  test('erreur négative au-delà de la demi-fenêtre (lead + e < JUMP_STAR_MIN_LEAD) : aucune demande, pas de saut sous l’étoile', () => {
+    const p = pilot({ jumpTry: 1, jumpSkill: 0.2 });
+    const seed = Array.from({ length: 2000 }, (_, s) => s).find((s) => robotDraws(p, 1, track, s, CONFIG).starErr[k] < CONFIG.JUMP_STAR_MIN_LEAD - CONFIG.JUMP_STAR_LEAD - 0.02)!;
+    const driver = makeRobotDriver(p, 1, track, seed, CONFIG);
+    expect(where(drive(driver, track, { x0: star.x - 39, x1: star.x + 0.5, v: 14, t0: 2, state: freshState() }), (s) => s.jump)).toEqual([]);
   });
 
   test('servie : plus aucune demande pour cette étoile ; après une réapparition avant elle, la même décision est rejouée', () => {
@@ -231,13 +270,13 @@ describe('saut d’étoile haute', () => {
     expect(where(drive(taken, track, { x0: star.x - 39, x1: star.x, v: 14, t0: 2, state: freshState(), available: false }), (s) => s.jump)).toEqual([]);
   });
 
-  test('jamais de demande dans inNoJumpZone (tremplins, graines 0 à 19, pas de 0,1 m, étoile fictive juste après chaque réception), ni de saut d’étoile dans une tranche fosse', () => {
+  test('jamais de demande dans inNoJumpZone (tremplins, graines 0 à 19, pas de 0,1 m, étoile fictive 12 m après chaque réception), ni de saut d’étoile dans une tranche fosse', () => {
     let tremplinsSeen = 0;
     let after = 0;
     const bad: string[] = [];
     for (let seed = 0; seed < 20; seed++) {
       const base = trackFor(seed);
-      const xs = base.volcanoes.map((v) => v.xReception + (v.kind === 'tremplin' ? 5 : 30));
+      const xs = base.volcanoes.map((v) => v.xReception + (v.kind === 'tremplin' ? 12 : 30));
       const track = withHighStars(base, xs);
       for (const skill of [0, 0.25]) {
         const driver = makeRobotDriver(pilot({ jumpTry: 1, jumpSkill: skill }), 1, track, seed, CONFIG);
@@ -245,7 +284,7 @@ describe('saut d’étoile haute', () => {
         let t = 1;
         for (const v of track.volcanoes) {
           if (v.kind === 'tremplin') tremplinsSeen++;
-          const x1 = v.kind === 'tremplin' ? v.xReception + 5 : v.xEnd;
+          const x1 = v.kind === 'tremplin' ? v.xReception + 12 : v.xEnd;
           for (let x = v.xLancement - 45; x < x1; x += 0.1, t += DT) {
             // Hors de la fenêtre d'une fosse : seul le saut d'étoile peut demander.
             const f = fosses(track).find((ff) => x >= ff.xLancement && x < ff.xBord);
@@ -253,7 +292,7 @@ describe('saut d’étoile haute', () => {
             if (!out.jump || f) continue;
             if (inNoJumpZone(track, x)) bad.push(`g${seed} tremplin x = ${x.toFixed(1)} (zone [${v.xLancement.toFixed(1)}, ${v.xReception.toFixed(1)}])`);
             else if (sliceAt(track, x).type === 'fosse') bad.push(`g${seed} étoile demandée dans la tranche fosse, x = ${x.toFixed(1)}`);
-            else if (v.kind === 'tremplin' && x > v.xReception && x < v.xReception + 5) after++;
+            else if (v.kind === 'tremplin' && x > v.xReception && x < v.xReception + 12) after++;
           }
         }
       }
@@ -304,7 +343,7 @@ describe('saut de fosse', () => {
     }
   });
 
-  test('2e tentative (après une chute dans cette fosse) : la 2e erreur pré-tirée ; une 3e approche (autre réapparition) reprend la 1re', () => {
+  test('2e tentative (déjà tombé dans cette fosse) : la 2e erreur pré-tirée, gardée à toute approche suivante', () => {
     const p = pilot({ jumpSkill: 0.1 });
     const seed = Array.from({ length: 200 }, (_, s) => s).find((s) => {
       const [e1, e2] = robotDraws(p, 1, track, s, CONFIG).fosseErr[0];
@@ -313,22 +352,53 @@ describe('saut de fosse', () => {
     const [e1, e2] = robotDraws(p, 1, track, seed, CONFIG).fosseErr[0];
     const driver = makeRobotDriver(p, 1, track, seed, CONFIG);
     const state = freshState();
-    const go = (t0: number) => drive(driver, track, { x0: f.xLancement - 10, x1: f.xBord, v: 14, t0, state, serve: true });
-    const a = go(2);
+    const go = (t0: number, falls: number) => drive(driver, track, { x0: f.xLancement - 10, x1: f.xBord, v: 14, t0, state, serve: true, falls });
+    const a = go(2, 0);
     expect(where(a, (s) => s.jump)).toEqual([window(a, 14, e1)]);
-    // Chute dans la lave de cette fosse : réapparition, série à 1 (tentative 2).
+    // Chute dans la lave de cette fosse : réapparition (nouvelle tentative), tentative 2.
     state.respawnCount++;
-    state.lastRespawnLavaX = f.xLava;
-    state.consecutiveRespawns = 1;
-    const b = go(6);
+    const b = go(6, 1);
     expect(where(b, (s) => s.jump)).toEqual([window(b, 14, e2)]);
     expect(window(b, 14, e2)).not.toBe(window(a, 14, e1));
-    // Retournement ensuite (autre raison) : série remise à zéro, tentative 1 de nouveau.
+    // Retournement ensuite (autre raison) : la tentative reste comptée par fosse (une chute) : 2e erreur encore.
     state.respawnCount++;
-    state.lastRespawnLavaX = null;
-    state.consecutiveRespawns = 0;
-    const c = go(10);
-    expect(where(c, (s) => s.jump)).toEqual([window(c, 14, e1)]);
+    const c = go(10, 1);
+    expect(where(c, (s) => s.jump)).toEqual([window(c, 14, e2)]);
+  });
+
+  // Pur : la demande part à toute vitesse ; en course, à 8 m/s la lave reprend la voiture avant (tests/robots.test.ts).
+  test.each([8, 11.2, 14, 21])('erreur trop tardive à %s m/s : la demande part au dernier pas permis (tte ∈ ]JUMP_BUFFER, JUMP_BUFFER + dt]), une seule fois', (v) => {
+    const p = pilot({ jumpSkill: 0.25 });
+    const lead = fosseJumpLead(v, CONFIG);
+    const seed = Array.from({ length: 4000 }, (_, s) => s).find((s) => robotDraws(p, 1, track, s, CONFIG).fosseErr[0][0] < CONFIG.JUMP_BUFFER - lead - 0.02)!;
+    expect(seed).toBeDefined();
+    const steps = drive(makeRobotDriver(p, 1, track, seed, CONFIG), track, { x0: f.xLancement - 10, x1: f.xBord, v, t0: 2, state: freshState(), serve: true });
+    const jumps = where(steps, (s) => s.jump);
+    expect(jumps).toHaveLength(1);
+    const tte = (f.xBord - steps[jumps[0]].x) / v;
+    expect(tte).toBeGreaterThan(CONFIG.JUMP_BUFFER);
+    expect(tte).toBeLessThanOrEqual(CONFIG.JUMP_BUFFER + DT + 1e-9);
+  });
+
+  test('étoiles hautes : tentée avec la probabilité jumpTry, erreur N(0, jumpSkill) (graines 0 à 399, traits de Pablo : 0,80 et 0,18 s)', () => {
+    const t0 = trackFor(0);
+    const highs = t0.stars.flatMap((s, i) => (s.high ? [i] : []));
+    const tries: boolean[] = [];
+    const errs: number[] = [];
+    for (let s = 0; s < 400; s++) {
+      const d = robotDraws(PABLO, 1, t0, s, CONFIG);
+      for (const i of highs) { tries.push(d.starTry[i]); errs.push(d.starErr[i]); }
+      // Étoiles basses : ni tentative ni erreur.
+      t0.stars.forEach((st, i) => { if (!st.high) expect([d.starTry[i], d.starErr[i]]).toEqual([false, 0]); });
+    }
+    expect(errs).toHaveLength(1200);
+    const rate = tries.filter(Boolean).length / tries.length;
+    const mean = errs.reduce((a, e) => a + e, 0) / errs.length;
+    const sd = Math.sqrt(errs.reduce((a, e) => a + (e - mean) ** 2, 0) / errs.length);
+    expect(Math.abs(rate - PABLO.jumpTry)).toBeLessThan(0.04);
+    expect(Math.abs(mean)).toBeLessThan(0.02);
+    expect(sd).toBeGreaterThan(PABLO.jumpSkill - 0.015);
+    expect(sd).toBeLessThan(PABLO.jumpSkill + 0.015);
   });
 
   test('erreurs aux fosses : N(0, FOSSE_SKILL_FACTOR × jumpSkill), 2 par fosse (graines 0 à 399, Pablo : écart-type 0,45 s ± 0,03)', () => {

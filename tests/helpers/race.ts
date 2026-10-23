@@ -13,6 +13,7 @@
 // dans une fosse est « fosse » (attendue), au plus 2 par série ; ≤ 3 réapparitions par copain hors chutes dans une fosse
 // (saut §6.8) ; aucun saut de copain dans [xLancement, xReception] d'un tremplin.
 import { CONFIG, type Config } from '../../src/config';
+import { carSpeedMps } from '../../src/physics/car';
 import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/harness';
 import { makeRobotDriver, type Driver } from '../../src/ai/driver';
 import { GALAHAD, type Pilot } from '../../src/cars/pilots';
@@ -34,14 +35,16 @@ export const MAX_RESPAWNS_PER_CAR = 3;
 export const MAX_STUCK_SECONDS = 2.1;
 
 /**
- * Une chute dans la lave (toute voiture) et sa cause : « fosse » si c'est une fosse et que la voiture n'a pas sauté
- * depuis le début de son approche (attendue sans saut, ruling R-F11), ou si c'est un copain (tâche 6 : il rate parfois
- * son saut, décision Q-F3) ; sinon « choc » si la voiture a touché une
- * autre voiture dans les CONTACT_WINDOW secondes qui précèdent (approche du volcan : plat de lancement, élan, rampe,
- * vol ; dans la zone fantôme les voitures se traversent), « propre » sinon. Tous les drivers ont le doigt
- * posé (Galahad tout du long, les copains dès leur départ échelonné) : une chute propre contredit la
- * promesse « doigt posé depuis le plat de lancement, on ne tombe jamais » (tremplin), ou « un saut au centre de la
- * fenêtre passe » (fosse).
+ * Une chute dans la lave (toute voiture) et sa cause :
+ * - Galahad dans une fosse sans avoir sauté depuis le début de son approche : « fosse » (attendue sans saut, ruling
+ *   R-F11) ;
+ * - copain dans une fosse après son saut (tâche 6 : il rate parfois, décision Q-F3) : « fosse » (attendue) ; sans saut :
+ *   « choc » après un contact récent (poussé dans la lave), sinon « sans-tentative » (le copain n'a pas sauté : attendu
+ *   seulement à faible vitesse, où la lave le reprend avant le saut tardif, SANS_TENTATIVE_MAX_SPEED) ;
+ * - sinon « choc » si la voiture a touché une autre voiture dans les CONTACT_WINDOW secondes qui précèdent (approche du
+ *   volcan : plat de lancement, élan, rampe, vol ; dans la zone fantôme les voitures se traversent), « propre » sinon.
+ * Une chute propre contredit la promesse « doigt posé depuis le plat de lancement, on ne tombe jamais » (tremplin), ou
+ * « un saut au centre de la fenêtre passe » (fosse).
  */
 export interface Fall {
   carId: string; t: number; x: number;
@@ -49,14 +52,23 @@ export interface Fall {
   volcano: number;
   /** Sorte du volcan (tâche 5g). */
   kind: 'tremplin' | 'fosse' | '?';
-  cause: 'choc' | 'propre' | 'fosse';
+  cause: 'choc' | 'propre' | 'fosse' | 'sans-tentative';
+  /** Vitesse du châssis (m/s) au pas qui précède la chute. */
+  speed: number;
   /** Dernier contact avec une autre voiture avant la chute, null si aucun depuis le départ. */
   lastContact: { t: number; with: string } | null;
 }
+/**
+ * m/s : vitesse au-dessous de laquelle un copain peut tomber dans une fosse sans avoir sauté (décision du papa au tour 1
+ * de la tâche 6 : le saut tardif part au dernier pas permis, au plus JUMP_BUFFER + PHYSICS_DT avant le bord). MESURÉ
+ * (tests/robots.test.ts, pas de 0,25 m/s) : la lave reprend le châssis 1,05 à 1,17 m avant le bord, donc jusqu'à
+ * ≈ 11,3 m/s la voiture tombe avant le dernier pas permis (« à 8 m/s ou moins » de la décision, mesuré plus finement).
+ */
+export const SANS_TENTATIVE_MAX_SPEED = 11.5;
 /** Fenêtre (s) avant la chute dans laquelle un contact entre voitures en fait une chute « par choc ». */
 export const CONTACT_WINDOW = 5;
 export const describeFall = (f: Fall): string =>
-  `${f.carId} au volcan ${f.volcano} (${f.kind}, t = ${f1(f.t)} s, x = ${f1(f.x)}) : ${f.cause}`
+  `${f.carId} au volcan ${f.volcano} (${f.kind}, t = ${f1(f.t)} s, x = ${f1(f.x)}, ${f1(f.speed)} m/s) : ${f.cause}`
   + (f.lastContact ? `, dernier contact avec ${f.lastContact.with} ${f1(f.t - f.lastContact.t)} s avant` : ', aucun contact depuis le départ');
 
 export interface FiveCarRace {
@@ -112,7 +124,11 @@ export const SAUTEUR_TRAITS = { jumpTry: 1, jumpSkill: 0.05 } as const;
 export function sauteurRobot(track: Track, cfg: Config = CONFIG): (t: number, sim: RaceSim) => boolean {
   let driver: Driver | null = null;
   return (_t, sim) => {
-    driver ??= makeRobotDriver({ ...GALAHAD, ...SAUTEUR_TRAITS }, GALAHAD_INDEX, track, sim.pilotSeed, cfg);
+    if (!driver) {
+      driver = makeRobotDriver({ ...GALAHAD, ...SAUTEUR_TRAITS }, GALAHAD_INDEX, track, sim.pilotSeed, cfg);
+      // Demandes d'un pilote automatique : la garde de zone tremplin de `updateJump` s'applique (code-review 3).
+      sim.cars[GALAHAD_INDEX].autoJumps = true;
+    }
     return driver(driverContext(sim, GALAHAD_INDEX)).jump;
   };
 }
@@ -144,6 +160,8 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
   const lastContact = new Map<string, { t: number; with: string }>();
   /** Dernier saut de chaque voiture (x du châssis), pour classer une chute dans une fosse. */
   const lastJumpX = new Map<string, number>();
+  /** Vitesse de chaque voiture au pas précédent. */
+  const lastSpeed = new Map<string, number>();
   const falls: Fall[] = [];
   const noJumpZoneJumps: string[] = [];
   const starCounts: Record<string, number> = {};
@@ -174,17 +192,20 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
           const jx = lastJumpX.get(e.carId);
           const jumped = v !== undefined && jx !== undefined && jx >= v.xLancement && jx <= v.xLava;
           const robot = e.carId !== sim.cars[GALAHAD_INDEX].state.id;
-          const cause: Fall['cause'] = v?.kind === 'fosse' && (!jumped || robot) ? 'fosse'
-            : c && e.t - c.t <= CONTACT_WINDOW ? 'choc' : 'propre';
+          const shock = c !== null && e.t - c.t <= CONTACT_WINDOW;
+          const cause: Fall['cause'] = v?.kind !== 'fosse' ? (shock ? 'choc' : 'propre')
+            : !robot ? (!jumped ? 'fosse' : shock ? 'choc' : 'propre')
+            : jumped ? 'fosse' : shock ? 'choc' : 'sans-tentative';
           falls.push({
             carId: e.carId, t: e.t, x: e.x, volcano: v ? track.volcanoes.indexOf(v) : -1, kind: v?.kind ?? '?',
-            cause, lastContact: c ? { ...c } : null,
+            cause, speed: lastSpeed.get(e.carId) ?? NaN, lastContact: c ? { ...c } : null,
           });
         }
         // Un respawn est une téléportation : un contact d'avant ne peut pas causer la chute suivante, ni un saut d'avant.
         lastContact.delete(e.carId);
         lastJumpX.delete(e.carId);
       }
+      for (const car of sim.cars) lastSpeed.set(car.state.id, carSpeedMps(car.body));
       opts.observe?.(sim);
     },
   });
@@ -242,9 +263,9 @@ export function expectRaceInvariants(race: FiveCarRace): void {
   expect(r.lavaByCar.galahad, summary).toBe(0);
   expect(falls.filter((f) => f.cause === 'propre').map(describeFall), summary).toEqual([]);
   // Saut parfait de Galahad (relecture standard M4 de la 5g) : aucune chute « fosse » de Galahad ; celles des copains
-  // (sauts ratés, tâche 6) sont attendues, mais jamais à un tremplin.
+  // (sauts ratés, tâche 6) sont attendues ; un copain ne tombe sans avoir sauté qu'à faible vitesse.
   expect(falls.filter((f) => f.cause === 'fosse' && f.carId === 'galahad').map(describeFall), summary).toEqual([]);
-  expect(falls.filter((f) => f.cause === 'fosse' && f.kind !== 'fosse').map(describeFall), summary).toEqual([]);
+  expect(falls.filter((f) => f.cause === 'sans-tentative' && !(f.speed <= SANS_TENTATIVE_MAX_SPEED)).map(describeFall), summary).toEqual([]);
   expect(race.noJumpZoneJumps, summary).toEqual([]);
   // Fantômes près des volcans : aucune paire active entre deux voitures dont l'une est dans une zone fantôme.
   expect(r.ghostContacts, summary).toBe(0);
@@ -279,8 +300,10 @@ export function registerRaceInvariants(seeds: number[]): void {
     afterAll(() => {
       const propres = falls.filter((f) => f.cause === 'propre').length;
       const byKind = (k: Fall['kind']) => falls.filter((f) => f.kind === k).length;
+      const sansTentative = falls.filter((f) => f.cause === 'sans-tentative').length;
       console.log(`chutes dans la lave à 5 voitures, graines ${seeds.join(', ')} : ${falls.length} (propres ${propres}, `
-        + `choc ${falls.filter((f) => f.cause === 'choc').length}, fosse (attendues : copain qui rate son saut, ou sans saut) ${falls.filter((f) => f.cause === 'fosse').length} ; `
+        + `choc ${falls.filter((f) => f.cause === 'choc').length}, fosse (attendues : copain qui rate son saut, Galahad sans saut) ${falls.filter((f) => f.cause === 'fosse').length}, `
+        + `copain sans tentative ${sansTentative} ; `
         + `aux tremplins ${byKind('tremplin')}, aux fosses ${byKind('fosse')})`
         + (falls.length ? `\n  ${falls.map((f) => `seed ${f.seed} : ${describeFall(f)}`).join('\n  ')}` : ''));
     });

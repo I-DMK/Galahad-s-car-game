@@ -3,8 +3,9 @@
 // ruling R-F12) :
 // (i) 5 voitures doigt posé, turbo compris, graines 0 à 23 (tâche 5g : Galahad saute au centre de chaque fosse,
 //     `sauteurParfait` ; ces sauts n'atteignent aucun plat étoile, jamais juste après un volcan ; tâche 6 : les copains
-//     sautent aussi les étoiles hautes, et une prise dans les JUMP_TAKE_WINDOW s qui suivent son propre saut est une
-//     « prise au saut », comptée et imprimée) : une voiture, Galahad compris (R-F12 amendé, décision du papa au tour 2 de
+//     sautent aussi les étoiles hautes, et une prise dans les JUMP_TAKE_WINDOW s qui suivent son propre saut, hors de
+//     l'approche d'une fosse, est une « prise au saut », comptée et imprimée ; jamais pour Galahad, qui ne saute
+//     qu'aux fosses) : une voiture, Galahad compris (R-F12 amendé, décision du papa au tour 2 de
 //     la 5g : graine 5, Galahad retombé d'une bosse sur le toit de Liam, catapulté sur l'étoile 1,15 s après), ne prend
 //     une étoile haute sans saut que dans les 2 s après un contact avec une autre voiture (« catapulte », observateur
 //     `carPairsTouching`) : ces prises sont tolérées, comptées et imprimées ; une prise sans saut ni contact échoue ;
@@ -15,13 +16,18 @@
 //     tranche précédente, 0 prise sans saut.
 import { CONFIG } from '../../src/config';
 import { carPairsTouching, simulateRace } from '../../src/sim/harness';
+import { fosses } from '../../src/track/query';
 import type { Star, Track } from '../../src/track/types';
 import { jumpRun, RUN_UP, windowFor, flatJumpTrajectory } from '../helpers/jump-runs';
 import { croppedWorld } from '../helpers/phases';
 import { sauteurParfait } from '../helpers/fosses';
 import { trackFor } from '../helpers/runs';
 
-/** s : une prise d'étoile haute sans saut n'est tolérée que dans cette durée après un contact, pour toute voiture (R-F12 amendé). */
+/**
+ * s : une prise d'étoile haute sans saut n'est tolérée que dans cette durée après un contact, pour toute voiture (R-F12
+ * amendé), ou pendant le vol qui suit ce contact, sans retour sur la piste (tour 1 de la tâche 6 : graine 8, Malo en turbo
+ * catapulté par le toit de Timothé à 6,5 m de haut, prend l'étoile 2,18 s après le dernier contact, toujours en l'air).
+ */
 const CATAPULT_WINDOW = 2;
 /** s : une prise dans cette durée après le saut de la voiture est une prise au saut (tâche 6, même fenêtre que la mesure des ratés). */
 const JUMP_TAKE_WINDOW = 2.5;
@@ -36,21 +42,30 @@ test('(i) 5 voitures doigt posé, graines 0 à 23 : 0 étoile haute prise sans s
   for (let seed = 0; seed < 24; seed++) {
     const track = trackFor(seed);
     const highIds = new Set(flatStars(track).map((s) => s.id));
+    const fs = fosses(track);
     const lastContact = new Map<string, number>();
     const lastJump = new Map<string, number>();
+    /** Voitures en l'air depuis leur dernier contact avec une autre voiture (vol de catapulte). */
+    const catapulted = new Set<string>();
     const r = simulateRace(track, {
       throttle: () => true, maxSeconds: 240, cfg: CONFIG, robots: true, jump: sauteurParfait(track),
       onStep: (sim) => {
-        for (const [a, b] of carPairsTouching(sim)) { lastContact.set(a, sim.time); lastContact.set(b, sim.time); }
+        for (const car of sim.cars) if (car.grounded) catapulted.delete(car.state.id);
+        for (const [a, b] of carPairsTouching(sim)) {
+          lastContact.set(a, sim.time); lastContact.set(b, sim.time);
+          catapulted.add(a); catapulted.add(b);
+        }
         for (const e of sim.events) {
-          if (e.type === 'respawn') { lastContact.delete(e.carId); lastJump.delete(e.carId); }
-          if (e.type === 'jump') lastJump.set(e.carId, e.t);
+          if (e.type === 'respawn') { lastContact.delete(e.carId); lastJump.delete(e.carId); catapulted.delete(e.carId); }
+          // Saut d'étoile d'un copain : hors de l'approche d'une fosse (là, son seul saut est celui de la fosse).
+          if (e.type === 'jump' && e.carId !== sim.cars[0].state.id && !fs.some((f) => e.x >= f.xLancement && e.x <= f.xBord)) lastJump.set(e.carId, e.t);
           if (e.type !== 'star' || !highIds.has(e.id)) continue;
           const j = lastJump.get(e.carId);
           if (j !== undefined && e.t - j <= JUMP_TAKE_WINDOW) { jumpTakes++; continue; }
           const c = lastContact.get(e.carId);
-          const what = `g${seed} ${e.carId} étoile ${e.id} t = ${e.t.toFixed(2)} s, dernier contact ${c === undefined ? 'aucun' : `${(e.t - c).toFixed(2)} s avant`}`;
-          if (c !== undefined && e.t - c <= CATAPULT_WINDOW) catapults.push(what);
+          const flight = catapulted.has(e.carId);
+          const what = `g${seed} ${e.carId} étoile ${e.id} t = ${e.t.toFixed(2)} s, dernier contact ${c === undefined ? 'aucun' : `${(e.t - c).toFixed(2)} s avant`}${flight ? ', en l’air depuis' : ''}`;
+          if (c !== undefined && (e.t - c <= CATAPULT_WINDOW || flight)) catapults.push(what);
           else failures.push(what);
         }
       },

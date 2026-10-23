@@ -99,6 +99,8 @@ describe('CONFIG', () => {
     // Une fosse est vue dès le début de son approche (LANCEMENT_LENGTH avant le bord).
     expect(CONFIG.JUMP_LOOKAHEAD).toBeGreaterThanOrEqual(CONFIG.LANCEMENT_LENGTH);
     expect(CONFIG.JUMP_STAR_LEAD).toBe(1);
+    // Demande d'étoile abandonnée sous 0,7 s (tour 1) : au-delà de la demi-fenêtre (≈ 0,28 s) autour du centre.
+    expect(CONFIG.JUMP_STAR_MIN_LEAD).toBe(0.7);
     expect(CONFIG.FOSSE_SKILL_FACTOR).toBe(2.5);
   });
 
