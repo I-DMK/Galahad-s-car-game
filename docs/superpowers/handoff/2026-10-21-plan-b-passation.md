@@ -128,7 +128,12 @@ sans le contexte de celle-ci.
 - Branche : `ccr-5b6fabc4-n96ofo` (branche par défaut, déploiement
   automatique à chaque push). Commits signés par le git config local du dépôt
   (`Claude <noreply@anthropic.com>`) avec les trailers `Co-Authored-By` et
-  `Claude-Session` fournis par la session courante.
+  `Claude-Session` fournis par la session courante. **Depuis le 2026-10-23**, la
+  branche de déploiement porte un commit de fusion (`775dad3`, session sprites) :
+  `wip-plan-b` (partie de `568ec91`) ne s'y fusionne plus en avance rapide, faire
+  une fusion normale (`git merge wip-plan-b`, seul conflit possible : cette
+  passation, garder les deux côtés). La session de la tâche 6 a été prévenue par
+  message le 2026-10-23.
 
 ## Réponses de Galahad encore à recueillir (ne bloquent pas)
 
@@ -242,12 +247,34 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
   doit être poussé sur une branche de sauvegarde (`wip-plan-b`, sans
   déploiement), jamais laissé seulement dans le conteneur.
 
+## Leçons de la session sprites (2026-10-22 et 23, tâche 8b Step 0)
+
+- Générateur d'images guidé par une **image de référence** (silhouette grise, roues en
+  pointillés, sans texte, `docs/sprites-gabarit-reference.png`) : les sept voitures conformes
+  du premier coup. Sans les roues en pointillés, la silhouette ne se lisait plus comme une
+  voiture. Pour les copains : « la même voiture », en joignant la première acceptée.
+- La suspension est quasi rigide (±1 cm en course, sonde sur 3 courses à 5 voitures) : un
+  sprite se cale sur les axes nominaux (±0,75 ; −0,25) m.
+- Le générateur livre un alpha de 250 à 254 sur les parties opaques, et la quantification
+  octree de Pillow mêle l'alpha (opaque → 250 à 254) : remettre à 255 les entrées de palette
+  d'alpha ≥ 240 (fait dans `tools/sprites/controle.py`). Ni libimagequant ni pngquant dans le
+  conteneur.
+- Les PNG de l'archive Grok ont un **liseré magenta** au bord (reste de détourage) : regarder
+  la couleur des pixels de bord semi-transparents avant d'utiliser une image (roue corrigée,
+  étoile, Terre et flammes à faire à la 8b).
+- Une archive envoyée par le papa dans le chat arrive dans `/root/.claude/uploads/<session>/` ;
+  les noms y sont en cp437 (`timoth├⌐.png` = `timothée.png`).
+- Une autre session peut travailler en parallèle sur `wip-plan-b` : avant de pousser sur la
+  branche de déploiement, regarder `git ls-remote` et les sessions actives, et prévenir l'autre
+  session par message (`send_message`, priorité « later »).
+
 ## Prochaine action précise
 
 Session 3 (2026-10-22) : 5c, 5f, 5d, 5e et 5g validées et déployées. Points à regarder au test tablette : bouton saut, étoiles hautes (3 par course, 3,90 m), fosses (8 m), appuis perdus à très grande vitesse (0,41 % à 21 m/s), étoile de réception survolée en turbo, Galahad catapulté par un copain, rien qui s'allume à l'approche d'une fosse (Q-F5).
 
-0. Sprites (session dédiée) : **terminé** (2026-10-23) : gabarit, sept sprites contrôlés et rangés,
-   planche validée par le papa (arches serrées gardées). La 8b part de `assets/sprites/` (cadre
+0. Sprites (session dédiée) : **terminé et session close** (2026-10-23) : gabarit, sept sprites
+   contrôlés et rangés, planche validée par le papa (arches serrées gardées), fusionnés et
+   déployés (`775dad3`, run 39 vert). La 8b part de `assets/sprites/` (cadre
    2,80 × 1,40 m centré sur le châssis, roues par-dessus ; liseré magenta de l'étoile, de la Terre
    et des flammes à corriger, `assets/README.md`).
 1. Retour tablette du papa sur 5e + 5g.
