@@ -183,15 +183,34 @@ export function describeRow(r: RattrapageRow): string {
 
 const pct = (k: number, n: number): string => `${k}/${n} (${((100 * k) / Math.max(1, n)).toFixed(0)} %)`;
 
-/** Indicateurs d'un ensemble de courses : vainqueur = 1re étoile, égalités, victoires et place de Galahad, étoiles par rang de grille. */
+/**
+ * Places de Galahad d'un ensemble de courses (tâche 7) : victoires, « 1er ou 2e », « dernier » (5e, ou dernier du
+ * classement) et place moyenne.
+ */
+export function placeStats(rs: readonly RattrapageRow[]): { n: number; wins: number; top2: number; last: number; mean: number } {
+  const n = rs.length;
+  return {
+    n,
+    wins: rs.filter((r) => r.galahadPlace === 1).length,
+    top2: rs.filter((r) => r.galahadPlace <= 2).length,
+    last: rs.filter((r) => r.galahadPlace === r.ranking.length).length,
+    mean: rs.reduce((a, r) => a + r.galahadPlace, 0) / Math.max(1, n),
+  };
+}
+
+/**
+ * Indicateurs d'un ensemble de courses : vainqueur = 1re étoile, égalités, victoires, « 1er ou 2e », « dernier » (tâche
+ * 7) et place de Galahad, étoiles par rang de grille.
+ */
 function indicators(label: string, rs: RattrapageRow[]): string {
   const n = rs.length;
-  const place = rs.reduce((a, r) => a + r.galahadPlace, 0) / Math.max(1, n);
+  const p = placeStats(rs);
   const stars = [0, 1, 2, 3, 4].map((i) => rs.reduce((a, r) => a + r.stars[i], 0));
   const lava = rs.reduce((a, r) => a + r.lava[0], 0);
   return `${label}, ${n} courses : vainqueur = première étoile ${pct(rs.filter(winnerTookFirst).length, n)}, `
-    + `égalités à la première étoile ${rs.filter(tie).length} ; Galahad gagne ${pct(rs.filter((r) => r.winner === 'galahad').length, n)}, `
-    + `place moyenne ${place.toFixed(2)}, chutes de Galahad dans la lave ${lava} ; étoiles par rang de grille (Galahad, rangs 1 à 4) ${stars.join('/')}`;
+    + `égalités à la première étoile ${rs.filter(tie).length} ; Galahad gagne ${pct(p.wins, n)}, 1er ou 2e ${pct(p.top2, n)}, `
+    + `dernier ${pct(p.last, n)}, place moyenne ${p.mean.toFixed(2)}, chutes de Galahad dans la lave ${lava} ; `
+    + `étoiles par rang de grille (Galahad, rangs 1 à 4) ${stars.join('/')}`;
 }
 
 function indicatorBlock(rows: RattrapageRow[]): string[] {
@@ -248,4 +267,54 @@ export function registerRattrapage(seeds: { posé: number[]; levé: number[] }):
       expect(row.galahadPlace).toBeGreaterThanOrEqual(1);
     });
   });
+}
+
+/**
+ * « Ce que le bouton rend à Galahad » (tâche 7, `tests/slow/bouton.test.ts`, `npm run test:slow:bouton`) : trois étapes
+ * du rattrapage par période (saut parfait aux fosses, « Galahad sauteur », sans saut), lues par `readStage` au commit de
+ * leur dernière ligne. Pour chaque motif (doigt posé, doigt levé) et chaque période : places de Galahad par variante, puis
+ * écarts appariés par graine (saut parfait − sans saut : ce que rendent les fosses ; sauteur − saut parfait : ce que
+ * rendent les étoiles hautes ; négatif = mieux placé) et places par graine. Mesure seule (ruling Q9, D7-5).
+ */
+export interface BoutonStages { label: string; parfait: StageRows; sauteur: StageRows; jamais: StageRows }
+
+export function readBoutonStages(label: string, etapes: readonly string[]): BoutonStages {
+  if (etapes.length !== 3) throw new Error(`${label} : trois étapes attendues (saut parfait, sauteur, sans saut), reçu ${etapes.join(',')}`);
+  const [parfait, sauteur, jamais] = etapes.map((e) => readStage(e));
+  return { label, parfait, sauteur, jamais };
+}
+
+/** Nombre de courses lues par étape (64 attendues : non-vacuité). */
+export const stageSizes = (b: BoutonStages): Record<string, number> =>
+  Object.fromEntries([b.parfait, b.sauteur, b.jamais].map((s) => [`${s.etape} (${s.commit})`, s.rows.size]));
+
+export function boutonReport(periods: readonly BoutonStages[]): string {
+  const lines: string[] = [];
+  const fmt = (p: ReturnType<typeof placeStats>): string =>
+    `victoires ${pct(p.wins, p.n)}, 1er ou 2e ${pct(p.top2, p.n)}, dernier ${pct(p.last, p.n)}, place moyenne ${p.mean.toFixed(2)}`;
+  for (const motif of ['posé', 'levé'] as const) {
+    lines.push(`=== doigt ${motif} ===`);
+    for (const b of periods) {
+      const rows = (s: StageRows) => [...s.rows.values()].filter((r) => r.motif === motif).sort((x, y) => x.seed - y.seed);
+      const [par, sau, jam] = [rows(b.parfait), rows(b.sauteur), rows(b.jamais)];
+      lines.push(`  ${b.label} (${b.parfait.etape}, ${b.sauteur.etape}, ${b.jamais.etape}) :`);
+      lines.push(`    sans saut     : ${fmt(placeStats(jam))}`);
+      lines.push(`    saut parfait  : ${fmt(placeStats(par))}`);
+      lines.push(`    sauteur       : ${fmt(placeStats(sau))}`);
+      const bySeed = (rs: RattrapageRow[]) => new Map(rs.map((r) => [r.seed, r.galahadPlace]));
+      const [mp, ms, mj] = [bySeed(par), bySeed(sau), bySeed(jam)];
+      const seeds = par.map((r) => r.seed).filter((s) => ms.has(s) && mj.has(s));
+      const diff = (a: Map<number, number>, c: Map<number, number>) => seeds.map((s) => a.get(s)! - c.get(s)!);
+      const mean = (xs: number[]) => xs.reduce((u, v) => u + v, 0) / Math.max(1, xs.length);
+      const dFosses = diff(mp, mj);
+      const dEtoiles = diff(ms, mp);
+      const count = (xs: number[]) => `mieux ${xs.filter((d) => d < 0).length}, égal ${xs.filter((d) => d === 0).length}, moins bien ${xs.filter((d) => d > 0).length}`;
+      lines.push(`    saut parfait − sans saut (ce que rendent les fosses), ${seeds.length} graines appariées : écart moyen de place ${mean(dFosses).toFixed(2)} (${count(dFosses)})`);
+      lines.push(`    sauteur − saut parfait (ce que rendent les étoiles hautes) : écart moyen de place ${mean(dEtoiles).toFixed(2)} (${count(dEtoiles)})`);
+      lines.push(`    places par graine (sans saut / saut parfait / sauteur) : ${seeds.map((s) => `g${s} ${mj.get(s)}/${mp.get(s)}/${ms.get(s)}`).join(' ')}`);
+    }
+  }
+  const warnings = periods.flatMap((b) => [...b.parfait.warnings, ...b.sauteur.warnings, ...b.jamais.warnings]);
+  if (warnings.length > 0) lines.push(...warnings.map((w) => `avertissement : ${w}`));
+  return lines.join('\n');
 }

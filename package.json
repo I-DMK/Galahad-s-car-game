@@ -11,6 +11,7 @@
     "test:slow": "vitest run -c vitest.slow.config.ts",
     "test:slow:race": "vitest run -c vitest.slow-race.config.ts",
     "test:slow:rattrapage": "vitest run -c vitest.slow-rattrapage.config.ts",
+    "test:slow:bouton": "vitest run -c vitest.slow-bouton.config.ts",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test"
   },
