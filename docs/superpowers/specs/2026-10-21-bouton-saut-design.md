@@ -315,6 +315,7 @@ Les quatre contraintes :
 - **Fantômes** : `inGhostZone` vaut pour les deux types.
   - Tremplin : châssis dans [`xLancement`, `xReception` + `WHEEL_BASE/2` + `WHEEL_RADIUS`], inchangé.
   - **Fosse** : châssis dans [`xLancement`, bord aval + `FOSSE_GHOST_AFTER`], avec `FOSSE_GHOST_AFTER` = 40 m. C'est l'atterrissage le plus long mesuré (31,6 m ; 31,9 m MESURÉ (relecture)) plus une marge.
+  - [tâche 6, tour 1] La zone commence au début du plat de garde (`xLancement` − `FOSSE_GUARD`). MESURÉ : avec les copains qui ratent parfois une fosse et repartent du point sûr, Galahad en turbo (18 à 20 m/s) percutait un copain plus lent ou reposé à 2 à 4 m avant `xLancement` et était catapulté par-dessus l'approche dans la lave (graines 33 et 36, sauteur parfait). Garde comprise, ces courses sont propres. Ruling, à confirmer par le papa.
   - Ainsi, une voiture qui repart arrêtée du point sûr, deux sauteurs qui se croisent en l'air, et une voiture posée juste après la fosse sont traversés par les autres.
   - À revérifier en tâche 7 : sous élastique et turbo (27,3 m/s), les copains atterrissent jusqu'à ≈ 44 m (CALCULÉ).
 - **Respawn immédiat d'une voiture retournée** (`inElanZone`, [`xElanStart`, `xLip`]) : tremplins seuls. Sur l'approche plate d'une fosse, les délais `FLIP_SECONDS` / `SIDE_SECONDS` d'aujourd'hui s'appliquent.
@@ -389,6 +390,7 @@ Les quatre contraintes :
 
 - **Ils sautent toutes les fosses** : pas de tirage `jumpTry`, ne pas sauter serait tomber à coup sûr.
 - **Instant visé, centré à chaque vitesse** (Q-F3). Le copain demande le saut dès que (`xBord − x`) / max(v, 1) ≤ `fosseJumpLead(v)` + e, avec `fosseJumpLead(v)` = max(`FOSSE_JUMP_MIN_DISTANCE` / v, `FOSSE_JUMP_AIM` − `FOSSE_WIDTH` / (2v)), `FOSSE_JUMP_AIM` = 1,00 s et `FOSSE_JUMP_MIN_DISTANCE` = 2 m (tour 1 de la 5g : sous ≈ 4 m/s, la formule seule donnait un instant ≤ 0, et sous ≈ 6 m/s elle visait plus près du bord que la lave ne reprend la voiture, ≈ 1,15 m ; un copain lent ne sautait jamais). Il ne demande plus quand la mémoire de la demande (`JUMP_BUFFER`) l'emmènerait au-delà du bord : (`xBord − x`) / max(v, 1) > `JUMP_BUFFER`.
+  - [tâche 6, tour 1] **Raté tardif visible** (décision du papa, 9cf3fd6) : une erreur trop tardive ne supprime plus le saut. La demande part dès que (`xBord − x`) / max(v, 1) ≤ max(`fosseJumpLead(v)` + e, `JUMP_BUFFER` + `PHYSICS_DT`), donc au dernier pas permis. Une seule formule, `fosseJumpWanted(track, x, v, cfg, e)`, sert au sauteur parfait des tests (e = 0, la borne basse ne joue jamais : `fosseJumpLead` ≥ 0,33 s) et au driver des copains. MESURÉ (piste plate, pas de 0,25 m/s) : la lave reprend le châssis 1,05 à 1,17 m avant le bord ; jusqu'à ≈ 11,3 m/s le copain tombe avant le dernier pas permis (« sans tentative », toléré par les invariants jusqu'à 11,5 m/s) ; à 12 et 14 m/s il saute à 1,27 et 1,45 m du bord et tombe (raté visible) ; à 17,5 et 21 m/s il saute à 2,02 et 2,12 m et passe.
   - CALCULÉ : le bord au plus tard est à ≈ 1,2 m + 0,06 s × v, le bord au plus tôt à ≈ 1,96 s × v − W − 1,2 m ; leur milieu, divisé par v, donne la formule.
   - Comparé aux centres mesurés (§6.2, avec tolérance) :
 
@@ -401,7 +403,7 @@ Les quatre contraintes :
   - Quand la voiture accélère encore (départ arrêté au point sûr, turbo qui commence), le vrai centre arrive ≈ 0,1 s plus tard que la formule (0,58 s mesuré contre 0,68 s au départ arrêté). La tâche 6 mesure le raté dans ces cas, vitesse par vitesse.
   - Le driver **redemande le saut à chaque pas** tant qu'il est dans sa fenêtre et n'a pas sauté.
   - L'erreur e suit N(0, σ_f), avec σ_f = `FOSSE_SKILL_FACTOR` × `jumpSkill` = 2,5 × les traits validés.
-  - Deux erreurs sont pré-tirées par fosse à la création du driver, une par tentative, par la graine du driver : ENCORE rejoue les mêmes sauts.
+  - Deux erreurs sont pré-tirées par fosse à la création du driver, une par tentative, par la graine du driver : ENCORE rejoue les mêmes sauts. [tâche 6, tour 1] La tentative se compte par fosse : 2 dès que la voiture est tombée une fois dans cette fosse, même si une autre réapparition (retournement) remet la série de chutes à zéro.
 - **Taux de raté attendus** (CALCULÉ, loi normale, instant centré, demi-fenêtres mesurées du §6.2) :
 
   | Pilote (σ_f) | 8 m/s (0,32 s) | 11,2 m/s (0,50 s) | 14 m/s (0,59 s) | 21 m/s (0,70 s) | départ arrêté (0,44 s) |
