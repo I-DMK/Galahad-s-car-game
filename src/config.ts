@@ -105,7 +105,7 @@ export const CONFIG = {
   FOSSE_STAR_AFTER: 25,         // m entre le bord aval et l'étoile de réception (tirée 1 fosse sur 2, comme l'étoile d'élan)
   FOSSE_JUMP_AIM: 1,            // s : fosseJumpLead(v) = max(FOSSE_JUMP_MIN_DISTANCE / v, FOSSE_JUMP_AIM − FOSSE_WIDTH / (2v)), centre de la fenêtre (saut §6.8)
   FOSSE_JUMP_MIN_DISTANCE: 2,   // m : fosseJumpLead(v) ≥ 2 / v (tour 1 de la 5g) : sous ≈ 6 m/s la formule visait plus près du bord que la lave ne reprend la voiture (≈ 1,15 m) et un robot lent ne tentait jamais son saut
-  FOSSE_JUMP_LATE_DISTANCE: 1.2, // m : bord au plus tard de la fenêtre d'une fosse, CALCULÉ (saut §6.2 : s ≥ ≈ 1,2 m + 0,06 s × v) ; fosseLatestLead(v) = FOSSE_JUMP_LATE_DISTANCE / v + FOSSE_JUMP_LATE_TIME ; une erreur de copain qui viserait plus tard devient un saut trop tôt du même écart (décision du papa, tour 2 de la tâche 6)
+  FOSSE_JUMP_LATE_DISTANCE: 1.2, // m : bord au plus tard de la fenêtre d'une fosse, CALCULÉ (saut §6.2 : s ≥ ≈ 1,2 m + 0,06 s × v) ; fosseLatestLead(v) = FOSSE_JUMP_LATE_DISTANCE / max(v, 1) + FOSSE_JUMP_LATE_TIME ; une erreur de copain qui viserait plus tard devient un saut trop tôt du même écart (décision du papa, tour 2 de la tâche 6)
   FOSSE_JUMP_LATE_TIME: 0.06,   // s : terme en vitesse du même bord au plus tard (saut §6.2) ; prudent : les bords mesurés (s min 1,45 à 2,10 m) sont plus près de la lave
   FOSSE_RESPAWN_AFTER: 5,       // m : 2e chute de suite dans une fosse → posée à bord aval + 5 (Q-F2, option B)
   FOSSE_GHOST_AFTER: 40,        // m : zone fantôme d'une fosse jusqu'à bord aval + 40 (atterrissage le plus long ≈ 32 m, R-F16)

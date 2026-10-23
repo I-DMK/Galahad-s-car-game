@@ -1,7 +1,7 @@
 // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : le
 // driver de chaque copain décide, à chaque pas, de son doigt (gaz) et de sa demande de saut. Pur (ni DOM, ni
 // matter-js) : `sim/simulate.ts` lui passe un `DriverContext` et applique sa réponse.
-import { fosseJumpWanted } from '../cars/jump';
+import { inFosseJumpWindow } from '../cars/jump';
 import type { Pilot } from '../cars/pilots';
 import type { CarState } from '../cars/state';
 import type { Config } from '../config';
@@ -121,9 +121,10 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
  *    cette tranche est tombé, doigt levé LIFT_SECONDS (une fois par tranche ; jamais dans un cratère) ;
  * 6. sinon, doigt posé.
  * Sauts, en plus du doigt :
- * - fosse (toujours tentée, sans tirage `jumpTry`) : `fosseJumpWanted` avec l'erreur de la tentative (sur l'approche,
- *   bord à au plus fosseJumpLead(v) + e secondes ; une erreur trop tardive, plus tard que le bord au plus tard CALCULÉ,
- *   devient un saut trop tôt du même écart, à fosseJumpLead(v) − e : décision du papa au tour 2, le raté se voit) ;
+ * - fosse (toujours tentée, sans tirage `jumpTry`) : `inFosseJumpWindow` sur la fosse du contexte (`ctx.nextFosse`),
+ *   avec l'erreur de la tentative (sur l'approche, bord à au plus fosseJumpLead(v) + e secondes ; une erreur trop
+ *   tardive, plus tard que le bord au plus tard CALCULÉ, devient un saut trop tôt du même écart, à fosseJumpLead(v) − e :
+ *   décision du papa au tour 2, le raté se voit) ;
  *   redemandée à chaque pas jusqu'au saut, puis plus aucune jusqu'à la tentative suivante (une réapparition) ;
  * - étoile haute disponible et tentée : demande tant que JUMP_STAR_MIN_LEAD ≤ (xÉtoile − x) / max(v, 1) ≤
  *   JUMP_STAR_LEAD + erreur, redemandée à chaque pas jusqu'au saut ; abandonnée sous JUMP_STAR_MIN_LEAD (un saut plus
@@ -174,7 +175,8 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
       const k = nextFosse.index;
       if (x >= fosseList[k].xLancement) {
         if (fosseDone[k] === epoch) return false;
-        return fosseJumpWanted(track, x, speed, cfg, fosseErr[k][nextFosse.attempt - 1]) && request(2, k, epoch);
+        // Fosse du contexte (bord amont, rang, tentative) : une seule source, une seule formule de fenêtre (tour 3).
+        return inFosseJumpWindow(nextFosse.xBord, x, speed, cfg, fosseErr[k][nextFosse.attempt - 1]) && request(2, k, epoch);
       }
     }
     const s = nextHighStar;

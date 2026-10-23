@@ -24,9 +24,7 @@ import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
 import { MAX_CARS, createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
 import type { CarView, Scene } from '../render/renderer';
-import {
-  heightAt, inElanZone, inGhostZone, inNoJumpZone, nearestVolcanoZone, slopeAt, volcanoAhead,
-} from '../track/query';
+import { heightAt, inElanZone, inGhostZone, inNoJumpZone, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 
 /** Chaque événement porte l'id (`CarState.id`) de la voiture concernée. */
@@ -341,12 +339,11 @@ interface DriverSlot {
   starCursor: number;
 }
 /**
- * Par course : un emplacement par voiture (ordre des index), la liste de leurs contextes, les indices (dans
- * `track.stars`) des étoiles hautes, et l'instantané des voitures pris au début du pas (x, vitesse, doigt, traversable).
+ * Par course : un emplacement par voiture (ordre des index), les indices (dans `track.stars`) des étoiles hautes, et
+ * l'instantané des voitures pris au début du pas (x, vitesse, doigt, traversable).
  */
 interface DriverCache {
   slots: DriverSlot[];
-  contexts: DriverContext[];
   highStars: number[];
   xs: number[]; speeds: number[]; throttles: boolean[]; traversables: boolean[];
 }
@@ -364,7 +361,7 @@ function driverCache(sim: RaceSim): DriverCache {
     return { ctx, others, star: { index: -1, x: 0, available: false }, fosse: { xBord: 0, index: -1, attempt: 1 }, starCursor: 0 };
   });
   cache = {
-    slots, contexts: slots.map((slot) => slot.ctx),
+    slots,
     highStars: sim.track.stars.flatMap((s, k) => (s.high ? [k] : [])),
     xs: new Array<number>(n).fill(0), speeds: new Array<number>(n).fill(0),
     throttles: new Array<boolean>(n).fill(false), traversables: new Array<boolean>(n).fill(false),
@@ -532,12 +529,9 @@ function observeAndRespawn(sim: RaceSim, car: CarSim, onGround: [boolean, boolea
     inElanZone: inElanZone(track, x),
   }, cfg);
   if (reason === null) return;
-  if (reason === 'lava') {
-    // Même volcan que `chooseRespawnTarget` : celui dont la zone contient le châssis à la chute.
-    const v = nearestVolcanoZone(track, x) ?? volcanoAhead(track, x);
-    if (v) car.lavaFalls[track.volcanoes.indexOf(v)]++;
-  }
-  const { point, lavaX, consecutive, direction } = chooseRespawnTarget(state, track, cfg, reason, x);
+  const { point, lavaX, consecutive, direction, volcano } = chooseRespawnTarget(state, track, cfg, reason, x);
+  // Chutes par volcan (tentative d'un copain à une fosse) : le volcan retenu pour la série, une seule source.
+  if (volcano) car.lavaFalls[track.volcanoes.indexOf(volcano)]++;
   const target = shiftTarget(point, otherCars(sim, car).map(chassisX), track, cfg, direction);
   placeInvulnerable(sim, car, target, lavaX, consecutive);
   sim.events.push({ type: 'respawn', carId: state.id, t, reason, x, target: { ...target } });

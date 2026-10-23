@@ -249,6 +249,26 @@ describe('chooseRespawnTarget / applyRespawnToState', () => {
     expect(n).toBeGreaterThan(20);
   });
 
+  test('volcan retenu (`volcano`, seule source du compte des chutes par volcan `CarSim.lavaFalls`, tour 3 de la tâche 6) : celui de la lave touchée, aux 1re et 2e chutes de suite ; null hors lave ou sans volcan', () => {
+    const s = newState();
+    s.safePoint = { x: F.xLancement + 1, y: 0, angle: 0 };
+    const r1 = chooseRespawnTarget(s, track, CONFIG, 'lava', F.xBord - 0.7);
+    expect(r1.volcano).toBe(F);
+    applyRespawnToState(s, r1.point, r1.lavaX, r1.consecutive, 10, CONFIG);
+    // 2e chute de suite (posée après la fosse) : c'est encore cette fosse qui a été touchée.
+    const r2 = chooseRespawnTarget(s, track, CONFIG, 'lava', F.xBord - 0.7);
+    expect(r2.consecutive).toBe(0);
+    expect(r2.volcano).toBe(F);
+    // Chute dans le cratère d'un tremplin, châssis au-delà de xLava (zone du volcan) : ce tremplin, pas le suivant.
+    expect(chooseRespawnTarget(newState(), track, CONFIG, 'lava', V1.xLava + 1).volcano).toBe(V1);
+    expect(chooseRespawnTarget(newState(), track, CONFIG, 'lava', V2.xLava - 1).volcano).toBe(V2);
+    for (const reason of ['flipped', 'side', 'stuck', 'underground', 'speed'] as const) {
+      expect(chooseRespawnTarget(s, track, CONFIG, reason, F.xBord - 0.7).volcano, reason).toBeNull();
+    }
+    const last = track.volcanoes[track.volcanoes.length - 1];
+    expect(chooseRespawnTarget(newState(), track, CONFIG, 'lava', last.xEnd + 1).volcano).toBeNull();
+  });
+
   test('sans volcan devant : lavaX null, consecutive 1, point sûr', () => {
     const s = newState();
     const last = track.volcanoes[track.volcanoes.length - 1];

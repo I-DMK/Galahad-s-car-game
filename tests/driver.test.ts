@@ -9,7 +9,7 @@ import { newCarState, type CarState } from '../src/cars/state';
 import { CONFIG } from '../src/config';
 import { fosses, inNoJumpZone, sliceAt, tremplins } from '../src/track/query';
 import { mulberry32 } from '../src/track/rng';
-import { plat } from '../src/track/slices';
+import { fosse, plat } from '../src/track/slices';
 import type { Star, Track } from '../src/track/types';
 import { fossePiste, trackOf } from './helpers/fosses';
 import { trackFor } from './helpers/runs';
@@ -440,6 +440,43 @@ describe('saut de fosse', () => {
     const tte = (f.xBord - steps[jumps[0]].x) / v;
     expect(tte).toBeLessThanOrEqual(aim + EPS);
     expect(tte).toBeGreaterThan(aim - DT - EPS);
+  });
+
+  test('le driver lit la fosse de son contexte (`ctx.nextFosse.xBord`, tour 3) : un bord amont décalé de 3 m décale la demande de 3 m', () => {
+    const driver = makeRobotDriver(pilot({ jumpSkill: 0 }), 1, track, SEED, CONFIG);
+    const v = 14;
+    const state = freshState();
+    /** Premier x (pas de 0,01 m sur l'approche) où le driver demande, le bord du contexte décalé de `shift`. */
+    const firstAsk = (shift: number): number => {
+      for (let x = f.xLancement; x < f.xBord; x += 0.01) {
+        const ctx = ctxOf(track, { t: 2, x, v, state });
+        ctx.nextFosse = { ...ctx.nextFosse!, xBord: ctx.nextFosse!.xBord - shift };
+        if (driver(ctx).jump) return x;
+      }
+      return NaN;
+    };
+    expect(firstAsk(0)).toBeCloseTo(f.xBord - fosseJumpLead(v, CONFIG) * v, 1);
+    expect(firstAsk(3)).toBeCloseTo(firstAsk(0) - 3, 1);
+  });
+
+  test('deux fosses : chacune avec son erreur pré-tirée et son propre bord (tour 3 ; l’erreur de la fosse k n’est jamais appliquée à une autre)', () => {
+    const rng = mulberry32(1);
+    const two = trackOf([plat(rng, CONFIG, 150), fosse(CONFIG), plat(rng, CONFIG, 60), fosse(CONFIG), plat(rng, CONFIG, 100)]);
+    const [f0, f1] = fosses(two);
+    const p = pilot({ jumpSkill: 0.1 });
+    // Erreurs bien différentes, sans bascule (au-dessus de −0,3 s).
+    const seed = Array.from({ length: 400 }, (_, s) => s).find((s) => {
+      const [[a], [b]] = robotDraws(p, 1, two, s, CONFIG).fosseErr;
+      return Math.abs(a - b) > 0.15 && Math.min(a, b) > -0.3;
+    })!;
+    const [[e0], [e1]] = robotDraws(p, 1, two, seed, CONFIG).fosseErr;
+    const v = 14;
+    const steps = drive(makeRobotDriver(p, 1, two, seed, CONFIG), two, { x0: f0.xLancement - 10, x1: f1.xBord, v, t0: 2, state: freshState(), serve: true });
+    const first = (ff: typeof f0, e: number) => steps.findIndex((s) => s.x >= ff.xLancement && s.x < ff.xBord
+      && (ff.xBord - s.x) / v <= fosseJumpLead(v, CONFIG) + e + EPS && (ff.xBord - s.x) / v > CONFIG.JUMP_BUFFER + EPS);
+    expect(where(steps, (s) => s.jump)).toEqual([first(f0, e0), first(f1, e1)]);
+    // Le second saut n'est pas celui qu'aurait donné l'erreur de la première fosse.
+    expect(first(f1, e1)).not.toBe(first(f1, e0));
   });
 
   test('étoiles hautes : tentée avec la probabilité jumpTry, erreur N(0, jumpSkill) (graines 0 à 399, traits de Pablo : 0,80 et 0,18 s)', () => {

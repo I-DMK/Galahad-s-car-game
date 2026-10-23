@@ -151,15 +151,24 @@ export interface FiveCarOptions {
 export const SAUTEUR_TRAITS = { jumpTry: 1, jumpSkill: 0.05 } as const;
 
 /**
+ * Sel de la graine du driver du « Galahad sauteur » (tour 3 de la tâche 6, code-review 8) : au rang 0, la graine d'un
+ * driver est la graine des pilotes elle-même (`driverSeed(pilotSeed, 0) === pilotSeed`), et ses tirages sortaient du même
+ * flux que `drawPilots`. Graine salée (`(pilotSeed ^ SAUTEUR_SEED_SALT) >>> 0`) : flux indépendant. Les chiffres
+ * « sauteur » mesurés avant ce sel ne sont plus comparables.
+ */
+export const SAUTEUR_SEED_SALT = 0x5bd1e995;
+
+/**
  * Option `jump` de `simulateRace`, variante « Galahad sauteur » (tâche 6, ruling Q9) : la demande de saut de Galahad
- * est celle d'un driver de copain (`makeRobotDriver`, rang 0, traits SAUTEUR_TRAITS) appelé sur son contexte
- * (`driverContext`) ; son doigt reste celui de `throttle`.
+ * est celle d'un driver de copain (`makeRobotDriver`, rang 0, traits SAUTEUR_TRAITS, graine des pilotes salée par
+ * SAUTEUR_SEED_SALT) appelé sur son contexte (`driverContext`) ; son doigt reste celui de `throttle`.
  */
 export function sauteurRobot(track: Track, cfg: Config = CONFIG): (t: number, sim: RaceSim) => boolean {
   let driver: Driver | null = null;
   return (_t, sim) => {
     if (!driver) {
-      driver = makeRobotDriver({ ...GALAHAD, ...SAUTEUR_TRAITS }, GALAHAD_INDEX, track, sim.pilotSeed, cfg);
+      const seed = (sim.pilotSeed ^ SAUTEUR_SEED_SALT) >>> 0;
+      driver = makeRobotDriver({ ...GALAHAD, ...SAUTEUR_TRAITS }, GALAHAD_INDEX, track, seed, cfg);
       // Demandes d'un pilote automatique : la garde de zone tremplin de `updateJump` s'applique (code-review 3).
       sim.cars[GALAHAD_INDEX].autoJumps = true;
     }

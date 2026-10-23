@@ -1,7 +1,7 @@
 // Décision de réapparition : chronomètres de blocage et choix de la cible. Pur (ni DOM, ni matter-js).
 import type { Config } from '../config';
 import { heightAt, nearestVolcanoZone, slopeAt, volcanoAhead } from '../track/query';
-import type { Track } from '../track/types';
+import type { Track, Volcano } from '../track/types';
 import { normalizeAngle } from './angle';
 import { isSafeZone } from './safepoint';
 import type { CarState, SafePoint } from './state';
@@ -73,6 +73,11 @@ export interface RespawnTarget {
    * ruling R-F15).
    */
   direction: -1 | 1;
+  /**
+   * Volcan dont la lave a été touchée (le même qui fixe la série « même volcan »), null pour une autre raison ou sans
+   * volcan : seule source du compte des chutes par volcan (`CarSim.lavaFalls`, tour 3 de la tâche 6).
+   */
+  volcano: Volcano | null;
 }
 
 /**
@@ -89,7 +94,7 @@ export interface RespawnTarget {
 export function chooseRespawnTarget(
   state: CarState, track: Track, cfg: Config, reason: RespawnReason, fallX: number,
 ): RespawnTarget {
-  if (reason !== 'lava') return { point: state.safePoint, lavaX: null, consecutive: 0, direction: -1 };
+  if (reason !== 'lava') return { point: state.safePoint, lavaX: null, consecutive: 0, direction: -1, volcano: null };
   // La série compte la lave réellement touchée : le volcan dont la zone contient le châssis à la chute (tour 1 de la
   // 5g ; avant, le premier volcan devant le point sûr, faux si le point sûr était déjà après la lave touchée).
   const v = nearestVolcanoZone(track, fallX) ?? volcanoAhead(track, fallX);
@@ -98,9 +103,11 @@ export function chooseRespawnTarget(
   if (consecutive >= 2 && v) {
     const fosse = v.kind === 'fosse';
     const x = fosse ? v.xReception + cfg.FOSSE_RESPAWN_AFTER : v.xEnd - cfg.RESPAWN_AFTER_VOLCANO_BACK;
-    return { point: { x, y: heightAt(track, x), angle: slopeAt(track, x) }, lavaX: null, consecutive: 0, direction: fosse ? 1 : -1 };
+    return {
+      point: { x, y: heightAt(track, x), angle: slopeAt(track, x) }, lavaX: null, consecutive: 0, direction: fosse ? 1 : -1, volcano: v,
+    };
   }
-  return { point: state.safePoint, lavaX, consecutive, direction: -1 };
+  return { point: state.safePoint, lavaX, consecutive, direction: -1, volcano: v ?? null };
 }
 
 /** m : tolérance d'arrondi de la distance entre voitures du respawn groupé. */

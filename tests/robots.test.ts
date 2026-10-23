@@ -167,8 +167,9 @@ describe('raté tardif rendu visible (décision du papa, tour 2) : une erreur tr
   const err = robotDraws(pablo, 1, world.track, seed, CONFIG).fosseErr[0][0];
   /**
    * s de vol exigées entre le saut et la reprise par la lave. MESURÉ (sonde du tour 2, piste plate, 3 à 21 m/s, 6 phases) :
-   * 1,93 à 1,97 s partout, sans aucune chute sans saut ; l'ancienne règle (saut au dernier pas permis) sautait 0 à 2 pas
-   * (≤ 0,033 s) avant la reprise, ou pas du tout sous ≈ 11,3 m/s.
+   * 1,93 à 1,97 s partout, sans aucune chute sans saut. L'ancienne règle (tour 1, saut au dernier pas permis) sautait
+   * 0 à 2 pas (≤ 0,033 s) avant la reprise ; ou pas du tout : toujours jusqu'à ≈ 10,5 m/s, et selon la phase du pas entre
+   * ≈ 10,5 et 11,25 m/s (re-relecture du tour 1 : 10 m/s 6 phases sur 6, 11 m/s 1 sur 6, 11,25 m/s 2 sur 6).
    */
   const VOL_MIN = 1;
 
