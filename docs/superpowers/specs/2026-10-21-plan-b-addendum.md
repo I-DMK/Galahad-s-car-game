@@ -279,7 +279,9 @@ tours** de calibration supplémentaires ; ensuite le papa tranche la valeur.
     `POLITE_GAP` (4 m) derrière celui de Galahad lève le pied tant que Galahad
     a le doigt levé, à n'importe quelle vitesse et sans limite de durée, sauf
     dans la zone volcan `[xLancement, xLava]` ou si l'un des deux est fantôme
-    ou invulnérable, et plus après l'arrivée de Galahad. Ramené juste
+    ou invulnérable, et plus après l'arrivée de Galahad ; [tour 2] seulement
+    après le départ de Galahad (son premier appui : sur la grille, avant,
+    politesse de la tâche 6, 3 s au plus, décision du papa). Ramené juste
     derrière lui par la fenêtre de 3 m, un copain poussait longtemps un
     Galahad qui lève le doigt, jusqu'à le coucher (graine 3). Doigt posé, rien
     ne change. Les ratés d'étoile haute des copains en peloton et Galahad
