@@ -134,14 +134,13 @@ sans le contexte de celle-ci.
   standard frais, un relecteur adversarial frais, **et le skill `code-review`**
   sur le diff de la tâche ; tours de correction (≤ 5) ; rapports ≤ 30 lignes ;
   validation du papa ; passation et registre mis à jour et commités ; push.
-- **Revue croisée `/xreview`** (demande du papa, 2026-10-23) : commande
-  `.claude/commands/xreview.md` (copie de celle du PC du papa, plus deux sièges
-  par défaut). Elle lance Codex (et Grok) quand ils sont installés, et
-  **toujours** les skills `code-review` (niveau `high`) et `security-review`,
-  puis produit un tableau de tri sans rien corriger. Dans un conteneur cloud
-  sans Codex, seuls les deux sièges par défaut tournent. À lancer sur le diff de
-  chaque tâche, avant la validation du papa (`/xreview <base> <focus>`, base =
-  le BASE de la tâche au registre).
+- **Quatre relectures par tâche** (décision du papa, 2026-10-23) : standard,
+  adversariale (sondes et mutants), skill `code-review` **et skill
+  `security-review`** sur le diff de la tâche. Pas de Codex dans le cloud
+  (domaines OpenAI bloqués, login à refaire à chaque conteneur) : le papa
+  s'en passe. La commande `.claude/commands/xreview.md` (copie de celle du PC
+  du papa, avec `code-review` et `security-review` lancés même sans Codex)
+  reste disponible.
 - Typecheck et tests verts à chaque commit (la CI lance `npm run typecheck`
   puis `npm test` avant de déployer) ; jamais de `.skip`.
 - Jamais de PR sans demande explicite.
