@@ -274,6 +274,16 @@ tours** de calibration supplémentaires ; ensuite le papa tranche la valeur.
     graine ; doigt levé 30 % et sans saut imprimés. MESURÉ (tâche 7, graines
     0 à 19) : 6 victoires, 12 fois 1er ou 2e, dernier 1 fois, place 2,30,
     copain à l'écran 56 % (21 à 98 %) ; sauteur 1,35.
+  - [tâche 7, tour 1] **Poli derrière Galahad doigt levé** (décision du papa,
+    relectures de la tâche 7) : un copain dont le châssis est à moins de
+    `POLITE_GAP` (4 m) derrière celui de Galahad lève le pied tant que Galahad
+    a le doigt levé, à n'importe quelle vitesse et sans limite de durée, sauf
+    dans la zone volcan `[xLancement, xLava]` ou si l'un des deux est fantôme
+    ou invulnérable, et plus après l'arrivée de Galahad. Ramené juste
+    derrière lui par la fenêtre de 3 m, un copain poussait longtemps un
+    Galahad qui lève le doigt, jusqu'à le coucher (graine 3). Doigt posé, rien
+    ne change. Les ratés d'étoile haute des copains en peloton et Galahad
+    dernier doigt levé 30 % sont acceptés (décisions (2) et (3)).
 - Tests de course à 5 voitures, deux niveaux :
   - **CI** (`npm test`, exécuté par `deploy.yml`) : invariants sur 2 graines,
     doigt posé : ≤ 3 respawns par robot, aucune voiture bloquée > 2 s, pas
