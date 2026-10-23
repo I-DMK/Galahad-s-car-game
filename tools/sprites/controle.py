@@ -3,6 +3,7 @@
 python3 -I tools/sprites/controle.py <brut.png> <sortie-512.png> <apercu.png> [calque.png] [wheel.png]
 (Pillow et numpy ; calque.png : `node tools/sprites/rendu-gabarit.cjs calque calque.png`.)
 
+0. rend pleinement opaque la carrosserie (alpha ≥ 240 → 255) ;
 1. repère les deux arches : bord du trou transparent sous la carrosserie, de part et d'autre de son
    milieu, et cercle porté par le plus de points de ce bord (RANSAC puis moindres carrés) ; marche
    pour une arche ouverte vers le bas comme pour un anneau fermé, et sépare l'arche d'une roue
@@ -10,12 +11,13 @@ python3 -I tools/sprites/controle.py <brut.png> <sortie-512.png> <apercu.png> [c
    dessinées serrées), repère les roues sur le bas de la silhouette et s'en sert comme axes ;
 2. met l'image à l'échelle et en place pour que les centres des arches tombent sur les axes
    (±75 ; +25) cm du gabarit, dans le cadre 280 × 140 cm = 512 × 256 px ;
-3. vérifie : rayon des arches dans [47 ; 55] cm (des roues seules : [42 ; 48] cm), écart des
+3. vérifie : rayon des arches dans [43 ; 55] cm (des roues seules : [42 ; 48] cm), écart des
    centres ≤ 3 cm en hauteur, pente de la ligne des centres ≤ 1,5°, rien d'opaque coupé par le
    cadre hors zone effacée, ≤ 60 KB ;
 4. efface l'intérieur des arches (disque de rayon min(rayon mesuré, 50) − 1 cm sur les axes), ou les
    roues dessinées (rayon mesuré + 1 cm) : wheel.png les remplace en jeu ;
-5. quantifie en PNG-8 (256 couleurs, tramage) et donne la taille ;
+5. quantifie en PNG-8 (256 couleurs, tramage ; entrées de palette d'alpha ≥ 240 remises à 255) et
+   donne la taille ;
 6. écrit un aperçu : sur le ciel du jeu, roues posées aux axes (rendu en jeu), puis la même image
    avec le calque du gabarit par-dessus ; et imprime le rapport (JSON) avec le verdict.
 Vérifié sur la silhouette du gabarit (export `silhouette`, décalée sur une toile plus grande) :
@@ -32,7 +34,12 @@ FRAME_W_CM, FRAME_H_CM = 280.0, 140.0
 OUT_W, OUT_H = 512, 256
 PX_PER_CM = OUT_W / FRAME_W_CM
 AXLES_CM = [(-75.0, 25.0), (75.0, 25.0)]  # repère du gabarit : origine au centre, y vers le bas
-WHEEL_R_CM, ARCH_R_CM, ARCH_MIN, ARCH_MAX = 45.0, 50.0, 47.0, 55.0
+# Arche serrée acceptée dès 43 cm : la roue de 45 cm, dessinée par-dessus, en cache le bord (sprites
+# générés du 2026-10-23 : 44 à 46 cm, aucun jour visible en jeu). Le gabarit vise 50 cm.
+WHEEL_R_CM, ARCH_R_CM, ARCH_MIN, ARCH_MAX = 45.0, 50.0, 43.0, 55.0
+# Alpha de la carrosserie : certains générateurs livrent 250 à 254 au lieu de 255 ; tout alpha ≥ 240
+# devient 255 (carrosserie pleinement opaque), les bords lissés (alpha plus bas) restent tels quels.
+OPAQUE_FROM = 240
 SKY = (10, 16, 48, 255)
 
 
@@ -197,6 +204,12 @@ def erase_arches(canvas, r_cm):
 
 def quantize(canvas, path):
     q = canvas.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.FLOYDSTEINBERG)
+    # L'octree mêle l'alpha des couleurs voisines : des entrées de la carrosserie opaque sortent à 250-254.
+    pal = q.getpalette('RGBA')
+    for i in range(3, len(pal), 4):
+        if pal[i] >= OPAQUE_FROM:
+            pal[i] = 255
+    q.putpalette(pal, 'RGBA')
     q.save(path, optimize=True)
     return os.path.getsize(path)
 
@@ -228,6 +241,9 @@ def main():
     calque = sys.argv[4] if len(sys.argv) > 4 else None
     wheel = sys.argv[5] if len(sys.argv) > 5 else None
     im = Image.open(src).convert('RGBA')
+    px = np.array(im)
+    px[:, :, 3][px[:, :, 3] >= OPAQUE_FROM] = 255
+    im = Image.fromarray(px)
     mask = alpha_mask(im)
     arches, bbox = find_arches(mask)
     mode = 'arches vides'

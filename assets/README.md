@@ -5,36 +5,42 @@ déplacera ces fichiers dans `public/sprites/` et `public/fonts/` et les charger
 (`src/render/assets.ts`, `@font-face` dans `index.html`). Tant que l'addendum n'est pas
 validé, le jeu déployé n'y touche pas.
 
-## `sprites/` (303 KB, budget de l'addendum §1.2 : ≤ 400 KB)
+## `sprites/` (212 KB, budget de l'addendum §1.2 : ≤ 400 KB)
+
+### Carrosseries : les sept sprites générés (option A, 2026-10-23)
+
+`galahad.png`, `pablo.png`, `diego.png`, `timothée.png`, `matthis.png`, `malo.png`, `liam.png` :
+**512 × 256 px, PNG-8, 12 à 15 KB chacun (93 KB les sept)**, produits par
+`tools/sprites/controle.py` depuis les bruts de `generated/` (voir plus bas). Chaque image couvre
+exactement le cadre du gabarit : **2,80 × 1,40 m centré sur le châssis** (183 px/m), axes des
+roues à (±0,75 ; −0,25) m. La 8b dessine l'image dans ce rectangle, tourné de l'angle du châssis,
+puis `wheel.png` à chaque roue, **par-dessus** la carrosserie.
+
+Contrôle (tous acceptés) : arches de 43,6 à 46,2 cm de rayon, centres à la même hauteur à 2 cm
+près, pente ≤ 0,73°, rien de coupé par le cadre, rien à effacer dans les arches. Les arches sont
+**serrées** (≈ la roue de 45 cm, au lieu des 50 cm visés) : la roue, dessinée par-dessus, en cache
+le bord, sans jour visible (planche `docs/sprites-planche.png`) ; la tolérance du contrôle est
+passée de [47 ; 55] à [43 ; 55] cm. Couleurs conformes à la palette 5a (carrosserie, bandes,
+casque), à revoir sur la tablette.
+
+Les sprites Grok qu'elles remplacent (carrosseries renommées par pilote selon l'addendum §1.4,
+refusées au contrôle : arches de 0,26 m à notre échelle) restent dans l'historique git (commit
+`66f6de1`).
+
+### Roue, étoile, Terre, flammes (archive Grok)
 
 Origine : reproduction du jeu par Grok, générée par le papa le 2026-10-22 (archive
-`grok-workspace.zip`, dossier `public/sprites/`). Images originales 1069 × 600 px
-(≈ 500 KB chacune), réduites ici à 512 px de large (roue, étoile, flammes 256 px, Terre
-384 px), filtre Lanczos, puis quantifiées en PNG-8 à 256 couleurs avec tramage.
+`grok-workspace.zip`, dossier `public/sprites/`). Images originales 1069 × 600 px (≈ 500 KB
+chacune), réduites à 256 px (roue, étoile, flammes) ou 384 px (Terre), filtre Lanczos, puis
+PNG-8 à 256 couleurs avec tramage.
 
-Les carrosseries sont **renommées par pilote** selon la correspondance de teinte de
-l'addendum §1.4 (le nom Grok est donné pour retrouver l'original) :
-
-| Fichier | Pilote (palette 5a) | Nom dans l'archive Grok |
-|---|---|---|
-| `galahad.png` | Galahad, bleu | `galahad.png` |
-| `pablo.png` | Pablo, rouge | `liam.png` |
-| `diego.png` | Diego, vert | `pablo.png` |
-| `matthis.png` | Matthis, jaune | `malo.png` |
-| `malo.png` | Malo, orange | `timothe.png` |
-| `liam.png` | Liam, rose | `diego.png` |
-| (aucun) | Timothée, blanc | à générer (option A) ou repli par code |
-
-Non repris : `kaiden.png` (turquoise) et `matthis.png` (violet) de l'archive, exclus par la
-règle de la 5a (aucun copain bleu, cyan, turquoise ou violet).
-
-Les carrosseries sont **sans roues** (arches vides) : `wheel.png` se dessine à la position et à
-l'angle que Matter donne à chaque roue. Géométrie mesurée sur les originaux (fractions de la
-largeur de l'image) : centres des roues à x = 0,2016 et 0,7249, y = 0,765 de la hauteur,
-rayon des arches 0,0897. Voir l'addendum §1.3 pour le désaccord avec `WHEEL_BASE` et
-`WHEEL_RADIUS`, et la décision A/B/C.
-
-Autres : `wheel.png`, `star.png`, `earth.png`, `flame-0.png` à `flame-3.png` (boucle de turbo).
+- `wheel.png` : roue vue de côté, disque opaque. **Corrigée le 2026-10-23** : son anneau extérieur
+  (2 px) était magenta (reste du détourage Grok, liseré visible sous chaque roue) ; il a pris la
+  couleur du pneu au même angle, et l'alpha ≥ 240 est passé à 255.
+- `star.png`, `earth.png`, `flame-0.png` à `flame-3.png` (boucle de turbo) : **même liseré
+  magenta au bord** (part des pixels de bord magenta : flammes 78 à 86 %, Terre 48 %, étoile
+  16 %), et corps à alpha 240 à 254. À corriger à la 8b de la même façon (couleur du bord prise
+  sur le pixel opaque voisin, alpha ≥ 240 → 255).
 
 ## `fonts/` (40 KB)
 
@@ -42,10 +48,11 @@ Fredoka, graisses 600 et 700, sous-ensemble latin, `woff2`, tels que livrés par
 `@fontsource/fredoka` 5.3 dans l'archive. Licence SIL Open Font License 1.1
 (https://openfontlicense.org), auto-hébergement autorisé. Addendum §2.
 
-## `generated/` (à créer par le papa) : les sept sprites générés (addendum §1.3, option A)
+## `generated/` : les sept sprites générés, bruts (addendum §1.3, option A)
 
-Déposer ici les PNG **tels que sortis du générateur** (≥ 1024 px de large, fond transparent),
-nommés `galahad.png`, `pablo.png`, `diego.png`, `timothée.png`, `matthis.png`, `malo.png`,
+Livrés par le papa le 2026-10-23 (archive `buggies_pack.zip`, 1672 × 941 px, fond transparent,
+générés sur l'image de référence du gabarit). Pour une nouvelle génération : déposer ici les PNG
+**tels que sortis du générateur** (≥ 1024 px de large, fond transparent), nommés `galahad.png`, `pablo.png`, `diego.png`, `timothée.png`, `matthis.png`, `malo.png`,
 `liam.png` (par exemple sur GitHub, « Add file › Upload files » dans ce dossier, sur la branche
 de la session). Un dossier dans le dépôt plutôt qu'une archive : une archive envoyée à une
 session disparaît avec elle.
@@ -106,10 +113,11 @@ node tools/sprites/rendu-gabarit.cjs calque calque.png
 python3 -I tools/sprites/controle.py assets/generated/<id>.png assets/sprites/<id>.png apercu-<id>.png calque.png assets/sprites/wheel.png
 ```
 
-`controle.py` repère les deux arches (ou, à défaut, les roues dessinées), met l'image à l'échelle
+`controle.py` rend la carrosserie pleinement opaque (alpha ≥ 240 → 255 : le générateur livre 250
+à 254), repère les deux arches (ou, à défaut, les roues dessinées), met l'image à l'échelle
 pour que leurs centres tombent sur les axes du gabarit, efface l'intérieur des arches, réduit à
 512 × 256 px (Lanczos sur alpha prémultiplié), quantifie en PNG-8 et imprime un rapport. Accepté si :
-arches de 0,47 à 0,55 m de rayon, centres à la même hauteur (±3 cm), pente ≤ 1,5°, rien d'opaque
+arches de 0,43 à 0,55 m de rayon, centres à la même hauteur (±3 cm), pente ≤ 1,5°, rien d'opaque
 coupé par le cadre (hors roues effacées), ≤ 60 KB. L'aperçu montre la voiture sur le ciel du jeu
 avec ses roues, puis la même avec le calque du gabarit : c'est lui que le papa valide.
 

@@ -18,7 +18,8 @@
     silhouette  silhouette proposée (buggy lunaire), à suivre de près, pas au pixel
     pilote      pilote casqué au tiers arrière (casque à x = −L/6, comme le dessin actuel), visière vers l'avant
     chassis     boîte de collision 2,20 × 0,70 m
-    arches      bord des arches : rayon 0,50 m visé, accepté de 0,47 à 0,55 m
+    arches      bord des arches : rayon 0,50 m visé, accepté de 0,43 à 0,55 m (arche serrée : la roue,
+                dessinée par-dessus, en cache le bord)
     roues       roues Ø 0,90 m (wheel.png, dessinées à part, par-dessus la carrosserie)
     reperes     centre, axes, sol, accroche des flammes du turbo
     cotes       cotes, titre et légende (hors cadre)
@@ -94,8 +95,8 @@
   </g>
 
   <g id="arches">
-    <circle class="anneau" cx="-75" cy="25" r="51"/>
-    <circle class="anneau" cx="75" cy="25" r="51"/>
+    <circle class="anneau" cx="-75" cy="25" r="49" style="stroke-width: 12"/>
+    <circle class="anneau" cx="75" cy="25" r="49" style="stroke-width: 12"/>
     <circle class="arche" cx="-75" cy="25" r="50"/>
     <circle class="arche" cx="75" cy="25" r="50"/>
   </g>
@@ -156,7 +157,7 @@
       <text class="txt-p" x="17" y="59">Axes à ±0,75 m du centre et 0,25 m dessous ; suspension quasi rigide (±1 cm en course).</text>
 
       <path d="M 0 68 A 6 6 0 0 1 12 68" class="anneau" style="stroke-width: 4"/>
-      <text class="txt" x="17" y="69">Bord des arches : rayon 0,50 m visé, accepté de 0,47 à 0,55 m.</text>
+      <text class="txt" x="17" y="69">Bord des arches : rayon 0,50 m visé, accepté de 0,43 à 0,55 m.</text>
       <text class="txt-p" x="17" y="76">Arches vides et transparentes : ce qui reste dedans est effacé au contrôle.</text>
 
       <circle cx="6" cy="83" r="4" class="casque-zone"/>
