@@ -24,6 +24,11 @@ export interface OtherCar {
   galahad: boolean;
   /** Arrivée (elle freine après la ligne) : son doigt (`throttle`) est alors forcé à faux, ce n'est plus celui de l'enfant. */
   finished: boolean;
+  /**
+   * Partie : doigt posé à un pas précédent (`CarSim.started`). Galahad pas encore parti (sur la grille, avant son premier
+   * appui) : pas de politesse derrière lui doigt levé, seulement la politesse ordinaire (tour 2 de la tâche 7).
+   */
+  started: boolean;
 }
 
 /** Ce que voit un driver au début d'un pas (avant le pas physique). Rempli par `stepRace`, réutilisé d'un pas à l'autre. */
@@ -121,11 +126,12 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
  *    fait lever le pied. L'attente se cumule derrière la même voiture : au bout de POLITE_MAX_WAIT, le robot repart et la
  *    pousse ; elle ne revient à zéro que quand cette voiture repart d'elle-même (doigt posé), qu'une autre voiture
  *    bloque, ou à une réapparition (une poussée qui la fait dépasser POLITE_SPEED ne relance pas l'attente) ;
- *    poli aussi derrière Galahad doigt levé (décision du papa, relectures de la tâche 7) : Galahad devant, à une distance
- *    de châssis à châssis dans (0, POLITE_GAP], doigt levé au pas précédent, pas arrivé, et qu'on ne traverserait pas (ni
- *    lui ni le copain fantôme ou invulnérable), fait lever le pied quelle que soit sa vitesse, sans limite de durée : le
- *    copain attend tant que Galahad lève le doigt (un copain ramené juste derrière lui par l'élastique le poussait
- *    longtemps à faible vitesse relative, jusqu'à le coucher) ;
+ *    poli aussi derrière Galahad doigt levé (décision du papa, relectures de la tâche 7) : Galahad parti (doigt posé au
+ *    moins une fois, tour 2), devant, à une distance de châssis à châssis dans (0, POLITE_GAP], doigt levé au pas
+ *    précédent, pas arrivé, et qu'on ne traverserait pas (ni lui ni le copain fantôme ou invulnérable), fait lever le
+ *    pied quelle que soit sa vitesse, sans limite de durée : le copain attend tant que Galahad lève le doigt (un copain
+ *    ramené juste derrière lui par l'élastique le poussait longtemps à faible vitesse relative, jusqu'à le coucher) ; sur
+ *    la grille, avant le premier appui de Galahad, seule la politesse ordinaire joue (3 s au plus, comme à la tâche 6) ;
  * 5. lever de pied : au premier pas dans les LIFT_LOOKAHEAD m avant une rampe-saut ou une double-bosse, si le tirage de
  *    cette tranche est tombé, doigt levé LIFT_SECONDS (une fois par tranche ; jamais dans un cratère) ;
  * 6. sinon, doigt posé.
@@ -191,15 +197,15 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
   }
 
   /**
-   * Galahad juste devant, doigt levé au pas précédent, pas arrivé, qu'on ne traverserait pas (règle 4, tâche 7) : le
-   * copain lève le pied tant que dure ce doigt levé, sans limite de durée.
+   * Galahad parti (premier appui fait), juste devant, doigt levé au pas précédent, pas arrivé, qu'on ne traverserait pas
+   * (règle 4, tâche 7) : le copain lève le pied tant que dure ce doigt levé, sans limite de durée.
    */
   function behindGalahadLifted(ctx: DriverContext): boolean {
     if (ctx.traversable) return false;
     for (const o of ctx.others) {
       if (!o.galahad) continue;
       const gap = o.x - ctx.x;
-      return gap > 0 && gap <= cfg.POLITE_GAP && !o.throttle && !o.finished && !o.traversable;
+      return o.started && gap > 0 && gap <= cfg.POLITE_GAP && !o.throttle && !o.finished && !o.traversable;
     }
     return false;
   }

@@ -112,6 +112,11 @@ export interface CarSim {
   onScreen: boolean;
   /** Doigt posé au dernier pas (décision du driver, ou de l'enfant pour Galahad ; false après l'arrivée). */
   throttle: boolean;
+  /**
+   * Partie : doigt posé au moins une fois (premier appui ; false à la création, jamais remis à faux). Pour Galahad, la
+   * politesse derrière lui doigt levé ne joue qu'une fois parti (décision du papa, tour 2 de la tâche 7).
+   */
+  started: boolean;
 }
 
 /** Index de Galahad dans `RaceSim.cars` : l'écran montre les étoiles telles qu'il les voit. */
@@ -166,7 +171,7 @@ function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, pi
     pilot, body, state, contact: newGroundContact(), airborneSince: null, grounded: false, lastGroundedAt: null,
     jumpFlight: false, invulnerable: false, ghost: false,
     driver: rank === 0 ? null : makeRobotDriver(pilot, rank, track, pilotSeed, cfg), autoJumps: rank !== 0,
-    lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false,
+    lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false, started: false,
     rubber: rank === 0 ? null : 1, speedFactor: 1, torqueFactor: 1, onScreen: false,
   };
 }
@@ -230,6 +235,7 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
       } else {
         car.throttle = galahadThrottle;
       }
+      if (car.throttle) car.started = true;
       drive(sim, car, i, cache);
     }
     const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
@@ -398,12 +404,12 @@ interface DriverSlot {
 }
 /**
  * Par course : un emplacement par voiture (ordre des index), les indices (dans `track.stars`) des étoiles hautes, et
- * l'instantané des voitures pris au début du pas (x, vitesse, doigt, traversable).
+ * l'instantané des voitures pris au début du pas (x, vitesse, doigt, traversable, arrivée, partie).
  */
 interface DriverCache {
   slots: DriverSlot[];
   highStars: number[];
-  xs: number[]; speeds: number[]; throttles: boolean[]; traversables: boolean[]; finished: boolean[];
+  xs: number[]; speeds: number[]; throttles: boolean[]; traversables: boolean[]; finished: boolean[]; started: boolean[];
 }
 const driverCaches = new WeakMap<RaceSim, DriverCache>();
 
@@ -414,6 +420,7 @@ function driverCache(sim: RaceSim): DriverCache {
   const slots = sim.cars.map((car, index): DriverSlot => {
     const others = sim.cars.flatMap((_, j) => (j === index ? [] : [{
       index: j, x: 0, speed: 0, throttle: false, traversable: false, galahad: j === GALAHAD_INDEX, finished: false,
+      started: false,
     }]));
     const ctx: DriverContext = {
       t: 0, state: car.state, track: sim.track, speed: 0, x: 0, traversable: false, others, nextHighStar: null, nextFosse: null,
@@ -425,13 +432,16 @@ function driverCache(sim: RaceSim): DriverCache {
     highStars: sim.track.stars.flatMap((s, k) => (s.high ? [k] : [])),
     xs: new Array<number>(n).fill(0), speeds: new Array<number>(n).fill(0),
     throttles: new Array<boolean>(n).fill(false), traversables: new Array<boolean>(n).fill(false),
-    finished: new Array<boolean>(n).fill(false),
+    finished: new Array<boolean>(n).fill(false), started: new Array<boolean>(n).fill(false),
   };
   driverCaches.set(sim, cache);
   return cache;
 }
 
-/** Instantané de toutes les voitures au début du pas : x et vitesse du châssis, doigt du pas précédent, traversable, arrivée. */
+/**
+ * Instantané de toutes les voitures au début du pas : x et vitesse du châssis, doigt du pas précédent, traversable, arrivée,
+ * partie (doigt posé à un pas précédent).
+ */
 function snapshotCars(sim: RaceSim, cache: DriverCache): void {
   sim.cars.forEach((car, i) => {
     cache.xs[i] = chassisX(car);
@@ -439,6 +449,7 @@ function snapshotCars(sim: RaceSim, cache: DriverCache): void {
     cache.throttles[i] = car.throttle;
     cache.traversables[i] = car.ghost || car.invulnerable;
     cache.finished[i] = car.state.finishedAt !== null;
+    cache.started[i] = car.started;
   });
 }
 
@@ -464,6 +475,7 @@ function fillContext(sim: RaceSim, cache: DriverCache, i: number): DriverContext
     o.throttle = cache.throttles[o.index];
     o.traversable = cache.traversables[o.index];
     o.finished = cache.finished[o.index];
+    o.started = cache.started[o.index];
   }
   const hs = cache.highStars;
   let c = slot.starCursor;

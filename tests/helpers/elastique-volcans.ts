@@ -83,7 +83,7 @@ function carAt(world: World, pilot: Pilot, index: number, x: number, cfg: Config
   return {
     pilot, body, state, contact: newGroundContact(), airborneSince: null, grounded: false, lastGroundedAt: null,
     jumpFlight: false, invulnerable: false, ghost: false, driver: null, autoJumps: index !== 0,
-    lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false,
+    lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false, started: false,
     rubber: index === 0 ? null : 1, speedFactor: 1, torqueFactor: 1, onScreen: false,
   };
 }

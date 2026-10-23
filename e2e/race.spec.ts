@@ -52,7 +52,8 @@ test('doigt posé 3 s : la voiture avance', async ({ page }) => {
  * Temps de course (s) pendant lequel les copains ne poussent pas Galahad arrêté sur la grille : robots polis (tâche 6,
  * décision du papa) : le copain de rang 1, derrière une voiture presque arrêtée (< POLITE_SPEED) à moins de POLITE_GAP,
  * lève le pied, au plus POLITE_MAX_WAIT = 3 s (ruling Q8 : l'e2e en exige au moins 2). Avant la tâche 6, il le poussait
- * dès ≈ 0,95 s.
+ * dès ≈ 0,95 s. La politesse sans limite derrière Galahad doigt levé (tâche 7) ne joue qu'après son premier appui
+ * (décision du papa, tour 2 de la tâche 7) : sans doigt depuis le départ, on garde ces 3 s au plus.
  */
 const BEFORE_ROBOTS_S = 2;
 

@@ -146,15 +146,17 @@ describe('contexte réel du driver (`driverContext`, relecture standard I1)', ()
     sim.cars[3].invulnerable = true;
     sim.cars[4].throttle = true;
     sim.cars[1].state.finishedAt = 0;
+    sim.cars[0].started = true;
     takeStarFor(sim.stars[k], 1, sim.time);
     expect(driverContext(sim, 1).nextHighStar).toEqual({ index: k, x: star.x, available: false });
     expect(driverContext(sim, 2).nextHighStar).toEqual({ index: k, x: star.x, available: true });
     const ctx = driverContext(sim, 2);
     expect(ctx.x).toBeCloseTo(chassisX(sim.cars[2]), 12);
-    // Tâche 7, tour 1 : Galahad marqué (`galahad`, index 0) et arrivée de chaque voiture (`finished`).
+    // Tâche 7, tour 1 : Galahad marqué (`galahad`, index 0) et arrivée de chaque voiture (`finished`) ; tour 2 : partie
+    // (`started`, lu dans `CarSim.started`).
     expect(ctx.others).toEqual([0, 1, 3, 4].map((j) => ({
       index: j, x: chassisX(sim.cars[j]), speed: carSpeedMps(sim.cars[j].body), throttle: j === 4, traversable: j === 3,
-      galahad: j === 0, finished: j === 1,
+      galahad: j === 0, finished: j === 1, started: j === 0,
     })));
     // Au-delà de JUMP_LOOKAHEAD : aucune étoile.
     placeCar(sim.cars[2].body, star.x - CONFIG.JUMP_LOOKAHEAD - 0.5, h, 0, CONFIG);
@@ -235,16 +237,14 @@ describe('robots polis sur la grille : départ à 0,3 s × rang derrière une vo
 });
 
 describe('robots polis sur la grille : Galahad arrêté n’est pas poussé pendant au moins 2 s (ruling Q8)', () => {
-  test.each([0, 1, 2])('graine %i : aucun contact avec Galahad avant 2 s, Galahad bouge de moins de 0,5 m ; le copain de rang 1 attend tant que Galahad lève le doigt, les autres repartent après POLITE_MAX_WAIT', (seed) => {
+  test.each([0, 1, 2])('graine %i : aucun contact avec Galahad avant 2 s, Galahad bouge de moins de 0,5 m ; les copains repartent après POLITE_MAX_WAIT', (seed) => {
     const sim = createRaceSim(trackFor(seed), CONFIG, { robots: true });
     const g = sim.cars[0];
     const x0 = chassisX(g);
     let firstContact: number | null = null;
     let xAt2 = NaN;
-    let rank1Throttle = 0;
     while (sim.time < 6) {
       stepRace(sim, false);
-      if (sim.cars[1].throttle) rank1Throttle++;
       if (firstContact === null && carPairsTouching(sim, new Set([g.state.id])).length > 0) firstContact = sim.time;
       if (Number.isNaN(xAt2) && sim.time >= 2) xAt2 = chassisX(g);
     }
@@ -252,12 +252,10 @@ describe('robots polis sur la grille : Galahad arrêté n’est pas poussé pend
       + `copains à 6 s : ${sim.cars.slice(1).map((c) => `${c.state.id} ${(chassisX(c) - x0).toFixed(1)} m`).join(', ')}`);
     expect(firstContact === null || firstContact >= 2).toBe(true);
     expect(Math.abs(xAt2 - x0)).toBeLessThan(0.5);
-    // Tâche 7, tour 1 (décision du papa) : le copain de rang 1, à 3,3 m derrière Galahad doigt levé, garde le doigt levé
-    // les 6 s, sans limite de durée ; les copains de rang 2 à 4, polis derrière lui (voiture arrêtée), repartent après
-    // POLITE_MAX_WAIT et poussent la file : le contact avec Galahad vient au plus tôt après leur attente (MESURÉ 4,93 s).
-    expect(rank1Throttle).toBe(0);
+    // Après l'attente maximale, le copain de rang 1 repart : il est contre Galahad à 6 s. (Tâche 7, tour 2 : Galahad n'est
+    // pas parti, la politesse derrière lui doigt levé ne joue pas ; comportement de la tâche 6.)
     expect(firstContact).not.toBeNull();
-    expect(firstContact!).toBeGreaterThanOrEqual(2 * CONFIG.START_DELAY_PER_RANK + CONFIG.POLITE_MAX_WAIT - 1e-9);
+    expect(firstContact!).toBeGreaterThanOrEqual(CONFIG.START_DELAY_PER_RANK + CONFIG.POLITE_MAX_WAIT - 1e-9);
   });
 });
 
@@ -280,6 +278,7 @@ describe('poli derrière Galahad doigt levé, dans le vrai pas de course (décis
     setCarSpeed(c, track, 200 - gap, 10, CONFIG);
     sim.time = 10; // départ et neutre passés
     g.throttle = true; // doigt de Galahad posé au pas d'avant le lever
+    g.started = true; // Galahad parti (tour 2 : la règle ne joue qu'après son premier appui)
     if (opts.finished) g.state.finishedAt = 9;
     const lift = opts.liftSeconds ?? 3;
     const throttles: boolean[] = [];
@@ -310,6 +309,30 @@ describe('poli derrière Galahad doigt levé, dans le vrai pas de course (décis
   test('Galahad invulnérable (traversable) ou arrivé : le copain garde le doigt posé', () => {
     expect(run(3, { ghost: true }).throttles.every((th) => th)).toBe(true);
     expect(run(3, { finished: true }).throttles.every((th) => th)).toBe(true);
+  });
+
+  /** Grille, 6 s : Galahad appuie pendant `pressSteps` pas, puis lève le doigt. Doigt du copain de rang 1 à chaque pas. */
+  function grid(seed: number, pressSteps: number) {
+    const sim = createRaceSim(trackFor(seed), CONFIG, { robots: true });
+    const throttles: { t: number; th: boolean }[] = [];
+    let k = 0;
+    while (sim.time < 6) {
+      const t = sim.time;
+      stepRace(sim, k++ < pressSteps);
+      throttles.push({ t, th: sim.cars[1].throttle });
+    }
+    return { throttles, started: sim.cars[0].started, gap: chassisX(sim.cars[0]) - chassisX(sim.cars[1]) };
+  }
+
+  test.each([0, 1, 2])('grille, graine %i (tour 2) : Galahad pas parti, le copain de rang 1 repose le doigt après START_DELAY_PER_RANK + POLITE_MAX_WAIT ; un seul appui au premier pas puis doigt levé : il attend les 6 s', (seed) => {
+    const idle = grid(seed, 0);
+    expect(idle.started).toBe(false);
+    const firstPress = idle.throttles.find((s) => s.th)!;
+    expect(firstPress.t).toBeCloseTo(CONFIG.START_DELAY_PER_RANK + CONFIG.POLITE_MAX_WAIT, 6);
+    const once = grid(seed, 1);
+    expect(once.started).toBe(true);
+    expect(once.gap).toBeLessThanOrEqual(CONFIG.POLITE_GAP);
+    expect(once.throttles.every((s) => !s.th)).toBe(true);
   });
 });
 

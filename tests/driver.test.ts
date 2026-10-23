@@ -7,7 +7,7 @@ import { fosseJumpLead, fosseJumpWanted, fosseLatestLead } from '../src/cars/jum
 import { PILOTS, type Pilot } from '../src/cars/pilots';
 import { newCarState, type CarState } from '../src/cars/state';
 import { CONFIG } from '../src/config';
-import { fosses, inNoJumpZone, sliceAt, tremplins } from '../src/track/query';
+import { fosses, inNoJumpZone, inVolcanoZone, sliceAt, tremplins } from '../src/track/query';
 import { mulberry32 } from '../src/track/rng';
 import { fosse, plat } from '../src/track/slices';
 import type { Star, Track } from '../src/track/types';
@@ -23,9 +23,12 @@ const SEED = 12345;
 const freshState = (x = 0): CarState => newCarState('essai', 'Essai', '#000000', '#ffffff', { x, y: 0, angle: 0 });
 const flat = (length = 400): Track => trackOf([plat(mulberry32(1), CONFIG, length)]);
 
-/** Autre voiture : doigt levé et solide par défaut (une voiture arrêtée). */
+/** Autre voiture : doigt levé, solide et pas encore partie par défaut (une voiture arrêtée). */
 type Other = Partial<OtherCar> & { index: number; x: number; speed: number };
-const other = (o: Other): OtherCar => ({ ...o, throttle: o.throttle ?? false, traversable: o.traversable ?? false, galahad: o.galahad ?? false, finished: o.finished ?? false });
+const other = (o: Other): OtherCar => ({
+  ...o, throttle: o.throttle ?? false, traversable: o.traversable ?? false, galahad: o.galahad ?? false, finished: o.finished ?? false,
+  started: o.started ?? false,
+});
 
 /**
  * Contexte comme `stepRace` le remplit (étoile haute et fosse devant, à moins de JUMP_LOOKAHEAD), fabriqué à la main ;
@@ -231,8 +234,8 @@ describe('robots polis : seulement derrière une voiture vraiment arrêtée (dé
 
 describe('poli derrière Galahad doigt levé (décision du papa, relectures de la tâche 7)', () => {
   const track = flat();
-  /** Galahad (index 0) à `dx` m devant le copain (en x0), à `speed` m/s ; doigt levé au pas précédent par défaut. */
-  const G = (dx: number, o: Partial<Other> = {}, x0 = 100): Other => ({ index: 0, x: x0 + dx, speed: 8, galahad: true, ...o });
+  /** Galahad (index 0) à `dx` m devant le copain (en x0), à `speed` m/s ; parti, doigt levé au pas précédent par défaut. */
+  const G = (dx: number, o: Partial<Other> = {}, x0 = 100): Other => ({ index: 0, x: x0 + dx, speed: 8, galahad: true, started: true, ...o });
   const run = (others: Other[], o: { traversable?: boolean; x?: number; tr?: Track } = {}) => {
     const tr = o.tr ?? track;
     return makeRobotDriver(PABLO, 1, tr, SEED, CONFIG)(ctxOf(tr, { t: 1, x: o.x ?? 100, v: 8, state: freshState(), others, traversable: o.traversable }));
@@ -250,6 +253,31 @@ describe('poli derrière Galahad doigt levé (décision du papa, relectures de l
     expect(run([G(-2)]).throttle).toBe(true);
     expect(run([G(0)]).throttle).toBe(true);
     expect(run([G(3, { finished: true })]).throttle).toBe(true);
+  });
+
+  test('Galahad pas encore parti (sur la grille, avant son premier appui) : seulement la politesse ordinaire (tour 2)', () => {
+    // À 8 m/s, il ne bloque pas (< POLITE_SPEED exigé) ; arrêté, il bloque, comme une autre voiture.
+    expect(run([G(3, { started: false })]).throttle).toBe(true);
+    expect(run([G(3, { started: false, speed: 0 })]).throttle).toBe(false);
+  });
+
+  test('grille : Galahad arrêté, pas parti, attendu POLITE_MAX_WAIT puis poussé ; parti (un appui), puis doigt levé : la règle joue, sans limite', () => {
+    const driver = makeRobotDriver(PABLO, 1, track, SEED, CONFIG);
+    const state = freshState();
+    let t = 1;
+    const step = (o: Partial<Other>) => {
+      const out = driver(ctxOf(track, { t, x: 100, v: 0, state, others: [G(3.3, { speed: 0, ...o })] })).throttle;
+      t += DT;
+      return out;
+    };
+    const grid = Array.from({ length: 600 }, () => step({ started: false }));
+    const waited = grid.findIndex((th) => th);
+    expect(waited * DT).toBeCloseTo(CONFIG.POLITE_MAX_WAIT, 6);
+    expect(grid.slice(waited).every((th) => th)).toBe(true);
+    // Premier appui de Galahad (vu au pas suivant : doigt posé, parti) : le copain pose le doigt.
+    expect(step({ started: true, throttle: true })).toBe(true);
+    // Puis doigt levé : la règle joue, 10 s sans limite.
+    expect(Array.from({ length: 600 }, () => step({ started: true })).every((th) => !th)).toBe(true);
   });
 
   test('une autre voiture que Galahad, doigt levé à 8 m/s devant à 3 m : doigt posé (la politesse ordinaire exige < 2 m/s)', () => {
@@ -281,7 +309,7 @@ describe('poli derrière Galahad doigt levé (décision du papa, relectures de l
     expect(step({ throttle: true })).toBe(true);
   });
 
-  test('le saut d’une fosse reste demandé pendant ce lever de pied', () => {
+  test('en zone volcan (approche d’une fosse), la règle ne joue pas : doigt posé, saut de fosse demandé', () => {
     const { track: ft, f } = fossePiste();
     const driver = makeRobotDriver({ ...PABLO, jumpSkill: 0 }, 1, ft, SEED, CONFIG);
     // Juste avant l'approche (hors zone), Galahad doigt levé à 3 m : doigt levé ; la demande de saut n'existe que sur
@@ -289,6 +317,17 @@ describe('poli derrière Galahad doigt levé (décision du papa, relectures de l
     const x = f.xBord - 14 * 0.71;
     const out = driver(ctxOf(ft, { t: 1, x, v: 14, state: freshState(), others: [G(3, {}, x)] }));
     expect(out).toEqual({ throttle: true, jump: true });
+  });
+
+  test('hors zone volcan, la demande de saut d’étoile haute reste servie pendant ce lever de pied (relecture du tour 1, m2)', () => {
+    const tr = trackFor(0);
+    const star = tr.stars.find((s) => s.high)!;
+    const x = star.x - 0.85 * 14;
+    expect(inVolcanoZone(tr, x)).toBe(false);
+    const ask = (others: Other[]) =>
+      makeRobotDriver(pilot({ jumpTry: 1, jumpSkill: 0 }), 1, tr, SEED, CONFIG)(ctxOf(tr, { t: 2, x, v: 14, state: freshState(), others }));
+    expect(ask([])).toEqual({ throttle: true, jump: true });
+    expect(ask([G(3, {}, x)])).toEqual({ throttle: false, jump: true });
   });
 });
 
