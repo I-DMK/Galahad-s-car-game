@@ -74,6 +74,17 @@ export function inNoJumpZone(track: Track, x: number): boolean {
   return false;
 }
 
+/**
+ * Vrai si x est dans [xLancement, xLava] d'un volcan (tremplin ou fosse), bornes incluses : le copain y garde le doigt
+ * posé (driver, tâche 6) et son élastique y vaut au moins 1 (clamp de zone, tâche 7, addendum §1.8). Pour une fosse,
+ * xLancement est le début de l'approche : le plat de garde n'en fait pas partie. Une seule définition (ruling R7-13).
+ * Sans allocation : appelé à chaque pas pour chaque copain.
+ */
+export function inVolcanoZone(track: Track, x: number): boolean {
+  for (const v of track.volcanoes) if (x >= v.xLancement && x <= v.xLava) return true;
+  return false;
+}
+
 /** Premier volcan (tremplin ou fosse, dans l'ordre de la piste) dont la lave est strictement devant x. */
 export function volcanoAhead(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => v.xLava > x);

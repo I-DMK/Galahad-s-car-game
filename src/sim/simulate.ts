@@ -2,9 +2,10 @@
 // (tests, simulations), et par la boucle de jeu (`src/game.ts`). Réapparitions branchées (10b),
 // ligne d'arrivée (11), étoiles et turbo (12) ; course à 5 voitures dans un seul monde, grille de
 // départ, chocs réels hors des zones fantômes des volcans et respawn groupé (tâche 5b du plan B) ; conduite des
-// robots par leur driver (tâche 6 : `ai/driver.ts`).
+// robots par leur driver (tâche 6 : `ai/driver.ts`) ; élastique des copains (tâche 7 : `ai/rubberband.ts`).
 import Matter from 'matter-js';
 import { makeRobotDriver, type Driver, type DriverContext, type OtherCar } from '../ai/driver';
+import { finalFactor, onScreen, stepRubber } from '../ai/rubberband';
 import type { Config } from '../config';
 import { canJump, wantsJump } from '../cars/jump';
 import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
@@ -87,8 +88,28 @@ export interface CarSim {
   autoJumps: boolean;
   /** Chutes dans la lave de cette voiture, par volcan (indice dans `track.volcanoes`) : tentative à une fosse (tâche 6). */
   lavaFalls: number[];
-  /** Facteur de vitesse du pilote, multiplié au turbo (élastique, tâche 7) ; 1 en 5b. */
+  /**
+   * Multiplicateur imposé du plafond de vitesse (tests, mesures ; 1 en jeu), multiplié au turbo ; lu seulement quand
+   * l'élastique est coupé (`rubber === null`) : Galahad, ou un copain dont un test impose la vitesse (`launchSolo`).
+   */
   factor: number;
+  /**
+   * Élastique du copain après la rampe (tâche 7, `stepRubber`) : 1 à la création ; null = coupé (Galahad toujours ; copain
+   * dont un test impose `factor`, ruling R7-3). Gardé à une réapparition, figé après l'arrivée.
+   */
+  rubber: number | null;
+  /**
+   * Facteurs appliqués au dernier pas de conduite (`applyDrive`), pour toute voiture (mesures, tests) : plafond de vitesse
+   * et couple. Copain sous élastique : `finalFactor` aux deux ; sans élastique : turbo × `factor`, et couple 1
+   * (Galahad : 1 toujours). Inchangés après l'arrivée.
+   */
+  speedFactor: number;
+  torqueFactor: number;
+  /**
+   * Copain sous élastique à l'écran au début du dernier pas (`onScreen(gap, vitesse de Galahad)`, les valeurs mêmes de
+   * `finalFactor`, ruling R7-16) ; faux pour Galahad, pour un copain sans élastique et après l'arrivée.
+   */
+  onScreen: boolean;
   /** Doigt posé au dernier pas (décision du driver, ou de l'enfant pour Galahad ; false après l'arrivée). */
   throttle: boolean;
 }
@@ -146,6 +167,7 @@ function createCarSim(world: World, track: Track, pilot: Pilot, rank: number, pi
     jumpFlight: false, invulnerable: false, ghost: false,
     driver: rank === 0 ? null : makeRobotDriver(pilot, rank, track, pilotSeed, cfg), autoJumps: rank !== 0,
     lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false,
+    rubber: rank === 0 ? null : 1, speedFactor: 1, torqueFactor: 1, onScreen: false,
   };
 }
 
@@ -172,7 +194,7 @@ export function createRaceSim(
 /**
  * Un pas fixe de PHYSICS_DT pour toutes les voitures : instantané des voitures pris avant tout (`snapshotCars`) pour les
  * contextes des drivers ; pour chacune, état fantôme (`updateGhost`), conduite (Galahad : doigt `galahadThrottle` et
- * nouvelle demande de saut `galahadJump` ; robots : la réponse de leur driver, `fillContext` ; vitesse × turbo × `factor`),
+ * nouvelle demande de saut `galahadJump` ; robots : la réponse de leur driver, `fillContext` ; facteurs de `drive`),
  * contact au sol, mise à plat en l'air et saut (`updateJump`, sur le contact avec la piste seule ; garde des demandes
  * d'un pilote automatique, `autoJumps`) ;
  * un seul pas physique ; puis, voiture par voiture dans
@@ -191,12 +213,19 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
   // dépend pas de l'ordre des voitures.
   const cache = sim.cars.some(drivenNow) ? driverCache(sim) : null;
   if (cache) snapshotCars(sim, cache);
+  // Élastique (tâche 7, ruling R7-7) : x et vitesse du châssis de Galahad au début du pas, avant toute conduite (son saut
+  // change sa vitesse dans la boucle) ; sans copain sous élastique, rien n'est lu.
+  const galahad = sim.cars[GALAHAD_INDEX];
+  const elastic = sim.cars.some(rubberNow);
+  const gx = elastic ? chassisX(galahad) : 0;
+  const vG = elastic ? carSpeedMps(galahad.body) : 0;
   const onGround = sim.cars.map((car, i) => {
     const { body, state } = car;
     updateGhost(sim, car);
     let jump = car.driver ? false : galahadJump;
     if (state.finishedAt !== null) {
       car.throttle = false;
+      car.onScreen = false;
       applyBrake(body, cfg.FINISH_BRAKE);
     } else {
       if (car.driver) {
@@ -206,7 +235,7 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
       } else {
         car.throttle = galahadThrottle;
       }
-      applyDrive(body, car.throttle, turboFactor(state, t, cfg) * car.factor, cfg);
+      drive(sim, car, gx, vG);
     }
     const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
     detectLanding(sim, car, grounded[0] || grounded[1]);
@@ -328,6 +357,36 @@ function collectStars(sim: RaceSim, car: CarSim, index: number): void {
 
 /** Voiture conduite par son driver à ce pas : un copain pas encore arrivé. */
 const drivenNow = (car: CarSim): boolean => car.driver !== null && car.state.finishedAt === null;
+/** Copain sous élastique à ce pas : élastique non coupé, pas encore arrivé. */
+const rubberNow = (car: CarSim): boolean => car.rubber !== null && car.state.finishedAt === null;
+
+/**
+ * Conduite d'une voiture pas encore arrivée (tâche 7), doigt `car.throttle` déjà décidé. Sans élastique (`rubber ===
+ * null` : Galahad, ou un copain d'un test) : plafond turbo × `factor`, couple 1, exactement le pas d'avant la tâche 7.
+ * Copain sous élastique : écart à Galahad au début du pas (`gx`, x de son châssis ; `vG`, sa vitesse), élastique du pas
+ * (`stepRubber` : cible, plancher, rampe, clamp de zone), puis facteur final (`finalFactor` : turbo plafonné à 1,3, ≤ 1
+ * hors écran devant) au plafond ET au couple. Facteurs appliqués et `onScreen` notés dans la voiture.
+ */
+function drive(sim: RaceSim, car: CarSim, gx: number, vG: number): void {
+  const { cfg, track, time: t } = sim;
+  const turbo = turboFactor(car.state, t, cfg);
+  if (car.rubber === null) {
+    const f = turbo * car.factor;
+    applyDrive(car.body, car.throttle, f, 1, cfg);
+    car.speedFactor = f;
+    car.torqueFactor = 1;
+    car.onScreen = false;
+    return;
+  }
+  const x = chassisX(car);
+  const gap = x - gx;
+  car.rubber = stepRubber(car.rubber, t, gap, car.pilot.base, x, track, cfg);
+  const f = finalFactor(car.rubber, turbo, gap, vG, cfg);
+  applyDrive(car.body, car.throttle, f, f, cfg);
+  car.speedFactor = f;
+  car.torqueFactor = f;
+  car.onScreen = onScreen(gap, vG, cfg);
+}
 
 /** Contexte d'un driver et ses objets internes, réutilisés d'un pas à l'autre (aucune allocation par pas). */
 interface DriverSlot {

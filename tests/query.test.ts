@@ -1,9 +1,11 @@
 import { CONFIG } from '../src/config';
 import { generateTrack } from '../src/track/generate';
 import {
-  fosses, heightAt, inElanZone, inGhostZone, nearestVolcanoZone, nextFosse, sliceAt, slopeAt, tremplins, volcanoAhead,
+  fosses, heightAt, inElanZone, inGhostZone, inVolcanoZone, nearestVolcanoZone, nextFosse, sliceAt, slopeAt, tremplins,
+  volcanoAhead,
 } from '../src/track/query';
 import type { Track } from '../src/track/types';
+import { trackFor } from './helpers/runs';
 
 /** Piste de 3 000 m avec au moins deux tremplins et deux fosses (tâche 5g). */
 function makeTrack(): Track {
@@ -175,5 +177,33 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
     expect(nearestVolcanoZone(t, 10)).toBeUndefined();
     expect(inElanZone(t, 10)).toBe(false);
     expect(inGhostZone(t, 10, CONFIG)).toBe(false);
+  });
+});
+
+describe('inVolcanoZone (tâche 7, ruling R7-13 : une seule définition pour le driver et l’élastique)', () => {
+  test('vrai sur [xLancement, xLava] des tremplins et des fosses des graines 0 à 9, bornes incluses ; faux à ± 1 cm', () => {
+    let n = 0;
+    for (let seed = 0; seed < 10; seed++) {
+      const t = trackFor(seed);
+      for (const v of t.volcanoes) {
+        const what = `g${seed} ${v.kind} ${v.xLancement.toFixed(1)}`;
+        expect(inVolcanoZone(t, v.xLancement), what).toBe(true);
+        expect(inVolcanoZone(t, v.xLava), what).toBe(true);
+        expect(inVolcanoZone(t, (v.xLancement + v.xLava) / 2), what).toBe(true);
+        expect(inVolcanoZone(t, v.xLancement - 0.01), what).toBe(false);
+        expect(inVolcanoZone(t, v.xLava + 0.01), what).toBe(false);
+        n++;
+      }
+    }
+    expect(n).toBeGreaterThanOrEqual(30);
+  });
+
+  test('fosse : la garde n’en fait pas partie ; tremplin : l’élan et la rampe en font partie', () => {
+    expect(inVolcanoZone(track, f0.xLancement - CONFIG.FOSSE_GUARD)).toBe(false);
+    expect(inVolcanoZone(track, f0.xBord)).toBe(true);
+    expect(inVolcanoZone(track, t0.xElanStart)).toBe(true);
+    expect(inVolcanoZone(track, t0.xLip)).toBe(true);
+    expect(inVolcanoZone(track, t0.xReception)).toBe(false);
+    expect(inVolcanoZone(generateTrack(1, 1000, CONFIG, { onlyPlat: true }), 10)).toBe(false);
   });
 });

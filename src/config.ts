@@ -11,6 +11,13 @@ const JUMP_APEX = 2.5;
 const STAR_HIGH_BUMP_CLEARANCE = 12;
 const STAR_HIGH_TAKEOFF_ROOM = 20;
 const STAR_HIGH_LANDING_ROOM = 25;
+/** m de monde visibles en hauteur (57 px/m à 800 px CSS → voiture ≈ 125 px) ; SCREEN_REF_HALF_WIDTH_M en est dérivée. */
+const VISIBLE_HEIGHT_M = 14;
+/**
+ * m : demi-largeur de la vue de référence, la tablette de 1 280 × 800 (élastique, tâche 7, ruling R7-16) : 11,2 m. La
+ * demi-largeur réelle suit la forme de l'écran (`Camera.visibleHalfWidthM`) : 12,4 m en 16:9.
+ */
+const SCREEN_REF_HALF_WIDTH_M = (VISIBLE_HEIGHT_M * 1280) / 800 / 2;
 export const CONFIG = {
   PIXELS_PER_METER: 40,
   GRAVITY,                      // m/s²
@@ -68,7 +75,7 @@ export const CONFIG = {
   VERTICAL_SPEED_CAP: 14 * 1.5 * 1.5,   // 31,5 m/s
   FINISH_COAST_SECONDS: 1.5,
   BACKING_MAX_WIDTH: 1920,
-  CAMERA_LEAD_SECONDS: 0.6, CAMERA_SMOOTHING: 0.08, VISIBLE_HEIGHT_M: 14,   // 57 px/m à 800 px CSS → voiture ≈ 125 px
+  CAMERA_LEAD_SECONDS: 0.6, CAMERA_SMOOTHING: 0.08, VISIBLE_HEIGHT_M,   // 57 px/m à 800 px CSS → voiture ≈ 125 px
   GALAHAD_COLOR: 0x1e5cff, GALAHAD_ACCENT: 0xe2231a,
   // Bouton saut (plan B, tâche 5e ; addendum « bouton saut » §1, amendé [plan]).
   JUMP_APEX,
@@ -136,5 +143,17 @@ export const CONFIG = {
   JUMP_STAR_LEAD: 1,            // s avant l'étoile haute : centre de la fenêtre de saut sur un plat étoile, 0,98 à 1,02 s quelle que soit la vitesse (tâche 5e)
   JUMP_STAR_MIN_LEAD: 0.7,      // s : sous ce temps restant jusqu'à l'étoile, la demande est abandonnée (un saut plus tardif passe dessous ; demi-fenêtre ≈ 0,28 s ; tour 1 de la tâche 6)
   FOSSE_SKILL_FACTOR: 2.5,      // erreur aux fosses = N(0, 2,5 × jumpSkill) (décision Q-F3 du papa : les copains ratent parfois une fosse)
+  // Élastique des copains (plan B, tâche 7 ; spec §7, addendum §1.8 et §2 ; décisions D7-2 et D7-3 du papa, 2026-10-23) :
+  // src/ai/rubberband.ts. Facteur du copain au plafond de vitesse ET au couple ; Galahad n'en a pas.
+  RUBBER_WINDOW_AHEAD_M: 20,    // m devant Galahad où la cible vaut `base` (D7-2 : la vue, 11,2 + 0,6 × 14 = 19,6 m visibles à V_MAX)
+  RUBBER_WINDOW_BEHIND_M: 3,    // m derrière Galahad où la cible vaut `base` (D7-2 : 2,8 m visibles derrière lui à V_MAX)
+  RUBBER_RAMP_M: 40,            // m : de `base` à la borne (RUBBER_MIN devant, RUBBER_MAX derrière), linéaire (R7-15)
+  RUBBER_MIN: 0.6,              // facteur minimal (copain loin devant), spec §7
+  RUBBER_MAX: 1.3,              // facteur maximal (copain loin derrière), spec §7 ; aussi le plafond total du turbo d'un copain (R7-1)
+  RUBBER_RATE_PER_S: 0.15,      // variation maximale de l'élastique par seconde (spec §7 : à 14 m/s, une baisse coûte au plus 2,1 m/s²)
+  RUBBER_NEUTRAL_SECONDS: 5,    // s : cible 1 au départ (spec §6 « Collisions ») ; le plafond du turbo s'applique déjà (R7-8)
+  RUBBER_PREZONE_M: 40,         // m avant xLancement d'un volcan où la cible vaut au moins 1 (addendum §1.8 : de 0,6 à 1,0 en 2,7 s)
+  SCREEN_REF_HALF_WIDTH_M,      // 11,2 m : demi-largeur de la vue de référence (VISIBLE_HEIGHT_M × 1 280 / 800 / 2), R7-16
+  SCREEN_EDGE_MARGIN_M: 1.6,    // m : marge pour qu'un copain « hors écran » le soit en entier (définition de la relecture adversariale), R7-16
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

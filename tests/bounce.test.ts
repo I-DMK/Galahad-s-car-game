@@ -47,7 +47,7 @@ function measureBounce(factor: number, cfg: Config = CONFIG): BounceStats {
   let yMax = -Infinity;
   let angleMax = 0;
   for (let i = 0; i < WARMUP_STEPS + MEASURE_STEPS; i++) {
-    applyDrive(car, true, factor, cfg);
+    applyDrive(car, true, factor, 1, cfg);
     applyAirLevel(car, grounded, cfg);
     stepWorld(world);
     clampVelocities(car, cfg);

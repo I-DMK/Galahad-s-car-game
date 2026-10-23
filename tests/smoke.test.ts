@@ -104,6 +104,27 @@ describe('CONFIG', () => {
     expect(CONFIG.FOSSE_SKILL_FACTOR).toBe(2.5);
   });
 
+  it('élastique des copains (tâche 7, décisions D7-2 et D7-3 du papa) : fenêtre de la vue 20 m devant, 3 m derrière ; rampe 40 m ; 0,6 à 1,3 ; 0,15/s ; neutre 5 s ; pré-zone 40 m ; vue de référence 11,2 m + 1,6 m', () => {
+    expect(CONFIG.RUBBER_WINDOW_AHEAD_M).toBe(20);
+    expect(CONFIG.RUBBER_WINDOW_BEHIND_M).toBe(3);
+    expect(CONFIG.RUBBER_RAMP_M).toBe(40);
+    expect(CONFIG.RUBBER_MIN).toBe(0.6);
+    expect(CONFIG.RUBBER_MAX).toBe(1.3);
+    expect(CONFIG.RUBBER_RATE_PER_S).toBe(0.15);
+    expect(CONFIG.RUBBER_NEUTRAL_SECONDS).toBe(5);
+    expect(CONFIG.RUBBER_PREZONE_M).toBe(40);
+    expect(CONFIG.SCREEN_REF_HALF_WIDTH_M).toBe((CONFIG.VISIBLE_HEIGHT_M * 1280) / 800 / 2);
+    expect(CONFIG.SCREEN_REF_HALF_WIDTH_M).toBeCloseTo(11.2, 12);
+    expect(CONFIG.SCREEN_EDGE_MARGIN_M).toBe(1.6);
+    expect(CONFIG.VISIBLE_HEIGHT_M).toBe(14);
+    // La fenêtre devant couvre la vue de la tablette à V_MAX (11,2 + 0,6 × 14 = 19,6 m) ; derrière, 2,8 m visibles.
+    expect(CONFIG.RUBBER_WINDOW_AHEAD_M).toBeGreaterThanOrEqual(CONFIG.SCREEN_REF_HALF_WIDTH_M + CONFIG.CAMERA_LEAD_SECONDS * CONFIG.V_MAX);
+    // Turbo d'un copain plafonné à 1,3 au total : 18,2 m/s, sous le turbo de Galahad (21 m/s, R7-1).
+    expect(CONFIG.RUBBER_MAX * CONFIG.V_MAX).toBeLessThan(CONFIG.TURBO_FACTOR * CONFIG.V_MAX);
+    // RUBBER_WINDOW_M (12 m, plan v2.1) n'est pas créée.
+    expect('RUBBER_WINDOW_M' in CONFIG).toBe(false);
+  });
+
   it('étoiles basses des réceptions (tâche 5g, demande du papa) : aucune avant l’atterrissage le plus long doigt posé', () => {
     expect(CONFIG.STAR_TREMPLIN_LANDING).toBe(55);
     expect(CONFIG.STAR_FOSSE_LANDING).toBe(22);

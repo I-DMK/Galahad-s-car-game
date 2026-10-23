@@ -141,14 +141,17 @@ export function placeCar(
 
 /**
  * Conduite à un doigt, à appeler à chaque pas : gaz → la rotation des roues monte de
- * WHEEL_SPINUP jusqu'à la vitesse de roulement V_MAX × speedFactor ; doigt levé → frein
- * moteur ; jamais de marche arrière (vitesse angulaire positive = avance vers +x).
+ * WHEEL_SPINUP × torqueFactor jusqu'à la vitesse de roulement V_MAX × speedFactor ; doigt levé → frein
+ * moteur ; jamais de marche arrière (vitesse angulaire positive = avance vers +x). Arguments positionnels, aucun
+ * objet alloué par pas (tâche 7, ruling R7-2) : l'élastique d'un copain passe son facteur aux deux ; Galahad passe
+ * turbo × factor au plafond et 1 au couple (WHEEL_SPINUP × 1 : identique au bit près).
  */
-export function applyDrive(car: CarBody, throttle: boolean, speedFactor: number, cfg: Config): void {
+export function applyDrive(car: CarBody, throttle: boolean, speedFactor: number, torqueFactor: number, cfg: Config): void {
   const omegaMax = mpsToPxPerStep(cfg.V_MAX * speedFactor) / toPx(cfg.WHEEL_RADIUS); // rad/pas
+  const spinup = cfg.WHEEL_SPINUP * torqueFactor;
   for (const wheel of car.wheels) {
     let omega = wheel.angularVelocity;
-    omega = throttle ? Math.min(omega + cfg.WHEEL_SPINUP, omegaMax) : omega * cfg.ENGINE_BRAKE;
+    omega = throttle ? Math.min(omega + spinup, omegaMax) : omega * cfg.ENGINE_BRAKE;
     Body.setAngularVelocity(wheel, Math.max(omega, 0));
   }
 }

@@ -152,14 +152,14 @@ export interface StepState {
 export const newContact = (): GroundContact => ({ groundedUntil: [-1, -1], trackUntil: [-1, -1] });
 
 /**
- * Un pas de conduite : applyDrive(throttle, factor) → contact débouncé (t en s, comme stepRace) →
+ * Un pas de conduite : applyDrive(throttle, factor, couple 1 : Galahad) → contact débouncé (t en s, comme stepRace) →
  * applyAirLevel → stepWorld → clampVelocities, puis lecture des contacts bruts et de la lave.
  */
 export function step(
   world: World, car: CarBody, throttle: boolean, factor: number, contact: GroundContact, t: number,
   cfg: Config = CONFIG,
 ): StepState {
-  applyDrive(car, throttle, factor, cfg);
+  applyDrive(car, throttle, factor, 1, cfg);
   const onGround = updateGroundContact(world.engine, car, contact, t, (x) => heightAt(world.track, x), cfg);
   applyAirLevel(car, onGround, cfg);
   stepWorld(world);

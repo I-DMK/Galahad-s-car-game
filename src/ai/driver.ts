@@ -5,7 +5,7 @@ import { inFosseJumpWindow } from '../cars/jump';
 import type { Pilot } from '../cars/pilots';
 import type { CarState } from '../cars/state';
 import type { Config } from '../config';
-import { fosses, inNoJumpZone, sliceAt } from '../track/query';
+import { fosses, inNoJumpZone, inVolcanoZone, sliceAt } from '../track/query';
 import { mulberry32 } from '../track/rng';
 import type { Track } from '../track/types';
 
@@ -155,12 +155,6 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
   let pendingEpoch = -1;
   let seenJumpAt: number | null = null;
 
-  /** Zone volcan [xLancement, xLava] (tremplin ou fosse) ? Sans allocation. */
-  const inVolcanoZone = (x: number): boolean => {
-    for (const v of track.volcanoes) if (x >= v.xLancement && x <= v.xLava) return true;
-    return false;
-  };
-
   const request = (kind: number, index: number, epoch: number): boolean => {
     pendingKind = kind;
     pendingIndex = index;
@@ -230,7 +224,8 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
       waitTarget = -1;
     }
     for (const o of ctx.others) if (o.index === waitTarget && o.throttle) waitTarget = -1;
-    if (inVolcanoZone(x)) return out(true, jump);
+    // Zone volcan [xLancement, xLava] (tremplin ou fosse) : doigt posé (track/query.ts, tâche 7 : définition partagée).
+    if (inVolcanoZone(track, x)) return out(true, jump);
     const blocker = blockerOf(ctx);
     if (blocker >= 0) {
       if (blocker !== waitTarget) {

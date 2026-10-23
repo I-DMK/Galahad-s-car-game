@@ -66,6 +66,8 @@ test('une voiture plus rapide rattrape une autre sur l’élan : elle la travers
   const [g, slow] = sim.cars;
   // Copain lent (≤ 0,7 m/s) au début du plat d'élan ; Galahad part arrêté de xLancement + 1, doigt posé.
   slow.driver = () => ({ throttle: true, jump: false });
+  // Vitesse imposée : élastique coupé (tâche 7), le copain roule à `factor`.
+  slow.rubber = null;
   slow.factor = 0.05;
   const xSlow = v.xElanStart - 1;
   place(g, v.xLancement + 1);
@@ -109,6 +111,7 @@ test('deux voitures qui se chevauchent en sortant de la zone restent fantômes j
   expect(inGhostZone(track, chassisX(g), CONFIG) || inGhostZone(track, chassisX(r), CONFIG)).toBe(false);
   // Même conduite bridée à 4,2 m/s : elles roulent ensemble, recouvertes, hors zone.
   g.factor = 0.3;
+  r.rubber = null; // vitesse imposée au copain : élastique coupé (tâche 7)
   r.factor = 0.3;
   r.driver = () => ({ throttle: true, jump: false });
   for (let i = 0; i < 60; i++) { step(true); pairs.push(...carPairs(sim)); }
@@ -128,6 +131,7 @@ test('deux voitures qui se chevauchent en sortant de la zone restent fantômes j
   expect([carBits(g), carBits(r)]).toEqual([SOLID, SOLID]);
   // 3. Galahad lève le pied, le copain fonce : il le percute (collision rétablie), hors de toute zone.
   r.driver = () => ({ throttle: true, jump: false });
+  r.rubber = null;
   r.factor = 1;
   const t0 = sim.time;
   let hit: string[] = [];

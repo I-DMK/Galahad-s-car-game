@@ -63,19 +63,27 @@ describe('PILOTS', () => {
     expect(new Set(ids(PILOTS)).size).toBe(PILOTS.length);
   });
 
-  test('base ∈ [0,85 ; 1] et lift ∈ [0 ; 0,6] pour chaque pilote', () => {
+  test('base ∈ [0,97 ; 1] (décision D7-3 du papa, tâche 7) et lift ∈ [0 ; 0,6] pour chaque pilote', () => {
     for (const p of PILOTS) {
-      expect(p.base, `${p.name}.base`).toBeGreaterThanOrEqual(0.85);
+      expect(p.base, `${p.name}.base`).toBeGreaterThanOrEqual(0.97);
       expect(p.base, `${p.name}.base`).toBeLessThanOrEqual(1);
       expect(p.lift, `${p.name}.lift`).toBeGreaterThanOrEqual(0);
       expect(p.lift, `${p.name}.lift`).toBeLessThanOrEqual(0.6);
     }
   });
 
+  test('base des copains, décision D7-3 du papa (2026-10-23) : Pablo 1,00, Matthis 0,995, Malo 0,9875, Diego 0,985, Liam 0,975, Timothé 0,97', () => {
+    // Caractère de vitesse regroupé près de 1 (élastique, tâche 7) : le caractère est porté par lift, jumpTry et jumpSkill.
+    expect(Object.fromEntries(PILOTS.map((p) => [p.id, p.base]))).toEqual({
+      pablo: 1, matthis: 0.995, malo: 0.9875, diego: 0.985, liam: 0.975, 'timothé': 0.97,
+    });
+  });
+
   test('caractères cohérents : triés par base décroissante, le lift croît strictement', () => {
     // Plus un pilote fonce (base haute), moins il lève le pied (lift bas) : 2 fonceurs, 2 moyens, 2 prudents.
     const tries = [...PILOTS].sort((a, b) => b.base - a.base);
     for (let i = 1; i < tries.length; i++) {
+      expect(tries[i].base, `${tries[i].name} après ${tries[i - 1].name} : base strictement décroissante`).toBeLessThan(tries[i - 1].base);
       expect(tries[i].lift, `${tries[i].name} après ${tries[i - 1].name}`).toBeGreaterThan(tries[i - 1].lift);
     }
   });

@@ -46,6 +46,9 @@ describe('Galahad seul (défaut robots: false, comme au plan A)', () => {
     expect(g.pilot).toBe(GALAHAD);
     expect(g.driver).toBeNull();
     expect(g.factor).toBe(1);
+    // Élastique (tâche 7) : jamais sur Galahad ; facteurs appliqués à 1 avant le premier pas.
+    expect(g.rubber).toBeNull();
+    expect([g.speedFactor, g.torqueFactor, g.onScreen]).toEqual([1, 1, false]);
     expect(g.body.id).toBe('galahad');
     expect(g.state.id).toBe('galahad');
     expect(g.state.name).toBe('Galahad');
@@ -100,6 +103,9 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
       expect(car.state.safePoint).toEqual({ x, y: heightAt(TRACK, x), angle: 0 });
       expect(chassisX(car)).toBeCloseTo(x, 6);
       expect(car.factor).toBe(1);
+      // Élastique (tâche 7) : 1 à la création pour un copain, coupé (null) pour Galahad.
+      expect(car.rubber).toBe(i === 0 ? null : 1);
+      expect([car.speedFactor, car.torqueFactor, car.onScreen]).toEqual([1, 1, false]);
       expect(car.driver === null).toBe(i === 0);
       const view = carView(sim, i);
       expect(view.name).toBe(pilot.name);

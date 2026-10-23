@@ -10,7 +10,10 @@ export interface Pilot {
   readonly color: number;
   readonly accent: number;
   readonly helmet: number;
-  /** Allure de croisière du pilote automatique, en fraction de la vitesse max : [0,85 ; 1]. */
+  /**
+   * Caractère de vitesse du pilote automatique : cible de son élastique quand il est dans la vue de Galahad (tâche 7,
+   * `ai/rubberband.ts`), en fraction de la vitesse max : [0,97 ; 1], décision du papa du 2026-10-23 (D7-3).
+   */
   readonly base: number;
   /** Probabilité de lever le pied avant une rampe-saut ou une double-bosse : [0 ; 0,6]. */
   readonly lift: number;
@@ -58,20 +61,25 @@ const pilote = (p: Pilot): Pilot => Object.freeze(p);
  * Sauts (tâche 6, décision P4 du papa : tableau des traits gardé) : les fonceurs tentent souvent
  * les étoiles hautes et visent moins bien (`jumpTry` haut, `jumpSkill` grand), les prudents
  * tentent rarement et visent juste.
+ *
+ * Vitesse (tâche 7, décision D7-3 du papa, 2026-10-23) : caractère de vitesse regroupé près de 1, dans le même ordre
+ * qu'au 5a (Pablo 1,00, Matthis 0,995, Malo 0,9875, Diego 0,985, Liam 0,975, Timothé 0,97 ; au 5a : 0,98 à 0,86) ; le
+ * caractère est porté par `lift`, `jumpTry` et `jumpSkill`. Avec les `base` d'avant, l'élastique faisait gagner
+ * Galahad 19 courses sur 20 (relecture adversariale de la tâche 7).
  */
 export const PILOTS: readonly Pilot[] = Object.freeze([
   // Fonceur : rouge vif, casque rouge clair, bandes crème dorée.
-  pilote({ id: 'pablo', name: 'Pablo', color: 0xc8001e, accent: 0xffdc64, helmet: 0xd64056, base: 0.98, lift: 0.05, jumpTry: 0.8, jumpSkill: 0.18 }),
+  pilote({ id: 'pablo', name: 'Pablo', color: 0xc8001e, accent: 0xffdc64, helmet: 0xd64056, base: 1, lift: 0.05, jumpTry: 0.8, jumpSkill: 0.18 }),
   // Moyen : vert, casque vert foncé, bandes crème.
-  pilote({ id: 'diego', name: 'Diego', color: 0x2ecc40, accent: 0xfff096, helmet: 0x208f2d, base: 0.92, lift: 0.3, jumpTry: 0.55, jumpSkill: 0.1 }),
+  pilote({ id: 'diego', name: 'Diego', color: 0x2ecc40, accent: 0xfff096, helmet: 0x208f2d, base: 0.985, lift: 0.3, jumpTry: 0.55, jumpSkill: 0.1 }),
   // Prudent : blanc, casque gris clair, bandes sarcelle.
-  pilote({ id: 'timothé', name: 'Timothé', color: 0xf5f5f5, accent: 0x00a8a0, helmet: 0xd0d0d0, base: 0.86, lift: 0.55, jumpTry: 0.3, jumpSkill: 0.04 }),
+  pilote({ id: 'timothé', name: 'Timothé', color: 0xf5f5f5, accent: 0x00a8a0, helmet: 0xd0d0d0, base: 0.97, lift: 0.55, jumpTry: 0.3, jumpSkill: 0.04 }),
   // Fonceur : jaune, casque jaune clair, bandes marron (abeille).
-  pilote({ id: 'matthis', name: 'Matthis', color: 0xffff00, accent: 0x965a1e, helmet: 0xffff40, base: 0.96, lift: 0.1, jumpTry: 0.75, jumpSkill: 0.15 }),
+  pilote({ id: 'matthis', name: 'Matthis', color: 0xffff00, accent: 0x965a1e, helmet: 0xffff40, base: 0.995, lift: 0.1, jumpTry: 0.75, jumpSkill: 0.15 }),
   // Moyen : orange, casque orange clair, bandes turquoise.
-  pilote({ id: 'malo', name: 'Malo', color: 0xff8000, accent: 0x3cd2be, helmet: 0xffa040, base: 0.93, lift: 0.25, jumpTry: 0.5, jumpSkill: 0.09 }),
+  pilote({ id: 'malo', name: 'Malo', color: 0xff8000, accent: 0x3cd2be, helmet: 0xffa040, base: 0.9875, lift: 0.25, jumpTry: 0.5, jumpSkill: 0.09 }),
   // Prudent : rose, casque rose clair, bandes citron vert.
-  pilote({ id: 'liam', name: 'Liam', color: 0xff77aa, accent: 0xbee63c, helmet: 0xffa0c4, base: 0.88, lift: 0.5, jumpTry: 0.3, jumpSkill: 0.05 }),
+  pilote({ id: 'liam', name: 'Liam', color: 0xff77aa, accent: 0xbee63c, helmet: 0xffa0c4, base: 0.975, lift: 0.5, jumpTry: 0.3, jumpSkill: 0.05 }),
 ]);
 
 /**

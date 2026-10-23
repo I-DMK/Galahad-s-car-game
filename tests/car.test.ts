@@ -35,10 +35,15 @@ function launch(car: CarBody, v: number): void {
   for (const w of car.wheels) Body.setAngularVelocity(w, mpsToPxPerStep(v) / toPx(R));
 }
 
-/** Boucle de conduite de la tâche : applyDrive → stepWorld → clampVelocities. */
-function drive(world: World, car: CarBody, steps: number, throttle: boolean, onStep?: (i: number) => void): void {
+/**
+ * Boucle de conduite de la tâche : applyDrive → stepWorld → clampVelocities. Facteurs de vitesse (plafond) et de couple
+ * (montée de rotation) : 1 par défaut, comme Galahad (tâche 7).
+ */
+function drive(
+  world: World, car: CarBody, steps: number, throttle: boolean, onStep?: (i: number) => void, speedFactor = 1, torqueFactor = 1,
+): void {
   for (let i = 1; i <= steps; i++) {
-    applyDrive(car, throttle, 1, CONFIG);
+    applyDrive(car, throttle, speedFactor, torqueFactor, CONFIG);
     stepWorld(world);
     clampVelocities(car, CONFIG);
     onStep?.(i);
@@ -141,6 +146,44 @@ test('calibration : accélération moyenne sur 0–2 s = DRIVE_ACCEL (± 10 %), 
   expect(vxMps(car)).toBeGreaterThan(0); // le gaz fait avancer vers +x
 });
 
+describe('couple de l’élastique (tâche 7) : montée de rotation WHEEL_SPINUP × torqueFactor', () => {
+  /** Accélération moyenne (m/s²) sur 0–2 s, plein gaz depuis l'arrêt sur le plat. */
+  const accel2s = (speedFactor: number, torqueFactor: number): number => {
+    const { world, car } = flatCar();
+    drive(world, car, 2 * STEPS_PER_SECOND, true, undefined, speedFactor, torqueFactor);
+    return carSpeedMps(car) / 2;
+  };
+
+  test('torqueFactor 0,6 (copain loin devant) : ≈ 0,6 × 4,3 m/s² (± 15 %)', () => {
+    const a = accel2s(0.6, 0.6);
+    console.log(`accélération sur 2 s, facteurs 0,6 / 0,6 : ${a.toFixed(2)} m/s² (0,6 × DRIVE_ACCEL = ${(0.6 * CONFIG.DRIVE_ACCEL).toFixed(2)})`);
+    expect(Math.abs(a - 0.6 * CONFIG.DRIVE_ACCEL)).toBeLessThanOrEqual(0.15 * 0.6 * CONFIG.DRIVE_ACCEL);
+  });
+
+  test('torqueFactor 1 et speedFactor 1,5 (turbo de Galahad) : 4,3 m/s² (± 10 %), inchangé', () => {
+    const a = accel2s(CONFIG.TURBO_FACTOR, 1);
+    console.log(`accélération sur 2 s, facteurs 1,5 / 1 (turbo de Galahad) : ${a.toFixed(2)} m/s²`);
+    expect(Math.abs(a - CONFIG.DRIVE_ACCEL)).toBeLessThanOrEqual(0.1 * CONFIG.DRIVE_ACCEL);
+  });
+
+  test('torqueFactor 1,3 (copain loin derrière) : plus grande qu’avec 1 (imprimée : limite d’adhérence possible, μ g ≈ 4,9 m/s²)', () => {
+    const a13 = accel2s(1.3, 1.3);
+    const a1 = accel2s(1.3, 1);
+    console.log(`accélération sur 2 s, facteurs 1,3 / 1,3 : ${a13.toFixed(2)} m/s² ; 1,3 / 1 : ${a1.toFixed(2)} m/s² (μ g ≈ ${(CONFIG.WHEEL_FRICTION * CONFIG.GRAVITY).toFixed(1)})`);
+    expect(a13).toBeGreaterThan(a1);
+  });
+
+  test('couple × 1 : rotation montée de WHEEL_SPINUP exactement (Galahad au bit près)', () => {
+    const { car } = flatCar();
+    for (const w of car.wheels) Body.setAngularVelocity(w, 0.1);
+    applyDrive(car, true, 1, 1, CONFIG);
+    for (const w of car.wheels) expect(w.angularVelocity).toBe(0.1 + CONFIG.WHEEL_SPINUP);
+    for (const w of car.wheels) Body.setAngularVelocity(w, 0.1);
+    applyDrive(car, true, 1, 0.6, CONFIG);
+    for (const w of car.wheels) expect(w.angularVelocity).toBe(0.1 + CONFIG.WHEEL_SPINUP * 0.6);
+  });
+});
+
 test('vitesse max : plein gaz 10 s → [0,9 ; 1,02] × V_MAX', () => {
   const { world, car } = flatCar();
   let peak = 0;
@@ -149,9 +192,9 @@ test('vitesse max : plein gaz 10 s → [0,9 ; 1,02] × V_MAX', () => {
   expect(peak).toBeLessThanOrEqual(1.02 * CONFIG.V_MAX);
   // Les roues sont bornées à la vitesse de roulement V_MAX × facteur ; le turbo relève la limite.
   const omegaMax = mpsToPxPerStep(CONFIG.V_MAX) / toPx(R);
-  applyDrive(car, true, 1, CONFIG);
+  applyDrive(car, true, 1, 1, CONFIG);
   for (const w of car.wheels) expect(w.angularVelocity).toBeCloseTo(omegaMax, 12);
-  applyDrive(car, true, CONFIG.TURBO_FACTOR, CONFIG);
+  applyDrive(car, true, CONFIG.TURBO_FACTOR, 1, CONFIG);
   for (const w of car.wheels) expect(w.angularVelocity).toBeGreaterThan(omegaMax);
 });
 
@@ -162,7 +205,7 @@ test('après un turbo, doigt toujours posé : la vitesse redescend à V_MAX (± 
   const { world, car } = flatCar();
   const run = (factor: number, steps: number, onStep?: (i: number) => void) => {
     for (let i = 1; i <= steps; i++) {
-      applyDrive(car, true, factor, CONFIG);
+      applyDrive(car, true, factor, 1, CONFIG);
       stepWorld(world);
       clampVelocities(car, CONFIG);
       onStep?.(i);
@@ -264,7 +307,7 @@ test('lancée à V_MAX × TURBO_FACTOR, 10° vers le haut, 2 m au-dessus du plat
   for (const w of car.wheels) Body.setAngularVelocity(w, mpsToPxPerStep(v) / toPx(R));
   expect(wheelsBelowChassis(car)).toBe(true);
   for (let i = 1; i <= 3 * STEPS_PER_SECOND; i++) {
-    applyDrive(car, true, CONFIG.TURBO_FACTOR, CONFIG);
+    applyDrive(car, true, CONFIG.TURBO_FACTOR, 1, CONFIG);
     applyAirLevel(car, wheelsOnGround(world.engine, car), CONFIG);
     stepWorld(world);
     clampVelocities(car, CONFIG);

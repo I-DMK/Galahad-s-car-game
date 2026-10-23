@@ -39,6 +39,7 @@ export function soloSim(world: World, x0: number, stars: Star[], cfg: Config): R
     pilot: GALAHAD, body, state, contact: newGroundContact(), airborneSince: null, grounded: false,
     lastGroundedAt: null, jumpFlight: false, invulnerable: false, ghost: false, driver: null, autoJumps: false,
     lavaFalls: track.volcanoes.map(() => 0), factor: 1, throttle: false,
+    rubber: null, speedFactor: 1, torqueFactor: 1, onScreen: false,
   };
   const starBodies = createStarBodies(world, stars, cfg);
   return { track, world, cars: [car], time: 0, events: [], stars: newStarStates(stars, 1), starBodies, cfg, pilotSeed: 0 };
@@ -51,15 +52,26 @@ export function disposeSolo(sim: RaceSim): void {
 
 /**
  * Toutes les pièces à v m/s le long de la pente locale, roues en roulement sans glissement ; vitesse tenue doigt posé
- * par le facteur de la voiture (`factor`, défaut v / V_MAX, ou 1 pour un départ arrêté).
+ * par le facteur de la voiture (`factor`, défaut v / V_MAX, ou 1 pour un départ arrêté) ; élastique coupé
+ * (`rubber = null`, tâche 7) : sur un copain (`{ ...sim, cars: [copain] }`), la vitesse tenue est celle de `factor`.
  */
 export function launchSolo(sim: RaceSim, x: number, v: number, cfg: Config, factor?: number): void {
   const car = sim.cars[0];
-  const a = slopeAt(sim.track, x);
+  setCarSpeed(car, sim.track, x, v, cfg);
+  car.factor = factor ?? (v > 0 ? v / cfg.V_MAX : 1);
+  // Vitesse imposée par `factor` : l'élastique d'un copain est coupé (tâche 7, ruling R7-3), il ne lirait pas `factor`.
+  car.rubber = null;
+}
+
+/**
+ * Toutes les pièces de `car` à v m/s le long de la pente locale en x, roues en roulement sans glissement ; ni `factor`
+ * ni l'élastique ne changent (tâche 7 : un copain lancé garde son élastique).
+ */
+export function setCarSpeed(car: CarSim, track: Track, x: number, v: number, cfg: Config): void {
+  const a = slopeAt(track, x);
   const vel = { x: mpsToPxPerStep(v * Math.cos(a)), y: -mpsToPxPerStep(v * Math.sin(a)) };
   for (const p of car.body.parts) Body.setVelocity(p, vel);
   for (const w of car.body.wheels) Body.setAngularVelocity(w, mpsToPxPerStep(v) / toPx(cfg.WHEEL_RADIUS));
-  car.factor = factor ?? (v > 0 ? v / cfg.V_MAX : 1);
 }
 
 export interface JumpRunResult {
