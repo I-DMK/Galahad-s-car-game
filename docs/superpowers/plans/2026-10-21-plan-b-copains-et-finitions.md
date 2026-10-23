@@ -241,6 +241,8 @@ Règles (spec §7, addendum §1.8) : `false` tant que `t < rank × START_DELAY_P
 
 ### Task 7 : Élastique
 
+> **Remplacée** par la tâche 7 (v1.7) du plan `2026-10-21-plan-b-saut-et-rendu.md` (décisions du papa D7-1 à D7-5 du 2026-10-23 : fenêtre de la vue 20 m / 3 m, `base` regroupées près de 1, objectif mesuré avec le saut parfait aux fosses). Le texte ci-dessous reste pour l'historique.
+
 **Files:**
 - Create: `src/ai/rubberband.ts`
 - Modify: `src/physics/car.ts` (`applyDrive(car, throttle, { speedFactor, torqueFactor }, cfg)` : `omegaMax × speedFactor`, `WHEEL_SPINUP × torqueFactor` ; **Galahad garde `torqueFactor = 1`** même en turbo, comme au plan A, pour ne pas dérégler la calibration de la tâche 4 ; les robots reçoivent `speedFactor = torqueFactor = car.factor`), `src/sim/simulate.ts`, `src/config.ts` (`RUBBER_WINDOW_M: 12`, `RUBBER_MIN: 0.6`, `RUBBER_MAX: 1.3`, `RUBBER_RATE_PER_S: 0.15`, `RUBBER_NEUTRAL_SECONDS: 5`, `RUBBER_PREZONE_M: 40`, `RUBBER_RAMP_M: 40` = distance sur laquelle le facteur passe de 1,0 à la borne)

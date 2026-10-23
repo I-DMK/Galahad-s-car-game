@@ -262,7 +262,7 @@ Détail pour W = 8 (MESURÉ) :
 - 11,2 m/s : s ∈ [1,62 ; 12,78] m, atterrissage 1,7 à 12,7 m après le bord aval ;
 - 14 m/s : s ∈ [1,69 ; 18,18] m, soit 0,12 à 1,30 s avant le bord (centre 0,71 s), atterrissage 1,7 à 18,2 m après ;
 - départ arrêté en `xLancement + 4,99` : vitesse au saut ≈ 12,3 m/s, s ∈ [1,77 ; 12,61] m, atterrissage 2,0 à 17,3 m après ;
-- turbo : atterrissage jusqu'à 30,8 m après le bord aval (31,6 m à 21 m/s tenus) ; copains sous élastique et turbo (27,3 m/s, tâche 7) : ≈ 44 m (CALCULÉ). La réception de 64,8 m les absorbe tous.
+- turbo : atterrissage jusqu'à 30,8 m après le bord aval (31,6 m à 21 m/s tenus) ; [tâche 7] copains sous élastique : vitesse conduite ≤ 18,2 m/s (CALCULÉ ; 18,8 MESURÉ ; le « 27,3 m/s » d'avant était une erreur, R7-1) ; atterrissage ≤ bord aval + 26,8 m (MESURÉ, relecture de la tâche 7 et Step 4 de la tâche : saut le plus tardif permis à 1,3, 180 runs ; saut centré ≤ + 15,5 m). La réception de 64,8 m les absorbe tous.
 
 Les quatre contraintes :
 - **(a) sans sauter, on tombe toujours.**
@@ -317,7 +317,7 @@ Les quatre contraintes :
   - **Fosse** : châssis dans [`xLancement`, bord aval + `FOSSE_GHOST_AFTER`], avec `FOSSE_GHOST_AFTER` = 40 m. C'est l'atterrissage le plus long mesuré (31,6 m ; 31,9 m MESURÉ (relecture)) plus une marge.
   - [tâche 6, tour 1] La zone commence au début du plat de garde (`xLancement` − `FOSSE_GUARD`). MESURÉ : avec les copains qui ratent parfois une fosse et repartent du point sûr, Galahad en turbo (18 à 20 m/s) percutait un copain plus lent ou reposé à 2 à 4 m avant `xLancement` et était catapulté par-dessus l'approche dans la lave (graines 33 et 36, sauteur parfait). Garde comprise, ces courses sont propres. Confirmé par le papa (décision (1) du 2026-10-23, rulings de la tâche 6).
   - Ainsi, une voiture qui repart arrêtée du point sûr, deux sauteurs qui se croisent en l'air, et une voiture posée juste après la fosse sont traversés par les autres.
-  - À revérifier en tâche 7 : sous élastique et turbo (27,3 m/s), les copains atterrissent jusqu'à ≈ 44 m (CALCULÉ).
+  - [tâche 7] Vérifié (R-F16 fermé) : sous élastique, un copain conduit ne dépasse pas 18,2 m/s (le « 27,3 m/s » était une erreur, R7-1) ; il atterrit au plus à bord aval + 26,8 m (MESURÉ, Step 4 de la tâche 7 : saut le plus tardif permis à 1,3, 180 runs) ; en course, `robots-sauts` exige ≤ `FOSSE_GHOST_AFTER` − 5 = 35 m par bras (Step 6 de la tâche 7 : MESURÉ 23,6 m au plus, 48 graines × 3 bras).
 - **Respawn immédiat d'une voiture retournée** (`inElanZone`, [`xElanStart`, `xLip`]) : tremplins seuls. Sur l'approche plate d'une fosse, les délais `FLIP_SECONDS` / `SIDE_SECONDS` d'aujourd'hui s'appliquent.
 - **Robots polis et lever de pied** : la zone volcan [`xLancement`, `xLava`] vaut pour les deux types (gaz toujours, jamais de politesse).
 
@@ -359,7 +359,7 @@ Les quatre contraintes :
   - bosses (30 tirages) : aucune à 14 m/s ; 4,2 m à 17,5 m/s ; 18,6 m à 21 m/s ;
   - rampe-saut : 7,7 m à 14 m/s ; 15,8 m à 17,5 m/s ; **36,6 m à 21 m/s**.
 
-  L'étoile est à 32 m du début du plat étoile : au-delà de la portée des bosses et des double-bosses en turbo (marge ≥ 10 m), mais pas de celle d'une rampe-saut. D'où la règle d'insertion ci-dessous. Copains sous élastique et turbo (27,3 m/s, tâche 7) : 44 à 79 m de portée ; à mesurer en tâche 7 avec la règle des copains catapultés (§4).
+  L'étoile est à 32 m du début du plat étoile : au-delà de la portée des bosses et des double-bosses en turbo (marge ≥ 10 m), mais pas de celle d'une rampe-saut. D'où la règle d'insertion ci-dessous. [tâche 7] Copains sous élastique : à 18,2 m/s (1,3 tenu), 0 prise sans saut (sonde et relecture de la tâche 7 ; Step 4 de la tâche : 300 runs lancés à 18,2 m/s, haut du châssis ≤ 1,93 m au-dessus du sol à ± 3 m de l'étoile, bas du capteur à 3,40 m) ; `high-stars-sim` relancé (5 voitures, graines 0 à 23 : 0 prise sans saut ni contact, 115 prises au saut de copains, 4 prises tolérées après un contact contre 1 à la tâche 6), règle des copains catapultés (§4) inchangée.
 - **Insertion par le générateur** (tranches posées sans `rng`) :
   - N = min(`STAR_FLATS_PER_RACE`, ⌊(limite − x0) / `STAR_FLAT_SPACING`⌋), avec x0 la fin du plat de départ, limite = cible − `FINISH_PLAT_BEFORE` − `AFTER_FINISH`, `STAR_FLATS_PER_RACE` = 3 et `STAR_FLAT_SPACING` = 400 m. Soit 3 à 1 680 m et à 6 000 m, 2 à 1 000 m, 1 à 600 m, 0 à 300 m.
   - Ancres a_k = x0 + (k + ½) × (limite − x0) / N, k = 0 … N − 1 (MESURÉ à 1 680 m, graines 0 à 49 : plats étoile en moyenne vers 342, 897 et 1 401 m).

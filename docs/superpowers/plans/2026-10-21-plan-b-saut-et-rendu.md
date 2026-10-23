@@ -53,7 +53,7 @@ v1.3 validée par le papa et exécutée jusqu'au Step 8 de la 5e. **v1.6 en atte
 - `docs/superpowers/handoff/2026-10-21-glitch-tremblement.md` §5 à §7 vaut pour 5f. Référence : « tremblement §n ».
 - Pour le reste : l'addendum plan B v3.1 (« addendum §n ») et le spec du 2026-10-20.
 
-**Ce document remplace la tâche 6 du plan v2.1** (`2026-10-21-plan-b-copains-et-finitions.md`), en gardant tout ce qu'elle contenait : délai de départ, lever de pied, zone volcan, robots polis, héritages de la 5b. Les tâches 5f, 5d, 5e et 5g s'insèrent entre la 5c et la 6. La tâche 7 du plan v2.1 reste valable ; son objectif mesuré (`race-objective`) inclut désormais les sauts des copains, qui sont dans leur driver (saut §5).
+**Ce document remplace la tâche 6 du plan v2.1** (`2026-10-21-plan-b-copains-et-finitions.md`), en gardant tout ce qu'elle contenait : délai de départ, lever de pied, zone volcan, robots polis, héritages de la 5b. Les tâches 5f, 5d, 5e et 5g s'insèrent entre la 5c et la 6. **Il remplace aussi la tâche 7 du plan v2.1** : la tâche 7 est désormais la v1.7 de ce plan (ci-dessous) ; son objectif mesuré (`race-objective`) inclut les sauts des copains, qui sont dans leur driver (saut §5), et suit les décisions D7-1 à D7-5.
 
 ## Décisions du papa (registre 567ee13)
 
@@ -93,6 +93,16 @@ Restent soumis au papa pendant l'exécution :
 
 Aucune question restante (addendum §6.10).
 
+## Décisions du papa (registre 71d4abe, tâche 7, 2026-10-23)
+
+| # | Décision | Effet dans le plan |
+|---|---|---|
+| D7-1 | Référence de l'objectif : Galahad **doigt posé, saut parfait à chaque fosse, jamais de saut d'étoile** | tâche 7, Step 5 : `race-objective` (modèle D7-1) |
+| D7-2 | Fenêtre de l'élastique = **la vue : 20 m devant, 3 m derrière** | `RUBBER_WINDOW_AHEAD_M` 20, `RUBBER_WINDOW_BEHIND_M` 3 |
+| D7-3 | **`base` regroupées entre 0,97 et 1,00, même ordre** : Pablo 1,00, Matthis 0,995, Malo 0,9875, Diego 0,985, Liam 0,975, Timothé 0,97 | `src/cars/pilots.ts`, `tests/pilots.test.ts` |
+| D7-4 | Cibles : spec (1er ou 2e ≥ 10/20, dernier ≤ 2/20, ≤ 3 réapparitions par copain) + Galahad 1er dans 5 à 15 des 20 courses + un copain à l'écran ≥ 30 % du temps en moyenne | tâche 7, Step 5 |
+| D7-5 | Variantes : **sauteur**, place moyenne ≤ celle du modèle D7-1 (mêmes graines) ; **doigt levé 30 %** et **sans saut** imprimés | tâche 7, Steps 5 et 6 (`race-objective`, rattrapage, `test:slow:bouton`) |
+
 ## Global Constraints
 
 Toutes celles du plan v2.1 restent valables :
@@ -129,6 +139,7 @@ En plus :
   | 5e (fin, v1.4) | **identique avec `ANCIENNES_PISTES`** ; avec `CONFIG`, **recapturée par ruling** | Les plats étoile changent les pistes (décision P10). `ANCIENNES_PISTES` = `{ STAR_FLATS_PER_RACE: 0, FOSSE_PERIOD: 0, STAR_HIGH_PER_RACE: 0, STAR_STEP_MIN: 60, STAR_STEP_MAX: 100 }` redonne les pistes de e02dcae **sans étoiles hautes** au bit près (saut §6.9) : l'empreinte figée y reste la preuve que la physique n'a pas bougé. La tolérance de sol (Step 11) ne joue que sur une demande de saut : doigt posé sans saut, l'empreinte ne bouge pas. |
   | 5g | **identique avec `ANCIENNES_PISTES`** ; avec `CONFIG`, **recapturée par ruling** | Les fosses changent les pistes. Aucun chemin de code des fosses ne s'exécute sans fosse. |
   | 6 | **identique**, avec `ANCIENNES_PISTES` et (v1.4) avec `CONFIG` | Galahad n'a pas de driver ; le saut provisoire des copains aux fosses (5g) n'existe qu'à 5 voitures. |
+  | 7 | **identique** | l'élastique ne s'applique qu'aux copains ; Galahad : couple × 1 |
 
   Si l'empreinte bouge alors que le tableau dit « identique » : on s'arrête, on mesure, le papa tranche, le ruling va au registre. On ne recapture jamais en silence. [fosses] Une recapture « par ruling » (fin de 5e, 5g) consigne au registre : les 3 anciens hash, les 3 nouveaux, le commit, et la preuve que l'empreinte `ANCIENNES_PISTES` est restée identique dans le même commit.
 - **Promesse de la 5c conservée (saut §0).** Doigt posé sans jamais sauter, on finit la course et on ne tombe jamais dans la lave. L'invariant `lavaByCar.galahad === 0` à 5 voitures, graines 0 à 23 (`tests/slow/race-invariants-*.test.ts`), reste vert à chaque tâche.
@@ -1324,6 +1335,7 @@ Graine du driver : `(sim.pilotSeed + rank × 0x9e3779b9) >>> 0`. ENCORE rejoue d
 - **v3 : décisions du papa du 2026-10-23 intégrées** dans le texte même de la tâche (§ « Décisions du papa »).
 - v3.1 : re-relecture de la v3 ; N1 corrigé par le ruling R7-16 (plafond du turbo hors écran, même définition de l'écran que le compteur) et deux mineurs.
 - v1.7 du plan (2026-10-23) : ce texte, intégré tel quel ; corrections du § « Corrections à reporter » faites avec la doc de la tâche.
+- Exécution (2026-10-23, Steps 0 à 8) : commits `55c4923` (feat), `33f66fe` (outillage), `ded61ec` (suites lentes), puis la doc ; objectif tenu (modèle D7-1 : 6 victoires, 12 fois 1er ou 2e, 1 dernier, copain à l'écran 56 %) ; garde-fou « Galahad arrêté » touché (1 réapparition due à un copain, graine 3), laissé au papa. Chiffres : registre (Task 7) et `.superpowers/sdd/2026-10-21-plan-b-saut-et-rendu/task-7-report.md`.
 
 **Prérequis.**
 - La tâche 6 est validée et fusionnée, tour de correction 3 compris (graine du « Galahad sauteur » salée pour ne plus être corrélée à `drawPilots` ; chutes par volcan comptées à une seule source).
@@ -1963,7 +1975,9 @@ Légende des migrations :
 | `tests/slow/interpolation-replay-slow.test.ts` | 12 courses à 5 voitures, doigt posé | AP (`recordTrajectory(…, cfg)`) | 5e S10 |
 | `tests/slow/calibration-saut-*.test.ts` | pistes de la calibration du Step 8 | AP (par `cfgFor`) | 5e S10 |
 | `tests/slow/rattrapage-*.test.ts` | comparaison appariée depuis la 5d | voir `helpers/rattrapage.ts` | 5e S10 |
-| `tests/slow/race-objective.test.ts` (tâche 7) | Galahad doigt posé | à trancher en tâche 7 : Galahad avec SP (le joueur saute) | 7 |
+| `tests/slow/race-objective.test.ts` (tâche 7) | Galahad doigt posé | modèle doigt posé + saut parfait (D7-1) ; sauteur et doigt levé en variantes (D7-5) ; `race-objective-leve.test.ts` pour le doigt levé | 7 |
+| `tests/pilots.test.ts` (tâche 7) | `base` ∈ [0,85 ; 1], ordre des caractères | valeurs du papa (D7-3), bornes [0,97 ; 1], ordre gardé : voir le tableau de migration de la tâche 7 | 7 |
+| `tests/slow/bouton.test.ts` (tâche 7, nouveau) | étapes du rattrapage avant et après | lecture seule, exclu de `test:slow` (`npm run test:slow:bouton`) : voir le tableau de migration de la tâche 7 | 7 |
 | `e2e/race.spec.ts` (`?seed=1`) | captures `course.png`, `arrivee.png` ; course courte `len=300` doigt posé | captures refaites ; à 300 m, aucun plat étoile et une fosse possible : l'arrivée reste sous le délai de 150 s (option B : ≈ + 5 s) | 5e S15 ; 5g S5 |
 | `e2e/jump.spec.ts` (`?seed=1`) | tap, Espace, HUD ; capture `bouton-saut.png` | inchangé ; « bouton grisé » relu avec la tolérance (gris 0,35 s après le décollage, pas avant) | 5e S11 |
 
@@ -2067,7 +2081,7 @@ Chacun est à confirmer par les relectures de la v1.6 ; « coût si faux » comm
   - À 21 m/s **tenus** (facteur 1,5 permanent), la part perdue est imprimée et bornée à 0,5 % (MESURÉ : 0,41 %, rebonds jusqu'à 0,77 s). Accepté par le papa : Q-F6, c73faf5.
   - Coût si faux : un appui sur 250 perdu en turbo enchaîné.
 - **R-F15 — Option B, respawn groupé vers l'aval** : la cible « bord aval + 5 m » avance de 1,5 × `CAR_LENGTH` par voiture déjà posée, 4 fois au plus. Reculer la ramènerait vers la lave. Coût si faux : quelques mètres.
-- **R-F16 — Zone fantôme d'une fosse jusqu'à bord aval + 40 m**, quelle que soit l'option : les sauteurs atterrissent jusqu'à ≈ 32 m, et une voiture posée à + 5 m y attend. Coût si faux : des voitures qui se traversent 40 m de plus. À revérifier en tâche 7 (copains sous élastique : ≈ 44 m).
+- **R-F16 — Zone fantôme d'une fosse jusqu'à bord aval + 40 m**, quelle que soit l'option : les sauteurs atterrissent jusqu'à ≈ 32 m, et une voiture posée à + 5 m y attend. Coût si faux : des voitures qui se traversent 40 m de plus. [tâche 7] **Fermé** : un copain sous élastique ne dépasse pas 18,2 m/s conduit (le « ≈ 44 m » venait de 27,3 m/s, une erreur, R7-1) ; atterrissage le plus long MESURÉ bord aval + 26,8 m (Step 4 : saut le plus tardif permis à 1,3, 180 runs) et + 23,6 m en course (`robots-sauts`, 48 graines × 3 bras, assertion ≤ `FOSSE_GHOST_AFTER` − 5 = 35 m).
 - **R-F17 — Fenêtres des fosses : bloc central en CI, balayage entier en suite lente** (v1.6).
   - La CI prouve l'exigence elle-même : 0,4 s d'un seul tenant autour de l'instant visé par les copains, 25 appuis par cas.
   - La suite lente balaie chaque pas des 1,6 s avant le bord. Tour 1 : sur une seule fosse, en faisant varier vitesse, turbo, tranche d'avant et saut d'étoile haute (les fosses des graines 0 à 9 ne donnaient que 4 trajectoires) ; le balayage recule par blocs de 0,4 s si la fenêtre déborde. La fenêtre principale y tient entière (au plus 1,47 s à vitesse tenue, 1,85 s quand le turbo finit dedans, MESURÉ).

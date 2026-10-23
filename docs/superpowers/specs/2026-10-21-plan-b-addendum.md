@@ -251,6 +251,29 @@ tours** de calibration supplémentaires ; ensuite le papa tranche la valeur.
 - [tâche 5b] **Robots polis** (décision du papa) : un copain lève le pied
   derrière une voiture presque arrêtée juste devant lui, sauf près d'un
   volcan (tâche 6).
+- [tâche 7] **Élastique (décisions du papa, 2026-10-23, D7-1 à D7-5)**. Amende
+  le spec §7 sur trois points :
+  - `base` des copains regroupées près de 1, ordre gardé : Pablo 1,00,
+    Matthis 0,995, Malo 0,9875, Diego 0,985, Liam 0,975, Timothé 0,97 ; le
+    caractère est porté par le lever de pied et les sauts. C'est dans la borne
+    0,85 à 1,0 du spec §7, mais ce ne sont plus les valeurs du 5a (0,98 à
+    0,86 : avec elles, Galahad gagnait 19 courses sur 20, MESURÉ) ;
+  - fenêtre de l'élastique = la vue : 20 m devant Galahad, 3 m derrière. Le
+    spec §7 disait « X = au moins la demi-largeur visible, donc hors écran »,
+    des deux côtés : derrière, le papa veut les copains à l'écran. Rampe de
+    40 m de `base` à la borne (0,6 devant, 1,3 derrière), 0,15 par seconde,
+    neutre 5 s, pré-zone de 40 m, clamp ≥ 1 dans `[xLancement, xLava]` ;
+    turbo d'un copain plafonné à 1,3 au total, et à 1 quand il est hors de la
+    vue devant Galahad (bord avant 11,2 + 0,6 v + 1,6 m, v vitesse de Galahad ;
+    ruling R7-16) ;
+  - objectif mesuré (spec §7, §11 ; §2 ci-dessus) : modèle doigt posé + saut
+    parfait aux fosses, jamais de saut d'étoile (D7-1) ; Galahad 1er ou 2e dans
+    au moins 10 des 20 courses, dernier au plus 2 fois, 1er dans 5 à 15, un
+    copain à l'écran au moins 30 % du temps en moyenne (D7-4) ; variantes
+    (D7-5) : « sauteur », place moyenne ≤ celle du modèle, appariée par
+    graine ; doigt levé 30 % et sans saut imprimés. MESURÉ (tâche 7, graines
+    0 à 19) : 6 victoires, 12 fois 1er ou 2e, dernier 1 fois, place 2,30,
+    copain à l'écran 56 % (21 à 98 %) ; sauteur 1,35.
 - Tests de course à 5 voitures, deux niveaux :
   - **CI** (`npm test`, exécuté par `deploy.yml`) : invariants sur 2 graines,
     doigt posé : ≤ 3 respawns par robot, aucune voiture bloquée > 2 s, pas
