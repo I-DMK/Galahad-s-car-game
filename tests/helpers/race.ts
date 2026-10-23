@@ -9,9 +9,10 @@
 // avec le saut parfait aux fosses (`sauteurParfait`, `lavaByCar.galahad === 0` garde son sens), les copains provisoires
 // y sautent sans erreur ; une chute dans une fosse sans saut est « fosse » (attendue), ni « choc » ni « propre » ;
 // `race-sans-saut-*` fait courir Galahad sans saut (2 chutes par fosse, au plus 2 par série, 0 au tremplin).
-// Tâche 6 : les copains ratent parfois une fosse (erreur × FOSSE_SKILL_FACTOR, décision Q-F3) : toute chute d'un copain
-// dans une fosse est « fosse » (attendue), au plus 2 par série ; ≤ 3 réapparitions par copain hors chutes dans une fosse
-// (saut §6.8) ; aucun saut de copain dans [xLancement, xReception] d'un tremplin.
+// Tâche 6 : les copains ratent parfois une fosse (erreur × FOSSE_SKILL_FACTOR, décision Q-F3) : une chute d'un copain
+// dans une fosse après son saut est « fosse » (attendue), au plus 2 par série ; sans saut, « choc » ou « sans-tentative »
+// (aucune tolérée depuis le tour 2) ; ≤ 3 réapparitions par copain hors chutes dans une fosse (saut §6.8) ; aucun saut de
+// copain dans [xLancement, xReception] d'un tremplin.
 import { CONFIG, type Config } from '../../src/config';
 import { carSpeedMps } from '../../src/physics/car';
 import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/harness';
@@ -39,8 +40,8 @@ export const MAX_STUCK_SECONDS = 2.1;
  * - Galahad dans une fosse sans avoir sauté depuis le début de son approche : « fosse » (attendue sans saut, ruling
  *   R-F11) ;
  * - copain dans une fosse après son saut (tâche 6 : il rate parfois, décision Q-F3) : « fosse » (attendue) ; sans saut :
- *   « choc » après un contact récent (poussé dans la lave), sinon « sans-tentative » (le copain n'a pas sauté : attendu
- *   seulement à faible vitesse, où la lave le reprend avant le saut tardif, SANS_TENTATIVE_MAX_SPEED) ;
+ *   « choc » après un contact récent (poussé dans la lave), sinon « sans-tentative » (le copain n'a pas sauté : jamais
+ *   attendu depuis le tour 2 de la tâche 6, voir `expectRaceInvariants`) ;
  * - sinon « choc » si la voiture a touché une autre voiture dans les CONTACT_WINDOW secondes qui précèdent (approche du
  *   volcan : plat de lancement, élan, rampe, vol ; dans la zone fantôme les voitures se traversent), « propre » sinon.
  * Une chute propre contredit la promesse « doigt posé depuis le plat de lancement, on ne tombe jamais » (tremplin), ou
@@ -57,19 +58,52 @@ export interface Fall {
   speed: number;
   /** Dernier contact avec une autre voiture avant la chute, null si aucun depuis le départ. */
   lastContact: { t: number; with: string } | null;
+  /**
+   * s entre le saut fait sur l'approche de ce volcan et la reprise par la lave (vol du raté : décision du papa au tour 2
+   * de la tâche 6, le raté se voit) ; null sans saut.
+   */
+  flight: number | null;
 }
+
 /**
- * m/s : vitesse au-dessous de laquelle un copain peut tomber dans une fosse sans avoir sauté (décision du papa au tour 1
- * de la tâche 6 : le saut tardif part au dernier pas permis, au plus JUMP_BUFFER + PHYSICS_DT avant le bord). MESURÉ
- * (tests/robots.test.ts, pas de 0,25 m/s) : la lave reprend le châssis 1,05 à 1,17 m avant le bord, donc jusqu'à
- * ≈ 11,3 m/s la voiture tombe avant le dernier pas permis (« à 8 m/s ou moins » de la décision, mesuré plus finement).
+ * Cause d'une chute dans la lave (voir `Fall`) : sorte du volcan, voiture (copain ou Galahad), saut fait sur
+ * l'approche, contact avec une autre voiture dans les CONTACT_WINDOW s qui précèdent. Exportée pour être testée en
+ * table (tests/race-smoke.test.ts).
  */
-export const SANS_TENTATIVE_MAX_SPEED = 11.5;
+export function fallCause(o: { kind: Fall['kind']; robot: boolean; jumped: boolean; shock: boolean }): Fall['cause'] {
+  const { kind, robot, jumped, shock } = o;
+  return kind !== 'fosse' ? (shock ? 'choc' : 'propre')
+    : !robot ? (!jumped ? 'fosse' : shock ? 'choc' : 'propre')
+    : jumped ? 'fosse' : shock ? 'choc' : 'sans-tentative';
+}
+
+/**
+ * Chutes « sans-tentative » tolérées : aucune (décision du papa (3), tour 2 de la tâche 6 : tolérance resserrée à 0
+ * quand les mesures le permettent). Au tour 1, le saut d'une erreur trop tardive partait au dernier pas permis
+ * (JUMP_BUFFER + PHYSICS_DT avant le bord) et la lave, qui reprend le châssis 1,05 à 1,17 m avant le bord, le devançait
+ * selon la phase du pas entre ≈ 10,5 et 11,25 m/s (bande de phase, 11,21 m/s au plus, MESURÉ) : la tolérance était
+ * « sous 11,5 m/s ». Depuis le tour 2, une erreur trop tardive devient un saut trop tôt du même écart (`fosseJumpWanted`) :
+ * le copain saute toujours avant la lave. MESURÉ (piste plate, erreur de −1,05 s, 3 à 21 m/s, 6 phases) : un saut
+ * partout, 1,93 à 1,97 s de vol avant la reprise ; robots-sauts, race-invariants et race-sans-saut : voir le registre.
+ */
+export const isSansTentative = (f: Fall): boolean => f.cause === 'sans-tentative';
 /** Fenêtre (s) avant la chute dans laquelle un contact entre voitures en fait une chute « par choc ». */
 export const CONTACT_WINDOW = 5;
 export const describeFall = (f: Fall): string =>
   `${f.carId} au volcan ${f.volcano} (${f.kind}, t = ${f1(f.t)} s, x = ${f1(f.x)}, ${f1(f.speed)} m/s) : ${f.cause}`
+  + (f.flight !== null ? `, ${f2(f.flight)} s après son saut` : '')
   + (f.lastContact ? `, dernier contact avec ${f.lastContact.with} ${f1(f.t - f.lastContact.t)} s avant` : ', aucun contact depuis le départ');
+
+/**
+ * Vols des ratés (décision du papa, tour 2 de la tâche 6 : le raté se voit) : pour les chutes de copain dans une fosse
+ * après un saut, s entre le saut et la reprise par la lave ; nombre, min, médiane, max.
+ */
+export function describeFlights(falls: readonly Fall[]): string {
+  const xs = falls.filter((f) => f.carId !== 'galahad' && f.kind === 'fosse' && f.flight !== null).map((f) => f.flight!).sort((a, b) => a - b);
+  return xs.length === 0 ? 'aucune chute de copain après un saut'
+    : `${xs.length} chutes de copain après un saut, vol avant la reprise par la lave : min ${f2(xs[0])} s, `
+      + `médiane ${f2(xs[Math.floor(xs.length / 2)])} s, max ${f2(xs[xs.length - 1])} s`;
+}
 
 export interface FiveCarRace {
   r: SimulateResult;
@@ -158,8 +192,8 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
   const track = trackFor(seed, opts.cfg ?? CONFIG);
   const t0 = performance.now();
   const lastContact = new Map<string, { t: number; with: string }>();
-  /** Dernier saut de chaque voiture (x du châssis), pour classer une chute dans une fosse. */
-  const lastJumpX = new Map<string, number>();
+  /** Dernier saut de chaque voiture (x du châssis, instant), pour classer une chute dans une fosse et mesurer son vol. */
+  const lastJump = new Map<string, { x: number; t: number }>();
   /** Vitesse de chaque voiture au pas précédent. */
   const lastSpeed = new Map<string, number>();
   const falls: Fall[] = [];
@@ -177,7 +211,7 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
       }
       for (const e of sim.events) {
         if (e.type === 'jump') {
-          lastJumpX.set(e.carId, e.x);
+          lastJump.set(e.carId, { x: e.x, t: e.t });
           if (e.carId !== sim.cars[GALAHAD_INDEX].state.id && inNoJumpZone(track, e.x)) noJumpZoneJumps.push(`${e.carId} t = ${f1(e.t)} s, x = ${f1(e.x)}`);
         }
         if (e.type === 'star') {
@@ -189,21 +223,19 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
         if (e.reason === 'lava') {
           const v = nearestVolcanoZone(track, e.x) ?? volcanoAhead(track, e.x);
           const c = lastContact.get(e.carId) ?? null;
-          const jx = lastJumpX.get(e.carId);
-          const jumped = v !== undefined && jx !== undefined && jx >= v.xLancement && jx <= v.xLava;
+          const j = lastJump.get(e.carId);
+          const jumped = v !== undefined && j !== undefined && j.x >= v.xLancement && j.x <= v.xLava;
           const robot = e.carId !== sim.cars[GALAHAD_INDEX].state.id;
           const shock = c !== null && e.t - c.t <= CONTACT_WINDOW;
-          const cause: Fall['cause'] = v?.kind !== 'fosse' ? (shock ? 'choc' : 'propre')
-            : !robot ? (!jumped ? 'fosse' : shock ? 'choc' : 'propre')
-            : jumped ? 'fosse' : shock ? 'choc' : 'sans-tentative';
+          const cause = fallCause({ kind: v?.kind ?? '?', robot, jumped, shock });
           falls.push({
             carId: e.carId, t: e.t, x: e.x, volcano: v ? track.volcanoes.indexOf(v) : -1, kind: v?.kind ?? '?',
-            cause, speed: lastSpeed.get(e.carId) ?? NaN, lastContact: c ? { ...c } : null,
+            cause, speed: lastSpeed.get(e.carId) ?? NaN, lastContact: c ? { ...c } : null, flight: jumped ? e.t - j!.t : null,
           });
         }
         // Un respawn est une téléportation : un contact d'avant ne peut pas causer la chute suivante, ni un saut d'avant.
         lastContact.delete(e.carId);
-        lastJumpX.delete(e.carId);
+        lastJump.delete(e.carId);
       }
       for (const car of sim.cars) lastSpeed.set(car.state.id, carSpeedMps(car.body));
       opts.observe?.(sim);
@@ -263,9 +295,9 @@ export function expectRaceInvariants(race: FiveCarRace): void {
   expect(r.lavaByCar.galahad, summary).toBe(0);
   expect(falls.filter((f) => f.cause === 'propre').map(describeFall), summary).toEqual([]);
   // Saut parfait de Galahad (relecture standard M4 de la 5g) : aucune chute « fosse » de Galahad ; celles des copains
-  // (sauts ratés, tâche 6) sont attendues ; un copain ne tombe sans avoir sauté qu'à faible vitesse.
+  // (sauts ratés, tâche 6) sont attendues ; un copain ne tombe jamais sans avoir sauté (tour 2, `isSansTentative`).
   expect(falls.filter((f) => f.cause === 'fosse' && f.carId === 'galahad').map(describeFall), summary).toEqual([]);
-  expect(falls.filter((f) => f.cause === 'sans-tentative' && !(f.speed <= SANS_TENTATIVE_MAX_SPEED)).map(describeFall), summary).toEqual([]);
+  expect(falls.filter(isSansTentative).map(describeFall), summary).toEqual([]);
   expect(race.noJumpZoneJumps, summary).toEqual([]);
   // Fantômes près des volcans : aucune paire active entre deux voitures dont l'une est dans une zone fantôme.
   expect(r.ghostContacts, summary).toBe(0);
@@ -300,11 +332,11 @@ export function registerRaceInvariants(seeds: number[]): void {
     afterAll(() => {
       const propres = falls.filter((f) => f.cause === 'propre').length;
       const byKind = (k: Fall['kind']) => falls.filter((f) => f.kind === k).length;
-      const sansTentative = falls.filter((f) => f.cause === 'sans-tentative').length;
+      const sansTentative = falls.filter(isSansTentative).length;
       console.log(`chutes dans la lave à 5 voitures, graines ${seeds.join(', ')} : ${falls.length} (propres ${propres}, `
         + `choc ${falls.filter((f) => f.cause === 'choc').length}, fosse (attendues : copain qui rate son saut, Galahad sans saut) ${falls.filter((f) => f.cause === 'fosse').length}, `
         + `copain sans tentative ${sansTentative} ; `
-        + `aux tremplins ${byKind('tremplin')}, aux fosses ${byKind('fosse')})`
+        + `aux tremplins ${byKind('tremplin')}, aux fosses ${byKind('fosse')}) ; ${describeFlights(falls)}`
         + (falls.length ? `\n  ${falls.map((f) => `seed ${f.seed} : ${describeFall(f)}`).join('\n  ')}` : ''));
     });
   });

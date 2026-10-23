@@ -3,6 +3,7 @@
 // arrêté n'est pas poussé pendant au moins 2 s, ruling Q8), saut de fosse d'un copain par son driver. Le driver seul,
 // avec un contexte fabriqué à la main : tests/driver.test.ts. Mesures à 5 voitures : tests/slow/robots-sauts-*.test.ts.
 import { makeRobotDriver, robotDraws, type Driver } from '../src/ai/driver';
+import { fosseJumpLead } from '../src/cars/jump';
 import { PILOTS } from '../src/cars/pilots';
 import { takeStarFor } from '../src/cars/stars';
 import { CONFIG } from '../src/config';
@@ -157,17 +158,24 @@ describe('contexte réel du driver (`driverContext`, relecture standard I1)', ()
   });
 });
 
-describe('saut tardif à une fosse (décision du papa, tour 1) : le copain saute au dernier pas permis', () => {
+describe('raté tardif rendu visible (décision du papa, tour 2) : une erreur trop tardive devient un saut trop tôt du même écart', () => {
   const { world, f } = flatFosseWorld();
-  // Pablo avec une erreur à la 1re tentative très en retard (< −1 s) : sans la borne basse, il ne sauterait pas.
+  // Pablo avec une erreur à la 1re tentative très en retard (< −1 s ; graine 72, −1,05 s) : visé à fosseJumpLead(v) − e,
+  // plus d'une seconde trop tôt.
   const pablo = PILOTS.find((p) => p.id === 'pablo')!;
   const seed = Array.from({ length: 4000 }, (_, s) => s).find((s) => robotDraws(pablo, 1, world.track, s, CONFIG).fosseErr[0][0] < -1)!;
+  const err = robotDraws(pablo, 1, world.track, seed, CONFIG).fosseErr[0][0];
+  /**
+   * s de vol exigées entre le saut et la reprise par la lave. MESURÉ (sonde du tour 2, piste plate, 3 à 21 m/s, 6 phases) :
+   * 1,93 à 1,97 s partout, sans aucune chute sans saut ; l'ancienne règle (saut au dernier pas permis) sautait 0 à 2 pas
+   * (≤ 0,033 s) avant la reprise, ou pas du tout sous ≈ 11,3 m/s.
+   */
+  const VOL_MIN = 1;
 
-  // MESURÉ (pas de 0,25 m/s) : la lave reprend le châssis 1,05 à 1,17 m avant le bord ; le dernier pas permis est à
-  // (JUMP_BUFFER, JUMP_BUFFER + PHYSICS_DT] s du bord : jusqu'à ≈ 11,3 m/s la voiture tombe avant de sauter (11,2 m/s :
-  // selon la phase, saut à 1,19 m ou chute avant), à 12 et 14 m/s elle saute à 1,2–1,5 m et tombe, à 17,5 et 21 m/s elle
-  // passe.
-  test.each([8, 10, 12, 14, 17.5, 21])('%s m/s tenus', (v) => {
+  // MESURÉ : de 3 à 17,5 m/s, saut à 5,1 m (3 m/s) … 31,6 m (17,5 m/s) du bord, la voiture retombe dans la fosse 1,93 s
+  // après ; à 21 m/s, le saut visé (1,86 s, 39 m) est avant l'approche : il part au début de l'approche (32,35 m) et
+  // retombe au bord aval, dans la lave (5 phases sur 6) ou juste après (la phase de ce test).
+  test.each([3, 8, 11.25, 14, 17.5, 21])('%s m/s tenus : un seul saut, à fosseJumpLead(v) − e (ou au début de l’approche), puis au moins VOL_MIN de vol avant la lave', (v) => {
     const sim = createRaceSim(world.track, CONFIG, { robots: true, pilotSeed: seed });
     sim.cars.forEach((car, k) => {
       if (k > 1) car.driver = PARKED;
@@ -179,27 +187,31 @@ describe('saut tardif à une fosse (décision du papa, tour 1) : le copain saute
     const x0 = f.xLancement - 30;
     placeCar(c.body, x0, () => 0, 0, CONFIG);
     launchSolo({ ...sim, cars: [c] }, x0, v, CONFIG);
-    const jumps: number[] = [];
-    const respawns: string[] = [];
-    while (chassisX(c) < f.xReception + 30 && sim.time < 8 && respawns.length === 0) {
+    const jumps: { d: number; v: number; t: number }[] = [];
+    const respawns: { reason: string; t: number }[] = [];
+    while (chassisX(c) < f.xReception + 30 && sim.time < 40 && respawns.length === 0) {
+      // Vitesse vue par le driver au début du pas.
+      const speed = carSpeedMps(c.body);
       stepRace(sim, false);
       for (const e of sim.events) {
         if (e.carId !== c.state.id) continue;
-        if (e.type === 'jump') jumps.push(f.xBord - e.x);
-        if (e.type === 'respawn') respawns.push(e.reason);
+        if (e.type === 'jump') jumps.push({ d: f.xBord - e.x, v: speed, t: e.t });
+        if (e.type === 'respawn') respawns.push({ reason: e.reason, t: e.t });
       }
     }
-    console.log(`saut tardif à ${v} m/s : sauts à ${jumps.map((d) => `${d.toFixed(2)} m`).join(', ') || 'aucun'} du bord, réapparitions [${respawns.join(', ')}]`);
-    if (v <= 10) {
-      // La lave reprend la voiture avant le dernier pas permis.
-      expect(jumps).toEqual([]);
-      expect(respawns).toEqual(['lava']);
-      return;
-    }
+    const flight = respawns.length && jumps.length ? respawns[0].t - jumps[0].t : null;
+    console.log(`raté tardif à ${v} m/s (e = ${err.toFixed(3)} s) : sauts à ${jumps.map((j) => `${j.d.toFixed(2)} m (${j.v.toFixed(2)} m/s)`).join(', ') || 'aucun'} du bord, `
+      + `réapparitions [${respawns.map((r) => r.reason).join(', ')}]${flight === null ? '' : `, ${flight.toFixed(3)} s après le saut`}`);
     expect(jumps).toHaveLength(1);
-    expect(jumps[0]).toBeGreaterThan(v * CONFIG.JUMP_BUFFER - 1e-6);
-    expect(jumps[0]).toBeLessThanOrEqual(v * (CONFIG.JUMP_BUFFER + CONFIG.PHYSICS_DT) + 1e-6);
-    expect(respawns).toEqual(v <= 14 ? ['lava'] : []);
+    const [j] = jumps;
+    // Visé plus tôt que le centre du même écart, borné par le début de l'approche.
+    const aim = Math.min((fosseJumpLead(j.v, CONFIG) - err) * j.v, f.xBord - f.xLancement);
+    expect(j.d).toBeLessThanOrEqual(aim + 0.05);
+    expect(j.d).toBeGreaterThan(aim - j.v * CONFIG.PHYSICS_DT - 0.05);
+    if (v <= 17.5) expect(respawns.map((r) => r.reason)).toEqual(['lava']);
+    else expect(respawns.map((r) => r.reason)).toEqual(respawns.length ? ['lava'] : []);
+    // Le raté se voit : la voiture décolle et vole avant la reprise par la lave.
+    if (flight !== null) expect(flight).toBeGreaterThanOrEqual(VOL_MIN);
   });
 });
 

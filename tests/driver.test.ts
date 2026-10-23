@@ -3,7 +3,7 @@
 // physique). Délai de départ, zone volcan, lever de pied, robots polis, sauts d'étoile haute et de fosse, déterminisme.
 // Le câblage dans `stepRace` (contexte réel `driverContext`, garde `inNoJumpZone`) : tests/robots.test.ts.
 import { driverSeed, makeRobotDriver, robotDraws, type Driver, type DriverContext, type OtherCar } from '../src/ai/driver';
-import { fosseJumpLead, fosseJumpWanted } from '../src/cars/jump';
+import { fosseJumpLead, fosseJumpWanted, fosseLatestLead } from '../src/cars/jump';
 import { PILOTS, type Pilot } from '../src/cars/pilots';
 import { newCarState, type CarState } from '../src/cars/state';
 import { CONFIG } from '../src/config';
@@ -220,9 +220,12 @@ describe('robots polis : seulement derrière une voiture vraiment arrêtée (dé
     expect(lifted(200, {})).toBe(180);
     // Une autre voiture arrêtée devant : nouvelle attente.
     expect(lifted(10, {}, 2)).toBe(10);
-    // Une réapparition (nouvelle tentative) remet aussi l'attente à zéro.
+    // Une réapparition (nouvelle tentative) remet aussi l'attente à zéro : 2,9 s derrière la même voiture, réapparition,
+    // puis de nouveau 3 s entières derrière elle (sans la remise à zéro, il repartirait au bout de 0,1 s : re-relecture
+    // du tour 1, mutant 2d).
+    expect(lifted(164, {}, 2)).toBe(164);
     state.respawnCount++;
-    expect(lifted(10, {}, 2)).toBe(10);
+    expect(lifted(200, {}, 2)).toBe(180);
   });
 });
 
@@ -366,18 +369,77 @@ describe('saut de fosse', () => {
     expect(where(c, (s) => s.jump)).toEqual([window(c, 14, e2)]);
   });
 
-  // Pur : la demande part à toute vitesse ; en course, à 8 m/s la lave reprend la voiture avant (tests/robots.test.ts).
-  test.each([8, 11.2, 14, 21])('erreur trop tardive à %s m/s : la demande part au dernier pas permis (tte ∈ ]JUMP_BUFFER, JUMP_BUFFER + dt]), une seule fois', (v) => {
-    const p = pilot({ jumpSkill: 0.25 });
+  // Raté tardif rendu visible (décision du papa, tour 2 de la tâche 6) : une erreur qui viserait plus tard que le bord au
+  // plus tard CALCULÉ (`fosseLatestLead`, saut §6.2) devient un saut trop tôt du même écart : visé à fosseJumpLead(v) − e.
+  test('bord au plus tard CALCULÉ : FOSSE_JUMP_LATE_DISTANCE / v + FOSSE_JUMP_LATE_TIME ; 0,21 / 0,167 / 0,146 / 0,117 s à 8 / 11,2 / 14 / 21 m/s ; v < 1 compté 1', () => {
+    expect(CONFIG.FOSSE_JUMP_LATE_DISTANCE).toBe(1.2);
+    expect(CONFIG.FOSSE_JUMP_LATE_TIME).toBe(0.06);
+    expect(fosseLatestLead(8, CONFIG)).toBeCloseTo(0.21, 9);
+    expect(fosseLatestLead(11.2, CONFIG)).toBeCloseTo(0.167, 3);
+    expect(fosseLatestLead(14, CONFIG)).toBeCloseTo(0.146, 3);
+    expect(fosseLatestLead(21, CONFIG)).toBeCloseTo(0.117, 3);
+    expect(fosseLatestLead(0.5, CONFIG)).toBe(fosseLatestLead(1, CONFIG));
+  });
+
+  test('e = 0 jamais basculé : fosseJumpLead(v) ≥ fosseLatestLead(v) à toute vitesse (0 à 40 m/s, pas de 0,01 m/s), et fosseJumpWanted sans erreur inchangé', () => {
+    let gapMin = Infinity;
+    let vMin = NaN;
+    for (let k = 0; k <= 4000; k++) {
+      const v = k / 100;
+      const gap = fosseJumpLead(v, CONFIG) - fosseLatestLead(v, CONFIG);
+      if (gap < gapMin) { gapMin = gap; vMin = v; }
+    }
+    console.log(`fosseJumpLead − fosseLatestLead : au moins ${gapMin.toFixed(4)} s (à ${vMin} m/s)`);
+    expect(gapMin).toBeGreaterThan(0.07);
+    // Sans erreur, la demande est celle d'avant le tour 2 : bord à au plus fosseJumpLead(v), à plus de JUMP_BUFFER.
+    for (const v of [1, 3, 6, 8, 11.2, 14, 17.5, 21, 30]) {
+      for (let x = f.xLancement; x < f.xBord; x += 0.05) {
+        const tte = (f.xBord - x) / v;
+        const before = tte <= fosseJumpLead(v, CONFIG) + EPS && tte > CONFIG.JUMP_BUFFER + EPS;
+        expect(fosseJumpWanted(track, x, v, CONFIG, 0), `v = ${v}, x = ${x.toFixed(2)}`).toBe(before);
+        expect(fosseJumpWanted(track, x, v, CONFIG), `v = ${v}, x = ${x.toFixed(2)}`).toBe(before);
+      }
+    }
+  });
+
+  test.each([8, 11.2, 14, 21])('bascule à %s m/s : erreur juste au-dessus du seuil, demande à fosseJumpLead + e ; juste au-dessous, à fosseJumpLead − e (plus tôt du même écart)', (v) => {
     const lead = fosseJumpLead(v, CONFIG);
-    const seed = Array.from({ length: 4000 }, (_, s) => s).find((s) => robotDraws(p, 1, track, s, CONFIG).fosseErr[0][0] < CONFIG.JUMP_BUFFER - lead - 0.02)!;
+    /** e < seuil : trop tardive. */
+    const seuil = fosseLatestLead(v, CONFIG) - lead;
+    expect(seuil).toBeLessThan(0);
+    /** Demande voulue à tte s avant le bord (x de la piste plate), avec l'erreur e. */
+    const at = (tte: number, e: number) => fosseJumpWanted(track, f.xBord - tte * v, v, CONFIG, e);
+    const above = seuil + 0.002;
+    const below = seuil - 0.002;
+    // Juste au-dessus : visé à lead + e (le plus tard permis), pas plus tôt.
+    expect(at(lead + above - 0.001, above)).toBe(true);
+    expect(at(lead + above + 0.001, above)).toBe(false);
+    expect(at(lead - above - 0.001, above)).toBe(false);
+    // Juste au-dessous : visé à lead − e, plus tôt que le centre du même écart ; redemandé jusqu'au dernier pas permis.
+    expect(at(lead - below - 0.001, below)).toBe(true);
+    expect(at(lead - below + 0.001, below)).toBe(false);
+    expect(at(lead + below, below)).toBe(true);
+    expect(at(CONFIG.JUMP_BUFFER + DT, below)).toBe(true);
+    expect(at(CONFIG.JUMP_BUFFER - 0.001, below)).toBe(false);
+    // Le saut basculé de justesse tombe au bord au plus tôt CALCULÉ (saut §6.2 : (1,96 s × v − W − 1,2 m) / v), à
+    // 0,02 s près : du côté tôt de la fenêtre, qui est large.
+    const earliest = (1.96 * v - CONFIG.FOSSE_WIDTH - 1.2) / v;
+    expect(Math.abs(lead - seuil - earliest)).toBeLessThan(0.025);
+  });
+
+  test.each([8, 11.2, 14, 21])('erreur très tardive (< −1 s) à %s m/s, par le driver : une seule demande, au premier pas où (xBord − x) / v ≤ fosseJumpLead(v) − e (ou dès le début de l’approche)', (v) => {
+    const p = pilot({ jumpSkill: 0.25 });
+    const seed = Array.from({ length: 4000 }, (_, s) => s).find((s) => robotDraws(p, 1, track, s, CONFIG).fosseErr[0][0] < -1)!;
     expect(seed).toBeDefined();
+    const e = robotDraws(p, 1, track, seed, CONFIG).fosseErr[0][0];
     const steps = drive(makeRobotDriver(p, 1, track, seed, CONFIG), track, { x0: f.xLancement - 10, x1: f.xBord, v, t0: 2, state: freshState(), serve: true });
     const jumps = where(steps, (s) => s.jump);
-    expect(jumps).toHaveLength(1);
+    expect(jumps).toEqual([window(steps, v, -e)]);
+    // Visé plus tôt que le centre de |e| > 1 s, borné par le début de l'approche (à 21 m/s, 32,35 m font 1,54 s).
+    const aim = Math.min(fosseJumpLead(v, CONFIG) - e, (f.xBord - f.xLancement) / v);
     const tte = (f.xBord - steps[jumps[0]].x) / v;
-    expect(tte).toBeGreaterThan(CONFIG.JUMP_BUFFER);
-    expect(tte).toBeLessThanOrEqual(CONFIG.JUMP_BUFFER + DT + 1e-9);
+    expect(tte).toBeLessThanOrEqual(aim + EPS);
+    expect(tte).toBeGreaterThan(aim - DT - EPS);
   });
 
   test('étoiles hautes : tentée avec la probabilité jumpTry, erreur N(0, jumpSkill) (graines 0 à 399, traits de Pablo : 0,80 et 0,18 s)', () => {

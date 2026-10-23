@@ -8,7 +8,7 @@ import { placeCar } from '../src/physics/car';
 import { simulateRace } from '../src/sim/harness';
 import { createRaceSim, stepRace, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { heightAt } from '../src/track/query';
-import { expectRaceInvariants, fiveCarRace } from './helpers/race';
+import { expectRaceInvariants, fallCause, fiveCarRace, type Fall } from './helpers/race';
 import { sauteurParfait } from './helpers/fosses';
 import { FINISH_MAX_SECONDS, FINISH_MIN_SECONDS, describeRespawns, f2, firstTremplin, trackFor } from './helpers/runs';
 
@@ -35,6 +35,28 @@ test(`cas 6, seed ${SEED} : course doigt posé avec le saut parfait aux fosses, 
 });
 
 describe('course à 5 voitures, doigt posé (copains à leur driver, tâche 6)', () => {
+  test('classement d’une chute dans la lave (`fallCause`, table complète ; re-relecture du tour 1 de la tâche 6, mutants 5a et 5b)', () => {
+    // Fosse : [Galahad ou copain, a sauté sur l'approche, contact dans les CONTACT_WINDOW s] → cause.
+    const fosse: [boolean, boolean, boolean, Fall['cause']][] = [
+      [false, false, false, 'fosse'], [false, false, true, 'fosse'], // Galahad sans saut : attendue (R-F11)
+      [false, true, false, 'propre'], [false, true, true, 'choc'], // Galahad après son saut
+      [true, true, false, 'fosse'], [true, true, true, 'fosse'], // copain qui rate son saut (Q-F3)
+      [true, false, true, 'choc'], [true, false, false, 'sans-tentative'], // copain sans saut : poussé, ou n'a pas sauté
+    ];
+    for (const [robot, jumped, shock, cause] of fosse) {
+      expect(fallCause({ kind: 'fosse', robot, jumped, shock }), `fosse, robot ${robot}, saut ${jumped}, contact ${shock}`).toBe(cause);
+    }
+    // Tremplin (ou volcan introuvable) : « choc » après un contact, « propre » sinon, quelle que soit la voiture.
+    for (const kind of ['tremplin', '?'] as const) {
+      for (const robot of [false, true]) {
+        for (const jumped of [false, true]) {
+          expect(fallCause({ kind, robot, jumped, shock: true }), `${kind}, robot ${robot}, saut ${jumped}`).toBe('choc');
+          expect(fallCause({ kind, robot, jumped, shock: false }), `${kind}, robot ${robot}, saut ${jumped}`).toBe('propre');
+        }
+      }
+    }
+  });
+
   test.each([1, 2])('seed %i : ≤ 3 respawns par voiture, aucun garde-fou de vitesse, personne bloqué > 2 s, Galahad arrive', (seed) => {
     const race = fiveCarRace(seed);
     console.log(`course à 5 ${race.summary}`);

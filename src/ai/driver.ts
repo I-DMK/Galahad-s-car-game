@@ -122,8 +122,9 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
  * 6. sinon, doigt posé.
  * Sauts, en plus du doigt :
  * - fosse (toujours tentée, sans tirage `jumpTry`) : `fosseJumpWanted` avec l'erreur de la tentative (sur l'approche,
- *   bord à au plus fosseJumpLead(v) + e secondes ; une erreur trop tardive fait sauter au dernier pas permis, décision du
- *   papa) ; redemandée à chaque pas jusqu'au saut, puis plus aucune jusqu'à la tentative suivante (une réapparition) ;
+ *   bord à au plus fosseJumpLead(v) + e secondes ; une erreur trop tardive, plus tard que le bord au plus tard CALCULÉ,
+ *   devient un saut trop tôt du même écart, à fosseJumpLead(v) − e : décision du papa au tour 2, le raté se voit) ;
+ *   redemandée à chaque pas jusqu'au saut, puis plus aucune jusqu'à la tentative suivante (une réapparition) ;
  * - étoile haute disponible et tentée : demande tant que JUMP_STAR_MIN_LEAD ≤ (xÉtoile − x) / max(v, 1) ≤
  *   JUMP_STAR_LEAD + erreur, redemandée à chaque pas jusqu'au saut ; abandonnée sous JUMP_STAR_MIN_LEAD (un saut plus
  *   tardif passe sous l'étoile, par exemple après un survol en turbo) ; après une réapparition, la même décision est

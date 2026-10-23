@@ -7,8 +7,9 @@
 //     l'approche d'une fosse, est une « prise au saut », comptée et imprimée ; jamais pour Galahad, qui ne saute
 //     qu'aux fosses) : une voiture, Galahad compris (R-F12 amendé, décision du papa au tour 2 de
 //     la 5g : graine 5, Galahad retombé d'une bosse sur le toit de Liam, catapulté sur l'étoile 1,15 s après), ne prend
-//     une étoile haute sans saut que dans les 2 s après un contact avec une autre voiture (« catapulte », observateur
-//     `carPairsTouching`) : ces prises sont tolérées, comptées et imprimées ; une prise sans saut ni contact échoue ;
+//     une étoile haute sans saut que dans les 2 s après un contact avec une autre voiture, ou pendant le vol qui suit ce
+//     contact (« catapulte », observateur `carPairsTouching` ; lecture confirmée par le papa, décision (4) des rulings de
+//     la tâche 6) : ces prises sont tolérées, comptées et imprimées ; une prise sans saut ni contact échoue ;
 // (ii) Galahad seul, turbo forcé tous les 5 m de [x★ − 80, x★ − 20], graines 0 à 9 : 0 prise ;
 // (iii) chaque étoile de plat étoile des graines 0 à 9 : fenêtre ≥ 0,4 s à 11,2 et 14 m/s, ≥ 0,3 s à + 5 cm, sans
 //     réapparition (`windowFor`) ; centre imprimé (futur JUMP_STAR_LEAD) ;
@@ -27,6 +28,8 @@ import { trackFor } from '../helpers/runs';
  * s : une prise d'étoile haute sans saut n'est tolérée que dans cette durée après un contact, pour toute voiture (R-F12
  * amendé), ou pendant le vol qui suit ce contact, sans retour sur la piste (tour 1 de la tâche 6 : graine 8, Malo en turbo
  * catapulté par le toit de Timothé à 6,5 m de haut, prend l'étoile 2,18 s après le dernier contact, toujours en l'air).
+ * Cette lecture de R-F12, « 2 s après un contact, ou pendant le vol qui suit ce contact », est confirmée par le papa
+ * (décision (4) du 2026-10-23, rulings de la tâche 6).
  */
 const CATAPULT_WINDOW = 2;
 /** s : une prise dans cette durée après le saut de la voiture est une prise au saut (tâche 6, même fenêtre que la mesure des ratés). */

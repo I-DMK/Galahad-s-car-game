@@ -19,7 +19,7 @@ import { chassisX, type RaceSim } from '../../src/sim/simulate';
 import { fosses } from '../../src/track/query';
 import type { Fosse, Track } from '../../src/track/types';
 import { stepFingerprint } from './fingerprint';
-import { expectRaceInvariants, fiveCarRace, respawnsHorsFosses, type FiveCarRace } from './race';
+import { describeFlights, expectRaceInvariants, fiveCarRace, respawnsHorsFosses, type FiveCarRace } from './race';
 import { f1, trackFor } from './runs';
 
 /** s : une étoile haute prise dans cette durée après le saut est « prise au saut » ; sinon le saut est raté. */
@@ -215,7 +215,11 @@ export function registerRobotsSauts(seeds: number[], determinism?: number): void
       const arm = (k: Arm) => all.filter((m) => m.arm === k);
       const stars = (ms: RaceMeasure[]) => ms.flatMap((m) => m.stars);
       const fos = (ms: RaceMeasure[]) => ms.flatMap((m) => m.fosses);
-      const lines = (['fonceurs', 'prudents', 'normal'] as const).map((k) => describeAttempts(`bras ${k}`, stars(arm(k)), fos(arm(k))));
+      const lines = (['fonceurs', 'prudents', 'normal'] as const).map((k) => {
+        const falls = arm(k).flatMap((m) => m.race.falls).filter((f) => f.carId !== 'galahad');
+        const causes = (['fosse', 'choc', 'sans-tentative', 'propre'] as const).map((c) => `${c} ${falls.filter((f) => f.cause === c).length}`);
+        return `${describeAttempts(`bras ${k}`, stars(arm(k)), fos(arm(k)))}\n  chutes de copain par cause : ${causes.join(', ')} ; ${describeFlights(falls)}`;
+      });
       const normal = arm('normal');
       const pilots = PILOTS.map((p) => describeAttempts(`  ${p.name} (${p.jumpTry} / ${p.jumpSkill})`,
         stars(normal).filter((a) => a.carId === p.id), fos(normal).filter((a) => a.carId === p.id)));
@@ -223,7 +227,7 @@ export function registerRobotsSauts(seeds: number[], determinism?: number): void
       console.log(`=== ${name} (${seeds.length} graines) ===\n${lines.join('\n')}\ntirage normal, pilote par pilote :\n${pilots.join('\n')}\n`
         + `réapparitions hors fosses par copain et par course : max ${Math.max(...respawns)}, moyenne ${f1(respawns.reduce((a, b) => a + b, 0) / respawns.length)}`);
       fs().mkdirSync('tests/slow/out', { recursive: true });
-      fs().writeFileSync(`tests/slow/out/${name}.json`, JSON.stringify(all.map(({ race, ...m }) => ({ ...m, summary: race.summary }))));
+      fs().writeFileSync(`tests/slow/out/${name}.json`, JSON.stringify(all.map(({ race, ...m }) => ({ ...m, summary: race.summary, falls: race.falls }))));
     });
 
     test('fonceurs contre prudents (appariés par graine) : au moins 40 tentatives par bras, les fonceurs ratent plus, aux étoiles hautes et aux fosses', () => {
