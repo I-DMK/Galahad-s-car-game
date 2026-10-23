@@ -14,14 +14,17 @@ import { f1, f2, liftedPattern } from './runs';
 /**
  * Seuil du « freinage net à l'écran » (spec §7 : « jamais d'arrêt net visible ») : une baisse de `speedFactor` de plus
  * de RUBBER_RATE_PER_S × dt (+ 1e-9) en un pas, pour un copain dont `onScreen` est vrai à ce pas. Seule exception : la
- * fin de son propre turbo (R7-6). Le plafond « ≤ 1 hors écran devant » tombe au bord de la vue (R7-16) : jamais compté.
+ * fin de son propre turbo (R7-6), et seulement la part due au turbo (tour 1 de la tâche 7, code-review 3) : au pas où le
+ * turbo finit, la baisse comptée part du facteur que le copain aurait eu sans turbo au pas d'avant, min(RUBBER_MAX,
+ * élastique d'avant). Le plafond « ≤ 1 hors écran devant » tombe au bord de la vue (R7-16) : jamais compté.
  */
 export const brakeThreshold = (cfg: Config = CONFIG): number => cfg.RUBBER_RATE_PER_S * cfg.PHYSICS_DT + 1e-9;
 
 /**
- * Compteur « freinage net à l'écran », à appeler après chaque pas (`observe`). Turbo du pas : `turboUntil` lu après le
- * pas précédent, comparé au temps du pas (une étoile prise pendant le pas ne change que le pas suivant), comme
- * `stepRace` le lit avant la conduite.
+ * Compteur « freinage net à l'écran », à créer sur la course neuve, avant le premier pas (le premier pas est alors
+ * compté ; tour 1 de la tâche 7, code-review 4), puis à appeler après chaque pas (`observe`). Turbo du pas : `turboUntil`
+ * lu après le pas précédent, comparé au temps du pas (une étoile prise pendant le pas ne change que le pas suivant),
+ * comme `stepRace` le lit avant la conduite.
  */
 export class BrakeWatch {
   count = 0;
@@ -32,12 +35,15 @@ export class BrakeWatch {
   /** Pas où un copain à l'écran a vu son facteur baisser à la fin de son turbo (exception), et la plus forte de ces baisses. */
   turboEnds = 0;
   private readonly prevF: number[];
+  /** Élastique de chaque voiture après le pas précédent (facteur sans turbo d'avant la fin d'un turbo). */
+  private readonly prevRubber: (number | null)[];
   private readonly prevTurbo: boolean[];
   private readonly turboSeen: number[];
   private lastTime: number;
 
   constructor(sim: RaceSim, private readonly cfg: Config = sim.cfg) {
     this.prevF = sim.cars.map((c) => c.speedFactor);
+    this.prevRubber = sim.cars.map((c) => c.rubber);
     this.prevTurbo = sim.cars.map((c) => sim.time < c.state.turboUntil);
     this.turboSeen = sim.cars.map((c) => c.state.turboUntil);
     this.lastTime = sim.time;
@@ -51,16 +57,21 @@ export class BrakeWatch {
       const turbo = t < this.turboSeen[i];
       const drop = this.prevF[i] - car.speedFactor;
       const turboEnd = this.prevTurbo[i] && !turbo;
-      if (car.rubber !== null && car.onScreen && !turboEnd) this.maxDrop = Math.max(this.maxDrop, drop);
-      if (car.rubber !== null && car.onScreen && drop > limit) {
-        if (turboEnd) {
-          this.turboEnds++;
-        } else {
+      // Fin de son turbo : seule la part due au turbo est exemptée ; la baisse comptée part du facteur sans turbo d'avant.
+      const prevRubber = this.prevRubber[i];
+      const counted = turboEnd && prevRubber !== null ? Math.min(this.cfg.RUBBER_MAX, prevRubber) - car.speedFactor : drop;
+      if (car.rubber !== null && car.onScreen) {
+        this.maxDrop = Math.max(this.maxDrop, counted);
+        if (turboEnd && drop > limit) this.turboEnds++;
+        if (counted > limit) {
           this.count++;
-          if (this.events.length < 20) this.events.push(`${car.state.id} t = ${t.toFixed(3)} s : ${f2(this.prevF[i])} → ${f2(car.speedFactor)}`);
+          if (this.events.length < 20) {
+            this.events.push(`${car.state.id} t = ${t.toFixed(3)} s : ${f2(this.prevF[i])} → ${f2(car.speedFactor)}${turboEnd ? ' (fin de turbo)' : ''}`);
+          }
         }
       }
       this.prevF[i] = car.speedFactor;
+      this.prevRubber[i] = car.rubber;
       this.prevTurbo[i] = turbo;
       this.turboSeen[i] = car.state.turboUntil;
     });
@@ -181,10 +192,12 @@ export function objectiveRace(seed: number, motif: Motif, jump: ObjectiveJump = 
   const ids: string[] = [];
   const race = fiveCarRace(seed, {
     cfg, jump, ...(motif === 'levé' ? { throttle: liftedPattern(seed, LIFTED_P) } : {}),
+    setup: (sim) => {
+      brake = new BrakeWatch(sim, cfg);
+      ids.push(...sim.cars.map((c) => c.state.id));
+    },
     observe: (sim) => {
-      brake ??= new BrakeWatch(sim, cfg);
-      if (ids.length === 0) ids.push(...sim.cars.map((c) => c.state.id));
-      brake.observe(sim);
+      brake!.observe(sim);
       screen.observe(sim);
       const t = sim.time;
       const index = (id: string) => ids.indexOf(id);

@@ -13,30 +13,37 @@ import {
 import { placeStats } from '../helpers/rattrapage';
 
 const SEEDS = Array.from({ length: 20 }, (_, i) => i);
+/** Courses de l'objectif, calculées une fois avant les tests (tour 1, code-review 10) : cibles indépendantes de l'ordre et d'un filtre `-t`. */
 const modele: ObjectiveRow[] = [];
 const sauteur: ObjectiveRow[] = [];
+const summaries = new Map<string, string>();
+const key = (jump: string, seed: number): string => `${jump}/${seed}`;
 
 describe('objectif de course sous élastique, graines 0 à 19 : modèle D7-1 (doigt posé, saut parfait aux fosses) et sauteur', () => {
-  test.each(SEEDS)('modèle D7-1, graine %i : limites des copains, arrivée, aucun freinage net à l’écran', (seed) => {
-    const { row, race } = objectiveRace(seed, 'posé', 'parfait');
-    modele.push(row);
-    console.log(`${describeObjective(row)}\n  ${race.summary}`);
-    expectObjectiveRace(row, race.summary);
-  });
-
-  test.each(SEEDS)('sauteur, graine %i : limites des copains, arrivée, aucun freinage net à l’écran', (seed) => {
-    const { row, race } = objectiveRace(seed, 'posé', 'sauteur');
-    sauteur.push(row);
-    console.log(`${describeObjective(row)}\n  ${race.summary}`);
-    expectObjectiveRace(row, race.summary);
-  });
-
-  afterAll(() => {
+  beforeAll(() => {
+    for (const [jump, rows] of [['parfait', modele], ['sauteur', sauteur]] as const) {
+      for (const seed of SEEDS) {
+        const { row, race } = objectiveRace(seed, 'posé', jump);
+        rows.push(row);
+        summaries.set(key(jump, seed), race.summary);
+        console.log(`${describeObjective(row)}\n  ${race.summary}`);
+      }
+    }
     writeObjective('race-objective', [...modele, ...sauteur]);
     console.log(`=== objectif (tâche 7) ===\n${describeTotals('modèle D7-1', modele)}\n${describeTotals('sauteur', sauteur)}\n`
       + `cibles D7-4 : 1er ou 2e ≥ ${T.top2Min}, dernier ≤ ${T.lastMax}, 1er dans ${T.winsMin} à ${T.winsMax}, copain à l'écran ≥ ${100 * T.screenMin} % ; `
       + `D7-5 : place moyenne du sauteur ≤ celle du modèle\n`
       + `places par graine (modèle / sauteur) : ${SEEDS.map((s) => `g${s} ${modele.find((o) => o.seed === s)?.galahadPlace ?? '?'}/${sauteur.find((o) => o.seed === s)?.galahadPlace ?? '?'}`).join(' ')}`);
+  }, 1_800_000);
+
+  test.each(SEEDS)('modèle D7-1, graine %i : limites des copains, arrivée, aucun freinage net à l’écran', (seed) => {
+    const row = modele.find((o) => o.seed === seed)!;
+    expectObjectiveRace(row, summaries.get(key('parfait', seed))!);
+  });
+
+  test.each(SEEDS)('sauteur, graine %i : limites des copains, arrivée, aucun freinage net à l’écran', (seed) => {
+    const row = sauteur.find((o) => o.seed === seed)!;
+    expectObjectiveRace(row, summaries.get(key('sauteur', seed))!);
   });
 
   test('cibles du modèle D7-1 (D7-4) : 1er ou 2e ≥ 10/20, dernier ≤ 2/20, 1er dans 5 à 15, copain à l’écran ≥ 30 % en moyenne', () => {

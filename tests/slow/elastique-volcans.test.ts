@@ -1,5 +1,6 @@
-// Budget : < 15 min mur (MESURÉ 8 min 19 à 8 min 40, machine chargée : ≈ 2 200 runs en monde rogné, plus 5 courses à
-// 5 voitures de 90 s ; la marche 1,3 → 1,0 au pied, 1 836 runs, est dans elastique-volcans-marche.test.ts). Volcans sous élastique
+// Budget : < 15 min mur (MESURÉ 8 min 19 à 8 min 40, machine chargée, avec les 5 courses de « Galahad arrêté » ; ≈ 2 200
+// runs en monde rogné ; la marche 1,3 → 1,0 au pied, 1 836 runs, est dans elastique-volcans-marche.test.ts ; Galahad arrêté
+// avec les copains derrière, 24 courses à 5 voitures depuis le tour 1, dans elastique-volcans-arret.test.ts). Volcans sous élastique
 // (plan B, tâche 7, Step 4 ; Review Focus n° 1 et n° 3 de la tâche ; addendum §1.8, spec §7) : un copain sous le vrai
 // élastique, forcé par son `rubber` et par la position de Galahad garé (protocole : tests/helpers/elastique-volcans.ts),
 // sur tous les volcans des graines 0 à 9 :
@@ -13,25 +14,15 @@
 //   l'air, au-delà de la tolérance de sol, quand tombe la demande la plus tardive : MESURÉ 1 sur 180, comme la relecture
 //   adversariale) ;
 // - plats étoile à 1,3, lancée à 18,2 m/s, sans saut : 0 prise ;
-// - départ à 0,6 (couple 0,6) au pied des bosses, double-bosses et rampes-saut : 0 réapparition ;
-// - Galahad arrêté 10 s à t = 40 et 70 s (5 voitures, graines 0 à 4, fenêtre 20/3) : 0 réapparition de Galahad due aux
-//   copains (contact avec un copain dans les CONTACT_WINDOW = 5 s qui précèdent) ; ses chutes dans la lave sans contact
-//   viennent de l'arrêt lui-même (doigt levé, il s'arrête devant un volcan) et sont imprimées (ruling de la tâche 7 ;
-//   sonde, graines 0 à 23 : 7 avant la tâche, 10 après, toutes sans contact) ; vitesses d'impact imprimées (repère :
-//   10,8 m/s avec la fenêtre de 12 m, 12,2 sans élastique, R7-12). Garde-fou réservé au papa (tableau de la tâche 7,
-//   ligne « Galahad arrêté » ; R7-14) : à la livraison de la tâche 7, ce cas est ROUGE (graine 3 : Galahad, doigt levé
-//   à 70 s, poussé par Timothé de 13 à 15 m/s puis couché sur les bosses, réapparition « side » à 77 s ; 0 avant la
-//   tâche) ; chiffres au rapport et au registre, aucun levier sans le papa.
+// - départ à 0,6 (couple 0,6) au pied des bosses, double-bosses et rampes-saut : 0 réapparition.
 import { CONFIG } from '../../src/config';
-import { toM } from '../../src/physics/units';
-import { carPairsTouching } from '../../src/sim/harness';
 import { fosses, tremplins } from '../../src/track/query';
 import type { Track } from '../../src/track/types';
 import {
-  AHEAD, BEHIND, FOSSE_LANDING_MAX, clearWorlds, LIP_MIN, MIN_GUARD, elasticRun, f1, f2, fosseDriver, latestError, range, worstSafe,
+  AHEAD, BEHIND, clearWorlds, LIP_MIN, MIN_GUARD, elasticRun, f1, f2, fosseDriver, latestError, range, worstSafe,
   type ElasticRun,
 } from '../helpers/elastique-volcans';
-import { CONTACT_WINDOW, fiveCarRace } from '../helpers/race';
+import { FOSSE_LANDING_MAX } from '../helpers/robots-sauts';
 import { trackFor } from '../helpers/runs';
 
 const SEEDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -216,62 +207,5 @@ describe('volcans sous élastique, graines 0 à 9 (vrai élastique, copain forc�
     console.log(`départ à 0,6 : ${n} runs (${[...types].map(([k, m]) => `${k} ${m}`).join(', ')}), échecs ${fails.length}${fails.length ? `\n  ${fails.join('\n  ')}` : ''}`);
     expect(n).toBeGreaterThanOrEqual(100);
     expect(fails).toEqual([]);
-  });
-
-  test('Galahad arrêté 10 s à t = 40 et 70 s, copains sous élastique (fenêtre de 3 m derrière), graines 0 à 4 : 0 réapparition de Galahad due aux copains ; vitesses d’impact imprimées', () => {
-    const impacts: number[] = [];
-    const rows: string[] = [];
-    let vxAfter = 0;
-    let galahadRespawns = 0;
-    let copainRespawns = 0;
-    for (const seed of [0, 1, 2, 3, 4]) {
-      const stopped = (t: number) => (t >= 40 && t < 50) || (t >= 70 && t < 80);
-      const prevV = new Map<string, number>();
-      const lastTouch = new Map<string, number>();
-      const lastAny = new Map<string, number>();
-      const mine: string[] = [];
-      let lastG = -Infinity;
-      const causes: string[] = [];
-      const race = fiveCarRace(seed, {
-        maxSeconds: 90, throttle: (t) => !stopped(t),
-        observe: (sim) => {
-          const t = sim.time;
-          const g = sim.cars[0];
-          for (const [a, b] of carPairsTouching(sim)) {
-            lastAny.set(a, t); lastAny.set(b, t);
-            if (a !== 'galahad' && b !== 'galahad') continue;
-            lastG = t;
-            const other = a === 'galahad' ? b : a;
-            const last = lastTouch.get(other) ?? -Infinity;
-            // Choc sur Galahad pendant un arrêt (ou dans les 2 s qui suivent) : vitesse relative au pas d'avant le contact.
-            if (t - last > 0.5 && (stopped(t) || stopped(t - 2))) {
-              const vg = prevV.get('galahad') ?? 0;
-              const rel = Math.abs((prevV.get(other) ?? 0) - vg);
-              impacts.push(rel);
-              mine.push(`${other} à ${f1(t)} s : ${f1(rel)} m/s (Galahad à ${f1(vg)} m/s)`);
-            }
-            lastTouch.set(other, t);
-          }
-          for (const e of sim.events) {
-            if (e.type !== 'respawn' || e.carId !== 'galahad') continue;
-            const byCopain = t - lastG <= CONTACT_WINDOW;
-            if (byCopain) copainRespawns++;
-            causes.push(`${e.reason} à ${f1(t)} s, x ${f1(e.x)}, ${byCopain ? `contact avec un copain ${f2(t - lastG)} s avant` : `sans contact depuis ${CONTACT_WINDOW} s`}`);
-          }
-          for (const car of sim.cars) {
-            const vx = toM(car.body.chassis.velocity.x) / CONFIG.PHYSICS_DT;
-            prevV.set(car.state.id, vx);
-            if (car !== g && t - (lastAny.get(car.state.id) ?? -Infinity) <= 2) vxAfter = Math.max(vxAfter, vx);
-          }
-        },
-      });
-      const gr = race.r.respawnsByCar.galahad.length;
-      galahadRespawns += gr;
-      rows.push(`g${seed} : réapparitions de Galahad ${gr}${causes.length ? ` (${causes.join(' ; ')})` : ''}, impacts sur Galahad arrêté [${mine.join(' ; ')}]\n    ${race.summary}`);
-    }
-    console.log(`Galahad arrêté (graines 0 à 4) : ${impacts.length} impacts, vitesse relative max ${f1(impacts.length ? Math.max(...impacts) : NaN)} m/s `
-      + `(repères : 10,8 avec la fenêtre de 12 m, 12,2 sans élastique) ; vx max d'un copain dans les 2 s après un contact ${f1(vxAfter)} m/s ; `
-      + `réapparitions de Galahad ${galahadRespawns}, dont ${copainRespawns} après un contact avec un copain\n  ${rows.join('\n  ')}`);
-    expect(copainRespawns, rows.join('\n')).toBe(0);
   });
 });

@@ -6,19 +6,24 @@
 import { describeObjective, describeTotals, expectObjectiveRace, objectiveRace, writeObjective, type ObjectiveRow } from '../helpers/objective';
 
 const SEEDS = Array.from({ length: 10 }, (_, i) => i);
+/** Courses calculées une fois avant les tests (comme race-objective : indépendant de l'ordre et d'un filtre `-t`). */
 const leve: ObjectiveRow[] = [];
+const summaries = new Map<number, string>();
 
 describe('objectif de course sous élastique, doigt levé 30 %, graines 0 à 9 (places imprimées)', () => {
-  test.each(SEEDS)('doigt levé 30 %, graine %i : limites des copains, arrivée, aucun freinage net à l’écran', (seed) => {
-    const { row, race } = objectiveRace(seed, 'levé', 'parfait');
-    leve.push(row);
-    console.log(`${describeObjective(row)}\n  ${race.summary}`);
-    expectObjectiveRace(row, race.summary);
-  });
-
-  afterAll(() => {
+  beforeAll(() => {
+    for (const seed of SEEDS) {
+      const { row, race } = objectiveRace(seed, 'levé', 'parfait');
+      leve.push(row);
+      summaries.set(seed, race.summary);
+      console.log(`${describeObjective(row)}\n  ${race.summary}`);
+    }
     writeObjective('race-objective-leve', leve);
     console.log(`=== objectif, doigt levé 30 % (tâche 7) ===\n${describeTotals('doigt levé 30 %', leve)}\n`
       + `places par graine : ${leve.map((o) => `g${o.seed} ${o.galahadPlace}`).join(' ')}`);
+  }, 1_800_000);
+
+  test.each(SEEDS)('doigt levé 30 %, graine %i : limites des copains, arrivée, aucun freinage net à l’écran', (seed) => {
+    expectObjectiveRace(leve.find((o) => o.seed === seed)!, summaries.get(seed)!);
   });
 });

@@ -4,7 +4,7 @@
 // Pur (ni DOM, ni matter-js) : `sim/simulate.ts` l'appelle à chaque pas, avant la conduite. Arguments positionnels :
 // aucune allocation par pas.
 import type { Config } from '../config';
-import { inVolcanoZone } from '../track/query';
+import { volcanoZoneLevel } from '../track/query';
 import type { Track } from '../track/types';
 
 /**
@@ -30,13 +30,13 @@ export function rampFactor(prev: number, target: number, dt: number, cfg: Config
 }
 
 /**
- * Plancher de la cible (addendum §1.8) : 1 dans [xLancement − RUBBER_PREZONE_M, xLava] d'un volcan (tremplin ou fosse ;
+ * Plancher de la cible (addendum §1.8 ; zone de `volcanoZoneLevel`, la définition partagée) : 1 dans
+ * [xLancement − RUBBER_PREZONE_M, xLava] d'un volcan (tremplin ou fosse ;
  * xLancement d'une fosse est le début de l'approche, sa garde est dans la pré-zone, ruling R7-4), 0 ailleurs. Un copain
  * freiné à 0,6 remonte à 1 en ≈ 2,7 s avant d'aborder le volcan. Sans allocation.
  */
 export function zoneFloor(track: Track, x: number, cfg: Config): number {
-  for (const v of track.volcanoes) if (x >= v.xLancement - cfg.RUBBER_PREZONE_M && x <= v.xLava) return 1;
-  return 0;
+  return volcanoZoneLevel(track, x, cfg.RUBBER_PREZONE_M) > 0 ? 1 : 0;
 }
 
 /**
@@ -54,9 +54,19 @@ export function screenBehindEdge(vGalahad: number, cfg: Config): number {
   return cfg.CAMERA_LEAD_SECONDS * vGalahad - cfg.SCREEN_REF_HALF_WIDTH_M - cfg.SCREEN_EDGE_MARGIN_M;
 }
 
+/**
+ * Place d'un copain par rapport à la vue de référence (ruling R7-16) : 1 hors écran devant (gap > screenAheadEdge),
+ * −1 hors écran derrière (gap < screenBehindEdge), 0 à l'écran. La définition de l'écran : `onScreen` et `finalFactor` la
+ * lisent ; chaque bord est calculé une fois.
+ */
+export function screenSide(gap: number, vGalahad: number, cfg: Config): -1 | 0 | 1 {
+  if (gap > screenAheadEdge(vGalahad, cfg)) return 1;
+  return gap < screenBehindEdge(vGalahad, cfg) ? -1 : 0;
+}
+
 /** Copain à l'écran : screenBehindEdge ≤ gap ≤ screenAheadEdge (ruling R7-16). */
 export function onScreen(gap: number, vGalahad: number, cfg: Config): boolean {
-  return gap >= screenBehindEdge(vGalahad, cfg) && gap <= screenAheadEdge(vGalahad, cfg);
+  return screenSide(gap, vGalahad, cfg) === 0;
 }
 
 /**
@@ -65,18 +75,25 @@ export function onScreen(gap: number, vGalahad: number, cfg: Config): boolean {
  * vitesse (spec §7, R7-16). La marche de ce plafond tombe au bord de la vue, jamais à l'écran.
  */
 export function finalFactor(rubber: number, turbo: number, gap: number, vGalahad: number, cfg: Config): number {
+  return cappedFactor(rubber, turbo, screenSide(gap, vGalahad, cfg), cfg);
+}
+
+/** `finalFactor` pour une place à l'écran déjà connue (`screenSide`) : le pas de course la calcule une fois par copain. */
+export function cappedFactor(rubber: number, turbo: number, side: -1 | 0 | 1, cfg: Config): number {
   const f = Math.min(cfg.RUBBER_MAX, rubber * turbo);
-  return gap > screenAheadEdge(vGalahad, cfg) ? Math.min(f, 1) : f;
+  return side === 1 ? Math.min(f, 1) : f;
 }
 
 /**
  * Un pas de l'élastique d'un copain (règles 1 à 4 de la tâche 7, dans cet ordre) : (1) cible 1 tant que
  * t < RUBBER_NEUTRAL_SECONDS (spec §6), sinon `targetFactor(gap, base)` ; (2) plancher `zoneFloor` ; (3) rampe depuis
- * `prev` ; (4) clamp de zone : dans [xLancement, xLava] (`inVolcanoZone`), au moins 1, immédiat et stocké (ruling R7-5 :
+ * `prev` ; (4) clamp de zone : dans [xLancement, xLava], au moins 1, immédiat et stocké (ruling R7-5 :
  * en sortant, la baisse part de 1 à 0,15/s). `x` : x du châssis du copain, `gap` : x(copain) − x(Galahad), au début du pas.
  */
 export function stepRubber(prev: number, t: number, gap: number, base: number, x: number, track: Track, cfg: Config): number {
-  const target = Math.max(t < cfg.RUBBER_NEUTRAL_SECONDS ? 1 : targetFactor(gap, base, cfg), zoneFloor(track, x, cfg));
+  // Un seul balayage des volcans pour le plancher (pré-zone ou zone) et le clamp (zone).
+  const level = volcanoZoneLevel(track, x, cfg.RUBBER_PREZONE_M);
+  const target = Math.max(t < cfg.RUBBER_NEUTRAL_SECONDS ? 1 : targetFactor(gap, base, cfg), level > 0 ? 1 : 0);
   const r = rampFactor(prev, target, cfg.PHYSICS_DT, cfg);
-  return inVolcanoZone(track, x) ? Math.max(r, 1) : r;
+  return level === 2 ? Math.max(r, 1) : r;
 }

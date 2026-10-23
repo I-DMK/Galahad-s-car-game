@@ -5,7 +5,7 @@
 // robots par leur driver (tâche 6 : `ai/driver.ts`) ; élastique des copains (tâche 7 : `ai/rubberband.ts`).
 import Matter from 'matter-js';
 import { makeRobotDriver, type Driver, type DriverContext, type OtherCar } from '../ai/driver';
-import { finalFactor, onScreen, stepRubber } from '../ai/rubberband';
+import { cappedFactor, screenSide, stepRubber } from '../ai/rubberband';
 import type { Config } from '../config';
 import { canJump, wantsJump } from '../cars/jump';
 import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
@@ -209,16 +209,11 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
   const { cfg, world, track, time: t } = sim;
   const h = (x: number) => heightAt(track, x);
   sim.events = [];
-  // Contextes pris avant toute conduite, pour les seules voitures conduites par leur driver : la réponse d'un driver ne
-  // dépend pas de l'ordre des voitures.
-  const cache = sim.cars.some(drivenNow) ? driverCache(sim) : null;
+  // Instantané pris avant toute conduite, s'il y a une voiture conduite par son driver ou sous élastique : contextes des
+  // drivers (leur réponse ne dépend pas de l'ordre des voitures) et élastique (x et vitesse de Galahad et du copain au
+  // début du pas, ruling R7-7 : le saut de Galahad change sa vitesse dans la boucle). Galahad seul : rien n'est lu.
+  const cache = sim.cars.some(drivenNow) || sim.cars.some(rubberNow) ? driverCache(sim) : null;
   if (cache) snapshotCars(sim, cache);
-  // Élastique (tâche 7, ruling R7-7) : x et vitesse du châssis de Galahad au début du pas, avant toute conduite (son saut
-  // change sa vitesse dans la boucle) ; sans copain sous élastique, rien n'est lu.
-  const galahad = sim.cars[GALAHAD_INDEX];
-  const elastic = sim.cars.some(rubberNow);
-  const gx = elastic ? chassisX(galahad) : 0;
-  const vG = elastic ? carSpeedMps(galahad.body) : 0;
   const onGround = sim.cars.map((car, i) => {
     const { body, state } = car;
     updateGhost(sim, car);
@@ -235,7 +230,7 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
       } else {
         car.throttle = galahadThrottle;
       }
-      drive(sim, car, gx, vG);
+      drive(sim, car, i, cache);
     }
     const grounded = updateGroundContact(world.engine, body, car.contact, t, h, cfg);
     detectLanding(sim, car, grounded[0] || grounded[1]);
@@ -361,13 +356,14 @@ const drivenNow = (car: CarSim): boolean => car.driver !== null && car.state.fin
 const rubberNow = (car: CarSim): boolean => car.rubber !== null && car.state.finishedAt === null;
 
 /**
- * Conduite d'une voiture pas encore arrivée (tâche 7), doigt `car.throttle` déjà décidé. Sans élastique (`rubber ===
- * null` : Galahad, ou un copain d'un test) : plafond turbo × `factor`, couple 1, exactement le pas d'avant la tâche 7.
- * Copain sous élastique : écart à Galahad au début du pas (`gx`, x de son châssis ; `vG`, sa vitesse), élastique du pas
- * (`stepRubber` : cible, plancher, rampe, clamp de zone), puis facteur final (`finalFactor` : turbo plafonné à 1,3, ≤ 1
- * hors écran devant) au plafond ET au couple. Facteurs appliqués et `onScreen` notés dans la voiture.
+ * Conduite de la voiture d'index `i`, pas encore arrivée (tâche 7), doigt `car.throttle` déjà décidé. Sans élastique
+ * (`rubber === null` : Galahad, ou un copain d'un test) : plafond turbo × `factor`, couple 1, exactement le pas d'avant la
+ * tâche 7. Copain sous élastique : écart à Galahad et vitesse de Galahad lus dans l'instantané du début du pas (`cache`,
+ * toujours pris quand un copain est sous élastique), élastique du pas (`stepRubber` : cible, plancher, rampe, clamp de
+ * zone), place à l'écran (`screenSide`, une fois), puis facteur final (`cappedFactor` : turbo plafonné à 1,3, ≤ 1 hors
+ * écran devant) au plafond ET au couple. Facteurs appliqués et `onScreen` notés dans la voiture.
  */
-function drive(sim: RaceSim, car: CarSim, gx: number, vG: number): void {
+function drive(sim: RaceSim, car: CarSim, i: number, cache: DriverCache | null): void {
   const { cfg, track, time: t } = sim;
   const turbo = turboFactor(car.state, t, cfg);
   if (car.rubber === null) {
@@ -378,14 +374,17 @@ function drive(sim: RaceSim, car: CarSim, gx: number, vG: number): void {
     car.onScreen = false;
     return;
   }
-  const x = chassisX(car);
-  const gap = x - gx;
+  const snap = cache!;
+  const x = snap.xs[i];
+  const gap = x - snap.xs[GALAHAD_INDEX];
+  const vG = snap.speeds[GALAHAD_INDEX];
   car.rubber = stepRubber(car.rubber, t, gap, car.pilot.base, x, track, cfg);
-  const f = finalFactor(car.rubber, turbo, gap, vG, cfg);
+  const side = screenSide(gap, vG, cfg);
+  const f = cappedFactor(car.rubber, turbo, side, cfg);
   applyDrive(car.body, car.throttle, f, f, cfg);
   car.speedFactor = f;
   car.torqueFactor = f;
-  car.onScreen = onScreen(gap, vG, cfg);
+  car.onScreen = side === 0;
 }
 
 /** Contexte d'un driver et ses objets internes, réutilisés d'un pas à l'autre (aucune allocation par pas). */
@@ -404,7 +403,7 @@ interface DriverSlot {
 interface DriverCache {
   slots: DriverSlot[];
   highStars: number[];
-  xs: number[]; speeds: number[]; throttles: boolean[]; traversables: boolean[];
+  xs: number[]; speeds: number[]; throttles: boolean[]; traversables: boolean[]; finished: boolean[];
 }
 const driverCaches = new WeakMap<RaceSim, DriverCache>();
 
@@ -413,7 +412,9 @@ function driverCache(sim: RaceSim): DriverCache {
   if (cache && cache.slots.length === sim.cars.length) return cache;
   const n = sim.cars.length;
   const slots = sim.cars.map((car, index): DriverSlot => {
-    const others = sim.cars.flatMap((_, j) => (j === index ? [] : [{ index: j, x: 0, speed: 0, throttle: false, traversable: false }]));
+    const others = sim.cars.flatMap((_, j) => (j === index ? [] : [{
+      index: j, x: 0, speed: 0, throttle: false, traversable: false, galahad: j === GALAHAD_INDEX, finished: false,
+    }]));
     const ctx: DriverContext = {
       t: 0, state: car.state, track: sim.track, speed: 0, x: 0, traversable: false, others, nextHighStar: null, nextFosse: null,
     };
@@ -424,18 +425,20 @@ function driverCache(sim: RaceSim): DriverCache {
     highStars: sim.track.stars.flatMap((s, k) => (s.high ? [k] : [])),
     xs: new Array<number>(n).fill(0), speeds: new Array<number>(n).fill(0),
     throttles: new Array<boolean>(n).fill(false), traversables: new Array<boolean>(n).fill(false),
+    finished: new Array<boolean>(n).fill(false),
   };
   driverCaches.set(sim, cache);
   return cache;
 }
 
-/** Instantané de toutes les voitures au début du pas : x et vitesse du châssis, doigt du pas précédent, traversable. */
+/** Instantané de toutes les voitures au début du pas : x et vitesse du châssis, doigt du pas précédent, traversable, arrivée. */
 function snapshotCars(sim: RaceSim, cache: DriverCache): void {
   sim.cars.forEach((car, i) => {
     cache.xs[i] = chassisX(car);
     cache.speeds[i] = carSpeedMps(car.body);
     cache.throttles[i] = car.throttle;
     cache.traversables[i] = car.ghost || car.invulnerable;
+    cache.finished[i] = car.state.finishedAt !== null;
   });
 }
 
@@ -460,6 +463,7 @@ function fillContext(sim: RaceSim, cache: DriverCache, i: number): DriverContext
     o.speed = cache.speeds[o.index];
     o.throttle = cache.throttles[o.index];
     o.traversable = cache.traversables[o.index];
+    o.finished = cache.finished[o.index];
   }
   const hs = cache.highStars;
   let c = slot.starCursor;

@@ -2,7 +2,7 @@ import { CONFIG } from '../src/config';
 import { generateTrack } from '../src/track/generate';
 import {
   fosses, heightAt, inElanZone, inGhostZone, inVolcanoZone, nearestVolcanoZone, nextFosse, sliceAt, slopeAt, tremplins,
-  volcanoAhead,
+  volcanoAhead, volcanoZoneLevel,
 } from '../src/track/query';
 import type { Track } from '../src/track/types';
 import { trackFor } from './helpers/runs';
@@ -196,6 +196,24 @@ describe('inVolcanoZone (tâche 7, ruling R7-13 : une seule définition pour le 
       }
     }
     expect(n).toBeGreaterThanOrEqual(30);
+  });
+
+  test('volcanoZoneLevel (tour 1, une seule définition, un seul balayage) : 2 sur [xLancement, xLava], 1 sur la pré-zone [xLancement − 40, xLancement[, 0 à ± 1 cm hors des bornes (graines 0 à 9)', () => {
+    for (let seed = 0; seed < 10; seed++) {
+      const t = trackFor(seed);
+      for (const v of t.volcanoes) {
+        const what = `g${seed} ${v.kind} ${v.xLancement.toFixed(1)}`;
+        expect(volcanoZoneLevel(t, v.xLancement, 40), what).toBe(2);
+        expect(volcanoZoneLevel(t, v.xLava, 40), what).toBe(2);
+        expect(volcanoZoneLevel(t, v.xLancement - 0.01, 40), what).toBe(1);
+        expect(volcanoZoneLevel(t, v.xLancement - 40, 40), what).toBe(1);
+        expect(volcanoZoneLevel(t, v.xLancement - 40.01, 40), what).toBe(0);
+        expect(volcanoZoneLevel(t, v.xLava + 0.01, 40), what).toBe(0);
+        // Sans marge : la zone seule, comme inVolcanoZone.
+        expect(volcanoZoneLevel(t, v.xLancement - 0.01), what).toBe(0);
+        expect(volcanoZoneLevel(t, v.xLancement), what).toBe(2);
+      }
+    }
   });
 
   test('fosse : la garde n’en fait pas partie ; tremplin : l’élan et la rampe en font partie', () => {

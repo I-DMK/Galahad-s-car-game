@@ -142,6 +142,8 @@ export interface FiveCarOptions {
   traits?: Pick<Pilot, 'jumpTry' | 'jumpSkill'>;
   /** Observateur de plus, appelé après chaque pas, après celui de `fiveCarRace` (sans effet sur la course). */
   observe?: (sim: RaceSim) => void;
+  /** Appelé une fois sur la course neuve, avant le premier pas (après le changement de traits) : observateurs à créer avant (tâche 7). */
+  setup?: (sim: RaceSim) => void;
 }
 
 /**
@@ -178,16 +180,21 @@ export function sauteurRobot(track: Track, cfg: Config = CONFIG): (t: number, si
 
 /** Options de `simulateRace` de la course à 5 (hors observateur) sur `track`. */
 export const fiveCarOptions = (
-  { maxSeconds = RACE_MAX_SECONDS, throttle = () => true, cfg = CONFIG, jump = 'parfait', solo = false, traits }: FiveCarOptions = {},
+  { maxSeconds = RACE_MAX_SECONDS, throttle = () => true, cfg = CONFIG, jump = 'parfait', solo = false, traits, setup }: FiveCarOptions = {},
   track?: Track,
 ) => ({
   throttle, maxSeconds, cfg, robots: !solo,
   ...(jump === 'parfait' && track ? { jump: sauteurParfait(track, cfg) } : {}),
   ...(jump === 'sauteur' && track ? { jump: sauteurRobot(track, cfg) } : {}),
-  ...(traits && track ? {
-    setup: (sim: RaceSim) => sim.cars.forEach((car, rank) => {
-      if (car.driver) car.driver = makeRobotDriver({ ...car.pilot, ...traits }, rank, track, sim.pilotSeed, cfg);
-    }),
+  ...((traits && track) || setup ? {
+    setup: (sim: RaceSim) => {
+      if (traits && track) {
+        sim.cars.forEach((car, rank) => {
+          if (car.driver) car.driver = makeRobotDriver({ ...car.pilot, ...traits }, rank, track, sim.pilotSeed, cfg);
+        });
+      }
+      setup?.(sim);
+    },
   } : {}),
 });
 

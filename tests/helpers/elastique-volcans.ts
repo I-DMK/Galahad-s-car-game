@@ -31,8 +31,6 @@ export const FORCED: Config = { ...CONFIG, RUBBER_NEUTRAL_SECONDS: 0 };
 export const DT = CONFIG.PHYSICS_DT;
 /** Garde minimale exigée au-dessus du capteur de lave d'un tremplin (seuil de la 5c, MIN_CLEARANCE de phases.ts). */
 export const MIN_GUARD = 0.3;
-/** Atterrissage après une fosse : au plus FOSSE_GHOST_AFTER − 5 m après le bord aval (tableau de la tâche 7, ligne Fosses). */
-export const FOSSE_LANDING_MAX = CONFIG.FOSSE_GHOST_AFTER - 5;
 /** Vitesse au sommet exigée d'un copain freiné qui aborde un tremplin (LIP_SPEED_THRESHOLD + 1, runs.ts). */
 export const LIP_MIN = CONFIG.V_JUMP + 1;
 /** Pilote du copain des scénarios physiques (sa `base` ne joue pas : cibles forcées). */

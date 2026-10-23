@@ -25,7 +25,7 @@ const flat = (length = 400): Track => trackOf([plat(mulberry32(1), CONFIG, lengt
 
 /** Autre voiture : doigt levé et solide par défaut (une voiture arrêtée). */
 type Other = Partial<OtherCar> & { index: number; x: number; speed: number };
-const other = (o: Other): OtherCar => ({ throttle: false, traversable: false, ...o });
+const other = (o: Other): OtherCar => ({ ...o, throttle: o.throttle ?? false, traversable: o.traversable ?? false, galahad: o.galahad ?? false, finished: o.finished ?? false });
 
 /**
  * Contexte comme `stepRace` le remplit (étoile haute et fosse devant, à moins de JUMP_LOOKAHEAD), fabriqué à la main ;
@@ -226,6 +226,69 @@ describe('robots polis : seulement derrière une voiture vraiment arrêtée (dé
     expect(lifted(164, {}, 2)).toBe(164);
     state.respawnCount++;
     expect(lifted(200, {}, 2)).toBe(180);
+  });
+});
+
+describe('poli derrière Galahad doigt levé (décision du papa, relectures de la tâche 7)', () => {
+  const track = flat();
+  /** Galahad (index 0) à `dx` m devant le copain (en x0), à `speed` m/s ; doigt levé au pas précédent par défaut. */
+  const G = (dx: number, o: Partial<Other> = {}, x0 = 100): Other => ({ index: 0, x: x0 + dx, speed: 8, galahad: true, ...o });
+  const run = (others: Other[], o: { traversable?: boolean; x?: number; tr?: Track } = {}) => {
+    const tr = o.tr ?? track;
+    return makeRobotDriver(PABLO, 1, tr, SEED, CONFIG)(ctxOf(tr, { t: 1, x: o.x ?? 100, v: 8, state: freshState(), others, traversable: o.traversable }));
+  };
+
+  test('Galahad doigt levé juste devant (0 à POLITE_GAP = 4 m), à n’importe quelle vitesse : doigt levé', () => {
+    for (const dx of [0.5, 2.5, 3.3, 4]) {
+      for (const speed of [0, 1.9, 8, 14]) expect(run([G(dx, { speed })]).throttle, `${dx} m, ${speed} m/s`).toBe(false);
+    }
+  });
+
+  test('Galahad doigt posé, plus loin que 4 m, derrière ou à la même place, ou arrivé : doigt posé', () => {
+    expect(run([G(3, { throttle: true })]).throttle).toBe(true);
+    expect(run([G(4.01)]).throttle).toBe(true);
+    expect(run([G(-2)]).throttle).toBe(true);
+    expect(run([G(0)]).throttle).toBe(true);
+    expect(run([G(3, { finished: true })]).throttle).toBe(true);
+  });
+
+  test('une autre voiture que Galahad, doigt levé à 8 m/s devant à 3 m : doigt posé (la politesse ordinaire exige < 2 m/s)', () => {
+    expect(run([{ index: 2, x: 103, speed: 8 }]).throttle).toBe(true);
+  });
+
+  test('Galahad fantôme ou invulnérable, ou copain lui-même traversable : doigt posé', () => {
+    expect(run([G(3, { traversable: true })]).throttle).toBe(true);
+    expect(run([G(3)], { traversable: true }).throttle).toBe(true);
+  });
+
+  test('dans la zone volcan [xLancement, xLava] : doigt posé ; juste avant xLancement : doigt levé', () => {
+    const { track: ft, f } = fossePiste();
+    expect(run([G(3, {}, f.xLancement + 2)], { tr: ft, x: f.xLancement + 2 }).throttle).toBe(true);
+    expect(run([G(3, {}, f.xLancement - 4)], { tr: ft, x: f.xLancement - 4 }).throttle).toBe(false);
+  });
+
+  test('sans limite de durée : 10 s derrière Galahad doigt levé, doigt levé à chaque pas ; il repart au premier doigt posé de Galahad', () => {
+    const driver = makeRobotDriver(PABLO, 1, track, SEED, CONFIG);
+    const state = freshState();
+    let t = 1;
+    const step = (o: Partial<Other> = {}) => {
+      const out = driver(ctxOf(track, { t, x: 100, v: 1, state, others: [G(3, { speed: 0.5, ...o })] })).throttle;
+      t += DT;
+      return out;
+    };
+    const lifted = Array.from({ length: 600 }, () => step()).filter((th) => !th).length;
+    expect(lifted).toBe(600);
+    expect(step({ throttle: true })).toBe(true);
+  });
+
+  test('le saut d’une fosse reste demandé pendant ce lever de pied', () => {
+    const { track: ft, f } = fossePiste();
+    const driver = makeRobotDriver({ ...PABLO, jumpSkill: 0 }, 1, ft, SEED, CONFIG);
+    // Juste avant l'approche (hors zone), Galahad doigt levé à 3 m : doigt levé ; la demande de saut n'existe que sur
+    // l'approche, en zone : là, doigt posé et saut au centre de la fenêtre (la règle de zone passe avant).
+    const x = f.xBord - 14 * 0.71;
+    const out = driver(ctxOf(ft, { t: 1, x, v: 14, state: freshState(), others: [G(3, {}, x)] }));
+    expect(out).toEqual({ throttle: true, jump: true });
   });
 });
 

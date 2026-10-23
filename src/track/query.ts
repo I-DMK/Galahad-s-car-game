@@ -75,14 +75,29 @@ export function inNoJumpZone(track: Track, x: number): boolean {
 }
 
 /**
+ * Zone volcan en x, en un seul balayage (tâche 7, ruling R7-13 : une seule définition de la zone, pour le driver et
+ * l'élastique) : 2 si x est dans [xLancement, xLava] d'un volcan (tremplin ou fosse), bornes incluses ; 1 s'il est
+ * seulement dans les `before` m qui précèdent xLancement d'un volcan ([xLancement − before, xLancement[ : pré-zone de
+ * l'élastique, addendum §1.8) ; 0 sinon. Pour une fosse, xLancement est le début de l'approche : le plat de garde n'est
+ * pas dans la zone (il est dans la pré-zone, ruling R7-4). Sans allocation : appelé à chaque pas pour chaque copain.
+ */
+export function volcanoZoneLevel(track: Track, x: number, before = 0): 0 | 1 | 2 {
+  let level: 0 | 1 | 2 = 0;
+  for (const v of track.volcanoes) {
+    if (x < v.xLancement - before || x > v.xLava) continue;
+    if (x >= v.xLancement) return 2;
+    level = 1;
+  }
+  return level;
+}
+
+/**
  * Vrai si x est dans [xLancement, xLava] d'un volcan (tremplin ou fosse), bornes incluses : le copain y garde le doigt
- * posé (driver, tâche 6) et son élastique y vaut au moins 1 (clamp de zone, tâche 7, addendum §1.8). Pour une fosse,
- * xLancement est le début de l'approche : le plat de garde n'en fait pas partie. Une seule définition (ruling R7-13).
- * Sans allocation : appelé à chaque pas pour chaque copain.
+ * posé (driver, tâche 6) et son élastique y vaut au moins 1 (clamp de zone, tâche 7, addendum §1.8). Voir
+ * `volcanoZoneLevel`, la définition.
  */
 export function inVolcanoZone(track: Track, x: number): boolean {
-  for (const v of track.volcanoes) if (x >= v.xLancement && x <= v.xLava) return true;
-  return false;
+  return volcanoZoneLevel(track, x) === 2;
 }
 
 /** Premier volcan (tremplin ou fosse, dans l'ordre de la piste) dont la lave est strictement devant x. */

@@ -3,6 +3,7 @@
 // fenêtre de la vue, turbo plafonné hors écran devant, aucun freinage net à l'écran, copain freiné à 0,6 qui aborde un
 // volcan (Review Focus n° 3), élastique coupé par `launchSolo`. Fonctions pures : tests/rubberband.test.ts. Volcans sous
 // élastique en grand nombre : tests/slow/elastique-volcans.test.ts.
+import Matter from 'matter-js';
 import { makeRobotDriver, type Driver } from '../src/ai/driver';
 import { screenAheadEdge, zoneFloor } from '../src/ai/rubberband';
 import { takeStarFor } from '../src/cars/stars';
@@ -21,6 +22,7 @@ import { BrakeWatch } from './helpers/objective';
 import { f1, f2, trackFor } from './helpers/runs';
 
 const PARKED: Driver = () => ({ throttle: false, jump: false });
+const { Body } = Matter;
 const DT = CONFIG.PHYSICS_DT;
 const STEP = CONFIG.RUBBER_RATE_PER_S * DT;
 /** Neutre de départ coupé : l'élastique agit dès le premier pas (scénarios forcés). */
@@ -285,6 +287,88 @@ describe('scénarios forcés (vrai pas de course)', () => {
     expect(r.minF).toBeGreaterThanOrEqual(1);
     expect(r.respawns).toEqual([]);
     expect(r.passed).toBe(true);
+  });
+
+  /** Piste plate sans étoile prenable, copains garés au départ, Galahad garé en `xG` ; le copain 1 doigt posé. */
+  function flatForced(xG: number): RaceSim {
+    const flat = generateTrack(1, 600, CONFIG, { onlyPlat: true });
+    const sim = forced(NO_NEUTRAL, xG, flat);
+    for (const star of sim.stars) star.takenAt.forEach((_, k) => takeStarFor(star, k, 1e9));
+    sim.cars[1].driver = () => ({ throttle: true, jump: false });
+    return sim;
+  }
+
+  test('couple de l’élastique, effet physique (relecture adversariale I2) : copain tenu à 0,6, départ arrêté sur un plat : ≈ 0,6 × 4,3 × 2 = 5,2 m/s à 2 s (± 15 %)', () => {
+    // Galahad garé 100 m derrière : cible 0,6, hors écran devant (plafond ≤ 1 sans effet à 0,6). Avec un couple de 1 (le
+    // facteur au seul plafond), le copain serait à ≈ 8,4 m/s (4,3 × 2, plafonné à 0,6 × 14).
+    const sim = flatForced(100);
+    const c = sim.cars[1];
+    place(sim, c, 200);
+    c.rubber = 0.6;
+    while (sim.time < 2 - 1e-9) {
+      stepRace(sim, false);
+      expect(c.speedFactor).toBe(0.6);
+    }
+    const v = carSpeedMps(c.body);
+    console.log(`couple 0,6, départ arrêté : ${f2(v)} m/s à 2 s (0,6 × DRIVE_ACCEL × 2 = ${f2(0.6 * CONFIG.DRIVE_ACCEL * 2)})`);
+    expect(Math.abs(v - 0.6 * CONFIG.DRIVE_ACCEL * 2)).toBeLessThanOrEqual(0.15 * 0.6 * CONFIG.DRIVE_ACCEL * 2);
+  });
+
+  test('l’élastique est gardé à la réapparition (relecture adversariale M1) : un copain à 0,6 retourné hors zone réapparaît avec 0,6', () => {
+    // Galahad garé 150 m derrière : cible 0,6 avant et après la réapparition (point sûr posé à 300 m, hors de tout volcan).
+    const sim = flatForced(100);
+    const c = sim.cars[1];
+    c.driver = PARKED;
+    const flat = sim.track;
+    placeCar(c.body, 250, () => heightAt(flat, 250), 0, NO_NEUTRAL);
+    Body.setAngle(c.body.chassis, Math.PI); // posé à l'envers : réapparition « flipped » ou « side » après 1 à 2 s
+    c.state.safePoint = { x: 300, y: heightAt(flat, 300), angle: 0 };
+    c.rubber = 0.6;
+    let respawn: RespawnEvent | null = null;
+    while (respawn === null && sim.time < 4) {
+      stepRace(sim, false);
+      respawn = sim.events.find((e): e is RespawnEvent => e.type === 'respawn' && e.carId === c.state.id) ?? null;
+    }
+    expect(respawn, 'le copain retourné réapparaît').not.toBeNull();
+    expect(chassisX(c)).toBeCloseTo(300, 0);
+    expect(c.rubber).toBe(0.6);
+    stepRace(sim, false);
+    expect(c.rubber).toBe(0.6);
+    expect(c.speedFactor).toBe(0.6);
+  });
+
+  test('compteur « freinage net » (tour 1, code-review 3 et 4) : le premier pas est compté ; à la fin d’un turbo, seule la part du turbo est exemptée', () => {
+    /** Course factice : Galahad et un copain à l'écran, champs lus par `BrakeWatch`. */
+    const fake = (speedFactor: number, rubber: number, turboUntil: number) => ({
+      time: 0, cfg: CONFIG,
+      cars: [
+        { speedFactor: 1, rubber: null, onScreen: false, state: { id: 'galahad', turboUntil: 0 } },
+        { speedFactor, rubber, onScreen: true, state: { id: 'copain', turboUntil } },
+      ],
+    });
+    const step = (sim: ReturnType<typeof fake>, w: BrakeWatch, speedFactor: number, rubber: number) => {
+      sim.cars[1].speedFactor = speedFactor;
+      sim.cars[1].rubber = rubber;
+      sim.time += DT;
+      w.observe(sim as unknown as RaceSim);
+    };
+    // Premier pas : 1 → 0,9 à l'écran, sans turbo : compté (le compteur est créé avant le premier pas).
+    let sim = fake(1, 1, 0);
+    let w = new BrakeWatch(sim as unknown as RaceSim);
+    step(sim, w, 0.9, 0.9);
+    expect(w.count).toBe(1);
+    // Turbo fini au 2e pas : 1,3 → 1,0 avec un élastique à 1,0 : exempté (fin de turbo).
+    sim = fake(1.3, 1, DT / 2);
+    w = new BrakeWatch(sim as unknown as RaceSim);
+    step(sim, w, 1.3, 1);
+    step(sim, w, 1, 1);
+    expect([w.count, w.turboEnds]).toEqual([0, 1]);
+    // Turbo fini, mais 1,3 → 0,9 avec un élastique à 1,0 d'avant : la part de l'élastique (0,1) est comptée.
+    sim = fake(1.3, 1, DT / 2);
+    w = new BrakeWatch(sim as unknown as RaceSim);
+    step(sim, w, 1.3, 1);
+    step(sim, w, 0.9, 0.9);
+    expect(w.count).toBe(1);
   });
 
   test('copain sous élastique : `factor` n’est pas lu (R7-3) ; son facteur appliqué est celui de l’élastique', () => {
