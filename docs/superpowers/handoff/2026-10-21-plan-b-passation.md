@@ -72,6 +72,47 @@ sans le contexte de celle-ci.
 - **Tâche 5d faite, validée et déployée** (étoiles pour tous : `0cabe30` mesure « avant », `39cda73` feat, `1110f14` tour 1, `da1166f` tour 2) : état d'étoile par voiture (`takenAt[k]`, `isStarActiveFor`, `takeStarFor`), catégorie de collision par voiture (`carCategory(k)`, `CAT.ALL_CARS`, `MAX_CARS` 5), masque des capteurs = OU des voitures actives (empreinte de Galahad seul identique), rendu de l'état vu par Galahad (`GALAHAD_INDEX`), `firstStar`/`firstStarCars`, `starsByCar`. Rattrapage (48 courses doigt posé, appariées) : vainqueur = première étoile 94 % → 58 %, Galahad gagne 81 % → 52 %, place moyenne 1,33 → 1,77, étoiles par voiture 341/128/88/79/67 → ≈ 390 chacune (McNemar p ≈ 4·10⁻⁵) ; mesure à la demande : `npm run test:slow:rattrapage` (≈ 7 min, lignes étiquetées par commit). npm test 386/386, e2e 7/7, test:slow 252/252 (avant sortie du rattrapage).
 - **Tâche 5e faite, validée et déployée avec la 5g** (commits `96556a2`…`f435108`) : bouton saut (`applyJump` même hauteur partout ≈ 2,46 m, délai 0,5 s, mémoire 0,1 s, tolérance de sol 0,35 s sur la **piste seule**, front d'appui bouton ou Espace, vol non compté dans le blocage, plafond ≈ 4 s) ; **exactement 3 étoiles hautes à 3,90 m par course** sur des **plats étoile** de 57 m (pas après un volcan, ni dans les 50 m après une rampe-saut ; ancres avancées si un plat ne tient pas) ; toutes les pistes ont changé (`ANCIENNES_PISTES` redonne les anciennes au bit près, empreinte recapturée par ruling R-F10) ; fenêtres ≥ 0,52 s, appuis perdus 0 sauf 0,41 % à 21 m/s tenus ; doigt posé sans saut : 0 chute, 0 étoile haute prise. npm test 485/485, e2e 12/12.
 - **Tâche 5g faite, validée et déployée** (fosses de lave : `c6c06e7`…`83f6ff5`) : environ 1 volcan sur 2 est une **fosse de 8 m** à sauter au bouton (garde de 20 m, approche 32,4 m, panneau, halo) ; sans saut 100 % lave, 2 chutes de suite → posée à bord aval + 5 m (≈ 4,4 s perdues) ; zone interdite prolongée à bord aval + 1,5 m, série comptée sur la lave touchée ; **pas de tremplin juste après une double-bosse** (0 chute doigt posé aux tremplins) ; poids des volcans 4 → 3,62 volcans par course (1,86 fosses), 8,50 étoiles basses ; étoiles de réception décalées (plus de survol doigt posé, sauf rare cas en turbo toléré) ; catapulte par un copain tolérée dans les 2 s après un choc (R-F12) ; copains sautent les fosses sans erreur (driver complet en tâche 6). npm test 561/561, e2e 13/13, test:slow vert.
+- **Addendum « présentation »** (2026-10-22, `docs/superpowers/specs/2026-10-22-addendum-presentation.md`,
+  **VALIDÉ par le papa le 2026-10-22**, décisions au §8) : après comparaison avec la reproduction
+  Grok du jeu (archive du papa), reprise de sa présentation seulement : sprites
+  pour les voitures, la roue, les flammes, l'étoile et la Terre (nouvelle tâche
+  8b, option de géométrie A/B/C à trancher sur capture), copains sur l'écran
+  titre et police Fredoka (tâche 10), Terre dans le ciel (tâche 16), méthode
+  allégée pour les tâches d'écrans et de décor, jalon « démo tablette » après la
+  tâche 11. Rien de la physique, de l'élastique ni de la piste Grok n'est repris.
+  Décisions : sprites **générés par le papa** à nos proportions (option A, sept
+  voitures dans la même passe, en parallèle des tâches 5e à 7, gabarit SVG fourni
+  par la 8b), jalon avant l'audio, `JUMP_BUFFER` gardé à 0,1 s, ordre inchangé
+  (reprise par la 5e). **Fichiers rangés** dans `assets/` (hors
+  `public/`, non servis) : 6 carrosseries renommées par pilote, roue, étoile, Terre,
+  4 flammes (303 KB, réduits et quantifiés) et Fredoka 600/700 (40 KB), voir
+  `assets/README.md` ; l'archive Grok elle-même n'est pas dans le dépôt.
+  **Prochaine session (décision du papa, 2026-10-22) : les sept sprites, ensemble.**
+  Le papa génère les images avec son outil (Claude ne génère pas d'images) ; la
+  session fournit le gabarit SVG des proportions (`docs/sprites-gabarit.svg`,
+  Step 0 de la 8b avancé), contrôle chaque PNG dessus, efface les roues s'il en
+  reste, réduit à 512 px dans le budget du §1.2 et range le résultat
+  (`assets/generated/` bruts, `assets/sprites/` réduits, en remplaçant les
+  sprites Grok de même nom). Pas de code de jeu dans cette session. À la fin,
+  la session indique la suite : reprise du plan B par la 5e (régime physique),
+  puis 6, 7, 8 et 8b. Prompt et méthode de génération dans `assets/README.md`.
+  **Gabarit fait** (session sprites du 2026-10-22, branche `ccr-919aff50-6z5vz0` partie de
+  `claude/gifted-ritchie-ic81ct`) : `docs/sprites-gabarit.svg` (cotes du châssis ; suspension
+  mesurée quasi rigide, roues à (±0,75 ; −0,25) m à ±1 cm), `docs/sprites-gabarit-reference.png`
+  (image à joindre au générateur), outils `tools/sprites/` (rendu du gabarit, contrôle et réduction
+  à 512 × 256 px = cadre de 2,80 × 1,40 m centré sur le châssis, contrat de dessin pour la 8b).
+  Contrôle essayé : silhouette du gabarit acceptée, roues dessinées effacées, sprite Grok refusé
+  (arches 0,26 m). Prompt mis à jour (image de référence, couleurs exactes de la 5a, bandes
+  comprises). **Sept sprites livrés par le papa et contrôlés (2026-10-23)** : bruts dans
+  `assets/generated/` (1672 × 941 px), réduits dans `assets/sprites/<id>.png` (512 × 256 px,
+  12 à 15 KB, 93 KB les sept ; `assets/sprites/` en tout 212 KB ≤ 400), planche en jeu
+  `docs/sprites-planche.png`. Tous acceptés ; arches **serrées** (43,6 à 46,2 cm au lieu de 50 :
+  la roue dessinée par-dessus en cache le bord, sans jour visible), tolérance du contrôle passée à
+  [43 ; 55] cm ; carrosserie rendue opaque (le générateur livre alpha 250 à 254). `wheel.png`
+  corrigée (liseré magenta de 2 px hérité de Grok) ; même liseré sur étoile, Terre et flammes, à
+  corriger à la 8b (`assets/README.md`). **Planche validée par le papa le 2026-10-23, arches
+  serrées gardées** ; jugement final sur la tablette à la 8b. Branche des sprites fusionnée dans
+  `ccr-5b6fabc4-n96ofo` le 2026-10-23 (images, docs et outils seulement, aucun code de jeu).
 - **Retour tablette du papa à 5 voitures** (version 0a78392) : fps OK ;
   « une voiture qui tremble » → **cause trouvée** : rendu sans
   interpolation (`2026-10-21-glitch-tremblement.md`), correctif à faire
@@ -115,6 +156,7 @@ sans le contexte de celle-ci.
 | 6 conduite des robots (+ robots polis + sauts des copains) | à faire |
 | 7 élastique (+ suite `test:slow:race`) | à faire |
 | 8 position, barre de progression, classement | à faire |
+| 8b (ajoutée, addendum « présentation ») images : carrosseries, roue, flammes, étoile, ombre | Step 0 **fait, validé** (gabarit, sept sprites dans `assets/sprites/`) ; code à faire |
 | 9 (conditionnelle) fenêtre glissante de sol | fps OK à 5 voitures → non ; à remesurer avec le décor (tâche 16) |
 | 10 machine d'états, titre, décompte, pause, orientation | à faire |
 | 11 podium | à faire |
@@ -204,5 +246,9 @@ plan C (obstacles qui ralentissent, bouton « bond lunaire »).
 
 Session 3 (2026-10-22) : 5c, 5f, 5d, 5e et 5g validées et déployées. Points à regarder au test tablette : bouton saut, étoiles hautes (3 par course, 3,90 m), fosses (8 m), appuis perdus à très grande vitesse (0,41 % à 21 m/s), étoile de réception survolée en turbo, Galahad catapulté par un copain, rien qui s'allume à l'approche d'une fosse (Q-F5).
 
+0. Sprites (session dédiée) : **terminé** (2026-10-23) : gabarit, sept sprites contrôlés et rangés,
+   planche validée par le papa (arches serrées gardées). La 8b part de `assets/sprites/` (cadre
+   2,80 × 1,40 m centré sur le châssis, roues par-dessus ; liseré magenta de l'étoile, de la Terre
+   et des flammes à corriger, `assets/README.md`).
 1. Retour tablette du papa sur 5e + 5g.
 2. Exécuter **6** (robots : délai de départ, lever de pied, robots polis, sauts des étoiles hautes et des fosses avec erreur × 2,5 aux fosses, `fosseJumpLead` centré, plancher de 2 m) selon le plan v1.6 amendé, puis **7** (élastique ; Galahad gagne ≈ 52–60 % doigt posé depuis la 5d).

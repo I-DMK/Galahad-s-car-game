@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Gabarit des sprites de carrosserie, Course Lunaire de Galahad (tâche 8b, Step 0 ;
+  addendum « présentation » §1.3, option A).
+
+  Repère : celui du châssis physique. 1 unité = 1 cm, origine au centre du châssis,
+  x vers l'avant (nez à droite), y vers le BAS (convention SVG) : un point du monde
+  (x, y) en mètres, y vers le haut, est ici en (100 x, −100 y).
+
+  Cotes tirées de src/config.ts et src/physics/car.ts : CAR_LENGTH 2,2 m, CAR_HEIGHT 0,7 m,
+  coins du châssis arrondis à 0,2 m, WHEEL_BASE 1,5 m, WHEEL_RADIUS 0,45 m, WHEEL_DROP 0,25 m.
+  Suspension mesurée sur 3 courses à 5 voitures (graines 1 à 3) : axe des roues à
+  (±0,75 ; −0,25) m dans le repère du châssis, ±1 cm du 1er au 99e centile, ±4 cm au pire.
+
+  Calques (id), pour les exports :
+    cadre       cadre du sprite, 2,80 × 1,40 m = l'image de 512 × 256 px (183 px/m) ;
+                le centre de l'image est le centre du châssis
+    silhouette  silhouette proposée (buggy lunaire), à suivre de près, pas au pixel
+    pilote      pilote casqué au tiers arrière (casque à x = −L/6, comme le dessin actuel), visière vers l'avant
+    chassis     boîte de collision 2,20 × 0,70 m
+    arches      bord des arches : rayon 0,50 m visé, accepté de 0,43 à 0,55 m (arche serrée : la roue,
+                dessinée par-dessus, en cache le bord)
+    roues       roues Ø 0,90 m (wheel.png, dessinées à part, par-dessus la carrosserie)
+    reperes     centre, axes, sol, accroche des flammes du turbo
+    cotes       cotes, titre et légende (hors cadre)
+  Export « référence » (image à donner au générateur) : viewBox = cadre, calques
+  silhouette, pilote, roues. Export « calque » (contrôle) : viewBox = cadre, traits
+  seulement, posé sur l'image réduite.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-170 -110 340 355" width="1360" height="1420"
+     font-family="system-ui, 'DejaVu Sans', sans-serif">
+  <title>Gabarit des sprites de voiture (Course Lunaire de Galahad)</title>
+  <style>
+    .fond { fill: #ffffff; }
+    .cadre { fill: none; stroke: #8a8f99; stroke-width: 0.6; stroke-dasharray: 3 2; }
+    .carrosserie { fill: #c9ced8; stroke: #4a5160; stroke-width: 1; stroke-linejoin: round; }
+    .casque { fill: #aab1be; stroke: #4a5160; stroke-width: 1; }
+    .visiere { fill: #4a5160; }
+    .torse { fill: #b7bdc9; stroke: #4a5160; stroke-width: 1; }
+    .chassis { fill: none; stroke: #2f6fd6; stroke-width: 0.8; stroke-dasharray: 4 2; }
+    .anneau { fill: none; stroke: #2fa84f; stroke-opacity: 0.35; stroke-width: 8; }
+    .arche { fill: none; stroke: #1d7a37; stroke-width: 0.6; }
+    .roue { fill: none; stroke: #23262d; stroke-width: 1; stroke-dasharray: 2.5 2; }
+    .axe { stroke: #23262d; stroke-width: 0.6; }
+    .sol { stroke: #8a5a2b; stroke-width: 1.2; }
+    .flamme { fill: #ff7a00; }
+    .casque-zone { fill: none; stroke: #d0342c; stroke-width: 0.8; stroke-dasharray: 2 1.5; }
+    .cote { stroke: #555b66; stroke-width: 0.5; fill: none; }
+    .txt { fill: #23262d; font-size: 6px; }
+    .txt-p { fill: #23262d; font-size: 5.2px; }
+    .titre { fill: #23262d; font-size: 9px; font-weight: 700; }
+    .sous-titre { fill: #555b66; font-size: 5.5px; }
+  </style>
+
+  <rect id="fond" class="fond" x="-170" y="-110" width="340" height="355"/>
+
+  <g id="titre">
+    <text class="titre" x="-160" y="-96">Gabarit des sprites de voiture</text>
+    <text class="sous-titre" x="-160" y="-87">Course Lunaire de Galahad · tâche 8b, Step 0 · vue de côté stricte, nez à droite · 1 unité = 1 cm</text>
+  </g>
+
+  <!-- Silhouette proposée : caisse basse et longue, arches de rayon 0,50 m centrées sur les axes,
+       nez et arrière arrêtés 5 cm au-dessus des axes (les roues dépassent aux deux bouts),
+       cockpit creusé au tiers arrière. -->
+  <g id="silhouette">
+    <path class="carrosserie" d="
+      M -120.8 5
+      L -129 5
+      L -130 -20
+      Q -130 -36 -114 -37
+      L -64 -40
+      Q -60 -40 -59 -36
+      L -57 -30
+      L -14 -30
+      L 4 -44
+      L 76 -43
+      Q 108 -42 124 -24
+      Q 131 -14 130 0
+      L 128 5
+      L 120.8 5
+      A 50 50 0 0 0 26 35
+      L -26 35
+      A 50 50 0 0 0 -120.8 5
+      Z"/>
+  </g>
+
+  <g id="pilote">
+    <rect class="torse" x="-50" y="-40" width="24" height="12" rx="5"/>
+    <circle class="casque" cx="-37" cy="-49" r="18"/>
+    <path class="visiere" d="M -31 -58 Q -18 -57 -20 -48 Q -22 -42 -31 -43 Z"/>
+  </g>
+
+  <g id="chassis">
+    <rect class="chassis" x="-110" y="-35" width="220" height="70" rx="20"/>
+  </g>
+
+  <g id="arches">
+    <circle class="anneau" cx="-75" cy="25" r="49" style="stroke-width: 12"/>
+    <circle class="anneau" cx="75" cy="25" r="49" style="stroke-width: 12"/>
+    <circle class="arche" cx="-75" cy="25" r="50"/>
+    <circle class="arche" cx="75" cy="25" r="50"/>
+  </g>
+
+  <g id="roues">
+    <circle class="roue" cx="-75" cy="25" r="45"/>
+    <circle class="roue" cx="75" cy="25" r="45"/>
+  </g>
+
+  <g id="reperes">
+    <line class="sol" x1="-160" y1="70" x2="160" y2="70"/>
+    <path class="axe" d="M -79 25 H -71 M -75 21 V 29 M 71 25 H 79 M 75 21 V 29"/>
+    <path class="axe" d="M -5 0 H 5 M 0 -5 V 5"/>
+    <circle class="axe" cx="0" cy="0" r="2" fill="none"/>
+    <circle class="casque-zone" cx="-37" cy="-49" r="20"/>
+    <path class="flamme" d="M -131 -12 L -139 -8 L -131 -4 Z"/>
+  </g>
+
+  <g id="cadre">
+    <rect class="cadre" x="-140" y="-70" width="280" height="140"/>
+  </g>
+
+  <g id="cotes">
+    <!-- avant -->
+    <text class="txt" x="140" y="-74" text-anchor="end">avant →</text>
+    <text class="txt-p" x="-140" y="-74">cadre 2,80 × 1,40 m = image 512 × 256 px</text>
+    <!-- cotes horizontales -->
+    <path class="cote" d="M -75 74 V 86 M 75 74 V 86 M -75 82 H 75"/>
+    <text class="txt-p" x="0" y="80" text-anchor="middle">empattement 1,50 m (68 % de 2,20)</text>
+    <path class="cote" d="M -110 38 V 98 M 110 38 V 98 M -110 94 H 110"/>
+    <text class="txt-p" x="0" y="92" text-anchor="middle">châssis 2,20 m</text>
+    <path class="cote" d="M -140 72 V 110 M 140 72 V 110 M -140 106 H 140"/>
+    <text class="txt-p" x="0" y="104" text-anchor="middle">cadre 2,80 m → 512 px</text>
+    <!-- cotes verticales, à droite -->
+    <path class="cote" d="M 142 -70 H 156 M 142 70 H 156 M 152 -70 V 70"/>
+    <text class="txt-p" transform="translate(158 0) rotate(90)" text-anchor="middle">cadre 1,40 m → 256 px</text>
+    <path class="cote" d="M -112 -35 H -150 M -112 35 H -150 M -146 -35 V 35"/>
+    <text class="txt-p" transform="translate(-149 0) rotate(-90)" text-anchor="middle">châssis 0,70 m</text>
+    <path class="cote" d="M 0 7 V 25 M -4 25 H 72"/>
+    <text class="txt-p" x="-3" y="18" text-anchor="end">0,25 m</text>
+
+    <!-- légende -->
+    <g transform="translate(-160 124)">
+      <rect x="0" y="-5" width="12" height="7" class="cadre"/>
+      <text class="txt" x="17" y="1">Cadre du sprite : 2,80 × 1,40 m, soit l'image de 512 × 256 px.</text>
+      <text class="txt-p" x="17" y="8">Le centre de l'image est le centre du châssis (point de pose). Rien d'opaque hors du cadre.</text>
+
+      <rect x="0" y="12" width="12" height="7" class="carrosserie"/>
+      <text class="txt" x="17" y="18">Silhouette proposée : buggy lunaire, caisse basse et longue.</text>
+      <text class="txt-p" x="17" y="25">À suivre de près, pas au pixel : nez arrondi, cockpit creusé, arrière droit.</text>
+
+      <rect x="0" y="29" width="12" height="7" class="chassis"/>
+      <text class="txt" x="17" y="35">Châssis physique (boîte de collision) : 2,20 × 0,70 m.</text>
+      <text class="txt-p" x="17" y="42">La carrosserie peut déborder un peu (nez et arrière jusqu'à ±1,30 m, ailes, pilote).</text>
+
+      <circle cx="6" cy="49" r="5" class="roue"/>
+      <text class="txt" x="17" y="52">Roue Ø 0,90 m (wheel.png, dessinée à part, par-dessus).</text>
+      <text class="txt-p" x="17" y="59">Axes à ±0,75 m du centre et 0,25 m dessous ; suspension quasi rigide (±1 cm en course).</text>
+
+      <path d="M 0 68 A 6 6 0 0 1 12 68" class="anneau" style="stroke-width: 4"/>
+      <text class="txt" x="17" y="69">Bord des arches : rayon 0,50 m visé, accepté de 0,43 à 0,55 m.</text>
+      <text class="txt-p" x="17" y="76">Arches vides et transparentes : ce qui reste dedans est effacé au contrôle.</text>
+
+      <circle cx="6" cy="83" r="4" class="casque-zone"/>
+      <text class="txt" x="17" y="86">Pilote casqué au tiers arrière, visière vers l'avant, casque Ø ≈ 0,36 m.</text>
+      <text class="txt-p" x="17" y="93">Casque assorti à la carrosserie (Galahad : carrosserie bleue à bandes rouges, casque rouge).</text>
+
+      <path class="flamme" d="M 10 97 L 2 101 L 10 105 Z"/>
+      <text class="txt" x="17" y="103">Flammes du turbo (dessinées à part), accrochées à l'arrière.</text>
+
+      <line class="sol" x1="0" y1="110" x2="12" y2="110"/>
+      <text class="txt" x="17" y="112">Sol, sous les roues : 0,70 m sous le centre (bord bas du cadre).</text>
+    </g>
+  </g>
+</svg>
