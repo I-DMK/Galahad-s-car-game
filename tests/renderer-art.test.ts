@@ -32,14 +32,17 @@ describe('Renderer : dessin par code puis avec les images', () => {
 
   /** Renderer branché sur un faux contexte unique (le tampon de ciel et le canvas principal le partagent). */
   function setup() {
-    const { ctx, calls } = fakeCtx();
+    const { ctx, calls, state } = fakeCtx();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ctx as unknown as RenderingContext);
     const canvas = document.createElement('canvas');
     Object.defineProperty(canvas, 'clientWidth', { value: 1280 });
     Object.defineProperty(canvas, 'clientHeight', { value: 800 });
     const renderer = new Renderer(canvas, CONFIG);
-    return { renderer, calls };
+    return { renderer, calls, ctx, state };
   }
+  /** Étoiles actives à moins de demi-largeur + 1 m de la caméra : celles que `Renderer.draw` dessine. */
+  const starsNear = (renderer: Renderer, cam: Camera): number =>
+    scene.stars.filter((s) => s.active && Math.abs(s.x - cam.x) <= renderer.visibleHalfWidthM(cam) + 1).length;
   /** Caméra centrée sur la moyenne des x des 5 voitures, y du sol + 3. */
   function cameraOnCars(): Camera {
     const cam = new Camera(CONFIG);
@@ -62,7 +65,7 @@ describe('Renderer : dessin par code puis avec les images', () => {
     const { renderer, calls } = setup();
     renderer.setArt(full);
     const cam = cameraOnCars();
-    const n = scene.stars.filter((s) => s.active && Math.abs(s.x - cam.x) <= renderer.visibleHalfWidthM(cam) + 1).length;
+    const n = starsNear(renderer, cam);
     calls.length = 0;
     renderer.draw(scene, cam);
     const d = draws(calls);
@@ -80,10 +83,11 @@ describe('Renderer : dessin par code puis avec les images', () => {
   test('ordre : ombres, puis effets, puis voitures', () => {
     const { renderer, calls } = setup();
     renderer.setArt(full);
-    const effects = { draw: () => { calls.push({ name: 'effects', args: [] }); } } as unknown as Effects;
+    // Faux effets : leur `draw` note un appel « effets » dans le même journal que le faux contexte.
+    const effects = { draw: (c: CanvasRenderingContext2D) => (c as unknown as { effets(): void }).effets() } as unknown as Effects;
     calls.length = 0;
     renderer.draw(scene, cameraOnCars(), effects);
-    const at = calls.findIndex((c) => c.name === 'effects');
+    const at = calls.findIndex((c) => c.name === 'effets');
     const lastShadow = calls.indexOf(shadows(calls)[4]);
     const firstBody = calls.findIndex((c) => c.name === 'drawImage' && [...bodies.values()].includes(c.args[0] as CanvasImageSource));
     expect(lastShadow).toBeLessThan(at);
@@ -96,7 +100,7 @@ describe('Renderer : dessin par code puis avec les images', () => {
     expect(star).toBeDefined();
     const cam = new Camera(CONFIG);
     cam.update(star.x, star.y, 0, 1 / 60);
-    const near = scene.stars.filter((s) => s.active && Math.abs(s.x - cam.x) <= renderer.visibleHalfWidthM(cam) + 1).length;
+    const near = starsNear(renderer, cam);
     renderer.setArt(full);
     calls.length = 0;
     renderer.draw(scene, cam);
@@ -119,7 +123,44 @@ describe('Renderer : dessin par code puis avec les images', () => {
     renderer.setArt(full);
     calls.length = 0;
     expect(() => renderer.draw(scene, cam)).not.toThrow();
-    expect(draws(calls).length).toBeGreaterThanOrEqual(2 + 5 + 10);
+    expect(draws(calls)).toHaveLength(2 + 5 + 10 + starsNear(renderer, cam));
+  });
+
+  test('Renderer.art : null avant setArt, puis les images reçues (la source unique de __game.art)', () => {
+    const { renderer } = setup();
+    expect(renderer.art).toBeNull();
+    renderer.setArt(full);
+    expect(renderer.art).toBe(full);
+  });
+
+  // Tour 1, adversariale I2 : une opacité d'ombre qui fuit assombrit tout (ciel, sol, voitures) ; une roue sans restore
+  // fait disparaître les voitures. Le faux contexte suit la pile save/restore : rien ne doit rester d'une trame à l'autre.
+  describe('état du canvas', () => {
+    const turboScene = { ...scene, cars: scene.cars.map((c) => ({ ...c, turbo: true })) };
+
+    test('une trame complète (images, flammes, ombres, prénoms) : tout est dessiné à globalAlpha 1, rien ne reste (pile vide, identité)', () => {
+      const { renderer, calls, state } = setup();
+      renderer.setArt(full);
+      calls.length = 0;
+      renderer.draw(turboScene, cameraOnCars());
+      const d = draws(calls);
+      expect(d.filter((c) => (full.flames as CanvasImageSource[]).includes(c.args[0] as CanvasImageSource))).toHaveLength(5);
+      const texts = calls.filter((c) => c.name === 'fillText');
+      expect(texts).toHaveLength(4); // les 4 copains, pas Galahad
+      for (const c of [...d, ...texts]) expect(c.globalAlpha, `${c.name} ${String(c.args[0])}`).toBe(1);
+      const st = state();
+      expect([st.globalAlpha, st.depth, st.underflows]).toEqual([1, 0, 0]);
+      expect(st.matrix).toEqual([1, 0, 0, 1, 0, 0]);
+    });
+
+    test('draw remet globalAlpha à 1 au début : une opacité laissée par un autre dessin ne touche ni le ciel ni le sol', () => {
+      const { renderer, calls, ctx, state } = setup();
+      ctx.globalAlpha = 0.3;
+      calls.length = 0;
+      renderer.draw(scene, cameraOnCars());
+      for (const c of draws(calls).slice(0, 2)) expect(c.globalAlpha, 'ciel').toBe(1);
+      expect(state().globalAlpha).toBe(1);
+    });
   });
 });
 
@@ -147,11 +188,13 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
     const hud = document.createElement('div');
     document.body.append(canvas, hud);
     const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false }, art);
-    const internals = game as unknown as { stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void } };
+    const internals = game as unknown as {
+      stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void }; renderer: Renderer;
+    };
     const dispose = () => { internals.stop(); internals.throttle.dispose(); internals.jumpInput.dispose(); };
     let now = 0;
     const frames = (n: number) => { for (let i = 0; i < n; i++) { now += DT * 1000; raf!(now); } };
-    return { game, dispose, frames };
+    return { game, hud, renderer: internals.renderer, dispose, frames };
   }
 
   test('promesse jamais résolue : la course roule, chaque image est dessinée, setArt n’est jamais appelé', () => {
@@ -194,6 +237,51 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
     game.art.loaded.push('x.png');
     game.art.failed.length = 0;
     expect(game.art).toEqual({ settled: true, loaded: ['galahad.png'], failed: ['wheel.png'] });
+    dispose();
+  });
+
+  test('une seule source pour __game.art : ce que le Renderer a reçu, ni plus ni moins', () => {
+    const { game, renderer, dispose } = makeGame();
+    expect(game.art).toEqual({ settled: false, loaded: [], failed: [] });
+    renderer.setArt({ ...NO_ART, loaded: ['star.png'], failed: ['wheel.png'] });
+    expect(game.art).toEqual({ settled: true, loaded: ['star.png'], failed: ['wheel.png'] });
+    dispose();
+  });
+
+  test('promesse rejetée (loadArt ne rejette jamais, mais Game accepte toute promesse) : rejet géré sans bruit, la course roule par code', async () => {
+    const proc = (globalThis as unknown as { process: { on(e: 'unhandledRejection', f: (r: unknown) => void): void; off(e: 'unhandledRejection', f: (r: unknown) => void): void } }).process;
+    const unhandled: unknown[] = [];
+    const onUnhandled = (r: unknown) => { unhandled.push(r); };
+    proc.on('unhandledRejection', onUnhandled);
+    try {
+      const { game, dispose, frames } = makeGame(Promise.reject(new Error('réseau')));
+      game.start();
+      frames(3);
+      // Laisse passer les microtâches puis la file de Node, où part « unhandledRejection ».
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      frames(3);
+      expect(unhandled).toEqual([]);
+      expect(setArt).not.toHaveBeenCalled();
+      expect(draw).toHaveBeenCalledTimes(6);
+      expect(game.art).toEqual({ settled: false, loaded: [], failed: [] });
+      dispose();
+    } finally {
+      proc.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  test('airHeight : 0 au départ, la hauteur de vol de Galahad pendant un saut (celle qui règle son ombre)', () => {
+    const { game, hud, dispose, frames } = makeGame();
+    game.start();
+    frames(10);
+    expect(game.airHeight).toBeCloseTo(0, 1);
+    const ev = new Event('pointerdown', { bubbles: true, cancelable: true });
+    Object.defineProperty(ev, 'pointerId', { value: 7 });
+    hud.querySelector('.jump-button')!.dispatchEvent(ev);
+    frames(30);
+    expect(game.jumps).toBe(1);
+    expect(game.airHeight).toBeGreaterThan(0.5);
     dispose();
   });
 });

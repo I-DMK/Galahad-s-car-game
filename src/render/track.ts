@@ -1,7 +1,7 @@
 // Dessin de la piste : sol lunaire, cratères décoratifs, plots, volcans (tremplins et fosses) et lave, départ, arrivée, mur.
 // Monde en mètres (y vers le haut) → écran via camera.worldToScreen (y vers le bas).
 // Seule la portion visible est parcourue : x ∈ [camera.x − demi-largeur − 5, camera.x + demi-largeur + 5].
-import { heightAt } from '../track/query';
+import { heightAt, overLava } from '../track/query';
 import { mulberry32 } from '../track/rng';
 import type { Fosse, Track } from '../track/types';
 import type { BackingSize, Camera } from './camera';
@@ -71,7 +71,7 @@ export function drawTrack(ctx: Ctx, track: Track, camera: Camera, view: BackingS
   // Plots lumineux tous les 10 m (hors fosses de lave).
   for (let k = Math.ceil(xMin / POST_EVERY_M); k * POST_EVERY_M <= Math.min(xMax, track.xWall); k++) {
     const x = k * POST_EVERY_M;
-    if (track.volcanoes.some((v) => Math.abs(x - v.xLava) <= v.lavaWidth / 2 + 0.3)) continue;
+    if (overLava(track, x, 0.3)) continue;
     const base = S(x, heightAt(track, x));
     ctx.fillStyle = '#e8ffff';
     ctx.fillRect(base.x - 0.04 * ppm, base.y - 0.3 * ppm, 0.08 * ppm, 0.3 * ppm);
@@ -294,8 +294,17 @@ function inRange(x: number, a: number, b: number): boolean {
 }
 
 /**
- * Étoile à ramasser, en pixels écran (x, y) : halo radial doux de 0,9 m, puis `img` (carré de 1 m) ou, sans image (repli
- * par code), 5 branches jaunes de 0,5 m ; dans les deux cas elle tourne lentement (t × 0,8 rad).
+ * Centre de gravité de `star.png` en fraction de l'image (mesuré sur son alpha : (129,17 ; 138,02) px sur 256 × 250) :
+ * une étoile à cinq branches a son centre de gravité plus bas que le centre de sa boîte (5 cm sur 1 m). L'image tourne
+ * autour de lui, pas du centre de la boîte : sinon son centre décrirait un cercle de 5 cm en 8 s autour de (x, y).
+ * Épinglé par tests/render-sprites.test.ts, qui relit l'alpha de l'image : une autre image demande de re-mesurer.
+ */
+export const STAR_IMG_CENTER = { x: 0.5046, y: 0.5521 } as const;
+
+/**
+ * Étoile à ramasser, en pixels écran (x, y) : halo radial doux de 0,9 m, puis `img` (carré de 1 m dont le centre de
+ * gravité est en (x, y)) ou, sans image (repli par code), 5 branches jaunes de 0,5 m ; dans les deux cas elle tourne
+ * lentement (t × 0,8 rad).
  */
 export function drawStar(ctx: Ctx, x: number, y: number, t: number, ppm: number, img: CanvasImageSource | null = null): void {
   const halo = ctx.createRadialGradient(x, y, 0, x, y, 0.9 * ppm);
@@ -309,7 +318,7 @@ export function drawStar(ctx: Ctx, x: number, y: number, t: number, ppm: number,
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(t * 0.8);
-    ctx.drawImage(img, -0.5 * ppm, -0.5 * ppm, ppm, ppm);
+    ctx.drawImage(img, -STAR_IMG_CENTER.x * ppm, -STAR_IMG_CENTER.y * ppm, ppm, ppm);
     ctx.restore();
     return;
   }

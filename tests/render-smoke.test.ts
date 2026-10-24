@@ -70,6 +70,33 @@ test('drawStar ne lève pas', () => {
   expect(calls.filter((c) => c.name === 'lineTo')).toHaveLength(9);
 });
 
+test('plots lumineux : aucun à moins de 0,3 m de la lave, de part et d’autre (« overLava » avec marge), alors qu’ailleurs ils sont posés', () => {
+  const base = generateTrack(3, 2000, CONFIG);
+  const v = base.volcanoes[0];
+  const P = Math.ceil(v.xLancement / 10) * 10 + 10;
+  const cam = new Camera(CONFIG);
+  cam.update(P, 2, 0, 1 / 60);
+  const ppm = cam.pxPerMeter(view.h);
+  const postsOf = (t: typeof base): number[] => {
+    const { ctx, calls } = fakeCtx();
+    drawTrack(ctx, t, cam, view, 0);
+    return calls.filter((c) => c.name === 'fillRect' && c.fillStyle === '#e8ffff').map((c) => (c.args[0] as number) + 0.04 * ppm);
+  };
+  const at = (x: number) => cam.worldToScreen({ x, y: 0 }, view.w, view.h).x;
+  // Sans volcan en vue : le plot du multiple de 10 m est posé (le contrôle n'est pas vide).
+  const free = postsOf({ ...base, volcanoes: [] });
+  expect(free.some((x) => Math.abs(x - at(P)) < 1e-6)).toBe(true);
+  // Lave dont le bord amont est 0,2 m après le plot, puis dont le bord aval est 0,2 m avant lui : dans la marge de 0,3 m.
+  for (const xLava of [P + 0.2 + v.lavaWidth / 2, P - 0.2 - v.lavaWidth / 2]) {
+    const posts = postsOf({ ...base, volcanoes: [{ ...v, xLava }] });
+    expect(posts.some((x) => Math.abs(x - at(P)) < 1e-6), `lave en ${xLava}`).toBe(false);
+    expect(posts.length, 'les autres plots restent').toBeGreaterThan(0);
+  }
+  // Au-delà de la marge (0,4 m) : le plot est posé.
+  const far = postsOf({ ...base, volcanoes: [{ ...v, xLava: P + 0.4 + v.lavaWidth / 2 }] });
+  expect(far.some((x) => Math.abs(x - at(P)) < 1e-6)).toBe(true);
+});
+
 describe('fosses (tâche 5g, saut §6.7)', () => {
   /**
    * Piste de 1 680 m avec un tremplin et une fosse dont la lave couvre un multiple de 10 m (là où un plot serait planté

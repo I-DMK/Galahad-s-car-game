@@ -12,11 +12,12 @@ import { StepHistogram, type StepCounts } from './loop/frame-stats';
 import { PoseHistory, type CarPose } from './loop/interpolation';
 import type { Art } from './render/assets';
 import { Camera } from './render/camera';
+import { flightHeight } from './render/car';
 import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
 import { presentFrame, stepOutcome } from './sim/present';
 import {
-  createRaceSim, GALAHAD_INDEX, jumpReady, posesOf, rankEntriesOf, rebuildCars, stepRace, type RaceSim, type SimEvent,
+  carView, createRaceSim, GALAHAD_INDEX, jumpReady, posesOf, rankEntriesOf, rebuildCars, stepRace, type RaceSim, type SimEvent,
 } from './sim/simulate';
 import { generateTrack } from './track/generate';
 import { heightAt } from './track/query';
@@ -62,12 +63,11 @@ export class Game {
   private rafId = 0;
   private fpsFrames = 0;
   private fpsSince = 0;
-  /** Images arrivées (tâche 8b) ; null tant que la promesse n'est pas résolue : la course ne les attend jamais. */
-  private loadedArt: Art | null = null;
 
   /**
    * `art` : promesse des images (`loadArt`, lancée par `main.ts` avant la construction). À sa résolution, le rendu passe
-   * du dessin par code aux images à la trame suivante ; la course n'attend jamais.
+   * du dessin par code aux images à la trame suivante ; la course n'attend jamais. Un rejet (que `loadArt` ne produit pas)
+   * est géré sans bruit : tout reste dessiné par code.
    */
   constructor(
     canvas: HTMLCanvasElement, hudRoot: HTMLElement, private readonly opts: { seed: number; length: number; debug: boolean },
@@ -77,7 +77,7 @@ export class Game {
     // Course à 5 voitures ; les copains et leur ordre sur la grille dépendent de la graine de piste : recharger (ENCORE) redonne les mêmes.
     this.sim = createRaceSim(track, this.cfg, { robots: true });
     this.renderer = new Renderer(canvas, this.cfg);
-    void art?.then((a) => { this.loadedArt = a; this.renderer.setArt(a); });
+    void art?.then((a) => this.renderer.setArt(a), () => { /* images indisponibles : dessin par code */ });
     this.camera = new Camera(this.cfg);
     this.effects = new Effects(this.cfg);
     this.hud = new Hud(hudRoot, this.sim.cars.map((c, i) => ({ color: c.state.color, isGalahad: i === GALAHAD_INDEX })));
@@ -104,10 +104,17 @@ export class Game {
   get respawns(): { reason: string; t: number; x: number; targetX: number }[] { return this.respawnLog.map((r) => ({ ...r })); }
   /** Doigt de gaz posé (debug, e2e : un tap sur le bouton saut n'en est jamais un). */
   get throttlePressed(): boolean { return this.throttle.pressed; }
-  /** Images (debug, e2e, tâche 8b) : réglées ou non, fichiers chargés et en échec ; copies. */
+  /** Images (debug, e2e, tâche 8b) : réglées ou non, fichiers chargés et en échec ; copies de ce que le `Renderer` a reçu. */
   get art(): { settled: boolean; loaded: string[]; failed: string[] } {
-    const a = this.loadedArt;
+    const a = this.renderer.art;
     return { settled: a !== null, loaded: a ? [...a.loaded] : [], failed: a ? [...a.failed] : [] };
+  }
+  /**
+   * Hauteur de vol de Galahad (m) : sa roue la plus basse au-dessus du sol, 0 au sol (debug, e2e, tâche 8b) ; c'est
+   * la hauteur qui règle son ombre (`flightHeight`).
+   */
+  get airHeight(): number {
+    return flightHeight(carView(this.sim, GALAHAD_INDEX), this.sim.track, this.cfg.WHEEL_RADIUS);
   }
 
   /** Pilotes de la course, dans l'ordre de la grille (Galahad en premier). */

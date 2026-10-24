@@ -105,6 +105,16 @@ export function volcanoAhead(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => v.xLava > x);
 }
 
+/**
+ * Vrai si x est au-dessus de la lave d'un volcan (tremplin ou fosse), [xLava − lavaWidth/2 − margin, xLava + lavaWidth/2 +
+ * margin] bornes incluses : `heightAt` y donne le fond du cratère ou de la fosse, sous la lave dessinée. Une seule
+ * définition pour le rendu (plots lumineux, `margin` 0,3 m ; ombre des voitures, `margin` 0). Sans allocation.
+ */
+export function overLava(track: Track, x: number, margin = 0): boolean {
+  for (const v of track.volcanoes) if (Math.abs(x - v.xLava) <= v.lavaWidth / 2 + margin) return true;
+  return false;
+}
+
 /** Volcan dont la zone [xLancement, xEnd[ (plat de lancement inclus) contient x. */
 export function nearestVolcanoZone(track: Track, x: number): Volcano | undefined {
   return track.volcanoes.find((v) => x >= v.xLancement && x < v.xEnd);

@@ -43,8 +43,8 @@ export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private view: BackingSize = { w: 1, h: 1, scale: 1 };
   private sky: HTMLCanvasElement | null = null;
-  /** Images chargées ; `NO_ART` jusqu'à `setArt` (la course ne les attend jamais). */
-  private art: Art = NO_ART;
+  /** Images reçues par `setArt` ; null avant (la course ne les attend jamais : tout est alors dessiné par code). */
+  private loaded: Art | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly cfg: Config) {
     const ctx = canvas.getContext('2d');
@@ -66,7 +66,12 @@ export class Renderer {
 
   /** Images arrivées (tâche 8b) : le dessin passe du code aux images à la trame suivante. */
   setArt(art: Art): void {
-    this.art = art;
+    this.loaded = art;
+  }
+
+  /** Images reçues, null tant que `setArt` n'a pas été appelé : la source unique de `Game.art` (`__game.art`). */
+  get art(): Art | null {
+    return this.loaded;
   }
 
   /** Demi-largeur visible (m) du tampon courant, pour l'émission des effets. */
@@ -77,8 +82,11 @@ export class Renderer {
   /** `effects` : particules dessinées après la piste et les ombres, avant les étoiles et les voitures. */
   draw(scene: Scene, camera: Camera, effects?: Effects): void {
     const { ctx, view } = this;
+    const art = this.loaded ?? NO_ART;
     const ppm = camera.pxPerMeter(view.h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Défense : une opacité laissée par un dessin précédent assombrirait ciel, sol et voitures (tour 1 de la 8b).
+    ctx.globalAlpha = 1;
     ctx.clearRect(0, 0, view.w, view.h);
 
     if (this.sky) {
@@ -106,13 +114,13 @@ export class Renderer {
     for (const s of scene.stars) {
       if (!s.active || Math.abs(s.x - camera.x) > half) continue;
       const p = toScreen(s);
-      drawStar(ctx, p.x, p.y, scene.t, ppm, this.art.star);
+      drawStar(ctx, p.x, p.y, scene.t, ppm, art.star);
     }
 
     // Dans l'ordre de la scène (le dernier dessiné est au-dessus) ; les voitures hors écran sont sautées.
     for (const car of scene.cars) {
       if (Math.abs(car.x - camera.x) > carReach) continue;
-      drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, this.art);
+      drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, art);
     }
   }
 }

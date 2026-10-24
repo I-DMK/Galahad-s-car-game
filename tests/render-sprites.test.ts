@@ -6,10 +6,11 @@ import type { Art } from '../src/render/assets';
 import { NO_ART } from '../src/render/assets';
 import { drawCar, drawShadow, flameFrame, flightHeight, shadowScale } from '../src/render/car';
 import type { CarView } from '../src/render/renderer';
-import { drawStar } from '../src/render/track';
+import { STAR_IMG_CENTER, drawStar } from '../src/render/track';
 import { generateTrack } from '../src/track/generate';
-import { heightAt, slopeAt } from '../src/track/query';
-import { fakeCtx, type Call } from './helpers/fake-ctx';
+import { heightAt, overLava, slopeAt } from '../src/track/query';
+import { IDENTITY, fakeCtx, type Call, type Matrix } from './helpers/fake-ctx';
+import { alphaCentroid, readPng8 } from './helpers/png';
 
 const PPM = 85.7;
 const S = (p: { x: number; y: number }) => ({ x: p.x * 10, y: -p.y * 10 });
@@ -66,6 +67,50 @@ test('la carrosserie vient de l’id de la voiture : celle de son pilote, jamais
   const { ctx: ctx2, calls: calls2 } = fakeCtx();
   drawCar(ctx2, car, PPM, 0, S, CONFIG, art({ bodies }));
   expect(draws(calls2)[0].args[0]).toBe(body);
+});
+
+/** Matrice attendue d'une roue image : translation vers son centre écran, puis rotation de −angle (depuis l'identité). */
+const wheelMatrix = (w: { x: number; y: number; angle: number }): Matrix => {
+  const th = -w.angle;
+  return [Math.cos(th), Math.sin(th), -Math.sin(th), Math.cos(th), w.x * 10, -w.y * 10];
+};
+const closeTo = (m: Matrix, want: Matrix) => m.forEach((v, i) => expect(v, `terme ${i}`).toBeCloseTo(want[i], 9));
+
+describe('état du canvas rendu après chaque pièce (save/restore, globalAlpha)', () => {
+  test('roues image : chacune part de l’identité, hors de tout save, et se referme ; rien ne reste à la fin de drawCar', () => {
+    const { ctx, calls, state } = fakeCtx();
+    drawCar(ctx, { ...car, turbo: true }, PPM, 0.1, S, CONFIG, art());
+    const wheels = draws(calls).filter((c) => c.args[0] === wheel);
+    expect(wheels).toHaveLength(2);
+    car.wheels.forEach((w, k) => {
+      // Dessinée dans son propre save (profondeur 1), translate puis rotate depuis l'identité.
+      expect(wheels[k].depth, `roue ${k}`).toBe(1);
+      closeTo(wheels[k].matrix, wheelMatrix(w));
+      const tr = calls.filter((c) => c.name === 'translate').at(-2 + k)!;
+      // Le translate de la roue part de l'identité, dans son propre save seulement (profondeur 1) : celle d'avant s'est refermée.
+      expect(tr.depth, `translate de la roue ${k}`).toBe(1);
+      expect(tr.matrix).toEqual(IDENTITY);
+    });
+    const st = state();
+    expect([st.depth, st.underflows, st.globalAlpha]).toEqual([0, 0, 1]);
+    closeTo(st.matrix, IDENTITY);
+  });
+
+  test('roues par code, carrosserie par code, flammes par code : même retour à l’identité', () => {
+    const { ctx, state } = fakeCtx();
+    drawCar(ctx, { ...car, turbo: true }, PPM, 0.1, S, CONFIG, art({ bodies: new Map(), wheel: null, flames: null }));
+    const st = state();
+    expect([st.depth, st.underflows, st.globalAlpha]).toEqual([0, 0, 1]);
+    closeTo(st.matrix, IDENTITY);
+  });
+
+  test('étoile image : save/restore équilibrés, transformation rendue', () => {
+    const { ctx, state } = fakeCtx();
+    drawStar(ctx, 100, 50, 2, PPM, star);
+    const st = state();
+    expect([st.depth, st.underflows, st.globalAlpha]).toEqual([0, 0, 1]);
+    closeTo(st.matrix, IDENTITY);
+  });
 });
 
 describe('repli par code, image par image', () => {
@@ -139,6 +184,31 @@ describe('flammes du turbo (addendum §1.5)', () => {
     expect(draws(calls).map((c) => c.args[0])).toEqual([body, wheel, wheel]);
   });
 
+  test('une image de flamme manquante dans le tableau, à chacun des 4 index : jamais de drawImage(undefined), flammes par code', () => {
+    for (let k = 0; k < 4; k++) {
+      const holey = flames.map((f, i) => (i === k ? undefined : f)) as unknown as CanvasImageSource[];
+      const { ctx, calls } = fakeCtx();
+      drawCar(ctx, turbo, PPM, (k + 0.5) / 14, S, CONFIG, art({ flames: holey }));
+      for (const d of draws(calls)) expect(d.args[0], `image ${k}`).toBeTruthy();
+      expect(calls.some((c) => c.name === 'fill' && c.fillStyle === '#ff7a00'), `flammes par code, index ${k}`).toBe(true);
+    }
+  });
+
+  test('flammes par code : accrochées à l’arrière de la carrosserie dessinée, −1,31 m (image) ou −L/2 (code)', () => {
+    const firstMoveTo = (a: Art) => {
+      const { ctx, calls } = fakeCtx();
+      drawCar(ctx, turbo, PPM, T, S, CONFIG, a);
+      return calls.find((c) => c.name === 'moveTo')!.args as number[];
+    };
+    // Première pointe de flamme : moveTo(x + 0,02 ; y − 0,09), y = ancrage − 0,14.
+    const img = firstMoveTo(art({ flames: null }));
+    expect(img[0]).toBeCloseTo(-1.31 + 0.02, 9);
+    expect(img[1]).toBeCloseTo(-0.08 - 0.14 - 0.09, 9);
+    const code = firstMoveTo(art({ flames: null, bodies: new Map() }));
+    expect(code[0]).toBeCloseTo(-CONFIG.CAR_LENGTH / 2 + 0.02, 9);
+    expect(code[1]).toBeCloseTo(0.08 - 0.14 - 0.09, 9);
+  });
+
   test('sans turbo : aucune flamme', () => {
     const { ctx, calls } = fakeCtx();
     drawCar(ctx, car, PPM, T, S, CONFIG, art());
@@ -173,7 +243,14 @@ describe('ombre au sol (addendum §1.5)', () => {
   });
   const ground = (x: number) => S({ x, y: heightAt(track, x) });
 
+  /** Premier x (pas de 0,1 m) dont la pente vérifie `ok`, hors de la lave. */
+  const findX = (ok: (slope: number) => boolean): number => {
+    for (let x = track.xStart; x < track.xWall; x += 0.1) if (ok(slopeAt(track, x)) && !overLava(track, x)) return x;
+    throw new Error('pente introuvable');
+  };
+
   test('flightHeight : la roue la plus basse au-dessus du sol, jamais négative, 0 sans roue', () => {
+    expect(flightHeight({ ...carAt(x0, 1), y: 50 }, track, R)).toBeCloseTo(1, 9); // les roues comptent, pas le châssis
     expect(flightHeight(carAt(x0, 0), track, R)).toBeCloseTo(0, 9);
     expect(flightHeight(carAt(x0, 1.5), track, R)).toBeCloseTo(1.5, 9);
     expect(flightHeight(carAt(x0, -0.3), track, R)).toBe(0);
@@ -204,6 +281,33 @@ describe('ombre au sol (addendum §1.5)', () => {
     expect(fill.globalAlpha as number).toBeCloseTo(0.45, 9);
   });
 
+  test('sur une montée comme sur une descente : l’ellipse suit la pente (rotation −slopeAt, de signe contraire à celui de la pente)', () => {
+    const up = findX((s) => s > 0.25);
+    const down = findX((s) => s < -0.25);
+    for (const [x, sign] of [[up, -1], [down, 1]] as const) {
+      const { ctx, calls } = fakeCtx();
+      drawShadow(ctx, carAt(x, 0), track, PPM, S);
+      const e = calls.find((c) => c.name === 'ellipse')!;
+      const g = ground(x);
+      expect(e.args[0] as number).toBeCloseTo(g.x, 9);
+      expect(e.args[1] as number).toBeCloseTo(g.y, 9);
+      expect(e.args[4] as number).toBeCloseTo(-slopeAt(track, x), 9);
+      expect(Math.sign(e.args[4] as number), `pente ${slopeAt(track, x)}`).toBe(sign);
+      expect(Math.abs(e.args[4] as number)).toBeGreaterThan(0.25);
+    }
+  });
+
+  test('l’ombre rend l’état : globalAlpha à 1, pile vide, transformation inchangée (au sol et en vol)', () => {
+    for (const lift of [0, 1.5, 4]) {
+      const { ctx, calls, state } = fakeCtx();
+      drawShadow(ctx, carAt(x0, lift), track, PPM, S);
+      expect(calls.find((c) => c.name === 'fill')!.globalAlpha as number).toBeCloseTo(0.45 / (1 + lift / 1.5), 9);
+      const st = state();
+      expect([st.globalAlpha, st.depth, st.underflows], `vol ${lift} m`).toEqual([1, 0, 0]);
+      expect(st.matrix).toEqual(IDENTITY);
+    }
+  });
+
   test('en vol à 1,5 m : moitié moins large, moitié moins sombre, toujours posée sur le sol', () => {
     const { ctx, calls } = fakeCtx();
     drawShadow(ctx, carAt(x0, 1.5), track, PPM, S);
@@ -222,10 +326,17 @@ describe('ombre au sol (addendum §1.5)', () => {
       const over = fakeCtx();
       drawShadow(over.ctx, carAt(v.xLava, 5), track, PPM, S);
       expect(over.calls.some((c) => c.name === 'ellipse'), `${v.kind} en ${v.xLava}`).toBe(false);
-      // Juste hors de la lave : l'ombre est dessinée.
-      const beside = fakeCtx();
-      drawShadow(beside.ctx, carAt(v.xLava - v.lavaWidth / 2 - 0.5, 0), track, PPM, S);
-      expect(beside.calls.some((c) => c.name === 'ellipse'), `${v.kind} à côté`).toBe(true);
+      // Sur toute la largeur de la lave (pas seulement au centre) : pas d'ombre ; juste de part et d'autre : une ombre.
+      for (const x of [v.xLava - 0.4 * v.lavaWidth, v.xLava + 0.4 * v.lavaWidth]) {
+        const inside = fakeCtx();
+        drawShadow(inside.ctx, carAt(x, 0), track, PPM, S);
+        expect(inside.calls.some((c) => c.name === 'ellipse'), `${v.kind} en xLava ± 0,4·largeur`).toBe(false);
+      }
+      for (const x of [v.xLava - v.lavaWidth / 2 - 0.05, v.xLava + v.lavaWidth / 2 + 0.05, v.xLava - v.lavaWidth / 2 - 0.5]) {
+        const beside = fakeCtx();
+        drawShadow(beside.ctx, carAt(x, 0), track, PPM, S);
+        expect(beside.calls.some((c) => c.name === 'ellipse'), `${v.kind} à côté, ${x}`).toBe(true);
+      }
     }
   });
 });
@@ -238,9 +349,32 @@ describe('étoile (addendum §1.5)', () => {
     expect(calls.filter((c) => c.name === 'lineTo')).toHaveLength(0);
     const d = draws(calls);
     expect(d).toHaveLength(1);
-    expect(d[0].args).toEqual([star, -0.5 * PPM, -0.5 * PPM, PPM, PPM]);
+    expect(d[0].args).toEqual([star, -STAR_IMG_CENTER.x * PPM, -STAR_IMG_CENTER.y * PPM, PPM, PPM]);
     expect(before(calls, d[0], 2)).toEqual([['translate', 100, 50], ['rotate', 1.6]]);
     expect(calls.at(-1)!.name).toBe('restore');
+  });
+
+  test('l’image tourne autour de son centre de gravité (mesuré sur l’alpha de star.png), qui reste en (x, y) à toute rotation', () => {
+    interface NodeFs { readFileSync(p: string): Uint8Array }
+    const fs = (globalThis as unknown as { process: { getBuiltinModule(id: 'node:fs'): NodeFs } }).process.getBuiltinModule('node:fs');
+    const png = readPng8(fs.readFileSync('public/sprites/star.png'));
+    const c = alphaCentroid(png);
+    const fx = c.x / png.width, fy = c.y / png.height;
+    // Constantes de track.ts = mesure (à 0,5 mm près sur 1 m) ; la boîte, elle, a son centre à (0,5 ; 0,5) : 5 cm plus haut.
+    expect(STAR_IMG_CENTER.x).toBeCloseTo(fx, 3);
+    expect(STAR_IMG_CENTER.y).toBeCloseTo(fy, 3);
+    expect(Math.abs(fy - 0.5) * 100, 'écart du centre de gravité au centre de la boîte (cm)').toBeGreaterThan(4);
+    for (const t of [0, 0.7, 2, 5.3, 11]) {
+      const { ctx, calls } = fakeCtx();
+      drawStar(ctx, 100, 50, t, PPM, star);
+      const d = draws(calls)[0];
+      const [, dx, dy, w, h] = d.args as number[];
+      // Point de l'image (centre de gravité), dans le repère local du dessin, puis passé par la matrice courante.
+      const lx = dx + fx * w, ly = dy + fy * h;
+      const [a, b, cc, dd, e, f] = d.matrix;
+      expect(a * lx + cc * ly + e, `x à t = ${t}`).toBeCloseTo(100, 1);
+      expect(b * lx + dd * ly + f, `y à t = ${t}`).toBeCloseTo(50, 1);
+    }
   });
 
   test('sans image : l’étoile jaune par code d’aujourd’hui (9 lineTo), aucune image', () => {

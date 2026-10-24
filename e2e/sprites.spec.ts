@@ -16,7 +16,7 @@ async function waitForArt(page: Page): Promise<{ settled: boolean; loaded: strin
   return page.evaluate(() => (window as any).__game.art);
 }
 
-test('images : __game.art complet sur la tablette simulée, Galahad en l’air avec son ombre ; capture course-sprites.png', async ({ page }) => {
+test('images : __game.art complet sur la tablette simulée, Galahad en l’air (hauteur de vol lue avant et après la capture) ; capture course-sprites.png', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror : ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console : ${m.text()}`); });
@@ -29,7 +29,11 @@ test('images : __game.art complet sur la tablette simulée, Galahad en l’air a
   const { throttleWithB } = await holdFingerAndTapJump(page, 2.5, 0.3);
   expect(throttleWithB).toBe(true);
   expect((await jumpState(page)).jumps).toBe(1);
+  // Galahad est bien en l'air (hauteur de sa roue la plus basse, celle qui règle son ombre) avant et après la capture.
+  const airHeight = () => page.evaluate(() => (window as any).__game.airHeight as number);
+  expect(await airHeight()).toBeGreaterThan(0.5);
   await page.screenshot({ path: `${SHOTS}/course-sprites.png`, fullPage: true });
+  expect(await airHeight()).toBeGreaterThan(0.5);
   expect(errors).toEqual([]);
 });
 
@@ -50,5 +54,42 @@ test('une carrosserie bloquée (galahad.png) : repli par code, la course roule s
   const after = await gameState(page);
   expect(after.state).toBe('racing');
   expect(after.progress - before).toBeGreaterThan(3);
+  expect(errors).toEqual([]);
+});
+
+test('turbo : les images de flamme sont vraiment dessinées à l’arrière de Galahad ; capture course-sprites-turbo.png', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror : ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console : ${m.text()}`); });
+  // Note le nom de fichier de chaque image passée à drawImage du vrai canvas (le ciel, un canvas, n'en a pas).
+  await page.addInitScript(() => {
+    const drawn = new Set<string>();
+    (window as any).__drawn = drawn;
+    const original = CanvasRenderingContext2D.prototype.drawImage as (...a: unknown[]) => void;
+    CanvasRenderingContext2D.prototype.drawImage = function (this: CanvasRenderingContext2D, img: unknown, ...rest: unknown[]) {
+      const src = (img as { src?: string } | null)?.src;
+      if (src) drawn.add(src.split('/').pop()!);
+      return original.call(this, img, ...rest);
+    } as typeof CanvasRenderingContext2D.prototype.drawImage;
+  });
+  // Graine 5 : Galahad prend une étoile dans les premières secondes, doigt posé.
+  await page.goto('./?seed=5&debug=1');
+  await waitForGame(page);
+  await waitForArt(page);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 400, id: 0 }] });
+    // Au moins 1 s de turbo restant : les flammes tournent encore pendant la capture.
+    await page.waitForFunction(() => { const g = (window as any).__game; return g.sim.cars[0].state.turboUntil > g.time + 1; }, null, { timeout: 60_000 });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${SHOTS}/course-sprites-turbo.png`, fullPage: true });
+    const drawn: string[] = await page.evaluate(() => [...(window as any).__drawn]);
+    expect(drawn.filter((f) => /^flame-\d\.png$/.test(f)).length, `images dessinées : ${drawn.join(', ')}`).toBeGreaterThanOrEqual(2);
+    expect(drawn).toContain('galahad.png');
+    expect(drawn).toContain('wheel.png');
+  } finally {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await cdp.detach();
+  }
   expect(errors).toEqual([]);
 });

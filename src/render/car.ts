@@ -5,7 +5,7 @@
 // Repère local de la carrosserie : mètres × ppm, x vers l'avant, y vers le BAS (écran), origine au centre.
 // L'angle du monde (positif = nez en haut = anti-horaire à l'écran) se traduit par ctx.rotate(−angle).
 import { CONFIG, type Config } from '../config';
-import { heightAt, slopeAt } from '../track/query';
+import { heightAt, overLava, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
 import { FLAME_FILES, NO_ART, type Art } from './assets';
 import type { CarView } from './renderer';
@@ -55,11 +55,10 @@ export function drawCar(
     // L'accroche suit la carrosserie dessinée : celle du gabarit pour l'image, l'arrière de la caisse sinon.
     const ax = bodyImg ? FLAME_IMG_ANCHOR_X : -L / 2;
     const ay = bodyImg ? FLAME_IMG_ANCHOR_Y : FLAME_CODE_ANCHOR_Y;
-    if (art.flames) {
-      ctx.drawImage(art.flames[flameFrame(t)], ax + FLAME_RIGHT_M - FLAME_SIZE_M, ay - FLAME_SIZE_M / 2, FLAME_SIZE_M, FLAME_SIZE_M);
-    } else {
-      drawFlames(ctx, ax, ay, t);
-    }
+    // Garde au point d'appel : une image absente (tableau incomplet) ne va jamais à drawImage, qui lèverait sur un vrai canvas.
+    const flame = art.flames?.[flameFrame(t)];
+    if (flame) ctx.drawImage(flame, ax + FLAME_RIGHT_M - FLAME_SIZE_M, ay - FLAME_SIZE_M / 2, FLAME_SIZE_M, FLAME_SIZE_M);
+    else drawFlames(ctx, ax, ay, t);
   }
   // Le casque, l'aileron, la vitre et les bandes font partie de l'image : seul le repli par code les dessine.
   if (bodyImg) ctx.drawImage(bodyImg, -BODY_W_M / 2, -BODY_H_M / 2, BODY_W_M, BODY_H_M);
@@ -189,15 +188,6 @@ export function shadowScale(h: number): number {
   return 1 / (1 + h / SHADOW_HALF_M);
 }
 
-/** Vrai si x est au-dessus de la lave d'un volcan (tremplin ou fosse) : `heightAt` y donne le fond, sous la lave dessinée. */
-function overLava(track: Track, x: number): boolean {
-  for (const v of track.volcanoes) if (Math.abs(x - v.xLava) <= v.lavaWidth / 2) return true;
-  return false;
-}
-
-/** Point du sol sous une voiture, réutilisé à chaque appel (pas d'allocation par image). */
-const GROUND: Pt = { x: 0, y: 0 };
-
 /**
  * Ombre sous la voiture : ellipse noire posée sur le sol sous le châssis (`heightAt`), inclinée de la pente, qui rétrécit
  * et s'éclaircit avec la hauteur de vol. Aucune au-dessus de la lave. Dessinée par code, à dessiner avant les voitures.
@@ -207,9 +197,7 @@ export function drawShadow(
 ): void {
   if (overLava(track, car.x)) return;
   const s = shadowScale(flightHeight(car, track, dims.WHEEL_RADIUS));
-  GROUND.x = car.x;
-  GROUND.y = heightAt(track, car.x);
-  const g = toScreen(GROUND);
+  const g = toScreen({ x: car.x, y: heightAt(track, car.x) });
   ctx.save();
   ctx.globalAlpha = SHADOW_ALPHA * s;
   ctx.fillStyle = '#000000';

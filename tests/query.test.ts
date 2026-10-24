@@ -1,7 +1,7 @@
 import { CONFIG } from '../src/config';
 import { generateTrack } from '../src/track/generate';
 import {
-  fosses, heightAt, inElanZone, inGhostZone, inVolcanoZone, nearestVolcanoZone, nextFosse, sliceAt, slopeAt, tremplins,
+  fosses, heightAt, inElanZone, inGhostZone, inVolcanoZone, nearestVolcanoZone, nextFosse, overLava, sliceAt, slopeAt, tremplins,
   volcanoAhead, volcanoZoneLevel,
 } from '../src/track/query';
 import type { Track } from '../src/track/types';
@@ -223,5 +223,42 @@ describe('inVolcanoZone (tâche 7, ruling R7-13 : une seule définition pour le 
     expect(inVolcanoZone(track, t0.xLip)).toBe(true);
     expect(inVolcanoZone(track, t0.xReception)).toBe(false);
     expect(inVolcanoZone(generateTrack(1, 1000, CONFIG, { onlyPlat: true }), 10)).toBe(false);
+  });
+});
+
+describe('overLava (tâche 8b : une seule définition de « au-dessus de la lave », pour l’ombre et les plots)', () => {
+  test('vrai sur la largeur de la lave, faux au-delà, pour un tremplin comme pour une fosse', () => {
+    expect(track.volcanoes.map((v) => v.kind)).toContain('tremplin');
+    expect(track.volcanoes.map((v) => v.kind)).toContain('fosse');
+    for (const v of track.volcanoes) {
+      const half = v.lavaWidth / 2;
+      for (const x of [v.xLava, v.xLava - 0.9 * half, v.xLava + 0.9 * half, v.xLava - half + 1e-6, v.xLava + half - 1e-6]) {
+        expect(overLava(track, x), `${v.kind} en ${x}`).toBe(true);
+      }
+      for (const x of [v.xLava - half - 1e-6, v.xLava + half + 1e-6, v.xLava - 5, v.xLava + 5]) {
+        expect(overLava(track, x), `${v.kind} en ${x}`).toBe(false);
+      }
+    }
+    expect(overLava(track, track.xStart)).toBe(false);
+  });
+
+  test('la marge élargit des deux côtés', () => {
+    for (const v of track.volcanoes) {
+      const half = v.lavaWidth / 2;
+      expect(overLava(track, v.xLava - half - 0.2, 0.3)).toBe(true);
+      expect(overLava(track, v.xLava + half + 0.2, 0.3)).toBe(true);
+      expect(overLava(track, v.xLava - half - 0.4, 0.3)).toBe(false);
+      expect(overLava(track, v.xLava + half + 0.4, 0.3)).toBe(false);
+    }
+  });
+
+  test('même réponse que la formule d’origine des plots lumineux, sur toute la piste (pas de 0,05 m), marge 0,3 m comme sans marge', () => {
+    for (const seed of [1, 2, 5]) {
+      const t = generateTrack(seed, 3000, CONFIG);
+      for (let x = 0; x <= t.xWall; x += 0.05) {
+        expect(overLava(t, x, 0.3)).toBe(t.volcanoes.some((v) => Math.abs(x - v.xLava) <= v.lavaWidth / 2 + 0.3));
+        expect(overLava(t, x)).toBe(t.volcanoes.some((v) => Math.abs(x - v.xLava) <= v.lavaWidth / 2));
+      }
+    }
   });
 });
