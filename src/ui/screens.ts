@@ -19,6 +19,7 @@ const CSS = `
 .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;font-family:${FONT_FAMILY};
   color:#fff;text-shadow:0 3px 0 #000a}
 .screen[hidden]{display:none}
+.screen [hidden]{display:none}
 .screen button{font-family:inherit;color:#fff;border:4px solid #fff;padding:0;margin:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:.2em;cursor:pointer;pointer-events:auto;touch-action:none;
   -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;box-shadow:0 6px 0 #0008;
@@ -36,7 +37,7 @@ const CSS = `
 .btn-play{min-width:96px;min-height:96px;width:clamp(96px,22vh,170px);height:clamp(96px,22vh,170px);border-radius:50%;
   background:#22c55e;font-weight:700;font-size:clamp(17px,3.2vh,26px)}
 .btn-play .btn-icon{width:38%;height:38%}
-.btn-other{min-width:96px;min-height:96px;height:96px;padding:0 20px;border-radius:24px;background:#1e5cff;font-weight:700;
+.btn-other{min-width:96px;min-height:96px;height:96px;padding:0 28px;border-radius:24px;background:#1e5cff;font-weight:700;
   font-size:17px}
 .btn-other .btn-icon{width:38px;height:38px}
 .screen-countdown{pointer-events:none;justify-content:center}
@@ -46,7 +47,6 @@ const CSS = `
 .pause-text{font-size:clamp(56px,12vh,96px);font-weight:700;line-height:1;letter-spacing:4px}
 .pause-tablet{width:clamp(90px,22vh,150px);height:auto}
 .pause-tablet svg{display:block;width:100%;height:auto}
-.pause-tablet[hidden]{display:none}
 .btn-resume{min-width:96px;min-height:96px;height:96px;padding:0 36px;border-radius:24px;background:#e2231a;font-weight:700;
   font-size:28px}
 `;

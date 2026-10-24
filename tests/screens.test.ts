@@ -100,11 +100,14 @@ test('pause en paysage : « PAUSE », REPRENDRE visible, onResume au pointerdown
   expect(actions.onResume).toHaveBeenCalledTimes(2);
 });
 
-test('la feuille cache vraiment un calque flex caché : .screen[hidden] a display:none', () => {
+test('la feuille cache vraiment un calque flex caché : .screen[hidden] a display:none ; de même REPRENDRE (bouton flex) et la tablette cachés', () => {
   make();
   const rules = [...document.styleSheets].flatMap((s) => [...s.cssRules]) as CSSStyleRule[];
   expect(rules.find((r) => r.selectorText === '.screen')?.style.display).toBe('flex');
   expect(rules.find((r) => r.selectorText === '.screen[hidden]')?.style.display).toBe('none');
+  // Les boutons des écrans sont en display:flex : sans cette règle, REPRENDRE `hidden` resterait visible (vu en e2e, Chromium).
+  expect(rules.find((r) => r.selectorText === '.screen button')?.style.display).toBe('flex');
+  expect(rules.find((r) => r.selectorText === '.screen [hidden]')?.style.display).toBe('none');
 });
 
 test('pause en portrait : « TOURNE », dessin de tablette, REPRENDRE caché ; setPortrait(false) le rend', () => {
