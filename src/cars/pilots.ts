@@ -82,6 +82,19 @@ export const PILOTS: readonly Pilot[] = Object.freeze([
   pilote({ id: 'liam', name: 'Liam', color: 0xff77aa, accent: 0xbee63c, helmet: 0xffa0c4, base: 0.975, lift: 0.5, jumpTry: 0.3, jumpSkill: 0.05 }),
 ]);
 
+/** 0x1e5cff → '#1e5cff' (couleur CSS d'un pilote ; pur : la scène du titre et les e2e l'importent sans matter-js, tâche 10). */
+export function colorHex(n: number): string {
+  return `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
+}
+
+/**
+ * Graine des pilotes dérivée de la graine de piste, entier de [0, 2³²) quel que soit `?seed=`
+ * (`drawPilots` refuse le reste), et décorrélée du premier tirage de la piste. `createRaceSim` l'appelle avec `track.seed`.
+ */
+export function defaultPilotSeed(trackSeed: number): number {
+  return (trackSeed ^ 0x9e3779b9) >>> 0;
+}
+
 /**
  * Tire `count` copains distincts, sans jamais Galahad : mélange de Fisher-Yates partiel
  * sur une copie de PILOTS, piloté par mulberry32(pilotSeed). L'index i du tableau renvoyé

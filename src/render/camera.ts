@@ -36,6 +36,11 @@ export class Camera {
   get x(): number { return this._x; }
   get y(): number { return this._y; }
 
+  /** La prochaine `update` se cale sur la cible sans lissage (scène du titre, nouvelle course ; tâche 10). */
+  reset(): void {
+    this.started = false;
+  }
+
   update(targetX: number, targetY: number, speedMps: number, dt: number): void {
     const tx = targetX + speedMps * this.cfg.CAMERA_LEAD_SECONDS;
     if (!this.started) {

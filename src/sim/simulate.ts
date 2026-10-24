@@ -8,7 +8,7 @@ import { makeRobotDriver, type Driver, type DriverContext, type OtherCar } from 
 import { cappedFactor, screenSide, stepRubber } from '../ai/rubberband';
 import type { Config } from '../config';
 import { canJump, wantsJump } from '../cars/jump';
-import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
+import { GALAHAD, colorHex, defaultPilotSeed, drawPilots, type Pilot } from '../cars/pilots';
 import {
   applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
 } from '../cars/respawn';
@@ -147,17 +147,6 @@ export interface RaceSim {
 /** Durée minimale en l'air (s) pour qu'un retour au sol compte comme atterrissage. */
 const LANDING_MIN_AIRTIME = 0.3;
 
-/** 0x1e5cff → '#1e5cff'. */
-function colorHex(n: number): string {
-  return `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
-}
-
-/**
- * Graine des pilotes dérivée de la graine de piste, entier de [0, 2³²) quel que soit `?seed=`
- * (`drawPilots` refuse le reste), et décorrélée du premier tirage de la piste.
- */
-const defaultPilotSeed = (track: Track): number => (track.seed ^ 0x9e3779b9) >>> 0;
-
 /**
  * Voiture de rang `rank` posée sur la grille : xStart − 2 − rank × GRID_SPACING_FACTOR × CAR_LENGTH. Un copain (rang ≥ 1)
  * reçoit son driver (`makeRobotDriver`, graine dérivée de `pilotSeed` et du rang).
@@ -186,7 +175,7 @@ export function createRaceSim(
   track: Track, cfg: Config, opts: { pilotSeed?: number; robots?: boolean } = {},
 ): RaceSim {
   const world = createWorld(track, cfg);
-  const pilotSeed = opts.pilotSeed ?? defaultPilotSeed(track);
+  const pilotSeed = opts.pilotSeed ?? defaultPilotSeed(track.seed);
   const pilots = [GALAHAD, ...(opts.robots ? drawPilots(pilotSeed) : [])];
   if (pilots.length > MAX_CARS) {
     throw new RangeError(`createRaceSim : ${pilots.length} voitures (Galahad + ${pilots.length - 1} copains), au plus MAX_CARS = ${MAX_CARS} (une catégorie de collision par voiture)`);

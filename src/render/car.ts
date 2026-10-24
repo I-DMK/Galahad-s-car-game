@@ -29,10 +29,13 @@ const FLAME_CODE_ANCHOR_Y = 0.08;
 /** Image de flamme : carré de 1,2 m, dont le bord droit dépasse l'accroche de 0,34 m (bbox mesurées des 4 images). */
 const FLAME_SIZE_M = 1.2;
 const FLAME_RIGHT_M = 0.34;
-/** Ombre au sol : demi-axes (m) et opacité au sol, hauteur de vol (m) qui la réduit de moitié (à juger sur capture). */
-const SHADOW_RX_M = 1.2;
-const SHADOW_RY_M = 0.15;
-const SHADOW_ALPHA = 0.45;
+/**
+ * Ombre au sol : demi-axes (m) et opacité au sol, hauteur de vol (m) qui la réduit de moitié (à juger sur capture).
+ * Exportés pour l'ombre de la scène du titre (`Renderer.drawTitle`, tâche 10), qui n'a pas de piste.
+ */
+export const SHADOW_RX_M = 1.2;
+export const SHADOW_RY_M = 0.15;
+export const SHADOW_ALPHA = 0.45;
 const SHADOW_HALF_M = 1.5;
 
 /**
