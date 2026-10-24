@@ -1,8 +1,8 @@
 // Course sur tablette simulée : chargement, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
 import { expect, test, type Page } from '@playwright/test';
 import {
-  SHOTS, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, waitForGame, waitForRaceTime,
-  waitForState, type Box, type HudLayout,
+  SHOTS, delaySprites, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, waitForGame,
+  waitForRaceTime, waitForState, type Box, type HudLayout,
 } from './helpers';
 
 /** Durée maximale doigt posé pour finir une piste de 300 m. */
@@ -60,7 +60,11 @@ test('doigt posé 3 s : la voiture avance', async ({ page }) => {
 const BEFORE_ROBOTS_S = 2;
 
 test('sans doigt : la voiture ne part pas toute seule, et les copains ne la poussent pas pendant au moins 2 s', async ({ page }) => {
-  await page.goto('./?seed=1&debug=1');
+  // La course part au DOM prêt, sans attendre les images (addendum §1.2) ; l'événement `load`, que `goto` attend par défaut,
+  // les attend (≈ 0,5 s en ligne : le temps de course lu après `goto` valait 0,47 à 0,60 s, contre 0,17 s au DOM prêt).
+  // On ouvre donc au DOM prêt, et on impose le retard des images pour que la précondition ne dépende pas du réseau.
+  await delaySprites(page, 600);
+  await page.goto('./?seed=1&debug=1', { waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   const before = await gameState(page);
   expect(before.time).toBeLessThan(0.3);
@@ -138,7 +142,8 @@ function expectHudLayout(l: HudLayout): void {
 
 test('HUD : place en ordinal après 1 s, cinq couloirs aux voitures séparées à 30 s et 60 s, mise en page sans recouvrement ; capture course-copains.png', async ({ page }) => {
   test.setTimeout(180_000);
-  await page.goto('./?seed=1&debug=1');
+  // Au DOM prêt, pas à `load` (retardé par les images, voir « sans doigt ») : la première seconde est celle qu'on lit.
+  await page.goto('./?seed=1&debug=1', { waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   // Première seconde de course : la position est vide (texte et temps lus dans le même rappel ; la machine peut avoir
   // été lente à charger : le vide n'est affirmé que si le temps lu est bien sous la seconde).

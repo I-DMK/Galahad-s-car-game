@@ -46,6 +46,19 @@ export async function waitForGame(page: Page): Promise<void> {
   await page.waitForFunction(() => (window as any).__game !== undefined);
 }
 
+/**
+ * Retarde de `ms` ms chaque requête d'image du jeu (`sprites/*.png`, tâche 8b). La course part sans attendre les images
+ * (addendum §1.2) mais l'événement `load` de la page, lui, les attend : c'est ce que fait un réseau lent (≈ 0,5 s en ligne,
+ * rien en local). Un test qui lit le temps de course juste après l'ouverture de la page ouvre alors avec
+ * `waitUntil: 'domcontentloaded'` et impose ce retard pour que la précondition ne dépende pas de la vitesse du réseau.
+ */
+export async function delaySprites(page: Page, ms: number): Promise<void> {
+  await page.route('**/sprites/*.png', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    try { await route.continue(); } catch { /* page fermée entre-temps */ }
+  });
+}
+
 /** Attend que le temps de course simulé atteigne `t` s (indépendant de la cadence d'affichage). */
 export async function waitForRaceTime(page: Page, t: number): Promise<void> {
   await page.waitForFunction((tt) => (window as any).__game.time >= tt, t);

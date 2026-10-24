@@ -3,7 +3,7 @@
 // image refusée donne une voiture mi-image mi-code sans exception, la course roulant, les flammes du turbo sont vraiment
 // dessinées, et une image qui ne répond jamais est abandonnée au délai sans retenir l'événement `load` de la page.
 import { expect, test, type Page } from '@playwright/test';
-import { SHOTS, gameState, holdFinger, holdFingerAndTapJump, jumpState, waitForGame } from './helpers';
+import { SHOTS, delaySprites, gameState, holdFinger, holdFingerAndTapJump, jumpState, waitForGame, waitForRaceTime } from './helpers';
 
 /** Les 13 images attendues, triées (`src/render/assets.ts`, `ART_FILES`). */
 const ART = [
@@ -123,5 +123,29 @@ test('une image qui ne répond jamais (wheel.png) : abandonnée au délai, requ�
   const after = await gameState(page);
   expect(after.state).toBe('racing');
   expect(after.progress - before).toBeGreaterThan(3);
+  expect(errors).toEqual([]);
+});
+
+test('images lentes (1,5 s) : la course part sans les attendre ; l’événement load, lui, attend les 13 images', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror : ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console : ${m.text()}`); });
+  await delaySprites(page, 1_500);
+  await page.goto('./?seed=1&debug=1', { waitUntil: 'domcontentloaded' });
+  await waitForGame(page);
+  // Au DOM prêt, la course tourne déjà (addendum §1.2), sans images : dessin par code, `load` pas encore parti.
+  const t0 = (await gameState(page)).time;
+  expect(t0).toBeLessThan(0.5);
+  await waitForRaceTime(page, t0 + 0.3);
+  const early = await page.evaluate(() => ({ art: (window as any).__game.art as { settled: boolean }, readyState: document.readyState }));
+  expect(early.art.settled).toBe(false);
+  expect(early.readyState).not.toBe('complete');
+  // Les 13 images arrivent ; `load` part avec elles, pas avant le retard.
+  const art = await waitForArt(page);
+  expect(art.failed).toEqual([]);
+  expect(art.loaded).toHaveLength(13);
+  await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 5_000 });
+  const loadEnd = await page.evaluate(() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).loadEventEnd);
+  expect(loadEnd, 'loadEventEnd (ms) : après le retard des images').toBeGreaterThanOrEqual(1_500);
   expect(errors).toEqual([]);
 });
