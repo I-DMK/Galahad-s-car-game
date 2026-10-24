@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Régime « écrans » de l'addendum « présentation » §5, **durci par la décision du papa du 2026-10-23** : un implémenteur frais pour toute la tâche (Parties 1 à 5), puis **quatre relectures** du diff de la tâche (standard, adversariale, skill `code-review`, skill `security-review`), tours de correction (≤ 5), **validation du papa sur capture** avant la fusion. Pas de suite lente. Jamais de PR.
 
-**Statut :** v1 (2026-10-24), brouillon à relire contre le code avant usage.
+**Statut :** v1.1 (2026-10-24), relu contre le code (`.superpowers/sdd/2026-10-21-plan-b-copains-et-finitions/plan-10-review.md` : 7 importants, 8 mineurs, tous intégrés), en attente des réponses du papa (Q1 à Q4).
+- v1 (`59223f6`) : brouillon.
+- v1.1 : REPRENDRE au `pointerdown` aussi (doigt tenu) ; voile de pause en `data-no-pedal` ; `[hidden]{display:none}` sur les calques flex et le bouton saut ; champs `sim`, `loop`, `step` de `Game` gardés (tests et `__game.sim`) ; adaptation précise des tests existants (`now` relatif, `mockClear`, caméra témoin) ; `defaultPilotSeed(trackSeed)` pur dans `cars/pilots.ts` ; portrait lu à `start`/`play`/`resume` ; fps compté dans `frame` ; `go` testé avant le texte ; flottants en `toBeCloseTo` ; `Camera.reset` au Step 12 ; comptes (28 e2e, 5 fichiers Vitest).
 
 **Goal:** Donner au jeu son enveloppe : un écran titre avec Galahad qui rebondit et les quatre copains tirés pour la piste, le bouton JOUER qui lance un décompte 3, 2, 1, PARTEZ, une pause (onglet caché, geste retour, tablette en portrait) avec reprise par un tap qui n'accélère pas, et la police Fredoka auto-hébergée partout, sans changer un bit de la simulation.
 
@@ -16,7 +18,7 @@
 
 ## Global Constraints
 
-- « La physique ne change pas d'un bit » : aucun pas de `stepRace` hors de `racing` et `finished` ; `tests/empreinte.test.ts` reste identique ; sous `src/sim/`, `src/physics/`, `src/track/`, `src/cars/`, `src/ai/`, seules changent : `colorHex` déplacé de `simulate.ts` vers `cars/pilots.ts` (et réimporté), `defaultPilotSeed` exporté (Step 23 le vérifie par `git diff --stat`).
+- « La physique ne change pas d'un bit » : aucun pas de `stepRace` hors de `racing` et `finished` ; `tests/empreinte.test.ts` reste identique ; sous `src/sim/`, `src/physics/`, `src/track/`, `src/cars/`, `src/ai/`, seules changent : `colorHex` et `defaultPilotSeed(trackSeed)` déplacés de `simulate.ts` vers `cars/pilots.ts` (purs, réimportés par `simulate.ts`) ; le Step 19 le vérifie par `git diff --stat`.
 - Machine d'états (spec §4, plan v2.1 Task 10) : `title | countdown | racing | finished | podium | paused | error` ; `title` → JOUER → `countdown` (3, 2, 1, PARTEZ, 1 s chacun) → `racing` ; `popstate`, `visibilitychange` caché, portrait (`innerHeight > innerWidth`) depuis `countdown` ou `racing` → `paused(précédent)` avec calque « PAUSE » ou « TOURNE » + dessin de tablette et bouton REPRENDRE (≥ 96 px, `data-no-pedal`, actif seulement en paysage) ; reprise = `countdown` à 3 ; `error` garde le comportement actuel (3 échecs de `stepRace` ou une exception de rendu → « Oups ! Recharge la page », boucle arrêtée). `podium` est dans la table mais n'est atteint qu'à la tâche 11.
 - Titre (spec §8, addendum §2) : nom du jeu, version en tout petit, voiture de Galahad qui rebondit, **les quatre copains tirés pour cette graine, chacun avec sa voiture (sprite ou code) et son prénom, dans l'ordre de la grille, sans mot de caractère**, JOUER (rond, drapeau), AUTRE PISTE (dé → `seed = Date.now() % 100000`, écrit dans l'URL par `history.replaceState`, qui retire les copains et en tire d'autres). Le bouton son arrive à la tâche 12 (A3). « Le `pointerdown` sur JOUER compte comme doigt posé » (spec §8) : JOUER n'a pas `data-no-pedal`.
 - Activation (spec §8) : `requestFullscreen()` au premier geste qui l'accorde après JOUER, avec `.catch(() => {})` ; refus ignoré. `AudioContext.resume()` : tâche 12.
@@ -65,12 +67,12 @@ Le skill `security-review` a besoin de `origin/HEAD` : `git remote set-head orig
 | `assets/README.md` | `fonts/` déplacé dans `public/fonts/` | 1 |
 | `src/ui/screens.ts` (créé) | `Screens` : titre, décompte, pause/TOURNE ; style injecté une fois | 2 |
 | `tests/screens.test.ts` (créé, jsdom) | boutons, `data-no-pedal`, portrait, textes du décompte | 2 |
-| `src/cars/pilots.ts`, `src/sim/simulate.ts` | `colorHex` déplacé dans `pilots.ts` ; `defaultPilotSeed` exporté | 3 |
+| `src/cars/pilots.ts`, `src/sim/simulate.ts` | `colorHex` et `defaultPilotSeed(trackSeed)` déplacés dans `pilots.ts` (purs) | 3 |
 | `src/render/title.ts` (créé) | `titleScene(pilots, t, cfg)`, `bounceHeight(t)`, constantes de la scène | 3 |
-| `src/render/renderer.ts` | `drawTitle(scene)` : ciel, sol, ombres, voitures | 3 |
-| `tests/title-scene.test.ts` (créé, node) | poses de la scène ; `Renderer.drawTitle` sur faux contexte | 3 |
-| `src/ui/jump-button.ts` | `setVisible` | 4 |
-| `src/render/camera.ts`, `src/render/effects.ts` | `Camera.reset()`, `Effects.clear()` | 4 |
+| `src/render/renderer.ts`, `src/render/camera.ts` | `drawTitle(scene)` : ciel, sol, ombres, voitures ; `Camera.reset()` | 3 |
+| `tests/title-scene.test.ts` (créé, jsdom) | poses de la scène ; `Renderer.drawTitle` sur faux contexte | 3 |
+| `src/ui/jump-button.ts` | `setVisible`, règle `.jump-button[hidden]{display:none}` | 4 |
+| `src/render/effects.ts` | `Effects.clear()` | 4 |
 | `src/game.ts` | machine d'états branchée, `RaceRun`, `newRace`, décompte, pause, historique, orientation, `play`/`otherTrack`/`resume`/`again`/`menu` | 4 |
 | `src/main.ts`, `vite.config.ts`, `src/vite-env.d.ts` (créé) | `__APP_VERSION__`, `loadFont`, `game.start()` → titre | 4 |
 | `tests/game-screens.test.ts` (créé, jsdom) | câblage de `Game` : titre → décompte → course, pause, reprise, historique, AUTRE PISTE, ENCORE, erreur | 4 |
@@ -281,7 +283,10 @@ export interface TitleActions {
   onOtherTrack(): void;
 }
 export class Screens {
-  /** Crée les trois calques cachés dans `root` (#hud), après le HUD et le bouton saut, et injecte le style une fois (`screens-style`). */
+  /**
+   * Crée les trois calques cachés dans `root` (#hud), après le HUD et le bouton saut, et injecte le style une fois (`screens-style`).
+   * `onResume` : REPRENDRE, au `pointerdown` ET au `click` (un doigt tenu sur le bouton n'émet pas de `click` avant d'être levé ; `Game` ignore le doublon).
+   */
   constructor(root: HTMLElement, opts: { version: string }, actions: TitleActions & { onResume(): void });
   /** Montre le titre (les autres calques cachés). */
   showTitle(): void;
@@ -296,7 +301,7 @@ export class Screens {
 }
 ```
 
-DOM et classes (les tests et e2e s'y accrochent) ; chaque calque porte la classe commune `screen` (`position:absolute;inset:0;font-family:Fredoka,system-ui,sans-serif;color:#fff;text-shadow:0 3px 0 #000a`) plus la sienne : `.screen-title` (transparent : le canvas dessine la scène derrière ; `pointer-events: auto`) contenant `h1.title-name` (deux lignes : « Course Lunaire » et `<small>` « de Galahad »), `.title-version` (en bas à gauche, 12 px, `v${version}`), `button.btn-play` (texte « JOUER », drapeau SVG inline, rond, `clamp(96px, 22vh, 170px)` de côté, **sans** `data-no-pedal`, `aria-label="Jouer"`), `button.btn-other` (« AUTRE PISTE », dé SVG inline, ≥ 96 px, `data-no-pedal`) ; `.screen-countdown` (`pointer-events: none`, `.countdown-text` centré, 160 px, `font-variant-numeric: tabular-nums`) ; `.screen-pause` (voile `rgba(0,0,20,.65)`, `pointer-events: auto`, `.pause-text` « PAUSE » ou « TOURNE », `.pause-tablet` SVG inline d'une tablette en portrait avec une flèche de rotation, visible seulement en portrait, `button.btn-resume` « REPRENDRE », ≥ 96 px, `data-no-pedal`, `hidden` en portrait). Zones du titre : nom dans les 30 % du haut, boutons dans les 30 % du bas (`bottom: 4vh`), version `bottom: 6px; left: 10px` ; la bande 45 à 62 % de la hauteur reste libre pour les voitures (Partie 3). Tous les boutons : `tabIndex` par défaut (clavier), `-webkit-tap-highlight-color: transparent`, `touch-action: none`.
+DOM et classes (les tests et e2e s'y accrochent) ; chaque calque porte la classe commune `screen` (`position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;font-family:Fredoka,system-ui,sans-serif;color:#fff;text-shadow:0 3px 0 #000a`) plus la sienne, et la feuille déclare **`.screen[hidden]{display:none}`** (un `display:flex` l'emporterait sinon sur l'attribut `hidden`, comme `.hud-position[hidden]`, `tests/hud.test.ts` l. 72) : `.screen-title` (transparent : le canvas dessine la scène derrière ; `pointer-events: auto` ; **sans** `data-no-pedal` : un doigt sur JOUER compte) contenant `h1.title-name` (deux lignes : « Course Lunaire » et `<small>` « de Galahad »), `.title-version` (en bas à gauche, 12 px, `v${version}`), `button.btn-play` (texte « JOUER », drapeau SVG inline, rond, `clamp(96px, 22vh, 170px)` de côté, **sans** `data-no-pedal`, `aria-label="Jouer"`), `button.btn-other` (« AUTRE PISTE », dé SVG inline, ≥ 96 px, `data-no-pedal`) ; `.screen-countdown` (`pointer-events: none`, `.countdown-text` centré, 160 px, `font-variant-numeric: tabular-nums`) ; `.screen-pause` (voile `rgba(0,0,20,.65)`, `pointer-events: auto`, **`data-no-pedal` sur le calque entier** : un doigt posé sur le voile, hors bouton, n'est jamais du gaz (spec §4 « tap consommé » ; `Throttle` teste `closest`), `.pause-text` « PAUSE » ou « TOURNE », `.pause-tablet` SVG inline d'une tablette en portrait avec une flèche de rotation, visible seulement en portrait, `button.btn-resume` « REPRENDRE », ≥ 96 px, `data-no-pedal`, `hidden` en portrait). Zones du titre : nom dans les 30 % du haut, boutons dans les 30 % du bas (`bottom: 4vh`), version `bottom: 6px; left: 10px` ; la bande 45 à 62 % de la hauteur reste libre pour les voitures (Partie 3). Tous les boutons : `tabIndex` par défaut (clavier), `-webkit-tap-highlight-color: transparent`, `touch-action: none`.
 
 - [ ] **Step 7 : Tests des écrans** dans `tests/screens.test.ts` (jsdom).
 
@@ -382,16 +387,27 @@ test('décompte : texte affiché, calque sans toucher (pointer-events none), rem
   expect(q<HTMLElement>('.screen-countdown').hidden).toBe(true);
 });
 
-test('pause en paysage : « PAUSE », REPRENDRE visible avec data-no-pedal, onResume au click ; tablette cachée', () => {
+test('pause en paysage : « PAUSE », REPRENDRE visible, onResume au pointerdown ET au click ; le voile entier porte data-no-pedal ; tablette cachée', () => {
   const { screens, actions, q } = make();
   screens.showPaused(false);
   expect(q('.pause-text').textContent).toBe('PAUSE');
   const resume = q<HTMLButtonElement>('.btn-resume');
   expect(resume.hidden).toBe(false);
-  expect(resume.hasAttribute('data-no-pedal')).toBe(true);
+  expect(q('.screen-pause').hasAttribute('data-no-pedal')).toBe(true);
+  expect(resume.closest('[data-no-pedal]')).not.toBeNull();
+  expect(q('.screen-title').closest('[data-no-pedal]')).toBeNull();
   expect(q<HTMLElement>('.pause-tablet').hidden).toBe(true);
-  resume.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  resume.dispatchEvent(pointer('pointerdown', 5));
   expect(actions.onResume).toHaveBeenCalledTimes(1);
+  resume.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  expect(actions.onResume).toHaveBeenCalledTimes(2);
+});
+
+test('la feuille cache vraiment un calque flex caché : .screen[hidden] a display:none', () => {
+  make();
+  const rules = [...document.styleSheets].flatMap((s) => [...s.cssRules]) as CSSStyleRule[];
+  expect(rules.find((r) => r.selectorText === '.screen')?.style.display).toBe('flex');
+  expect(rules.find((r) => r.selectorText === '.screen[hidden]')?.style.display).toBe('none');
 });
 
 test('pause en portrait : « TOURNE », dessin de tablette, REPRENDRE caché ; setPortrait(false) le rend', () => {
@@ -431,17 +447,18 @@ test('boutons ≥ 96 px déclarés (JOUER : min-width/min-height 96 ; AUTRE PIST
 
 **Files:**
 - Create: `src/render/title.ts`, `tests/title-scene.test.ts`
-- Modify: `src/cars/pilots.ts` (`colorHex`), `src/sim/simulate.ts` (l. 150–159 : importe `colorHex`, exporte `defaultPilotSeed`), `src/render/renderer.ts` (`drawTitle`)
+- Modify: `src/cars/pilots.ts` (`colorHex`, `defaultPilotSeed`), `src/sim/simulate.ts` (l. 150–159 : importe les deux, fonctions locales retirées), `src/render/renderer.ts` (`drawTitle`), `src/render/camera.ts` (`reset`)
 
 **Interfaces :**
 - Consumes : `Pilot`, `GALAHAD` (`src/cars/pilots.ts`) ; `CarView`, `Renderer` ; `drawCar`, `shadowScale` (`src/render/car.ts`) ; `Camera` ; `Config` (`CAR_LENGTH`, `WHEEL_RADIUS`, `GRID_SPACING_FACTOR`, `VISIBLE_HEIGHT_M`).
 - Produces :
 
 ```ts
-// src/cars/pilots.ts (déplacé depuis sim/simulate.ts, même corps)
-export function colorHex(n: number): string;   // 0x1e5cff → '#1e5cff'
-// src/sim/simulate.ts
-export const defaultPilotSeed: (track: Track) => number;   // existant, désormais exporté (e2e : copains attendus d'une graine)
+// src/cars/pilots.ts (déplacés depuis sim/simulate.ts, mêmes corps ; purs : e2e et tests les importent sans matter-js)
+export function colorHex(n: number): string;              // 0x1e5cff → '#1e5cff'
+export function defaultPilotSeed(trackSeed: number): number;   // (trackSeed ^ 0x9e3779b9) >>> 0 ; simulate.ts appelle defaultPilotSeed(track.seed)
+// src/render/camera.ts
+export class Camera { reset(): void }   // la prochaine update se cale sans lissage (titre, nouvelle course)
 
 // src/render/title.ts — pur (ni DOM, ni matter-js)
 /** Constantes de la scène (pas des paramètres de jeu : pas dans CONFIG). */
@@ -461,8 +478,8 @@ export interface TitleScene {
   t: number;
 }
 /**
- * `pilots` dans l'ordre de la grille (Galahad en premier). Rangée comme sur la grille : Galahad en x = 0, le copain de rang n
- * à −n × GRID_SPACING_FACTOR × CAR_LENGTH (3,3 m). Châssis à y = WHEEL_RADIUS + 0,25 + h, roues à (x ± 0,75 ; WHEEL_RADIUS + h),
+ * `pilots` dans l'ordre de la grille (Galahad en premier). Rangée comme sur la grille : Galahad en x = 0 (écrit `0`, jamais `−0 × …` :
+ * `Object.is(−0, 0)` est faux), le copain de rang n à 0 − n × GRID_SPACING_FACTOR × CAR_LENGTH (3,3 m). Châssis à y = WHEEL_RADIUS + 0,25 + h, roues à (x ± 0,75 ; WHEEL_RADIUS + h),
  * angle 0 ; h = bounceHeight(t) pour Galahad, 0 sinon ; roues de Galahad tournées de −t × TITLE_WHEEL_SPIN_RAD_S ; `turbo` faux ;
  * `name` = prénom (drawCar l'écrit au-dessus des copains, pas de Galahad) ; `id`, `color`, `accent`, `helmet` du pilote.
  */
@@ -485,12 +502,14 @@ export class Renderer {
 ```ts
 // @vitest-environment jsdom
 import { afterEach, expect, test, vi } from 'vitest';
-import { GALAHAD, PILOTS, colorHex, drawPilots } from '../src/cars/pilots';
+import { GALAHAD, PILOTS, colorHex, defaultPilotSeed, drawPilots } from '../src/cars/pilots';
 import { CONFIG } from '../src/config';
 import { Renderer } from '../src/render/renderer';
 import {
   TITLE_BOUNCE_HEIGHT_M, TITLE_BOUNCE_PERIOD_S, TITLE_GROUND_FRAC, bounceHeight, titleScene,
 } from '../src/render/title';
+import { createRaceSim } from '../src/sim/simulate';
+import { generateTrack } from '../src/track/generate';
 import { fakeCtx } from './helpers/fake-ctx';
 
 const pilots = [GALAHAD, ...drawPilots(7)];
@@ -518,7 +537,7 @@ test('titleScene : cinq voitures, Galahad dessiné en dernier et devant (x = 0),
   expect(s.cars).toHaveLength(5);
   const galahad = s.cars[4];
   expect(galahad.id).toBe('galahad');
-  expect(galahad.x).toBe(0);
+  expect(galahad.x).toBeCloseTo(0, 9);
   // Ordre de dessin inverse de la grille : le copain de rang 4 d'abord.
   for (let rank = 1; rank <= 4; rank++) {
     const c = s.cars[4 - rank];
@@ -542,7 +561,11 @@ test('titleScene : poses au sol (châssis à R + 0,25, roues à ±0,75 et R), Ga
   expect(h).toBeGreaterThan(0.4);
   for (const c of s.cars.slice(0, 4)) {
     expect(c.y).toBeCloseTo(R + 0.25, 9);
-    expect(c.wheels.map((w) => [w.x - c.x, w.y, w.angle])).toEqual([[-0.75, R, 0], [0.75, R, 0]]);
+    expect(c.wheels).toHaveLength(2);
+    // Flottants (−rank × 3,3 + 0,75 n'est pas exact) : au 1e-9 près.
+    expect(c.wheels[0].x - c.x).toBeCloseTo(-0.75, 9);
+    expect(c.wheels[1].x - c.x).toBeCloseTo(0.75, 9);
+    for (const w of c.wheels) { expect(w.y).toBeCloseTo(R, 9); expect(w.angle).toBe(0); }
   }
   const g = s.cars[4];
   expect(g.y).toBeCloseTo(R + 0.25 + h, 9);
@@ -557,7 +580,14 @@ test('titleScene : poses au sol (châssis à R + 0,25, roues à ±0,75 et R), Ga
 test('titleScene : avec moins de pilotes (course sans robots), une seule voiture, centrée', () => {
   const s = titleScene([GALAHAD], 0.3, CONFIG);
   expect(s.cars).toHaveLength(1);
-  expect(s.centerX).toBe(0);
+  expect(s.centerX).toBeCloseTo(0, 9);
+});
+
+test('defaultPilotSeed (déplacé dans pilots) : entier de [0, 2³²) décorrélé de la graine, celui que createRaceSim utilise', () => {
+  expect(defaultPilotSeed(1)).toBe((1 ^ 0x9e3779b9) >>> 0);
+  expect(defaultPilotSeed(123)).toBeGreaterThanOrEqual(0);
+  expect(Number.isInteger(defaultPilotSeed(2 ** 31 + 5))).toBe(true);
+  expect(createRaceSim(generateTrack(1, 1680, CONFIG), CONFIG, { robots: true }).pilotSeed).toBe(defaultPilotSeed(1));
 });
 
 test('Renderer.drawTitle : ciel, sol #8b8b8b, cinq ombres avant les voitures, cinq carrosseries image (setArt), sol à 62 % de la hauteur', () => {
@@ -574,7 +604,8 @@ test('Renderer.drawTitle : ciel, sol #8b8b8b, cinq ombres avant les voitures, ci
   renderer.drawTitle(scene);
   const names = calls.map((c) => c.name);
   expect(names.slice(0, 3)).toEqual(['setTransform', 'clearRect', 'drawImage']);   // ciel juste après l'effacement (globalAlpha remis à 1 avant)
-  const ground = calls.find((c) => c.name === 'fill' && c.fillStyle === '#8b8b8b');
+  // Sol : un `fillRect` gris (le faux contexte note le nom de la méthode : `fillRect`, pas `fill`).
+  const ground = calls.find((c) => c.name === 'fillRect' && c.fillStyle === '#8b8b8b');
   expect(ground).toBeDefined();
   const shadows = calls.filter((c) => c.name === 'ellipse' && c.fillStyle === '#000000');
   expect(shadows).toHaveLength(5);
@@ -598,12 +629,13 @@ test('Renderer.drawTitle : ciel, sol #8b8b8b, cinq ombres avant les voitures, ci
 - [ ] **Step 11 : Vérifier l'échec** : `npx vitest run tests/title-scene.test.ts` → FAIL (`colorHex` non exporté, module `title` absent).
 
 - [ ] **Step 12 : Implémenter** :
-  - `src/cars/pilots.ts` : `export function colorHex(n: number): string` (corps de `simulate.ts` l. 151–153) ; `src/sim/simulate.ts` : supprimer la fonction locale, l'importer de `../cars/pilots`, `export const defaultPilotSeed`.
+  - `src/cars/pilots.ts` : `export function colorHex(n: number): string` (corps de `simulate.ts` l. 151–153) et `export function defaultPilotSeed(trackSeed: number): number` (corps de l. 159, sur le nombre) ; `src/sim/simulate.ts` : supprimer les deux fonctions locales, les importer de `../cars/pilots`, `defaultPilotSeed(track.seed)` l. 189.
+  - `src/render/camera.ts` : `reset(): void` (`started = false`).
   - `src/render/title.ts` selon l'interface. Tableau `cars` construit du rang 4 au rang 0 ; `heights` dans le même ordre ; `centerX` = moyenne des x de la première et de la dernière voiture.
   - `src/render/renderer.ts` : `drawTitle(scene)` : même début que `draw` (`setTransform`, `globalAlpha = 1`, `clearRect`, ciel avec `camera.x = scene.centerX`), caméra privée `titleCamera = new Camera(cfg)` mise à jour à chaque appel par `update(centerX, (TITLE_GROUND_FRAC − 0.5) × VISIBLE_HEIGHT_M, 0, 1)` après `reset()` (ou une caméra neuve : la première mise à jour se cale sans lissage), sol : `fillRect` de `y = toScreen(0)` jusqu'en bas en `#8b8b8b`, liseré `#c8c8c8` de 2 px, ombres par une fonction locale (mêmes constantes que `drawShadow` : les exporter de `car.ts` sous `SHADOW_RX_M`, `SHADOW_RY_M`, `SHADOW_ALPHA` plutôt que les recopier), puis `drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, art)`.
   - `npx vitest run tests/title-scene.test.ts tests/render-sprites.test.ts tests/renderer-art.test.ts tests/simulate.test.ts tests/deps.test.ts tests/pilots.test.ts` → vert ; `npm run typecheck` → 0.
 
-- [ ] **Step 13 : Commit** : `git add src/render/title.ts tests/title-scene.test.ts && git commit -m "feat: scène du titre (Galahad qui rebondit, copains de la grille), Renderer.drawTitle" -- src/render/title.ts src/render/renderer.ts src/render/car.ts src/cars/pilots.ts src/sim/simulate.ts tests/title-scene.test.ts`
+- [ ] **Step 13 : Commit** : `git add src/render/title.ts tests/title-scene.test.ts && git commit -m "feat: scène du titre (Galahad qui rebondit, copains de la grille), Renderer.drawTitle" -- src/render/title.ts src/render/renderer.ts src/render/car.ts src/render/camera.ts src/cars/pilots.ts src/sim/simulate.ts tests/title-scene.test.ts`
 
 ---
 
@@ -611,7 +643,7 @@ test('Renderer.drawTitle : ciel, sol #8b8b8b, cinq ombres avant les voitures, ci
 
 **Files:**
 - Create: `tests/game-screens.test.ts`, `tests/helpers/racing.ts`, `src/vite-env.d.ts`
-- Modify: `src/game.ts` (refonte, à éditer avec `Edit` après relecture, jamais réécrit d'un bloc sans l'avoir relu), `src/main.ts`, `vite.config.ts`, `src/ui/hud.ts` (`setRacers`, `setRaceVisible`, `showFinished`), `src/ui/jump-button.ts` (`setVisible`), `src/render/camera.ts` (`reset`), `src/render/effects.ts` (`clear`), `tests/hud.test.ts`, `tests/game-frame.test.ts`, `tests/renderer-art.test.ts`
+- Modify: `src/game.ts` (refonte, à éditer avec `Edit` après relecture, jamais réécrit d'un bloc sans l'avoir relu), `src/main.ts`, `vite.config.ts`, `package.json`, `src/ui/hud.ts` (`setRacers`, `setRaceVisible`, `showFinished`), `src/ui/jump-button.ts` (`setVisible`, règle `[hidden]`), `src/render/effects.ts` (`clear`), `tests/hud.test.ts`, `tests/game-frame.test.ts`, `tests/renderer-art.test.ts`
 
 **Interfaces :**
 - Consumes : `transition`, `INITIAL_STATE` (Partie 1) ; `Screens` (Partie 2) ; `titleScene`, `Renderer.drawTitle` (Partie 3) ; `loadFont` ; `createRaceSim`, `generateTrack`, `posesOf`, `jumpReady`, `rankEntriesOf`.
@@ -640,9 +672,14 @@ export class Game {
   get seed(): number;              // graine courante (change à AUTRE PISTE)
   get pilots(): Pilot[];           // ordre de la grille, Galahad en premier
   get countdownText(): string | null;   // '3' | '2' | '1' pendant countdown, 'PARTEZ' la première seconde de racing, null sinon (e2e)
-  get portrait(): boolean;         // innerHeight > innerWidth au dernier resize
+  get portrait(): boolean;         // innerHeight > innerWidth, lu à start(), à chaque resize, et à play()/resume()
   progress(id: string): number;
   // inchangés : frameSteps, jumps, respawns, throttlePressed, art, airHeight
+  // Gardés tels quels (privés, lus par les tests via `internals` et par les e2e via `__game.sim`) : les champs `sim`, `loop`, `throttle`,
+  // `jumpInput` et la méthode `step(i, pressed, events)` : `newRace` RÉASSIGNE `sim`, `displayedRank`, `finishTime`, `finishShown`, `jumpCount`,
+  // `respawnLog`, `errors` et remet `loop.acc = 0` + `loop.history.reset(...)` (pas d'objet `RaceRun` : `tests/game-frame.test.ts` l. 63–77
+  // remplace `internals.step` et lit `internals.loop.acc`, `tests/hud.test.ts` l. 236 lit `internals.sim`, `e2e/jump.spec.ts` l. 86 et
+  // `e2e/sprites.spec.ts` l. 84 lisent `__game.sim`). Les `readonly` de ces champs sont retirés.
 }
 // src/ui/hud.ts
 export class Hud {
@@ -654,9 +691,7 @@ export class Hud {
   showFinished(seconds: number, onAgain: () => void, onMenu: () => void): void;
 }
 // src/ui/jump-button.ts
-export class JumpButton { setVisible(visible: boolean): void }   // attribut hidden
-// src/render/camera.ts
-export class Camera { reset(): void }   // la prochaine update se cale sans lissage (nouvelle course)
+export class JumpButton { setVisible(visible: boolean): void }   // attribut hidden ; la feuille gagne `.jump-button[hidden]{display:none}` (le bouton est display:flex)
 // src/render/effects.ts
 export class Effects { clear(): void }  // plus aucune particule
 // tests/helpers/racing.ts
@@ -667,17 +702,19 @@ declare const __APP_VERSION__: string;
 ```
 
 Comportement de `Game` (ce que le code doit faire, pas comment) :
-- **Course** : tout l'état d'une course vit dans un objet privé `RaceRun` `{ sim, loop: FrameState, displayedRank, finishTime, finishShown, jumpCount, respawnLog, errors }`, créé par `newRace(seed)` (`generateTrack`, `createRaceSim(track, cfg, { robots: true })`, `loop.history.reset(posesOf(sim))`, `camera.reset()`, `effects.clear()`, `hud.setRacers(…)`, `hud.hide()`, `jumpInput.clear()`). Le constructeur appelle `newRace(opts.seed)` (le titre a besoin des copains) ; `otherTrack` (nouvelle graine), `again` et `menu` (même graine) aussi.
+- **Course** : `newRace(seed)` remplace l'état d'une course : `generateTrack`, `this.sim = createRaceSim(track, cfg, { robots: true })`, `loop.acc = 0`, `loop.history.reset(posesOf(sim))`, `displayedRank` neuf, `finishTime = null`, `finishShown = false`, `jumpCount = 0`, `respawnLog.length = 0`, `errors = 0`, `camera.reset()`, `effects.clear()`, `hud.setRacers(…)`, `hud.hide()`, `jumpInput.clear()`. Le constructeur appelle `newRace(opts.seed)` (le titre a besoin des copains) ; `otherTrack` (nouvelle graine), `again` et `menu` (même graine) aussi.
+- **fps (debug)** : compté dans `frame`, plus dans `present` (le titre et le décompte ont un fps aussi ; `e2e/jump.spec.ts` l. 52 attend `.hud-fps` visible). `updateRank` et `setProgress` ne sont appelés qu'en course, à une image qui a fait un pas (inchangé).
 - **Boucle** (`frame`) : `elapsed` comme aujourd'hui ; selon la phase :
   - `title` : `renderer.drawTitle(titleScene(this.pilots, now / 1000, cfg))` dans le `try` de rendu existant (une exception → `error`, « Oups ! Recharge la page », boucle arrêtée) ; HUD de course caché, bouton saut caché.
-  - `countdown` : `countdownElapsed += elapsed` ; texte `String(ceil(COUNTDOWN_SECONDS − countdownElapsed))` (3, 2, 1) ; à `countdownElapsed ≥ COUNTDOWN_SECONDS` : événement `go`, `goShownUntil = now + COUNTDOWN_GO_SECONDS × 1000`, `screens.showCountdown('PARTEZ')` ; **aucun pas de simulation** ; rendu de la scène de course aux poses du dernier pas (`loop.history.at(1)`, `presentFrame` avec `steps: 0`) : la grille, caméra calée ; HUD visible (chrono au temps de course, barre, position vide), bouton saut visible mais grisé ; `jumpInput.clear()` à chaque image.
+  - `countdown` : `countdownElapsed += elapsed` ; **d'abord** le test `countdownElapsed ≥ COUNTDOWN_SECONDS` : événement `go`, `goShownUntil = now + COUNTDOWN_GO_SECONDS × 1000`, `screens.showCountdown('PARTEZ')` ; **sinon** texte `String(ceil(COUNTDOWN_SECONDS − countdownElapsed))` (3, 2, 1 ; jamais « 0 », écrit seulement s'il change) ; **aucun pas de simulation** ; rendu de la scène de course aux poses du dernier pas (`loop.history.at(1)`, `presentFrame` avec `steps: 0`) : la grille, caméra calée ; HUD visible (chrono au temps de course, barre, position vide), bouton saut visible mais grisé ; `jumpInput.clear()` à chaque image.
   - `racing` / `finished` : comme aujourd'hui (`runFrame`, `present`, HUD) ; `screens.hide()` quand `now ≥ goShownUntil`.
   - `paused` : rendu de la scène aux poses du dernier pas (figée), aucun pas, `jumpInput.clear()` ; l'onglet caché n'a de toute façon pas de `requestAnimationFrame`.
   - `error` : boucle arrêtée (inchangé).
 - **Événements** : `play()` → `transition('play')` ; si la phase devient `countdown` : `countdownElapsed = 0`, `screens.showCountdown('3')`, `hud.setRaceVisible(true)`, `jumpButton.setVisible(true)`, `armHistory()` ; plein écran : `window.addEventListener('pointerup', requestFullscreen, { once: true })` où `requestFullscreen` = `document.documentElement.requestFullscreen?.()?.catch(() => {})` (le `pointerup` accorde l'activation que le `pointerdown` tactile n'accorde pas ; le chemin clavier, sans pointeur, se passe de plein écran : la tablette est tactile). L'image qui fait passer en `racing` (`go`) ne fait **aucun pas** : le premier pas de course est à l'image suivante.
-  - `pause()` (privé) : depuis `countdown` ou `racing` : `transition('pause')`, `screens.showPaused(this.portrait)`, `jumpInput.clear()` ; déclenché par `popstate` (→ `historyArmed = false`), `visibilitychange` caché, `resize` en portrait.
+  - `pause()` (privé) : depuis `countdown` ou `racing` : `transition('pause')`, `screens.showPaused(this.portrait)`, `jumpInput.clear()` ; déclenché par `popstate` (→ `historyArmed = false`), `visibilitychange` caché, `resize` en portrait, et **tout de suite après `play()` ou `resume()` si la tablette est déjà en portrait** (JOUER tapé en portrait → décompte → TOURNE aussitôt, spec §4).
   - `resume()` : seulement si `paused` et pas en portrait : `transition('resume')` → `countdown` (comme `play` : décompte à 3, `armHistory()`), sans toucher à `sim` (le chrono reprend).
-  - `onResize` : `renderer.resize()` ; `portrait = innerHeight > innerWidth` ; portrait et phase `countdown` ou `racing` → `pause()` ; phase `paused` → `screens.setPortrait(portrait)`.
+  - `readPortrait()` : `portrait = innerHeight > innerWidth`, appelé par `start()`, `onResize`, `play()`, `resume()`.
+  - `onResize` : `renderer.resize()` ; `readPortrait()` ; portrait et phase `countdown` ou `racing` → `pause()` ; phase `paused` → `screens.setPortrait(portrait)`.
   - `finish` : à l'événement 'finish' de Galahad (inchangé) ; le calque ARRIVÉE (après `FINISH_COAST_SECONDS`) reçoit `again` et `menu` (Q2). `popstate` pendant `finished` → `menu()`.
   - `again()` / `menu()` : `transition` puis `newRace(this.opts.seed)` ; `again` enchaîne comme `play` (décompte) ; `menu` montre le titre (`screens.showTitle()`, HUD et bouton saut cachés).
   - `otherTrack()` : titre seulement ; `opts.seed = Date.now() % 100000` ; `history.replaceState(null, '', '?' + params)` où `params` = `location.search` avec `seed` remplacé (`URLSearchParams`), `len` et `debug` gardés ; `newRace(seed)`.
@@ -693,10 +730,8 @@ import { CONFIG } from '../src/config';
 import { Game } from '../src/game';
 import { Renderer } from '../src/render/renderer';
 import type { RaceSim } from '../src/sim/simulate';
-import { defaultPilotSeed } from '../src/sim/simulate';
-import { drawPilots, GALAHAD } from '../src/cars/pilots';
+import { defaultPilotSeed, drawPilots, GALAHAD } from '../src/cars/pilots';
 import { placeCar } from '../src/physics/car';
-import { generateTrack } from '../src/track/generate';
 import { heightAt } from '../src/track/query';
 import { startRacing } from './helpers/racing';
 
@@ -756,7 +791,7 @@ test('start : titre, scène du titre dessinée, aucune course dessinée, HUD de 
   expect(internals().sim.time).toBe(0);
   for (const sel of ['.hud-time', '.hud-bar', '.hud-position', '.jump-button']) expect(q(sel).hidden, sel).toBe(true);
   expect(q('.title-version').textContent).toBe('v1.1.0');
-  expect(game.pilots.map((p) => p.id)).toEqual([GALAHAD, ...drawPilots(defaultPilotSeed(generateTrack(1, 1680, CONFIG)))].map((p) => p.id));
+  expect(game.pilots.map((p) => p.id)).toEqual([GALAHAD, ...drawPilots(defaultPilotSeed(1))].map((p) => p.id));
 });
 
 test('JOUER (pointerdown) → décompte 3, 2, 1 sans aucun pas, PARTEZ la première seconde de course, puis course ; HUD visible, bouton saut grisé pendant le décompte', () => {
@@ -879,12 +914,41 @@ test('portrait pendant le décompte → TOURNE, REPRENDRE caché et inactif ; pa
   expect(q('.countdown-text').textContent).toBe('3');
 });
 
-test('portrait au titre : rien ne change (pas de pause au titre)', () => {
+test('portrait au titre : rien ne change (pas de pause au titre) ; JOUER tapé en portrait → décompte puis TOURNE aussitôt', () => {
   const { game, q } = makeGame();
   game.start();
   setOrientation(800, 1280);
   expect(game.state).toBe('title');
   expect(q('.screen-pause').hidden).toBe(true);
+  game.play();
+  expect(game.state).toBe('paused');
+  expect(q('.pause-text').textContent).toBe('TOURNE');
+  setOrientation(1280, 800);
+  game.resume();
+  expect(game.state).toBe('countdown');
+});
+
+test('portrait lu dès start() sans resize préalable (fenêtre déjà en portrait au chargement)', () => {
+  Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true });
+  Object.defineProperty(window, 'innerHeight', { value: 1280, configurable: true });
+  const { game } = makeGame();
+  game.start();
+  expect(game.portrait).toBe(true);
+});
+
+test('le bouton saut caché le reste malgré son display:flex : règle .jump-button[hidden]{display:none}', () => {
+  makeGame().game.start();
+  const rules = [...document.styleSheets].flatMap((s) => [...s.cssRules]) as CSSStyleRule[];
+  expect(rules.find((r) => r.selectorText === '.jump-button')?.style.display).toBe('flex');
+  expect(rules.find((r) => r.selectorText === '.jump-button[hidden]')?.style.display).toBe('none');
+});
+
+test('fps (debug) compté au titre et pendant le décompte, pas seulement en course', () => {
+  const { game, q } = makeGame(1, true);
+  game.start();
+  frames(70, 0, 1000 / 60);   // > 1 s au titre
+  expect(q('.hud-fps').hidden).toBe(false);
+  expect(q('.hud-fps').textContent).toMatch(/^\d+ fps$/);
 });
 
 test('historique : une entrée poussée au premier décompte, consommée par popstate, repoussée à la reprise ; replaceState sinon (pile stable)', () => {
@@ -922,7 +986,7 @@ test('AUTRE PISTE : nouvelle graine (Date.now() % 100000) dans l’URL (len et d
   expect(new URLSearchParams(location.search).get('seed')).toBe(String(game.seed));
   expect(new URLSearchParams(location.search).get('len')).toBe('1680');
   expect(new URLSearchParams(location.search).get('debug')).toBe('1');
-  const expected = [GALAHAD, ...drawPilots(defaultPilotSeed(generateTrack(game.seed, 1680, CONFIG)))].map((p) => p.id);
+  const expected = [GALAHAD, ...drawPilots(defaultPilotSeed(game.seed))].map((p) => p.id);
   expect(game.pilots.map((p) => p.id)).toEqual(expected);
   // Graine 1 : diego, timothé, liam, malo ; graine 123 : timothé, diego, matthis, pablo (mesuré) : les copains ont bien changé.
   expect(expected).not.toEqual(before);
@@ -972,16 +1036,20 @@ Les deux tests laissés en commentaire sont écrits en entier par l'implémenteu
 - [ ] **Step 15 : Vérifier l'échec** : `npx vitest run tests/game-screens.test.ts` → FAIL (`play`, `Screens`, `drawTitle` absents de `Game`).
 
 - [ ] **Step 16 : Implémenter `Game` et ses voisins** :
-  - `src/render/camera.ts` : `reset()` ; `src/render/effects.ts` : `clear()` ; `src/ui/jump-button.ts` : `setVisible` ; `src/ui/hud.ts` : `setRacers` (retire les couloirs et refait la barre, remet la couleur de `.hud-position-car`, `lastTenths` et `lastRank` à neuf, `setTime(0)`), `setRaceVisible` (`hidden` sur `time`, `position`… attention : `position` a déjà son `hidden` piloté par `setPosition` : garder un drapeau `raceVisible` et un `refreshPosition()` qui applique `hidden = !raceVisible || rank === null`), `showFinished(seconds, onAgain, onMenu)` : bouton MENU `.hud-menu` (≥ 96 px, `data-no-pedal`) à côté d'ENCORE (`.hud-again`).
+  - `src/render/effects.ts` : `clear()` ; `src/ui/jump-button.ts` : `setVisible` et la règle `.jump-button[hidden]{display:none}` ; `src/ui/hud.ts` : `setRacers` (retire les couloirs et refait la barre, remet la couleur de `.hud-position-car`, `lastTenths` et `lastRank` à neuf, `setTime(0)`), `setRaceVisible` (`hidden` sur `time`, `position`… attention : `position` a déjà son `hidden` piloté par `setPosition` : garder un drapeau `raceVisible` et un `refreshPosition()` qui applique `hidden = !raceVisible || rank === null`), `showFinished(seconds, onAgain, onMenu)` : bouton MENU `.hud-menu` (≥ 96 px, `data-no-pedal`) à côté d'ENCORE (`.hud-again`).
   - `src/game.ts` selon « Comportement de `Game` ». `GameState` devient l'alias de `Phase`. La phase initiale est `title` ; `start()` n'appelle plus `_state = 'racing'`. Écouteurs ajoutés dans `start()` : `popstate`, `resize` (existant, enrichi), `visibilitychange` (existant, enrichi : caché → `pause()`).
   - `src/vite-env.d.ts` : `declare const __APP_VERSION__: string;` ; `vite.config.ts` : `import pkg from './package.json';` et `define: { __APP_VERSION__: JSON.stringify(pkg.version) }` (Vite charge sa config par esbuild, qui lit le JSON ; `vite.config.ts` n'est pas dans l'`include` de `tsconfig`) ; `src/main.ts` : `void loadFont(document)` avant `new Game(canvas, hud, { ...opts, version: __APP_VERSION__ }, art)`.
   - `package.json` : `"version": "1.1.0"` (décision Q3 du papa : la version bouge à chaque tâche déployée).
-  - Tests existants : `tests/hud.test.ts` (`describe('Game : HUD de position')` : remplacer `pressFinger(); game.start();` par `pressFinger(); let now = startRacing(game, () => raf!);` et poursuivre les images à partir de `now`), `tests/game-frame.test.ts` (idem ; le premier test compare `drawn` image par image : commencer le comptage après `startRacing`, `drawn.length = 0`), `tests/renderer-art.test.ts` (tests `Game`). Aucune assertion existante n'est affaiblie : seules les lignes de démarrage changent.
+  - Tests existants (13 appels de `game.start()` : `game-frame` 3, `hud` 5, `renderer-art` 5), **sans affaiblir une assertion** :
+    - partout : `pressFinger(); game.start();` → `pressFinger(); let now = startRacing(game, () => raf!);` et **tous les `now` absolus deviennent relatifs** : `raf!(5 + f * DT * 1000)` → `raf!(now + 5 + f * DT * 1000)` (`tests/hud.test.ts` l. 304, 322, 348–358 ; `tests/game-frame.test.ts` l. 148–171 : `let now = 5` → `now += 5`), sinon `elapsed = 0` et aucun pas ;
+    - `tests/game-frame.test.ts` premier test (l. 86–116) : `drawn.length = 0` après `startRacing`, et la caméra témoin reçoit d'abord **une** mise à jour sur la pose immobile du décompte (`camera.update(target.x, target.y, 0, 1)` avec la cible de `posesOf(sim)[0]` avant tout pas) : la caméra de `Game` a lissé depuis la grille, une caméra neuve se calerait d'un coup ;
+    - `tests/renderer-art.test.ts` l. 195–197 : `draw.mockClear()` après `startRacing`, puis `frames` à partir du `now` rendu ;
+    - `tests/hud.test.ts` l. 342–359 (« pas de recalcul… ») : les espions `update` et `setProgress` se posent **après** `startRacing` (aucun appel pendant le décompte, ce que ce test vérifie aussi : `expect(update).not.toHaveBeenCalled()` juste après `startRacing`).
   - `npm run typecheck` → 0 ; `npm test` → tout vert (≈ 3 min).
 
-- [ ] **Step 17 : Mutants à tuer avant de commiter** (chacun réécrit puis restauré, le test cité doit rougir) : titre retiré du DOM au `play` (test « pointerup sur JOUER caché ») ; `stepRace` appelé pendant `countdown` (« sans aucun pas ») ; reprise directe en `racing` sans décompte (« REPRENDRE → décompte à 3 ») ; `resume()` accepté en portrait ; `pushState` à chaque `play` (« pile stable ») ; `otherTrack` sans `replaceState` ; exception de `drawTitle` non rattrapée.
+- [ ] **Step 17 : Mutants à tuer avant de commiter** (chacun réécrit puis restauré, le test cité doit rougir) : titre retiré du DOM au `play` (test « pointerup sur JOUER caché ») ; `stepRace` appelé pendant `countdown` (« sans aucun pas ») ; reprise directe en `racing` sans décompte (« REPRENDRE → décompte à 3 ») ; `resume()` accepté en portrait ; `play()` en portrait sans pause (« JOUER tapé en portrait ») ; `pushState` à chaque `play` (« pile stable ») ; `otherTrack` sans `replaceState` ; exception de `drawTitle` non rattrapée ; texte du décompte calculé avant le test `go` (« `['3','2','1','PARTEZ']` », pas de « 0 ») ; règle `.jump-button[hidden]` retirée.
 
-- [ ] **Step 18 : Commit** : `git add src/vite-env.d.ts tests/game-screens.test.ts tests/helpers/racing.ts && git commit -m "feat: titre, décompte, pause et orientation branchés dans Game ; AUTRE PISTE, ENCORE, MENU ; version au titre" -- src/game.ts src/main.ts vite.config.ts src/vite-env.d.ts package.json src/ui/hud.ts src/ui/jump-button.ts src/render/camera.ts src/render/effects.ts tests/game-screens.test.ts tests/helpers/racing.ts tests/hud.test.ts tests/game-frame.test.ts tests/renderer-art.test.ts`
+- [ ] **Step 18 : Commit** : `git add src/vite-env.d.ts tests/game-screens.test.ts tests/helpers/racing.ts && git commit -m "feat: titre, décompte, pause et orientation branchés dans Game ; AUTRE PISTE, ENCORE, MENU ; version au titre" -- src/game.ts src/main.ts vite.config.ts src/vite-env.d.ts package.json src/ui/hud.ts src/ui/jump-button.ts src/render/effects.ts tests/game-screens.test.ts tests/helpers/racing.ts tests/hud.test.ts tests/game-frame.test.ts tests/renderer-art.test.ts`
 
 - [ ] **Step 19 : Empreinte et frontière de la simulation** :
 
@@ -990,7 +1058,7 @@ npx vitest run tests/empreinte.test.ts tests/pilots.test.ts tests/deps.test.ts
 git diff --stat <BASE> -- src/sim src/physics src/track src/cars src/ai src/config.ts
 ```
 
-Expected : `empreinte` 6/6 (`FROZEN`, `FROZEN_CONFIG` inchangés), `pilots` et `deps` verts ; le diff ne montre que `src/cars/pilots.ts` (+ `colorHex`), `src/sim/simulate.ts` (import, `export`, fonction retirée) et `src/config.ts` (+ 2 constantes, 1 commentaire).
+Expected : `empreinte` 6/6 (`FROZEN`, `FROZEN_CONFIG` inchangés), `pilots` et `deps` verts ; le diff ne montre que `src/cars/pilots.ts` (+ `colorHex`, + `defaultPilotSeed`), `src/sim/simulate.ts` (import, deux fonctions locales retirées, `defaultPilotSeed(track.seed)`) et `src/config.ts` (+ 2 constantes, 1 commentaire).
 
 ---
 
@@ -1029,13 +1097,11 @@ export function offSiteRequests(page: Page): string[];
 // Écrans (plan B, tâche 10) sur la tablette simulée : titre avec les copains de la graine, AUTRE PISTE, décompte, doigt gardé depuis
 // JOUER, pause par portrait et reprise sans gaz, police Fredoka servie par le site, captures titre.png, decompte.png, pause.png, tourne.png.
 import { expect, test } from '@playwright/test';
-import { GALAHAD, drawPilots } from '../src/cars/pilots';
+import { GALAHAD, defaultPilotSeed, drawPilots } from '../src/cars/pilots';   // purs : pas de matter-js dans le runner Playwright
 import { CONFIG } from '../src/config';
-import { defaultPilotSeed } from '../src/sim/simulate';
-import { defaultTrackLength, generateTrack } from '../src/track/generate';
 import { SHOTS, boxOf, gameState, offSiteRequests, pilotIds, startRace, tapAt, waitForGame, waitForRaceTime, waitForState, type Box } from './helpers';
 
-const expectedIds = (seed: number) => [GALAHAD, ...drawPilots(defaultPilotSeed(generateTrack(seed, defaultTrackLength(CONFIG), CONFIG)))].map((p) => p.id);
+const expectedIds = (seed: number) => [GALAHAD, ...drawPilots(defaultPilotSeed(seed))].map((p) => p.id);
 const overlap = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 test('titre : état title, aucun pas, les copains de la graine dans l’ordre de la grille, JOUER et AUTRE PISTE ≥ 96 px, rien sur la bande des voitures ; capture titre.png', async ({ page }) => {
@@ -1159,7 +1225,10 @@ test('police : Fredoka chargée depuis le site, aucune requête hors site, texte
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await expect(page.locator('.btn-play')).toBeVisible();
-  await page.waitForFunction(() => document.fonts.check('700 20px Fredoka'), null, { timeout: 5_000 });
+  // `document.fonts.check` rend vrai même sans @font-face Fredoka : on exige une FontFace Fredoka réellement chargée.
+  await page.waitForFunction(() => [...document.fonts].some((f) => /Fredoka/.test(f.family) && f.status === 'loaded'), null, { timeout: 5_000 });
+  const loaded = await page.evaluate(() => [...document.fonts].filter((f) => /Fredoka/.test(f.family) && f.status === 'loaded').map((f) => f.weight).sort());
+  expect(loaded).toEqual(['600', '700']);
   const family = await page.evaluate(() => getComputedStyle(document.querySelector('.title-name')!).fontFamily);
   expect(family).toMatch(/Fredoka/);
   expect(off).toEqual([]);
@@ -1195,7 +1264,9 @@ VITE_BASE=/Galahad-s-car-game/ npx vite preview --port 4174 --strictPort   # en 
 PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers E2E_LIVE_URL=http://localhost:4174/Galahad-s-car-game/ npx playwright test -c playwright.live.config.ts e2e/screens.spec.ts
 ```
 
-Expected : typecheck 0 ; `npm test` tout vert (≈ 3 min, +4 fichiers) ; `npm run e2e` : **27 passed** (les 20 d'avant, adaptés, plus 7) ; `grep` : deux `url(/Galahad-s-car-game/fonts/fredoka-latin-6|700.woff2)` ; `dist/fonts` : 2 fichiers ; la version dans le bundle ; les 7 e2e des écrans verts **sous la base** (Review Focus 5), police comprise. Arrêter l'aperçu ensuite.
+(Le Step 22 est le seul moment où `npm run e2e` tourne en entier avant les relectures : les 20 e2e adaptés (Step 20) et les 8 nouveaux. La police compte en e2e : « police » exige deux `FontFace` Fredoka chargées, 600 et 700.)
+
+Expected : typecheck 0 ; `npm test` tout vert (≈ 3 min, +5 fichiers) ; `npm run e2e` : **28 passed** (les 20 d'avant, adaptés, plus les 8 de `screens.spec.ts`, téléphone compris) ; `grep` : deux `url(/Galahad-s-car-game/fonts/fredoka-latin-6|700.woff2)` ; `dist/fonts` : 2 fichiers ; la version dans le bundle ; les 7 e2e des écrans verts **sous la base** (Review Focus 5), police comprise. Arrêter l'aperçu ensuite.
 
 - [ ] **Step 23 : Commit** : `git add e2e/screens.spec.ts && git commit -m "test: e2e des écrans (titre, copains, décompte, pause, orientation, police) ; démarrage par JOUER dans les e2e" -- e2e`
 
@@ -1233,7 +1304,7 @@ git push -u origin ccr-5b6fabc4-n96ofo                 # session en mode « acce
 VITE_BASE=/Galahad-s-car-game/ npm run build && ls dist/assets   # hash du index-*.js local
 curl -s https://i-dmk.github.io/Galahad-s-car-game/ | grep -o 'index-[A-Za-z0-9_-]*\.js'   # même hash
 curl -sI https://i-dmk.github.io/Galahad-s-car-game/fonts/fredoka-latin-700.woff2 | head -1   # HTTP/2 200
-PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live   # 27 verts, screens.spec compris
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live   # 28 verts, screens.spec compris
 git checkout wip-plan-b && git merge --ff-only ccr-5b6fabc4-n96ofo && git push -u origin wip-plan-b
 ```
 
@@ -1276,11 +1347,13 @@ Expected : run vert ; hash du bundle servi = hash du build local à la même bas
 | A10 | Aucun pas de simulation pendant `countdown` : la grille est dessinée aux poses du dernier pas (figées) ; les copains partent à `rang × 0,3 + 0,38 s` **après PARTEZ** | le temps de course part à PARTEZ (spec §6 « Arrivée » : chrono démarré à PARTEZ) ; `RANK_HIDE_SECONDS` compte depuis là | nul |
 | A11 | La police est demandée par `document.fonts.load` dans `main.ts`, et toutes les chaînes `font` listent `Fredoka, system-ui, sans-serif` : aucun drapeau « prête » | le canvas prend la police dès qu'elle est chargée, `system-ui` avant ; `font-display: swap` fait pareil en DOM ; rien n'attend | nul |
 | A12 | `@font-face` dans `index.html` avec `url(/fonts/…)` absolu | Vite réécrit les URL absolues des styles de `index.html` sous `base` (vérifié) ; un `url(fonts/…)` relatif n'est pas réécrit et peut échouer | 404 de police en ligne : Review Focus 5 le voit au Step 22 |
-| A13 | `colorHex` déplacé dans `cars/pilots.ts` ; `defaultPilotSeed` exporté | la scène du titre et les e2e en ont besoin sans importer matter-js (`render/` et `e2e/` importent `cars/`) | nul (empreinte vérifiée au Step 19) |
+| A13 | `colorHex` et `defaultPilotSeed(trackSeed)` déplacés dans `cars/pilots.ts` (purs) | la scène du titre et les e2e en ont besoin sans importer matter-js (`render/` et `e2e/` importent `cars/` ; `fosse.spec.ts` n'importe que `track/`) | nul (empreinte vérifiée au Step 19) |
+| A18 | REPRENDRE agit au `pointerdown` et au `click` ; le voile de pause entier porte `data-no-pedal` | un doigt tenu n'émet pas de `click` ; un doigt posé sur le voile hors bouton ne doit pas devenir du gaz à PARTEZ (spec §4 « tap consommé ») | nul |
+| A19 | Les champs `sim`, `loop`, `step` de `Game` gardent leurs noms et sont réassignés par `newRace` (pas d'objet `RaceRun`) | `tests/game-frame.test.ts` remplace `internals.step` et lit `loop.acc` ; `__game.sim` est lu par deux e2e | nul |
 | A14 | Les e2e passent par le vrai JOUER (`startRace`), pas par un paramètre d'URL qui sauterait le titre (Q1 a) | spec §11 : « Titre affiché ; click sur JOUER → décompte → course » ; aucun chemin de test dans le code livré | ≈ 4 s par test, ≈ 2 min sur la suite |
 | A15 | Version `1.1.0` dans `package.json`, montée à chaque tâche déployée (Q3 a) | une version qui ne bouge pas ne dit rien au papa ; une date de build changerait le hash du bundle à chaque jour et casserait la comparaison local / en ligne | une ligne à bumper par tâche |
 | A16 | `GameState` devient l'alias de `Phase` (les valeurs d'avant restent) | les e2e et tests lisent `__game.state` ; la nouvelle valeur initiale est `title` | nul |
-| A17 | `setRaceVisible` cache chrono, position et barre ; fps et compteur d'images (debug) restent visibles au titre | un fps au titre sert à mesurer la scène du titre sur la tablette | nul |
+| A17 | `setRaceVisible` cache chrono, position et barre ; fps et compteur d'images (debug) restent visibles au titre, et le fps est compté dans `frame` (plus dans `present`) | un fps au titre sert à mesurer la scène du titre sur la tablette ; `e2e/jump.spec.ts` attend `.hud-fps` | nul |
 
 ## Questions pour le papa
 
