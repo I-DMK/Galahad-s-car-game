@@ -6,6 +6,7 @@
 // Le conteneur (#hud) est en `pointer-events: none` : seuls le calque d'arrivée et les écrans (`ui/screens.ts`) captent le toucher.
 import { ordinal } from '../cars/ranking';
 import type { StepCounts } from '../loop/frame-stats';
+import { FONT_FAMILY } from './font';
 
 const STYLE_ID = 'hud-style';
 /**
@@ -48,7 +49,7 @@ const FLAG_SVG = (() => {
  */
 const CSS = `
 .hud-position{position:absolute;top:clamp(4px,.8vw,10px);left:clamp(10px,2.2vw,28px);display:flex;align-items:center;
-  gap:.15em;font:800 clamp(40px,8.1vw,104px) Fredoka,system-ui,sans-serif;line-height:1;color:#fff;
+  gap:.15em;font:800 clamp(40px,8.1vw,104px) ${FONT_FAMILY};line-height:1;color:#fff;
   text-shadow:0 .04em 0 #000a,0 0 .13em #000c}
 .hud-position[hidden]{display:none}
 .hud-position-car{width:1.06em;height:.53em;filter:drop-shadow(0 .03em 0 #000a)}
@@ -67,23 +68,23 @@ const CSS = `
 .hud-flag{position:absolute;left:100%;top:0;height:100%;aspect-ratio:${FLAG_W}/${FLAG_H};margin-left:6px;pointer-events:none}
 .hud-flag svg{display:block;width:100%;height:100%;filter:drop-shadow(0 2px 0 #000a)}
 .hud-position-car svg{display:block;width:100%;height:100%}
-.hud-time{position:absolute;top:clamp(6px,1.25vw,16px);right:clamp(10px,2.2vw,28px);font:700 clamp(26px,5vw,64px) Fredoka,system-ui,sans-serif;
+.hud-time{position:absolute;top:clamp(6px,1.25vw,16px);right:clamp(10px,2.2vw,28px);font:700 clamp(26px,5vw,64px) ${FONT_FAMILY};
   color:#fff;text-shadow:0 .05em 0 #000a,0 0 .19em #000c;font-variant-numeric:tabular-nums;letter-spacing:.03em}
-.hud-fps{position:absolute;left:28px;bottom:6px;font:500 16px Fredoka,system-ui,sans-serif;color:#fffc;
+.hud-fps{position:absolute;left:28px;bottom:6px;font:500 16px ${FONT_FAMILY};color:#fffc;
   text-shadow:0 1px 2px #000;line-height:20px}
-.hud-steps{position:absolute;left:112px;bottom:6px;font:500 16px Fredoka,system-ui,sans-serif;color:#fffc;
+.hud-steps{position:absolute;left:112px;bottom:6px;font:500 16px ${FONT_FAMILY};color:#fffc;
   text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums;line-height:20px;white-space:nowrap}
 .hud-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:24px;background:rgba(0,0,20,.65);pointer-events:auto;color:#fff;
-  font-family:Fredoka,system-ui,sans-serif;text-align:center;text-shadow:0 3px 0 #000a}
+  font-family:${FONT_FAMILY};text-align:center;text-shadow:0 3px 0 #000a}
 .hud-title{font-weight:800;font-size:72px;letter-spacing:4px}
 .hud-big{font-weight:800;font-size:120px;font-variant-numeric:tabular-nums}
 .hud-buttons{display:flex;align-items:center;justify-content:center;gap:40px}
 .hud-again{width:120px;height:120px;border-radius:50%;border:4px solid #fff;background:#e2231a;
-  color:#fff;font:800 22px Fredoka,system-ui,sans-serif;box-shadow:0 6px 0 #0008;cursor:pointer;
+  color:#fff;font:800 22px ${FONT_FAMILY};box-shadow:0 6px 0 #0008;cursor:pointer;
   touch-action:none;-webkit-tap-highlight-color:transparent}
 .hud-menu{min-width:120px;height:96px;padding:0 28px;border-radius:24px;border:4px solid #fff;background:#1e5cff;
-  color:#fff;font:800 22px Fredoka,system-ui,sans-serif;box-shadow:0 6px 0 #0008;cursor:pointer;
+  color:#fff;font:800 22px ${FONT_FAMILY};box-shadow:0 6px 0 #0008;cursor:pointer;
   touch-action:none;-webkit-tap-highlight-color:transparent}
 .hud-error{font-weight:700;font-size:48px;padding:0 32px}
 `;

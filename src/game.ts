@@ -113,7 +113,7 @@ export class Game {
     this.jumpInput = new JumpInput(window, this.jumpButton.el, () => this.machine.phase === 'racing');
     // Les écrans viennent après le HUD et le bouton saut : au-dessus d'eux (le voile de pause couvre le bouton saut).
     this.screens = new Screens(hudRoot, { version: opts.version ?? '' }, {
-      onPlay: () => this.play(), onOtherTrack: () => this.otherTrack(), onResume: () => this.resume(),
+      onPlay: (viaPointer) => this.play(viaPointer), onOtherTrack: () => this.otherTrack(), onResume: () => this.resume(),
     });
     // Course à 5 voitures ; les copains et leur ordre sur la grille dépendent de la graine de piste : ENCORE redonne les mêmes.
     this.newRace(this.opts.seed);
@@ -129,7 +129,7 @@ export class Game {
   get seed(): number { return this.opts.seed; }
   /** '3' | '2' | '1' pendant le décompte, 'PARTEZ' la première seconde de course, null sinon (e2e). */
   get countdownText(): string | null { return this.countdownLabel; }
-  /** `innerHeight > innerWidth`, lu à `start()`, à chaque `resize`, et à `play()` / `resume()`. */
+  /** `innerHeight > innerWidth`, lu à `start()`, à chaque `resize`, et à chaque entrée en décompte (JOUER, REPRENDRE, ENCORE). */
   get portrait(): boolean { return this._portrait; }
   /** Images de la dernière seconde : total, à 0 pas, à 2 pas ou plus (debug, tremblement §8). */
   get frameSteps(): StepCounts { return { ...this.stepStats.last }; }
@@ -177,34 +177,37 @@ export class Game {
     this.rafId = requestAnimationFrame(this.frame);
   }
 
-  /** JOUER : title → countdown ; sans effet ailleurs. Le plein écran est demandé au prochain `pointerup`. */
-  play(): void {
+  /**
+   * JOUER : title → countdown ; sans effet ailleurs. `viaPointer` (pointerdown sur le bouton) : le plein écran est demandé
+   * au prochain `pointerup`, qui accorde l'activation que le `pointerdown` tactile n'accorde pas (spec §8) ; refus ignoré.
+   * Le chemin clavier (click sans pointeur) se passe de plein écran : la tablette est tactile.
+   */
+  play(viaPointer = false): void {
     if (!this.send('play')) return;
-    // Le `pointerup` qui suit accorde l'activation que le `pointerdown` tactile n'accorde pas (spec §8) ; refus ignoré.
-    // Le chemin clavier (click sans pointeur) se passe de plein écran : la tablette est tactile.
-    window.addEventListener('pointerup', requestFullscreen, { once: true });
-    this.readPortrait();
+    if (viaPointer) window.addEventListener('pointerup', requestFullscreen, { once: true });
     this.beginCountdown();
   }
 
   /**
-   * AUTRE PISTE (titre seulement) : seed = Date.now() % 100000, URL réécrite (`?seed=` ; `len` et `debug` gardés),
-   * nouvelle course (piste et copains).
+   * AUTRE PISTE (titre seulement) : seed = Date.now() % 100000, nouvelle course (piste et copains), puis URL réécrite
+   * (`?seed=` ; `len` et `debug` gardés). Un `replaceState` qui lève (quota après des taps en rafale) ne change rien à la
+   * course : l'adresse garde l'ancienne graine, c'est tout.
    */
   otherTrack(): void {
     if (this.machine.phase !== 'title') return;
     this.opts.seed = Date.now() % 100000;
-    const params = new URLSearchParams(location.search);
-    params.set('seed', String(this.opts.seed));
-    history.replaceState(null, '', `?${params.toString()}`);
     this.newRace(this.opts.seed);
     this.showTitle();
+    try {
+      const params = new URLSearchParams(location.search);
+      params.set('seed', String(this.opts.seed));
+      history.replaceState(null, '', `?${params.toString()}`);
+    } catch { /* adresse non réécrite : la course, elle, est bien la nouvelle */ }
   }
 
   /** REPRENDRE (pause seulement, et seulement en paysage) : → countdown à 3, puis la course reprend où elle en était. */
   resume(): void {
     if (this.machine.phase !== 'paused') return;
-    this.readPortrait();
     if (this._portrait) {
       this.screens.setPortrait(true);
       return;
@@ -217,15 +220,19 @@ export class Game {
   again(): void {
     if (!this.send('again')) return;
     this.newRace(this.opts.seed);
-    this.readPortrait();
     this.beginCountdown();
   }
 
-  /** MENU (finished, podium) : → title, nouvelle course sur la même graine (le titre montre les mêmes copains). */
+  /**
+   * MENU (finished, podium) : → title, nouvelle course sur la même graine (le titre montre les mêmes copains). L'entrée
+   * d'historique armée par le décompte est consommée (`history.back()` : le `popstate` qui suit trouve la phase `title`
+   * et ne fait que remettre `historyArmed` à faux), sinon un geste retour au titre reviendrait sur cette entrée fantôme.
+   */
   menu(): void {
     if (!this.send('menu')) return;
     this.newRace(this.opts.seed);
     this.showTitle();
+    if (this.historyArmed) history.back();
   }
 
   /** Envoie `ev` à la machine ; vrai si la phase a changé. */
@@ -272,6 +279,7 @@ export class Game {
    * grisé, demande de saut jetée, entrée d'historique en place ; si la tablette est déjà en portrait, pause (TOURNE) aussitôt.
    */
   private beginCountdown(): void {
+    this.readPortrait();
     this.countdownElapsed = 0;
     this.showCountdown(String(this.cfg.COUNTDOWN_SECONDS));
     this.hud.setRaceVisible(true);
@@ -327,6 +335,7 @@ export class Game {
     cancelAnimationFrame(this.rafId);
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('popstate', this.onPopState);
+    window.removeEventListener('pointerup', requestFullscreen);
     document.removeEventListener('visibilitychange', this.onVisibility);
   }
 
@@ -421,9 +430,13 @@ export class Game {
     this.presentFrozen(now, elapsed);
   }
 
-  /** Scène de course aux poses du dernier pas (décompte, pause) : aucun pas, `presentFrame` avec `steps: 0`. */
-  private presentFrozen(now: number, elapsed: number): void {
-    this.present(now, elapsed, [], { poses: this.loop.history.at(1), alpha: 1, steps: 0 });
+  /**
+   * Scène de course aux poses du dernier pas (décompte, pause) : aucun pas, `presentFrame` avec `steps: 0` et un temps
+   * écoulé nul : la caméra et les particules sont figées comme les voitures (la caméra remise à zéro par `newRace` se cale
+   * quand même d'un coup à sa première mise à jour).
+   */
+  private presentFrozen(now: number, _elapsed: number): void {
+    this.present(now, 0, [], { poses: this.loop.history.at(1), alpha: 1, steps: 0 });
   }
 
   /** Course et arrivée : pas de l'accumulateur, bouton saut, compteur d'images, PARTEZ retiré après sa seconde, rendu. Faux si la boucle s'arrête. */
