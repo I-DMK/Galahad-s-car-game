@@ -108,6 +108,7 @@ describe('grille de départ à 5 voitures (robots: true)', () => {
       expect([car.speedFactor, car.torqueFactor, car.onScreen]).toEqual([1, 1, false]);
       expect(car.driver === null).toBe(i === 0);
       const view = carView(sim, i);
+      expect(view.id).toBe(pilot.id);
       expect(view.name).toBe(pilot.name);
       expect(view.helmet).toBe(hex(pilot.helmet));
       if (i > 0) expect(chassisX(sim.cars[i - 1]) - chassisX(car)).toBeCloseTo(GRID_GAP, 6);

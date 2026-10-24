@@ -1,16 +1,20 @@
-// Rendu canvas 2D d'une scène : ciel (parallaxe), piste (portion visible), étoiles, voitures.
+// Rendu canvas 2D d'une scène : ciel (parallaxe), piste (portion visible), ombres, effets, étoiles, voitures.
+// Les images (tâche 8b) arrivent par `setArt` ; tant qu'elles manquent, tout se dessine par code.
 // Tout est dessiné en pixels « backing » (canvas.width × canvas.height) ; pxPerMeter vient de la hauteur backing.
 // Le renderer reçoit des coordonnées du monde (mètres, y vers le haut) et n'importe jamais matter-js.
 import type { Config } from '../config';
 import type { Track } from '../track/types';
 import { computeBackingSize, type BackingSize, type Camera } from './camera';
 import { prerenderSky } from './background';
-import { drawCar } from './car';
+import { NO_ART, type Art } from './assets';
+import { drawCar, drawShadow } from './car';
 import type { Effects } from './effects';
 import { drawStar, drawTrack } from './track';
 
 /** Voiture à dessiner, en coordonnées du monde. `angle` : angle du monde (positif = nez en haut). */
 export interface CarView {
+  /** Id du pilote : clé de la carrosserie image (`Art.bodies`, tâche 8b). */
+  id: string;
   x: number;
   y: number;
   angle: number;
@@ -39,6 +43,8 @@ export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
   private view: BackingSize = { w: 1, h: 1, scale: 1 };
   private sky: HTMLCanvasElement | null = null;
+  /** Images chargées ; `NO_ART` jusqu'à `setArt` (la course ne les attend jamais). */
+  private art: Art = NO_ART;
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly cfg: Config) {
     const ctx = canvas.getContext('2d');
@@ -58,12 +64,17 @@ export class Renderer {
     this.sky = prerenderSky(v.w, v.h);
   }
 
+  /** Images arrivées (tâche 8b) : le dessin passe du code aux images à la trame suivante. */
+  setArt(art: Art): void {
+    this.art = art;
+  }
+
   /** Demi-largeur visible (m) du tampon courant, pour l'émission des effets. */
   visibleHalfWidthM(camera: Camera): number {
     return camera.visibleHalfWidthM(this.view.w, this.view.h);
   }
 
-  /** `effects` : particules dessinées après la piste, avant les voitures. */
+  /** `effects` : particules dessinées après la piste et les ombres, avant les étoiles et les voitures. */
   draw(scene: Scene, camera: Camera, effects?: Effects): void {
     const { ctx, view } = this;
     const ppm = camera.pxPerMeter(view.h);
@@ -84,18 +95,24 @@ export class Renderer {
     drawTrack(ctx, scene.track, camera, view, scene.t);
 
     const toScreen = (p: { x: number; y: number }) => camera.worldToScreen(p, view.w, view.h);
-    effects?.draw(ctx, toScreen, ppm);
     const half = camera.visibleHalfWidthM(view.w, view.h) + 1;
+    const carReach = half + this.cfg.CAR_LENGTH;
+    // Ombres d'abord, sur le sol : ni sur les effets ni sur les voitures voisines.
+    for (const car of scene.cars) {
+      if (Math.abs(car.x - camera.x) > carReach) continue;
+      drawShadow(ctx, car, scene.track, ppm, toScreen, this.cfg);
+    }
+    effects?.draw(ctx, toScreen, ppm);
     for (const s of scene.stars) {
       if (!s.active || Math.abs(s.x - camera.x) > half) continue;
       const p = toScreen(s);
-      drawStar(ctx, p.x, p.y, scene.t, ppm);
+      drawStar(ctx, p.x, p.y, scene.t, ppm, this.art.star);
     }
 
     // Dans l'ordre de la scène (le dernier dessiné est au-dessus) ; les voitures hors écran sont sautées.
     for (const car of scene.cars) {
-      if (Math.abs(car.x - camera.x) > half + this.cfg.CAR_LENGTH) continue;
-      drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg);
+      if (Math.abs(car.x - camera.x) > carReach) continue;
+      drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, this.art);
     }
   }
 }

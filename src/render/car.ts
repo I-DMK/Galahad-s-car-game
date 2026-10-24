@@ -1,30 +1,95 @@
-// Dessin d'une voiture : carrosserie, bandes, vitre, aileron, pilote casqué, roues à rayons, flammes de turbo.
+// Dessin d'une voiture : carrosserie (image du pilote, ou dessin par code : bandes, vitre, aileron, pilote casqué), roues
+// (image tournée, ou dessin par code à rayons), flammes de turbo (4 images en boucle, ou dessin par code) et ombre au sol.
+// Chaque pièce prend son image si elle est chargée, sinon son dessin par code : repli pièce par pièce (tâche 8b,
+// addendum « présentation » §1.1). Les poses viennent de `CarView` (déjà interpolées) : le rendu ne lit rien de la course.
 // Repère local de la carrosserie : mètres × ppm, x vers l'avant, y vers le BAS (écran), origine au centre.
 // L'angle du monde (positif = nez en haut = anti-horaire à l'écran) se traduit par ctx.rotate(−angle).
 import { CONFIG, type Config } from '../config';
+import { heightAt, slopeAt } from '../track/query';
+import type { Track } from '../track/types';
+import { FLAME_FILES, NO_ART, type Art } from './assets';
 import type { CarView } from './renderer';
 
 type Ctx = CanvasRenderingContext2D;
 type Pt = { x: number; y: number };
 export type CarDims = Pick<Config, 'CAR_LENGTH' | 'CAR_HEIGHT' | 'WHEEL_RADIUS'>;
 
+// Constantes de dessin (pas des paramètres de jeu : pas dans CONFIG, comme FOSSE_HALO_M dans track.ts).
+/** Cadre de la carrosserie image (m) : 2,80 × 1,40 m centré sur le châssis, 183 px/m (assets/README.md, gabarit). */
+const BODY_W_M = 2.8;
+const BODY_H_M = 1.4;
+/** Flammes du turbo : images par seconde (addendum §1.5). */
+const FLAME_FPS = 14;
+/** Accroche des flammes sur la carrosserie image : calque `reperes` du gabarit, y vers le bas (m). */
+const FLAME_IMG_ANCHOR_X = -1.31;
+const FLAME_IMG_ANCHOR_Y = -0.08;
+/** Accroche sur la carrosserie par code : à l'arrière (x = −L/2), 8 cm sous le centre (comme avant la 8b). */
+const FLAME_CODE_ANCHOR_Y = 0.08;
+/** Image de flamme : carré de 1,2 m, dont le bord droit dépasse l'accroche de 0,34 m (bbox mesurées des 4 images). */
+const FLAME_SIZE_M = 1.2;
+const FLAME_RIGHT_M = 0.34;
+/** Ombre au sol : demi-axes (m) et opacité au sol, hauteur de vol (m) qui la réduit de moitié (à juger sur capture). */
+const SHADOW_RX_M = 1.2;
+const SHADOW_RY_M = 0.15;
+const SHADOW_ALPHA = 0.45;
+const SHADOW_HALF_M = 1.5;
+
 /**
  * Dessine `car` (coordonnées du monde) ; `toScreen` convertit un point du monde en pixels écran,
- * `ppm` = pixels par mètre, `t` = temps (s) pour l'animation des flammes.
+ * `ppm` = pixels par mètre, `t` = temps (s) pour l'animation des flammes. `art` : images chargées (`NO_ART` : tout par code).
+ * Ordre : flammes, carrosserie, puis roues par-dessus, puis prénom.
  */
 export function drawCar(
-  ctx: Ctx, car: CarView, ppm: number, t: number, toScreen: (p: Pt) => Pt, dims: CarDims = CONFIG,
+  ctx: Ctx, car: CarView, ppm: number, t: number, toScreen: (p: Pt) => Pt, dims: CarDims = CONFIG, art: Art = NO_ART,
 ): void {
   const L = dims.CAR_LENGTH;
   const H = dims.CAR_HEIGHT;
   const c = toScreen(car);
+  const bodyImg = art.bodies.get(car.id);
 
   ctx.save();
   ctx.translate(c.x, c.y);
   ctx.rotate(-car.angle);
   ctx.scale(ppm, ppm); // à partir d'ici, unités = mètres (y vers le bas)
-  if (car.turbo) drawFlames(ctx, -L / 2, 0.08, t);
+  if (car.turbo) {
+    // L'accroche suit la carrosserie dessinée : celle du gabarit pour l'image, l'arrière de la caisse sinon.
+    const ax = bodyImg ? FLAME_IMG_ANCHOR_X : -L / 2;
+    const ay = bodyImg ? FLAME_IMG_ANCHOR_Y : FLAME_CODE_ANCHOR_Y;
+    if (art.flames) {
+      ctx.drawImage(art.flames[flameFrame(t)], ax + FLAME_RIGHT_M - FLAME_SIZE_M, ay - FLAME_SIZE_M / 2, FLAME_SIZE_M, FLAME_SIZE_M);
+    } else {
+      drawFlames(ctx, ax, ay, t);
+    }
+  }
+  // Le casque, l'aileron, la vitre et les bandes font partie de l'image : seul le repli par code les dessine.
+  if (bodyImg) ctx.drawImage(bodyImg, -BODY_W_M / 2, -BODY_H_M / 2, BODY_W_M, BODY_H_M);
+  else drawBodyByCode(ctx, car, L, H);
+  ctx.restore();
 
+  const r = dims.WHEEL_RADIUS * ppm;
+  for (const w of car.wheels) {
+    if (art.wheel) drawWheelImage(ctx, art.wheel, toScreen(w), w.angle, r);
+    else drawWheel(ctx, toScreen(w), w.angle, r);
+  }
+
+  if (car.name !== 'Galahad') {
+    const top = toScreen({ x: car.x, y: car.y + 1.3 });
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${Math.round((14 * ppm) / 57)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(car.name, top.x, top.y);
+  }
+}
+
+/** Index de l'image de flamme au temps `t` : 14 images/s en boucle de 4, toujours dans [0, 3] (même pour t < 0). */
+export function flameFrame(t: number): number {
+  const n = FLAME_FILES.length;
+  return ((Math.floor(t * FLAME_FPS) % n) + n) % n;
+}
+
+/** Carrosserie par code (repli), repère local en mètres : pilote casqué, aileron, caisse, vitre, deux bandes. */
+function drawBodyByCode(ctx: Ctx, car: CarView, L: number, H: number): void {
   // Pilote d'abord : le bas du casque est caché par la carrosserie (cockpit).
   const hx = -L / 6;
   const hy = -H / 2 - 0.08;
@@ -59,18 +124,15 @@ export function drawCar(
   ctx.fillStyle = car.accent;
   ctx.fillRect(-L / 2 + 0.06, 0.04, L - 0.12, 0.08);
   ctx.fillRect(-L / 2 + 0.06, 0.18, L - 0.12, 0.08);
+}
+
+/** Roue image en pixels écran : carrée de 2r, tournée de −angle (comme les rayons de la roue par code). */
+function drawWheelImage(ctx: Ctx, img: CanvasImageSource, c: Pt, angle: number, r: number): void {
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(-angle);
+  ctx.drawImage(img, -r, -r, 2 * r, 2 * r);
   ctx.restore();
-
-  for (const w of car.wheels) drawWheel(ctx, toScreen(w), w.angle, dims.WHEEL_RADIUS * ppm);
-
-  if (car.name !== 'Galahad') {
-    const top = toScreen({ x: car.x, y: car.y + 1.3 });
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.round((14 * ppm) / 57)}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText(car.name, top.x, top.y);
-  }
 }
 
 /** Roue en pixels écran : pneu sombre, jante claire, 5 rayons tournés de −angle, moyeu. */
@@ -113,6 +175,48 @@ function flame(ctx: Ctx, x: number, y: number, len: number, halfH: number, color
   ctx.lineTo(x + 0.02, y + halfH);
   ctx.closePath();
   ctx.fill();
+}
+
+/** Hauteur de vol (m) : la roue la plus basse au-dessus du sol sous elle, jamais négative ; 0 sans roue. */
+export function flightHeight(car: CarView, track: Track, wheelRadius: number): number {
+  let low = Infinity;
+  for (const w of car.wheels) low = Math.min(low, w.y - wheelRadius - heightAt(track, w.x));
+  return low === Infinity ? 0 : Math.max(0, low);
+}
+
+/** Échelle de l'ombre à la hauteur de vol `h` : 1 au sol, 0,5 à SHADOW_HALF_M, décroissante. */
+export function shadowScale(h: number): number {
+  return 1 / (1 + h / SHADOW_HALF_M);
+}
+
+/** Vrai si x est au-dessus de la lave d'un volcan (tremplin ou fosse) : `heightAt` y donne le fond, sous la lave dessinée. */
+function overLava(track: Track, x: number): boolean {
+  for (const v of track.volcanoes) if (Math.abs(x - v.xLava) <= v.lavaWidth / 2) return true;
+  return false;
+}
+
+/** Point du sol sous une voiture, réutilisé à chaque appel (pas d'allocation par image). */
+const GROUND: Pt = { x: 0, y: 0 };
+
+/**
+ * Ombre sous la voiture : ellipse noire posée sur le sol sous le châssis (`heightAt`), inclinée de la pente, qui rétrécit
+ * et s'éclaircit avec la hauteur de vol. Aucune au-dessus de la lave. Dessinée par code, à dessiner avant les voitures.
+ */
+export function drawShadow(
+  ctx: Ctx, car: CarView, track: Track, ppm: number, toScreen: (p: Pt) => Pt, dims: CarDims = CONFIG,
+): void {
+  if (overLava(track, car.x)) return;
+  const s = shadowScale(flightHeight(car, track, dims.WHEEL_RADIUS));
+  GROUND.x = car.x;
+  GROUND.y = heightAt(track, car.x);
+  const g = toScreen(GROUND);
+  ctx.save();
+  ctx.globalAlpha = SHADOW_ALPHA * s;
+  ctx.fillStyle = '#000000';
+  ctx.beginPath();
+  ctx.ellipse(g.x, g.y, SHADOW_RX_M * ppm * s, SHADOW_RY_M * ppm * s, -slopeAt(track, car.x), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 function circle(ctx: Ctx, x: number, y: number, r: number, color: string): void {

@@ -29,7 +29,7 @@ export const NO_ART: Art = Object.freeze({
 
 /** Nom du fichier de carrosserie d'un pilote : son id sans accents + '.png' ('timothé' → 'timothe.png'). */
 export function bodyFile(pilotId: string): string {
-  return `${pilotId.normalize('NFD').replace(/[̀-ͯ]/g, '')}.png`;
+  return `${pilotId.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}.png`;
 }
 
 export const FLAME_FILES: readonly string[] = ['flame-0.png', 'flame-1.png', 'flame-2.png', 'flame-3.png'];

@@ -714,6 +714,7 @@ export function carView(sim: RaceSim, index: number, pose?: CarPose): CarView {
   const { state, pilot } = car;
   const p = pose ?? poseOf(car);
   return {
+    id: state.id,
     x: p.chassis.x,
     y: p.chassis.y,
     angle: p.chassis.angle,

@@ -1,4 +1,4 @@
-// Fumée sans DOM : un faux contexte 2D enregistre les appels de dessin.
+// Fumée sans DOM : un faux contexte 2D (tests/helpers/fake-ctx.ts) enregistre les appels de dessin.
 import { CONFIG } from '../src/config';
 import { Camera } from '../src/render/camera';
 import { drawCar } from '../src/render/car';
@@ -6,24 +6,7 @@ import type { CarView } from '../src/render/renderer';
 import { drawStar, drawTrack } from '../src/render/track';
 import { generateTrack } from '../src/track/generate';
 import { fosses, tremplins } from '../src/track/query';
-
-/** Appel de méthode du contexte, avec le fillStyle courant au moment de l'appel. */
-type Call = { name: string; args: unknown[]; fillStyle?: unknown };
-function fakeCtx(): { ctx: CanvasRenderingContext2D; calls: Call[] } {
-  const calls: Call[] = [];
-  const gradient = { addColorStop: () => {} };
-  const ctx = new Proxy({} as Record<string, unknown>, {
-    get(target, prop: string) {
-      if (prop in target) return target[prop];
-      return (...args: unknown[]) => {
-        calls.push({ name: prop, args, fillStyle: target.fillStyle });
-        return prop.startsWith('create') ? gradient : undefined;
-      };
-    },
-    set(target, prop: string, value) { target[prop] = value; return true; },
-  });
-  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
-}
+import { fakeCtx, type Call } from './helpers/fake-ctx';
 
 const view = { w: 1920, h: 1200, scale: 1.5 };
 
@@ -54,7 +37,7 @@ test('drawTrack dessine la fin de piste (arrivée, mur) sans erreur', () => {
 
 test('drawCar tourne la carrosserie de −angle (nez en haut = anti-horaire à l’écran)', () => {
   const car: CarView = {
-    x: 10, y: 1, angle: 0.3,
+    id: 'robot', x: 10, y: 1, angle: 0.3,
     wheels: [{ x: 9.25, y: 0.4, angle: 1 }, { x: 10.75, y: 0.4, angle: 1 }],
     color: '#1e5cff', accent: '#e2231a', helmet: '#00ff00', name: 'Robot', turbo: true,
   };
@@ -70,7 +53,7 @@ test('drawCar tourne la carrosserie de −angle (nez en haut = anti-horaire à l
 
 test('drawCar peint le casque avec `helmet` (et plus avec `accent`)', () => {
   const car: CarView = {
-    x: 10, y: 1, angle: 0, wheels: [], color: '#ff8000', accent: '#3cd2be', helmet: '#ffa040', name: 'Malo', turbo: false,
+    id: 'malo', x: 10, y: 1, angle: 0, wheels: [], color: '#ff8000', accent: '#3cd2be', helmet: '#ffa040', name: 'Malo', turbo: false,
   };
   const { ctx, calls } = fakeCtx();
   drawCar(ctx, car, 85.7, 0, (p) => p);

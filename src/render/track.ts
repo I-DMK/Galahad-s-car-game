@@ -294,10 +294,10 @@ function inRange(x: number, a: number, b: number): boolean {
 }
 
 /**
- * Étoile à ramasser, en pixels écran (x, y) : 5 branches jaunes de 0,5 m, tournant lentement (t × 0,8 rad),
- * halo radial doux de 0,9 m.
+ * Étoile à ramasser, en pixels écran (x, y) : halo radial doux de 0,9 m, puis `img` (carré de 1 m) ou, sans image (repli
+ * par code), 5 branches jaunes de 0,5 m ; dans les deux cas elle tourne lentement (t × 0,8 rad).
  */
-export function drawStar(ctx: Ctx, x: number, y: number, t: number, ppm: number): void {
+export function drawStar(ctx: Ctx, x: number, y: number, t: number, ppm: number, img: CanvasImageSource | null = null): void {
   const halo = ctx.createRadialGradient(x, y, 0, x, y, 0.9 * ppm);
   halo.addColorStop(0, 'rgba(255, 224, 102, 0.35)');
   halo.addColorStop(1, 'rgba(255, 224, 102, 0)');
@@ -305,6 +305,14 @@ export function drawStar(ctx: Ctx, x: number, y: number, t: number, ppm: number)
   ctx.beginPath();
   ctx.arc(x, y, 0.9 * ppm, 0, Math.PI * 2);
   ctx.fill();
+  if (img) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(t * 0.8);
+    ctx.drawImage(img, -0.5 * ppm, -0.5 * ppm, ppm, ppm);
+    ctx.restore();
+    return;
+  }
   const rOut = 0.5 * ppm;
   const rIn = rOut * 0.45;
   const rot = t * 0.8;
