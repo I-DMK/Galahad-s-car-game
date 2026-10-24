@@ -1,8 +1,9 @@
 // HUD en DOM au-dessus du canvas : position de Galahad en haut à gauche (tâche 8), barre de progression en cinq
 // couloirs en haut au centre (tâche 8 ; décision du papa du 2026-10-24 : une ligne fine par voiture, empilées, pour que
 // les copains ne se cachent pas sous Galahad, avec un drapeau à damier côté arrivée), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug,
-// sous le bouton saut de `ui/jump-button.ts`, tâche 5e), calque d'arrivée, message d'erreur.
-// Le conteneur (#hud) est en `pointer-events: none` : seul le calque d'arrivée capte le toucher.
+// sous le bouton saut de `ui/jump-button.ts`, tâche 5e), calque d'arrivée (ENCORE, MENU), message d'erreur. Chrono,
+// position et barre sont cachés au titre (`setRaceVisible`, tâche 10) ; `setRacers` refait les couloirs à chaque course.
+// Le conteneur (#hud) est en `pointer-events: none` : seuls le calque d'arrivée et les écrans (`ui/screens.ts`) captent le toucher.
 import { ordinal } from '../cars/ranking';
 import type { StepCounts } from '../loop/frame-stats';
 
@@ -77,8 +78,13 @@ const CSS = `
   font-family:Fredoka,system-ui,sans-serif;text-align:center;text-shadow:0 3px 0 #000a}
 .hud-title{font-weight:800;font-size:72px;letter-spacing:4px}
 .hud-big{font-weight:800;font-size:120px;font-variant-numeric:tabular-nums}
+.hud-buttons{display:flex;align-items:center;justify-content:center;gap:40px}
 .hud-again{width:120px;height:120px;border-radius:50%;border:4px solid #fff;background:#e2231a;
-  color:#fff;font:800 22px Fredoka,system-ui,sans-serif;box-shadow:0 6px 0 #0008;cursor:pointer}
+  color:#fff;font:800 22px Fredoka,system-ui,sans-serif;box-shadow:0 6px 0 #0008;cursor:pointer;
+  touch-action:none;-webkit-tap-highlight-color:transparent}
+.hud-menu{min-width:120px;height:96px;padding:0 28px;border-radius:24px;border:4px solid #fff;background:#1e5cff;
+  color:#fff;font:800 22px Fredoka,system-ui,sans-serif;box-shadow:0 6px 0 #0008;cursor:pointer;
+  touch-action:none;-webkit-tap-highlight-color:transparent}
 .hud-error{font-weight:700;font-size:48px;padding:0 32px}
 `;
 
@@ -109,14 +115,19 @@ export class Hud {
   private readonly fps: HTMLDivElement;
   private readonly steps: HTMLDivElement;
   private readonly position: HTMLDivElement;
+  private readonly positionCar: HTMLDivElement;
   private readonly rank: HTMLDivElement;
+  private readonly bar: HTMLDivElement;
+  private readonly flag: HTMLDivElement;
   /** Le marqueur (petite voiture) du couloir de chaque voiture, dans l'ordre de `racers` (= de la grille, Galahad en haut). */
-  private readonly markers: HTMLDivElement[];
+  private markers: HTMLDivElement[] = [];
   /** Dernière position écrite de chaque marqueur, en dixièmes de pour cent. */
-  private readonly lastTenths: number[];
+  private lastTenths: number[] = [];
   private overlay: HTMLDivElement | null = null;
   private lastTime = '';
   private lastRank: number | null = null;
+  /** Chrono, position et barre montrés (décompte, course) ou cachés (titre) ; la position reste vide sans place. */
+  private raceVisible = true;
 
   /** `racers` : les voitures de la course, dans l'ordre de `RaceSim.cars` (le même que celui de `setProgress`). */
   constructor(private readonly root: HTMLElement, racers: readonly HudRacer[]) {
@@ -135,15 +146,27 @@ export class Hud {
     // Position : vide (cachée) tant que `setPosition` ne reçoit pas de place.
     this.position = this.div('hud-position');
     this.position.hidden = true;
-    const car = this.div('hud-position-car');
-    car.innerHTML = CAR_SVG;
-    const galahad = racers.find((r) => r.isGalahad);
-    if (galahad) car.style.color = galahad.color;
+    this.positionCar = this.div('hud-position-car');
+    this.positionCar.innerHTML = CAR_SVG;
     this.rank = this.div('hud-rank');
-    this.position.append(car, this.rank);
-    // Barre : un couloir par voiture, dans l'ordre de la grille (Galahad en haut, ordre fixe toute la course), avec son
-    // marqueur à 0 % (CSS) jusqu'au premier `setProgress`.
-    const bar = this.div('hud-bar');
+    this.position.append(this.positionCar, this.rank);
+    // Barre : un couloir par voiture (`setRacers`), puis le drapeau à damier au bout, côté arrivée (à droite, là où arrive
+    // 100 %) : après les couloirs, hors de la barre.
+    this.bar = this.div('hud-bar');
+    this.flag = this.div('hud-flag');
+    this.flag.innerHTML = FLAG_SVG;
+    this.bar.appendChild(this.flag);
+    root.append(this.time, this.position, this.bar, this.fps, this.steps);
+    this.setRacers(racers);
+  }
+
+  /**
+   * Reconstruit les couloirs de la barre (un par voiture, dans l'ordre de la grille, Galahad en haut, ordre fixe toute la
+   * course ; marqueur à 0 % par CSS jusqu'au premier `setProgress`) et la couleur de la petite voiture de la position ;
+   * position vide, chrono à 00:00. Nouvelle course (AUTRE PISTE, ENCORE, MENU : tâche 10).
+   */
+  setRacers(racers: readonly HudRacer[]): void {
+    for (const lane of [...this.bar.querySelectorAll('.hud-lane')]) lane.remove();
     this.markers = racers.map((r) => {
       const lane = this.div('hud-lane');
       lane.style.color = r.color;
@@ -151,16 +174,24 @@ export class Hud {
       const marker = this.div('hud-marker');
       marker.innerHTML = CAR_SVG;
       lane.appendChild(marker);
-      bar.appendChild(lane);
+      this.bar.insertBefore(lane, this.flag);
       return marker;
     });
-    // Drapeau à damier au bout de la barre, côté arrivée (à droite, là où arrive 100 %) : après les couloirs, hors de la barre.
-    const flag = this.div('hud-flag');
-    flag.innerHTML = FLAG_SVG;
-    bar.appendChild(flag);
     this.lastTenths = racers.map(() => NaN);
-    root.append(this.time, this.position, bar, this.fps, this.steps);
+    const galahad = racers.find((r) => r.isGalahad);
+    this.positionCar.style.color = galahad ? galahad.color : '';
+    this.lastRank = null;
+    this.rank.textContent = '';
+    this.refreshPosition();
     this.setTime(0);
+  }
+
+  /** Cache (titre) ou montre (décompte, course) le chrono, la position et la barre ; fps et compteur d'images (debug) restent. */
+  setRaceVisible(visible: boolean): void {
+    this.raceVisible = visible;
+    this.time.hidden = !visible;
+    this.bar.hidden = !visible;
+    this.refreshPosition();
   }
 
   setTime(seconds: number): void {
@@ -172,8 +203,13 @@ export class Hud {
   setPosition(rank: number | null): void {
     if (rank === this.lastRank) return;
     this.lastRank = rank;
-    this.position.hidden = rank === null;
+    this.refreshPosition();
     this.rank.textContent = rank === null ? '' : ordinal(rank);
+  }
+
+  /** La position se voit si le HUD de course est montré ET qu'une place est connue. */
+  private refreshPosition(): void {
+    this.position.hidden = !this.raceVisible || this.lastRank === null;
   }
 
   /**
@@ -202,17 +238,28 @@ export class Hud {
     this.steps.textContent = `0 pas : ${counts.zero} · 2+ pas : ${counts.multi}`;
   }
 
-  showFinished(seconds: number, onAgain: () => void): void {
+  /**
+   * Calque ARRIVÉE : chrono, ENCORE (`onAgain` : même piste, mêmes copains) et MENU (`onMenu` : titre), tous deux
+   * data-no-pedal (décision Q2 du papa, tâche 10 ; le podium de la tâche 11 remplacera ce calque).
+   */
+  showFinished(seconds: number, onAgain: () => void, onMenu: () => void): void {
     const overlay = this.showOverlay();
     const title = this.div('hud-title', 'ARRIVÉE');
     const big = this.div('hud-big', formatTime(seconds));
-    const again = this.root.ownerDocument.createElement('button');
-    again.className = 'hud-again';
-    again.type = 'button';
-    again.textContent = 'ENCORE';
-    again.setAttribute('data-no-pedal', '');
-    again.addEventListener('click', () => onAgain());
-    overlay.append(title, big, again);
+    const buttons = this.div('hud-buttons');
+    buttons.append(this.button('hud-again', 'ENCORE', onAgain), this.button('hud-menu', 'MENU', onMenu));
+    overlay.append(title, big, buttons);
+  }
+
+  /** Bouton du calque (≥ 96 px par la feuille), data-no-pedal : son tap n'est jamais du gaz. */
+  private button(className: string, label: string, onClick: () => void): HTMLButtonElement {
+    const b = this.root.ownerDocument.createElement('button');
+    b.className = className;
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('data-no-pedal', '');
+    b.addEventListener('click', () => onClick());
+    return b;
   }
 
   showError(message: string): void {

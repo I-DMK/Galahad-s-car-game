@@ -12,6 +12,7 @@ import { Game } from '../src/game';
 import { Renderer } from '../src/render/renderer';
 import { GALAHAD_INDEX, type RaceSim } from '../src/sim/simulate';
 import { Hud, type HudRacer } from '../src/ui/hud';
+import { startRacing } from './helpers/racing';
 
 const DT = CONFIG.PHYSICS_DT;
 
@@ -242,8 +243,8 @@ describe('Game : HUD de position', () => {
     const position = root.querySelector<HTMLElement>('.hud-position')!;
     const text = root.querySelector('.hud-rank')!;
     pressFinger();
-    game.start();
-    let now = 0;
+    // Par le vrai chemin (tâche 10) : titre, JOUER, décompte sans pas, puis la course ; `now` relatif à la fin du décompte.
+    let now = startRacing(game, () => raf!);
     let hidden = 0;
     let shown = 0;
     for (let f = 0; f < 90; f++) {
@@ -281,8 +282,7 @@ describe('Game : HUD de position', () => {
     const markers = [...root.querySelectorAll<HTMLElement>('.hud-marker')];
     expect(markers).toHaveLength(5);
     pressFinger();
-    game.start();
-    let now = 0;
+    let now = startRacing(game, () => raf!);
     for (let f = 0; f < 600; f++) { now += DT * 1000; raf!(now); }
     const { xStart, xFinish } = sim.track;
     sim.cars.forEach((c, i) => {
@@ -300,8 +300,8 @@ describe('Game : HUD de position', () => {
     const { game, sim } = makeGame();
     const update = vi.spyOn(DisplayedRank.prototype, 'update');
     pressFinger();
-    game.start();
-    for (let f = 0; f < 90; f++) raf!(5 + f * DT * 1000);
+    const now = startRacing(game, () => raf!);
+    for (let f = 0; f < 90; f++) raf!(now + 5 + f * DT * 1000);
     expect(update).toHaveBeenCalled();
     const [cars, me, t] = update.mock.lastCall!;
     expect(me).toBe(GALAHAD_INDEX);
@@ -316,10 +316,10 @@ describe('Game : HUD de position', () => {
     const position = root.querySelector<HTMLElement>('.hud-position')!;
     const text = root.querySelector('.hud-rank')!;
     pressFinger();
-    game.start();
+    const now = startRacing(game, () => raf!);
     const seen = { hidden: 0, fourth: 0, second: 0 };
     for (let f = 0; f < 120; f++) {
-      raf!(5 + f * DT * 1000);
+      raf!(now + 5 + f * DT * 1000);
       const raw = rankCars(sim.cars.map((c, i) => ({ index: i, progress: c.state.progress, finishedAt: c.state.finishedAt }))).indexOf(GALAHAD_INDEX) + 1;
       expect(raw, `t = ${sim.time}`).toBe(1);
       if (sim.time < CONFIG.RANK_HIDE_SECONDS) {
@@ -343,17 +343,20 @@ describe('Game : HUD de position', () => {
     const { game } = makeGame();
     const update = vi.spyOn(DisplayedRank.prototype, 'update');
     const progress = vi.spyOn(Hud.prototype, 'setProgress');
-    game.start();
+    // Les espions sont posés avant le décompte : aucun appel pendant le titre ni le décompte (aucun pas, tâche 10).
+    const now = startRacing(game, () => raf!);
+    expect(update).not.toHaveBeenCalled();
+    expect(progress).not.toHaveBeenCalled();
     // 5 ms : moins d'un pas (1/60 s) : l'image dessine, la course n'avance pas.
-    raf!(5);
+    raf!(now + 5);
     expect(update).not.toHaveBeenCalled();
     expect(progress).not.toHaveBeenCalled();
     // 5 + 1/60 s : un pas.
-    raf!(5 + DT * 1000);
+    raf!(now + 5 + DT * 1000);
     expect(update).toHaveBeenCalledTimes(1);
     expect(progress).toHaveBeenCalledTimes(1);
     // Image suivante à 5 ms : plus de pas, plus d'appel.
-    raf!(5 + DT * 1000 + 5);
+    raf!(now + 5 + DT * 1000 + 5);
     expect(update).toHaveBeenCalledTimes(1);
     expect(progress).toHaveBeenCalledTimes(1);
   });

@@ -34,6 +34,13 @@ export class Effects {
 
   get count(): number { return this.particles.length; }
 
+  /** Plus aucune particule (nouvelle course, tâche 10 : pas d'étincelles d'une course sur le titre) ; minuteries à zéro. */
+  clear(): void {
+    this.particles = [];
+    this.bubbleTimer = 0;
+    this.smokeTimer = 0;
+  }
+
   private add(p: Particle): void {
     if (this.particles.length >= MAX_PARTICLES) this.particles.shift(); // plein : on perd la plus ancienne
     this.particles.push(p);

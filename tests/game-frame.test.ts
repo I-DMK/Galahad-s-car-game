@@ -15,6 +15,7 @@ import { Camera } from '../src/render/camera';
 import { Renderer, type Scene } from '../src/render/renderer';
 import { posesOf, type RaceSim } from '../src/sim/simulate';
 import { heightAt } from '../src/track/query';
+import { startRacing } from './helpers/racing';
 
 const DT = CONFIG.PHYSICS_DT;
 
@@ -82,9 +83,14 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
   };
 
   pressFinger();
-  game.start();
+  // Par le vrai chemin (tâche 10) : titre, JOUER, décompte sans pas ; les images du décompte dessinent la grille figée.
+  let now = startRacing(game, () => raf!);
+  drawn.length = 0;
+  // Caméra témoin : pendant le décompte, celle de `Game` s'est calée sur la pose immobile de Galahad (aucun pas) ; une
+  // caméra neuve se cale d'un coup à sa première mise à jour sur cette même cible.
   const camera = new Camera(CONFIG);
-  let now = 0;
+  const still = cameraTarget(posesOf(sim)[0], (x) => heightAt(sim.track, x));
+  camera.update(still.x, still.y, 0, 1);
   let teleportFramesChecked = 0;
   let interpolatedFrames = 0;
   for (let f = 0; f < 240; f++) {
@@ -141,11 +147,11 @@ test('Game : demande de saut gardée sur une image sans pas et donnée au pas su
   const internals = game as unknown as { sim: RaceSim; stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void } };
   const { sim } = internals;
   const button = hud.querySelector('.jump-button')!;
-  game.start();
+  let now = startRacing(game, () => raf!);
 
   // Tap sur le bouton, puis une image trop courte pour un pas : aucun saut, la demande attend.
   pointerDown(button, 7);
-  let now = 5;
+  now += 5;
   raf!(now);
   expect(sim.time).toBe(0);
   expect(game.jumps).toBe(0);
@@ -184,8 +190,7 @@ test('Game : un pas qui lève jette la demande de saut ; après rebuildCars (té
   const internals = game as unknown as { sim: RaceSim; stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void; pending: boolean } };
   const { sim } = internals;
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-  game.start();
-  let now = 0;
+  let now = startRacing(game, () => raf!);
   // Quelques pas au sol, puis un tap ; le pas suivant lève avant le saut (au gaz de la première voiture, `applyDrive`).
   for (let f = 0; f < 30; f++) { now += DT * 1000; raf!(now); }
   pointerDown(hud.querySelector('.jump-button')!, 9);

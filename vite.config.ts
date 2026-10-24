@@ -1,7 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import pkg from './package.json';
 
 export default defineConfig({
   base: process.env.VITE_BASE ?? '/',
+  // Version affichée au titre (tâche 10 ; décision Q3 du papa : celle de package.json, montée à chaque tâche déployée).
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   test: {
     globals: true,
     environment: 'node',

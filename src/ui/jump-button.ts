@@ -11,6 +11,7 @@ const css = (size: number): string => `
   justify-content:center;pointer-events:auto;touch-action:none;box-shadow:0 6px 0 #0008;cursor:pointer;
   -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;opacity:1;
   transition:opacity .12s linear}
+.jump-button[hidden]{display:none}
 .jump-button svg{width:62%;height:62%;pointer-events:none}
 .jump-button.is-waiting{opacity:.4}
 `;
@@ -45,8 +46,13 @@ export class JumpButton {
     this.el = el;
   }
 
-  /** Prêt (pleine opacité) ou en attente (grisé : en l'air, délai, course finie). */
+  /** Prêt (pleine opacité) ou en attente (grisé : en l'air, délai, course finie, décompte). */
   setReady(ready: boolean): void {
     this.el.classList.toggle('is-waiting', !ready);
+  }
+
+  /** Caché au titre, montré du décompte à l'arrivée (tâche 10) : attribut `hidden` (la feuille déclare `[hidden]{display:none}`). */
+  setVisible(visible: boolean): void {
+    this.el.hidden = !visible;
   }
 }

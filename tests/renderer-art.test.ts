@@ -14,6 +14,7 @@ import { createRaceSim, sceneOf } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import { heightAt } from '../src/track/query';
 import { fakeCtx, type Call } from './helpers/fake-ctx';
+import { startRacing } from './helpers/racing';
 
 const img = (name: string) => ({ name }) as unknown as CanvasImageSource;
 
@@ -194,12 +195,14 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
     const dispose = () => { internals.stop(); internals.throttle.dispose(); internals.jumpInput.dispose(); };
     let now = 0;
     const frames = (n: number) => { for (let i = 0; i < n; i++) { now += DT * 1000; raf!(now); } };
-    return { game, hud, renderer: internals.renderer, dispose, frames };
+    // Par le vrai chemin (tâche 10) : titre, JOUER, décompte (la grille figée est dessinée : `draw` est remis à zéro après).
+    const start = () => { now = startRacing(game, () => raf!); draw.mockClear(); };
+    return { game, hud, renderer: internals.renderer, dispose, frames, start };
   }
 
   test('promesse jamais résolue : la course roule, chaque image est dessinée, setArt n’est jamais appelé', () => {
-    const { game, dispose, frames } = makeGame(new Promise<Art>(() => {}));
-    game.start();
+    const { start, game, dispose, frames } = makeGame(new Promise<Art>(() => {}));
+    start();
     frames(10);
     expect(draw).toHaveBeenCalledTimes(10);
     expect(game.time).toBeCloseTo(10 * DT, 9);
@@ -209,8 +212,8 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
   });
 
   test('sans promesse (jeux de tests, anciens appels) : même comportement qu’avant la 8b', () => {
-    const { game, dispose, frames } = makeGame();
-    game.start();
+    const { start, game, dispose, frames } = makeGame();
+    start();
     frames(3);
     expect(draw).toHaveBeenCalledTimes(3);
     expect(game.art).toEqual({ settled: false, loaded: [], failed: [] });
@@ -220,8 +223,8 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
 
   test('images arrivées en pleine course : setArt une seule fois, avec ces images, sans perdre une image dessinée', async () => {
     const a: Art = { ...NO_ART, loaded: ['galahad.png'], failed: ['wheel.png'] };
-    const { game, dispose, frames } = makeGame(Promise.resolve(a));
-    game.start();
+    const { start, game, dispose, frames } = makeGame(Promise.resolve(a));
+    start();
     frames(3);
     // La résolution n'arrive qu'entre deux trames : rien n'a attendu.
     expect(setArt).not.toHaveBeenCalled();
@@ -254,8 +257,8 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
     const onUnhandled = (r: unknown) => { unhandled.push(r); };
     proc.on('unhandledRejection', onUnhandled);
     try {
-      const { game, dispose, frames } = makeGame(Promise.reject(new Error('réseau')));
-      game.start();
+      const { start, game, dispose, frames } = makeGame(Promise.reject(new Error('réseau')));
+      start();
       frames(3);
       // Laisse passer les microtâches puis la file de Node, où part « unhandledRejection ».
       await Promise.resolve();
@@ -272,8 +275,8 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
   });
 
   test('airHeight : 0 au départ, la hauteur de vol de Galahad pendant un saut (celle qui règle son ombre)', () => {
-    const { game, hud, dispose, frames } = makeGame();
-    game.start();
+    const { start, game, hud, dispose, frames } = makeGame();
+    start();
     frames(10);
     expect(game.airHeight).toBeCloseTo(0, 1);
     const ev = new Event('pointerdown', { bubbles: true, cancelable: true });
