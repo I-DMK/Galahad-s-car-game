@@ -74,3 +74,32 @@ test('NO_ART : rien de chargé, figé', () => {
   expect([NO_ART.wheel, NO_ART.flames, NO_ART.star]).toEqual([null, null, null]);
   expect(Object.isFrozen(NO_ART)).toBe(true);
 });
+
+describe('public/sprites (addendum §1.2 : budget ; README : cadre du gabarit)', () => {
+  /** Accès à node (pas de @types/node), au strict nécessaire. */
+  interface NodeFs { readdirSync(p: string): string[]; statSync(p: string): { size: number }; readFileSync(p: string): Uint8Array }
+  const fs = (): NodeFs => (globalThis as unknown as { process: { getBuiltinModule(id: 'node:fs'): NodeFs } }).process.getBuiltinModule('node:fs');
+  const DIR = 'public/sprites';
+  const size = (f: string) => fs().statSync(`${DIR}/${f}`).size;
+  /** Largeur et hauteur lues dans l'en-tête IHDR (octets 16 à 23, gros-boutiste). */
+  const dims = (f: string): [number, number] => {
+    const b = fs().readFileSync(`${DIR}/${f}`);
+    const u32 = (i: number) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+    return [u32(16), u32(20)];
+  };
+  const BODIES = [GALAHAD, ...PILOTS].map((p) => bodyFile(p.id));
+
+  test('le dossier contient exactement les fichiers chargés (ART_FILES)', () => {
+    expect(fs().readdirSync(DIR).sort()).toEqual([...ART_FILES].sort());
+  });
+  test('≤ 60 KB par carrosserie, ≤ 400 KB pour le dossier', () => {
+    for (const f of BODIES) expect(size(f), f).toBeLessThanOrEqual(60 * 1024);
+    const total = fs().readdirSync(DIR).reduce((s, f) => s + size(f), 0);
+    console.log(`public/sprites : ${total} octets`);
+    expect(total).toBeLessThanOrEqual(400 * 1024);
+  });
+  test('carrosseries 512 × 256 px (cadre 2,80 × 1,40 m à 183 px/m) ; roue et flammes carrées', () => {
+    for (const f of BODIES) expect(dims(f), f).toEqual([512, 256]);
+    for (const f of ['wheel.png', ...FLAME_FILES]) { const [w, h] = dims(f); expect(w, f).toBe(h); }
+  });
+});

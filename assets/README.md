@@ -1,15 +1,20 @@
-# Fichiers en attente pour la tâche 8b (addendum « présentation » du 2026-10-22)
+# Images du jeu : sources et mode d'emploi (addendum « présentation » du 2026-10-22)
 
-Dossier **hors de `public/`** : rien ici n'est servi ni empaqueté par Vite. La tâche 8b
-déplacera ces fichiers dans `public/sprites/` et `public/fonts/` et les chargera
-(`src/render/assets.ts`, `@font-face` dans `index.html`). Tant que l'addendum n'est pas
-validé, le jeu déployé n'y touche pas.
+**Les images servies sont dans `public/sprites/`** (13 fichiers, tâche 8b) : Vite les copie telles quelles
+dans `dist/sprites/` et `src/render/assets.ts` les charge sous `import.meta.env.BASE_URL`
+(`${BASE_URL}sprites/<fichier>`, le site vit sous `/Galahad-s-car-game/`). **Ce dossier `assets/` ne garde
+que ce qui n'est pas servi** : les bruts du générateur (`generated/`), la Terre (`sprites/earth.png`, tâche 16)
+et les polices (`fonts/`, tâche 10, qui les déplacera dans `public/fonts/`).
 
-## `sprites/` (212 KB, budget de l'addendum §1.2 : ≤ 400 KB)
+Les noms de fichiers servis sont en ASCII (`timothe.png` pour l'id `timothé`, `bodyFile` dans
+`src/render/assets.ts`) : adresses sans encodage, pas de piège NFC/NFD. Le brut reste
+`generated/timothée.png` (accentué, non déplacé).
+
+## `public/sprites/` (146 846 octets = 143 KiB, budget de l'addendum §1.2 : ≤ 400 KB, vérifié par `tests/assets.test.ts`)
 
 ### Carrosseries : les sept sprites générés (option A, 2026-10-23)
 
-`galahad.png`, `pablo.png`, `diego.png`, `timothée.png`, `matthis.png`, `malo.png`, `liam.png` :
+`galahad.png`, `pablo.png`, `diego.png`, `timothe.png`, `matthis.png`, `malo.png`, `liam.png` :
 **512 × 256 px, PNG-8, 12 à 15 KB chacun (93 KB les sept)**, produits par
 `tools/sprites/controle.py` depuis les bruts de `generated/` (voir plus bas). Chaque image couvre
 exactement le cadre du gabarit : **2,80 × 1,40 m centré sur le châssis** (183 px/m), axes des
@@ -22,13 +27,19 @@ près, pente ≤ 0,73°, rien de coupé par le cadre, rien à effacer dans les a
 le bord, sans jour visible (planche `docs/sprites-planche.png`) ; la tolérance du contrôle est
 passée de [47 ; 55] à [43 ; 55] cm. Couleurs conformes à la palette 5a (carrosserie, bandes,
 casque). **Planche validée par le papa le 2026-10-23, arches serrées gardées** ; jugement final
-sur la tablette à la 8b.
+sur la tablette, après le déploiement de la 8b.
+
+**Teintes** (tâche 8b, mesurées le 2026-10-24 sur la caisse du châssis : x ∈ [−1,0 ; 1,0] m,
+y ∈ [−0,20 ; +0,35] m ; médiane des pixels à ΔE76 ≤ 25 de la constante) : conformes, constantes
+gardées. Les sprites sont un peu plus saturés (ΔE76 de 0 à 12,7 ; Galahad 10,7, Diego 12,7, Liam 10,8),
+sans changement de teinte (Δteinte ≤ 4°) : le papa a choisi de garder les constantes
+(`CONFIG.GALAHAD_COLOR`, `PILOTS[].color`).
 
 Les sprites Grok qu'elles remplacent (carrosseries renommées par pilote selon l'addendum §1.4,
 refusées au contrôle : arches de 0,26 m à notre échelle) restent dans l'historique git (commit
 `66f6de1`).
 
-### Roue, étoile, Terre, flammes (archive Grok)
+### Roue, étoile, flammes, et Terre restée dans `assets/sprites/` (archive Grok)
 
 Origine : reproduction du jeu par Grok, générée par le papa le 2026-10-22 (archive
 `grok-workspace.zip`, dossier `public/sprites/`). Images originales 1069 × 600 px (≈ 500 KB
@@ -38,10 +49,28 @@ PNG-8 à 256 couleurs avec tramage.
 - `wheel.png` : roue vue de côté, disque opaque. **Corrigée le 2026-10-23** : son anneau extérieur
   (2 px) était magenta (reste du détourage Grok, liseré visible sous chaque roue) ; il a pris la
   couleur du pneu au même angle, et l'alpha ≥ 240 est passé à 255.
-- `star.png`, `earth.png`, `flame-0.png` à `flame-3.png` (boucle de turbo) : **même liseré
-  magenta au bord** (part des pixels de bord magenta : flammes 78 à 86 %, Terre 48 %, étoile
-  16 %), et corps à alpha 240 à 254. À corriger à la 8b de la même façon (couleur du bord prise
-  sur le pixel opaque voisin, alpha ≥ 240 → 255).
+- `star.png`, `flame-0.png` à `flame-3.png` (boucle de turbo) : **même liseré magenta au bord**, et
+  corps à alpha 240 à 254. **Corrigés le 2026-10-24** par `tools/sprites/lisere.py`
+  (`python3 -B -I tools/sprites/lisere.py <entrée.png> <sortie.png>`) : « rose » = `r − g > 40` et
+  `b − g > 40` ; la couleur d'un pixel rose vient du pixel opaque (alpha ≥ 240) non rose le plus
+  proche, propagée par couches de 4-voisins ; alpha ≥ 240 → 255 ; PNG-8 par `quantize` de
+  `controle.py`. Résultat (roses visibles, alpha ≥ 16, avant → après ; alpha 240–254 avant → après ;
+  octets avant → après) :
+
+  | Fichier | roses corrigés | roses visibles | alpha 240–254 | octets |
+  |---|---|---|---|---|
+  | `flame-0.png` | 1 335 | 938 → 0 | 2 104 → 0 | 5 122 → 4 775 |
+  | `flame-1.png` | 2 678 | 2 017 → 0 | 7 117 → 0 | 8 137 → 7 480 |
+  | `flame-2.png` | 2 183 | 1 582 → 0 | 7 213 → 0 | 8 129 → 7 541 |
+  | `flame-3.png` | 1 455 | 1 052 → 0 | 2 969 → 0 | 5 638 → 5 197 |
+  | `star.png` | 658 | 399 → 0 | 21 012 → 0 | 10 423 → 10 298 |
+
+  Le script est idempotent (une seconde passe ne corrige rien) et **refuse** (code de sortie 2) une image
+  dont plus de 25 % des pixels opaques sont roses : **ne jamais passer une carrosserie** (`liam.png` est
+  rose à 50 %).
+- `earth.png` (reste dans `assets/sprites/`) : **même liseré, non corrigé** (≈ 0,6 % de roses opaques,
+  1 751 roses visibles). À passer à `lisere.py` à la tâche 16 (la Terre), qui la déplacera dans
+  `public/sprites/`.
 
 ## `fonts/` (40 KB)
 
@@ -111,8 +140,11 @@ numpy pour le contrôle) :
 
 ```
 node tools/sprites/rendu-gabarit.cjs calque calque.png
-python3 -I tools/sprites/controle.py assets/generated/<id>.png assets/sprites/<id>.png apercu-<id>.png calque.png assets/sprites/wheel.png
+python3 -B -I tools/sprites/controle.py assets/generated/<brut>.png public/sprites/<fichier>.png apercu-<fichier>.png calque.png public/sprites/wheel.png
 ```
+
+(`-B` : pas de `tools/sprites/__pycache__/`. `<brut>` garde l'accent, `<fichier>` non :
+`assets/generated/timothée.png` donne `public/sprites/timothe.png`.)
 
 `controle.py` rend la carrosserie pleinement opaque (alpha ≥ 240 → 255 : le générateur livre 250
 à 254), repère les deux arches (ou, à défaut, les roues dessinées), met l'image à l'échelle
