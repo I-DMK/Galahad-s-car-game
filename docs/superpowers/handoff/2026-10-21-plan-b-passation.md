@@ -167,7 +167,7 @@ sans le contexte de celle-ci.
 | 6 conduite des robots (+ robots polis + sauts des copains) | **faite, validée, déployée** (2026-10-23) → test tablette |
 | 7 élastique (+ suite `test:slow:race`) | **faite, validée, déployée** (2026-10-23) → test tablette fait (2026-10-24) : « trop facile » → plan C (obstacles) après la démo tablette |
 | 8 position, barre de progression (cinq couloirs + drapeau), classement | **faite, validée, déployée** (2026-10-24) |
-| 8b (ajoutée, addendum « présentation ») images : carrosseries, roue, flammes, étoile, ombre | **faite, validée, déployée** (2026-10-24) → jugement sur la tablette (voitures, arches, flammes, étoile, ombre) |
+| 8b (ajoutée, addendum « présentation ») images : carrosseries, roue, flammes, étoile, ombre | **faite, validée, déployée** (2026-10-24) ; **validée sur la tablette par le papa** (voitures, arches, flammes, étoile, ombre, roues, barre : « tout est bon ») |
 | 9 (conditionnelle) fenêtre glissante de sol | fps OK à 5 voitures → non ; à remesurer avec le décor (tâche 16) |
 | 10 machine d'états, titre, décompte, pause, orientation | à faire |
 | 11 podium | à faire |
@@ -325,7 +325,7 @@ Session 4 (2026-10-23) : **tâches 6 et 7 validées et déployées** (fusions no
 Session 5 (2026-10-24) : test tablette des tâches 6 et 7 recueilli (« trop facile », copains « tous pareils » → plan C après la démo), **tâches 8 et 8b validées et déployées**.
 
 1. Nouvelle session : `git fetch origin wip-plan-b && git checkout -B wip-plan-b origin/wip-plan-b`, `npm ci`, dossier de liens Playwright (section « Environnement »). Lire cette passation et la fin du registre (depuis « Session 5 »).
-2. **Retour tablette du papa sur la 8b** : voitures reconnues et arches serrées (Q2), flammes (Q3), étoile image (Q4), ombre pâle en vol (Q5), scintillement des roues (A18) ; chaque retouche = constante ou image, petit commit au régime « écrans ».
+2. Retour tablette du papa sur les tâches 8 et 8b (2026-10-24) : **« tout est bon »** (voitures et arches Q2, flammes Q3, étoile Q4, ombre Q5, roues A18, barre en cinq couloirs et drapeau) ; rien à retoucher.
 3. Puis **tâche 10** (machine d'états, titre avec les copains, décompte, pause, orientation, police Fredoka ; plan v2.1 amendé par l'addendum « présentation » §2 : plan à écrire, skill writing-plans, régime « écrans » à quatre relectures), 11, le **jalon « démo tablette »**, la **11c (plan C : obstacles qui ralentissent, régime physique, spec à écrire avec le papa)**, puis 12, 13, 14, 15, 16 (choix de Galahad pour le décor à recueillir), 17. Points du test tablette non revus (rien de gênant d'après le papa) : Q-F5, appuis perdus à 21 m/s, étoile de réception survolée en turbo, catapultes.
 4. Mineurs reportés (registre, lignes « minor (deferred) ») : à trier à la relecture de branche (tâche 14 ou 17).
 5. Après chaque fusion sur `ccr-5b6fabc4-n96ofo` : run GitHub Actions vert, puis `npm run e2e:live` ; avancer `wip-plan-b` sur la même tête (la fusion suivante se fait alors en avance rapide).
