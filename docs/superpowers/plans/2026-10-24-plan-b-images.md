@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Régime « écrans » de l'addendum « présentation » §5, **avec la dérogation du papa pour cette session** : un implémenteur frais pour toute la 8b (Parties 1 à 4), puis **quatre relectures** du diff de la tâche (standard, adversariale, skill `code-review`, skill `security-review`), tours de correction (≤ 5), capture validée par le papa **sur la tablette après déploiement**. Pas de suite lente. Jamais de PR.
 
-**Statut :** v1.1 (2026-10-24), à relire par le papa avant exécution.
+**Statut :** v1.1 (2026-10-24), **exécuté** : tâche 8b faite (BASE f2deaeb, commits 41a46f4…4d8d6c6, deux tours de correction), validée par le papa sur capture le 2026-10-24 (Q1 couleurs gardées, Q3/Q4 flammes et étoile gardées, Q5 ombre gardée, Q6 « Timothé ») ; jugement final sur la tablette après déploiement.
 - v1 (`6b5c977`) : brouillon.
 - v1.1 : relecture du plan (`.superpowers/sdd/2026-10-21-plan-b-copains-et-finitions/plan-8b-review.md` : 3 importants, 13 mineurs) et décisions du coordinateur.
   - Contournement Playwright (section « Environnement »).
