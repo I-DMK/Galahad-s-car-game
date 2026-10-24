@@ -6,7 +6,7 @@
 // tests/game-frame.test.ts) : le câblage réel, de l'état de la course à ce que le DOM affiche. L'hystérésis et
 // R8-2 sont testés sur `DisplayedRank` (tests/ranking.test.ts) ; la géométrie (boîtes, recouvrements) en e2e.
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { DisplayedRank } from '../src/cars/ranking';
+import { DisplayedRank, rankCars } from '../src/cars/ranking';
 import { CONFIG } from '../src/config';
 import { Game } from '../src/game';
 import { Renderer } from '../src/render/renderer';
@@ -281,6 +281,36 @@ describe('Game : HUD de position', () => {
     expect(me).toBe(GALAHAD_INDEX);
     expect(t).toBe(sim.time);
     expect(cars).toEqual(sim.cars.map((c, i) => ({ index: i, progress: c.state.progress, finishedAt: c.state.finishedAt })));
+  });
+
+  test('le HUD montre la place RENDUE par DisplayedRank (pas le classement brut, pas la première valeur) : vide la 1re seconde, « 4e » puis « 2e »', () => {
+    const { game, root, sim } = makeGame();
+    // `update` rend 4 jusqu'à 1,5 s de course, puis 2 ; Galahad, en pole et doigt posé, est 1er au classement brut tout du long.
+    vi.spyOn(DisplayedRank.prototype, 'update').mockImplementation((_cars, _me, t) => (t < 1.5 ? 4 : 2));
+    const position = root.querySelector<HTMLElement>('.hud-position')!;
+    const text = root.querySelector('.hud-rank')!;
+    pressFinger();
+    game.start();
+    const seen = { hidden: 0, fourth: 0, second: 0 };
+    for (let f = 0; f < 120; f++) {
+      raf!(5 + f * DT * 1000);
+      const raw = rankCars(sim.cars.map((c, i) => ({ index: i, progress: c.state.progress, finishedAt: c.state.finishedAt }))).indexOf(GALAHAD_INDEX) + 1;
+      expect(raw, `t = ${sim.time}`).toBe(1);
+      if (sim.time < CONFIG.RANK_HIDE_SECONDS) {
+        seen.hidden++;
+        expect([position.hidden, text.textContent], `t = ${sim.time}`).toEqual([true, '']);
+      } else if (sim.time < 1.5) {
+        seen.fourth++;
+        expect([position.hidden, text.textContent], `t = ${sim.time}`).toEqual([false, '4e']);
+      } else {
+        seen.second++;
+        expect([position.hidden, text.textContent], `t = ${sim.time}`).toEqual([false, '2e']);
+      }
+    }
+    // Contrôle vivant : les trois régimes ont bien été vus.
+    expect(seen.hidden).toBeGreaterThanOrEqual(55);
+    expect(seen.fourth).toBeGreaterThan(20);
+    expect(seen.second).toBeGreaterThan(20);
   });
 
   test('pas de recalcul du classement ni de la barre aux images sans pas de course', () => {
