@@ -66,13 +66,15 @@ export interface HudLayout {
   bar: Box;
   time: Box;
   jump: Box;
+  /** Drapeau à damier au bout de la barre, côté arrivée. */
+  flag: Box;
   /** Boîte de l'icône (petite voiture) de chacun des marqueurs de la barre, Galahad d'abord. */
   markers: Box[];
   rankFontPx: number;
   timeFontPx: number;
 }
 
-/** Mise en page du HUD (`.hud-position`, `.hud-bar`, `.hud-time`, `.jump-button`, `.hud-marker svg`) lue dans un même rappel. */
+/** Mise en page du HUD (`.hud-position`, `.hud-bar`, `.hud-time`, `.jump-button`, `.hud-flag`, `.hud-marker svg`) lue dans un même rappel. */
 export async function hudLayout(page: Page): Promise<HudLayout> {
   return page.evaluate(() => {
     const box = (el: Element | null): Box => {
@@ -87,6 +89,7 @@ export async function hudLayout(page: Page): Promise<HudLayout> {
       bar: box(document.querySelector('.hud-bar')),
       time: box(document.querySelector('.hud-time')),
       jump: box(document.querySelector('.jump-button')),
+      flag: box(document.querySelector('.hud-flag')),
       markers: [...document.querySelectorAll('.hud-marker svg')].map(box),
       rankFontPx: fontPx('.hud-rank'),
       timeFontPx: fontPx('.hud-time'),

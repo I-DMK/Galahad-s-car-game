@@ -8,11 +8,11 @@ import {
 /** Durée maximale doigt posé pour finir une piste de 300 m. */
 const MAX_HOLD_S = 90;
 
-/** Doigt posé par tranches de 5 s jusqu'à l'arrivée (au plus MAX_HOLD_S). */
-async function driveToFinish(page: Page): Promise<void> {
+/** Doigt posé par tranches de `chunkS` s (5 par défaut) jusqu'à l'arrivée (au plus MAX_HOLD_S). */
+async function driveToFinish(page: Page, chunkS = 5): Promise<void> {
   const deadline = Date.now() + MAX_HOLD_S * 1000;
   while ((await gameState(page)).state === 'racing' && Date.now() < deadline) {
-    await holdFinger(page, 5);
+    await holdFinger(page, chunkS);
   }
   await waitForState(page, 'finished', 1_000);
 }
@@ -98,18 +98,24 @@ const overlap = (a: Box, b: Box): boolean =>
   a.x < b.x + b.width - 0.01 && b.x < a.x + a.width - 0.01 && a.y < b.y + b.height - 0.01 && b.y < a.y + a.height - 0.01;
 
 /**
- * Mise en page du HUD de course : position, barre, chrono et bouton saut sans recouvrement ; position très grosse (plus
- * que le chrono) et barre en haut, la barre centrée et d'au plus BAR_MAX_HEIGHT px ; cinq petites voitures dans la barre,
- * aux boîtes disjointes (une par couloir, Galahad en haut, plus grosse que celles des copains).
+ * Mise en page du HUD de course : position, barre, drapeau d'arrivée, chrono et bouton saut sans recouvrement ; position
+ * très grosse (plus que le chrono) et barre en haut, la barre centrée et d'au plus BAR_MAX_HEIGHT px ; drapeau à droite de
+ * la barre, de sa hauteur, dans la fenêtre, sans toucher aucune petite voiture (même à 100 %) ; cinq petites voitures dans
+ * la barre, aux boîtes disjointes (une par couloir, Galahad en haut, plus grosse que celles des copains).
  */
 function expectHudLayout(l: HudLayout): void {
-  const blocks: [string, Box][] = [['position', l.position], ['barre', l.bar], ['chrono', l.time], ['bouton saut', l.jump]];
+  const blocks: [string, Box][] = [
+    ['position', l.position], ['barre', l.bar], ['drapeau', l.flag], ['chrono', l.time], ['bouton saut', l.jump],
+  ];
   for (let i = 0; i < blocks.length; i++) {
     for (let j = i + 1; j < blocks.length; j++) {
       expect(overlap(blocks[i][1], blocks[j][1]), `${blocks[i][0]} et ${blocks[j][0]} se recouvrent`).toBe(false);
     }
   }
   expect(l.bar.height, 'hauteur de la barre').toBeLessThanOrEqual(BAR_MAX_HEIGHT);
+  expect(l.flag.x, 'drapeau à droite de la barre (côté arrivée)').toBeGreaterThanOrEqual(l.bar.x + l.bar.width - 0.5);
+  expect(l.flag.x + l.flag.width, 'drapeau dans la fenêtre').toBeLessThanOrEqual(l.viewport.width);
+  expect(Math.abs(l.flag.height - l.bar.height), 'drapeau de la hauteur de la barre').toBeLessThanOrEqual(1);
   expect(Math.abs(l.bar.x + l.bar.width / 2 - l.viewport.width / 2), 'barre centrée').toBeLessThan(2);
   expect(l.bar.y + l.bar.height, 'barre en haut').toBeLessThan(l.viewport.height * 0.3);
   expect(l.position.y + l.position.height, 'position en haut').toBeLessThan(l.viewport.height * 0.3);
@@ -121,6 +127,7 @@ function expectHudLayout(l: HudLayout): void {
     expect(m.x + m.width, `voiture ${i} dans la barre (droite)`).toBeLessThanOrEqual(l.bar.x + l.bar.width + 0.5);
     expect(m.y, `voiture ${i} dans la barre (haut)`).toBeGreaterThanOrEqual(l.bar.y - 0.5);
     expect(m.y + m.height, `voiture ${i} dans la barre (bas)`).toBeLessThanOrEqual(l.bar.y + l.bar.height + 0.5);
+    expect(overlap(m, l.flag), `la voiture ${i} touche le drapeau`).toBe(false);
     for (let j = i + 1; j < 5; j++) expect(overlap(m, l.markers[j]), `voitures ${i} et ${j} se recouvrent`).toBe(false);
     if (i > 0) {
       expect(m.y, `couloir ${i} sous le couloir ${i - 1}`).toBeGreaterThan(l.markers[i - 1].y);
@@ -213,7 +220,7 @@ test('course courte : arrivée et calque ARRIVÉE, sans erreur console', async (
   expect(errors).toEqual([]);
 });
 
-test('captures : course.png et arrivee.png', async ({ page }) => {
+test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau) et arrivee.png', async ({ page }) => {
   test.setTimeout(150_000);
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
@@ -222,7 +229,14 @@ test('captures : course.png et arrivee.png', async ({ page }) => {
 
   await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
-  await driveToFinish(page);
+  // Doigt posé par demi-secondes : la capture suit l'arrivée de Galahad de près, avant le calque ARRIVÉE (1,5 s de roue libre).
+  await driveToFinish(page, 0.5);
+  const layout = await hudLayout(page);
+  // Galahad à 100 % : sa petite voiture est au bout de son couloir, collée au drapeau sans le toucher.
+  expect(layout.markers[0].x + layout.markers[0].width, 'Galahad au bout de la barre').toBeGreaterThanOrEqual(layout.bar.x + layout.bar.width - 1.5);
+  expect(layout.flag.x - (layout.markers[0].x + layout.markers[0].width), 'Galahad ne touche pas le drapeau').toBeGreaterThanOrEqual(0);
+  expectHudLayout(layout);
+  await page.screenshot({ path: `${SHOTS}/course-copains-arrivee.png`, fullPage: true });
   await expect(page.getByText('ARRIVÉE')).toBeVisible({ timeout: 5_000 });
   await page.screenshot({ path: `${SHOTS}/arrivee.png`, fullPage: true });
 });

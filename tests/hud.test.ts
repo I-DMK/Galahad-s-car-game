@@ -130,7 +130,7 @@ describe('Hud : barre de progression en cinq couloirs', () => {
   test('5 couloirs empilés dans l’ordre de la grille, un marqueur (petite voiture) dans chacun, de la couleur du pilote', () => {
     const { bar, lanes, markers } = makeHud();
     expect(lanes).toHaveLength(5);
-    expect([...bar.children]).toEqual(lanes);
+    expect([...bar.children].slice(0, 5)).toEqual(lanes);   // les couloirs d'abord, le drapeau d'arrivée ensuite
     lanes.forEach((lane, i) => {
       expect(lane.style.color, `couloir ${i}`).toBe(cssColor(RACERS[i].color));
       expect(markers[i], `couloir ${i}`).not.toBeNull();
@@ -149,6 +149,32 @@ describe('Hud : barre de progression en cinq couloirs', () => {
     // Les quatre copains ont un couloir de même épaisseur, qui ne s'annule pas.
     expect(new Set(lanes.slice(1).map(declaredHeight)).size).toBe(1);
     expect(thickest).toBeGreaterThan(0);
+  });
+
+  test('un drapeau à damier au bout de la barre, côté arrivée : un seul, après les cinq couloirs, damier noir et blanc, sans capter le toucher', () => {
+    const { bar, lanes } = makeHud();
+    const flags = document.querySelectorAll('.hud-flag');
+    expect(flags).toHaveLength(1);
+    const flag = flags[0];
+    // Après la barre : dernier enfant de la barre, après ses cinq couloirs (CSS : à droite, là où arrive 100 %).
+    expect(bar.lastElementChild).toBe(flag);
+    expect(bar.children).toHaveLength(lanes.length + 1);
+    expect(getComputedStyle(flag).getPropertyValue('pointer-events')).toBe('none');
+    const svg = flag.querySelector('svg')!;
+    expect(svg.getAttribute('aria-hidden')).toBe('true');
+    // Damier : 8 cases noires sur 4 × 4, jamais deux côte à côte (une case sur deux), sur un fond blanc.
+    const rects = [...svg.querySelectorAll('rect')];
+    const blacks = rects.filter((r) => r.getAttribute('fill') === '#000');
+    const [x, y, size] = [(r: Element) => +r.getAttribute('x')!, (r: Element) => +r.getAttribute('y')!, +blacks[0].getAttribute('width')!];
+    expect(blacks).toHaveLength(8);
+    for (const a of blacks) {
+      for (const b of blacks) {
+        const dx = Math.abs(x(a) - x(b));
+        const dy = Math.abs(y(a) - y(b));
+        expect(dx + dy === size && (dx === 0 || dy === 0), 'deux cases noires côte à côte').toBe(false);
+      }
+    }
+    expect(rects.some((r) => r.getAttribute('fill') === '#fff')).toBe(true);
   });
 
   test('setProgress place chaque marqueur en pour cent de son couloir (transform, pas de mise en page)', () => {

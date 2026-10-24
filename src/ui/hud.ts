@@ -1,6 +1,6 @@
 // HUD en DOM au-dessus du canvas : position de Galahad en haut à gauche (tâche 8), barre de progression en cinq
 // couloirs en haut au centre (tâche 8 ; décision du papa du 2026-10-24 : une ligne fine par voiture, empilées, pour que
-// les copains ne se cachent pas sous Galahad), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug,
+// les copains ne se cachent pas sous Galahad, avec un drapeau à damier côté arrivée), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug,
 // sous le bouton saut de `ui/jump-button.ts`, tâche 5e), calque d'arrivée, message d'erreur.
 // Le conteneur (#hud) est en `pointer-events: none` : seul le calque d'arrivée capte le toucher.
 import { ordinal } from '../cars/ranking';
@@ -14,6 +14,32 @@ const STYLE_ID = 'hud-style';
  */
 const LANE_PX = 10;
 const GALAHAD_LANE_PX = 18;
+/** Drapeau d'arrivée : boîte du dessin (rapport 34 / 64, hauteur de la barre) ; damier de 4 × 4 cases de 7 en haut du mât. */
+const FLAG_W = 34;
+const FLAG_H = 64;
+const FLAG_CELL = 7;
+const FLAG_X = 5;
+const FLAG_Y = 1;
+/**
+ * Drapeau à damier (SVG inline, sans fichier) : mât clair et damier noir et blanc (une case sur deux) cerné d'un liseré
+ * blanc, pour se lire sur le ciel noir.
+ */
+const FLAG_SVG = (() => {
+  let blacks = '';
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      if ((row + col) % 2 === 0) {
+        blacks += `<rect x="${FLAG_X + col * FLAG_CELL}" y="${FLAG_Y + row * FLAG_CELL}" width="${FLAG_CELL}" height="${FLAG_CELL}" fill="#000"/>`;
+      }
+    }
+  }
+  return `<svg viewBox="0 0 ${FLAG_W} ${FLAG_H}" aria-hidden="true" focusable="false">
+  <rect x="1" y="0" width="3" height="${FLAG_H}" rx="1.5" fill="#e8e8e8"/>
+  <rect x="${FLAG_X}" y="${FLAG_Y}" width="${4 * FLAG_CELL}" height="${4 * FLAG_CELL}" fill="#fff"/>
+  ${blacks}
+  <rect x="${FLAG_X}" y="${FLAG_Y}" width="${4 * FLAG_CELL}" height="${4 * FLAG_CELL}" fill="none" stroke="#fff" stroke-width="1.5"/>
+</svg>`;
+})();
 /**
  * Les tailles de la position, du chrono et de la barre suivent la largeur de la fenêtre (vw, bornées) : à 1 280 px la
  * position fait 104 px et le chrono 64 px, comme à l'origine ; sur un téléphone en paysage (844 × 390) ils rétrécissent
@@ -37,6 +63,8 @@ const CSS = `
 .hud-lane.is-galahad .hud-marker{left:0}
 .hud-marker svg{display:block;width:${2 * LANE_PX}px;height:100%}
 .hud-lane.is-galahad .hud-marker svg{width:${2 * GALAHAD_LANE_PX}px}
+.hud-flag{position:absolute;left:100%;top:0;height:100%;aspect-ratio:${FLAG_W}/${FLAG_H};margin-left:6px;pointer-events:none}
+.hud-flag svg{display:block;width:100%;height:100%;filter:drop-shadow(0 2px 0 #000a)}
 .hud-position-car svg{display:block;width:100%;height:100%}
 .hud-time{position:absolute;top:clamp(6px,1.25vw,16px);right:clamp(10px,2.2vw,28px);font:700 clamp(26px,5vw,64px) system-ui,sans-serif;
   color:#fff;text-shadow:0 .05em 0 #000a,0 0 .19em #000c;font-variant-numeric:tabular-nums;letter-spacing:.03em}
@@ -126,6 +154,10 @@ export class Hud {
       bar.appendChild(lane);
       return marker;
     });
+    // Drapeau à damier au bout de la barre, côté arrivée (à droite, là où arrive 100 %) : après les couloirs, hors de la barre.
+    const flag = this.div('hud-flag');
+    flag.innerHTML = FLAG_SVG;
+    bar.appendChild(flag);
     this.lastTenths = racers.map(() => NaN);
     root.append(this.time, this.position, bar, this.fps, this.steps);
     this.setTime(0);
