@@ -73,7 +73,7 @@ Le skill `security-review` a besoin de `origin/HEAD` : `git remote set-head orig
 | `tests/title-scene.test.ts` (créé, jsdom) | poses de la scène ; `Renderer.drawTitle` sur faux contexte | 3 |
 | `src/ui/jump-button.ts` | `setVisible`, règle `.jump-button[hidden]{display:none}` | 4 |
 | `src/render/effects.ts` | `Effects.clear()` | 4 |
-| `src/game.ts` | machine d'états branchée, `RaceRun`, `newRace`, décompte, pause, historique, orientation, `play`/`otherTrack`/`resume`/`again`/`menu` | 4 |
+| `src/game.ts` | machine d'états branchée, `newRace` (champs réassignés), décompte, pause, historique, orientation, `play`/`otherTrack`/`resume`/`again`/`menu` | 4 |
 | `src/main.ts`, `vite.config.ts`, `src/vite-env.d.ts` (créé) | `__APP_VERSION__`, `loadFont`, `game.start()` → titre | 4 |
 | `tests/game-screens.test.ts` (créé, jsdom) | câblage de `Game` : titre → décompte → course, pause, reprise, historique, AUTRE PISTE, ENCORE, erreur | 4 |
 | `tests/hud.test.ts`, `tests/game-frame.test.ts`, `tests/renderer-art.test.ts` | passent par `startRacing` (helper) au lieu de `start()` seul | 4 |
