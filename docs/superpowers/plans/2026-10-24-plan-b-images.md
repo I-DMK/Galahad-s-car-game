@@ -2,17 +2,26 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Régime « écrans » de l'addendum « présentation » §5, **avec la dérogation du papa pour cette session** : un implémenteur frais pour toute la 8b (Parties 1 à 4), puis **quatre relectures** du diff de la tâche (standard, adversariale, skill `code-review`, skill `security-review`), tours de correction (≤ 5), capture validée par le papa **sur la tablette après déploiement**. Pas de suite lente. Jamais de PR.
 
-**Statut :** v1 (2026-10-24), à relire par le papa avant exécution.
+**Statut :** v1.1 (2026-10-24), à relire par le papa avant exécution.
+- v1 (`6b5c977`) : brouillon.
+- v1.1 : relecture du plan (`.superpowers/sdd/2026-10-21-plan-b-copains-et-finitions/plan-8b-review.md` : 3 importants, 13 mineurs) et décisions du coordinateur.
+  - Contournement Playwright (section « Environnement »).
+  - Départ après la clôture de la tâche 8, `BASE` en SHA écrit en clair.
+  - Mineurs corrigés ou gardés avec leur raison (A16 à A19).
+  - `teinte.py` réduit à une mesure du scratchpad.
+  - Registre de 3 à 5 lignes.
 
 **Goal:** Dessiner les voitures avec les sept carrosseries générées et la roue PNG, les flammes du turbo et l'étoile en images, plus une ombre au sol sous chaque voiture, sans changer un bit de la simulation, avec un repli par code image par image.
 
 **Architecture:** Un module `src/render/assets.ts` charge les 13 images au démarrage (`loadArt(): Promise<Art>`, jamais d'exception, une image en échec manque). `Game` reçoit la promesse et la course n'attend jamais : à la résolution, `Renderer.setArt(art)` bascule le dessin. Ensuite, `drawCar` prend pour chaque pièce l'image si elle existe, sinon le dessin d'aujourd'hui. Les poses viennent de `CarView`, déjà interpolées par la 5f. Le rendu ne lit et n'écrit rien de `RaceSim`.
 
-**Tech Stack:** TypeScript 5.7 strict, Vite 8 (dossier `public/`, `import.meta.env.BASE_URL`), Vitest 5 (+ jsdom), Playwright 1.56. Outils d'images en Python 3 + Pillow 12 + numpy (dans `tools/sprites/`, hors du jeu, lancés avec `python3 -I`). **Aucune nouvelle dépendance.**
+**Tech Stack:** TypeScript 5.7 strict, Vite 8 (dossier `public/`, `import.meta.env.BASE_URL`), Vitest 5 (+ jsdom), Playwright 1.56. Outils d'images en Python 3 + Pillow 12 + numpy (dans `tools/sprites/`, hors du jeu, lancés avec `python3 -B -I` : `-B` évite d'écrire `tools/sprites/__pycache__/`, que `.gitignore` ne couvre pas). **Aucune nouvelle dépendance.**
 
 **Spec :** `docs/superpowers/specs/2026-10-22-addendum-presentation.md` (§1, §5, §7, §8 ; il l'emporte sur les documents plus anciens), puis `assets/README.md` (contrat des carrosseries contrôlées) et `docs/sprites-gabarit.svg` (calque `reperes` : accroche des flammes). Références ci-dessous : « addendum §n », « README ».
 
-**État de départ :** `wip-plan-b` **après le commit de la tâche 8** (position, barre, classement). Elle touche `src/cars/ranking.ts`, `src/ui/hud.ts`, `src/game.ts`, `src/config.ts`, `tests/ranking.test.ts`, `tests/hud.test.ts` et `e2e/race.spec.ts`. La 8b ne touche à aucun de ces fichiers, sauf `src/game.ts`, où ses ajouts sont disjoints : un paramètre du constructeur, un champ et un accesseur. Avant le Step 1 : `BASE=$(git rev-parse HEAD)`, la base des relectures et du contrôle d'empreinte.
+**État de départ (décision du coordinateur) :** la 8b ne commence qu'une fois la **tâche 8 close** : tours de correction faits, validation du papa, fusion sur `ccr-5b6fabc4-n96ofo` et déploiement vérifié. Aucun commit de la 8 n'arrive donc pendant la 8b.
+- La tâche 8 touche `src/cars/ranking.ts`, `src/ui/hud.ts`, `src/game.ts`, `src/config.ts`, `tests/ranking.test.ts`, `tests/hud.test.ts` et `e2e/race.spec.ts`. La 8b ne modifie aucun de ces fichiers, sauf `src/game.ts`, où ses ajouts sont disjoints : un paramètre du constructeur, un champ et un accesseur. Ce fichier s'édite avec `Edit`, après l'avoir relu, jamais par réécriture complète.
+- **BASE** = le SHA de la tête de `wip-plan-b` à la clôture de la tâche 8. Le contrôleur l'écrit en clair dans le registre (première ligne « Task 8b: ») avant le Step 1. On le **recopie en clair** dans chaque commande qui en a besoin (Steps 21 et 24, notés `<BASE>` ci-dessous) : une variable de shell ne survit pas d'un appel d'outil à l'autre.
 
 **Step 0 : fait et validé.** La session sprites (2026-10-22 et 23) a livré le gabarit `docs/sprites-gabarit.svg` et les outils `tools/sprites/`. Les sept carrosseries générées par le papa ont été contrôlées et réduites dans `assets/sprites/` (512 × 256 px, PNG-8, 93 528 octets les sept). La planche `docs/sprites-planche.png` a été **validée par le papa le 2026-10-23**, arches serrées gardées ; le jugement final se fait sur la tablette, ici (Step 28). **Ce plan commence au Step 1.**
 
@@ -35,6 +44,38 @@
 - `npm run typecheck` et `npm test` verts à chaque commit. Jamais de `.skip`.
 - Commits en français préfixés `feat:` / `fix:` / `test:` / `chore:` / `docs:`, avec les trailers de la session et aucun identifiant de modèle dans le message. Code, commentaires et docs en français.
 - Jamais de `git reset` / `checkout` / `stash` / `clean` pendant qu'un autre agent travaille dans l'arbre. Commits ciblés (`git commit -- <chemins>`).
+- Outils Python en `python3 -B -I`. Chemins du scratchpad écrits en clair, jamais en variable.
+- **Retour arrière** si la 8b déployée déplaît ou fait chuter le fps : `git revert` des commits de la 8b. Pour la fusion, `git revert -m 1 <fusion>` sur `ccr-5b6fabc4-n96ofo`, puis push, CI verte et `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live`. Le revert du commit `chore:` remet les images dans `assets/`.
+
+## Environnement (conteneur)
+
+Playwright 1.56.1 attend Chromium **révision 1194** (`node_modules/playwright-core/browsers.json`). Le conteneur n'a que la **1243**, dans `/opt/pw-browsers`, et `npm run e2e` échoue alors à `browserType.launch`.
+
+Le contournement ne touche ni le dépôt ni `/opt` : aucun `executablePath`, aucun `npx playwright install` (réseau fermé). On crée un dossier de liens dans le scratchpad de la session et on fait pointer `PLAYWRIGHT_BROWSERS_PATH` dessus **devant chaque commande Playwright** :
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npx playwright test e2e/sprites.spec.ts
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live
+```
+
+Cette session : `<scratchpad>/pw-browsers` = `/tmp/claude-0/-home-user-Galahad-s-car-game/d539fc7a-7dfe-5fa5-86a5-9556ce005c65/scratchpad/pw-browsers`. Dans un conteneur neuf, recréer le dossier à l'identique avec la commande ci-dessous, en remplaçant le chemin de `PW` par le scratchpad de la nouvelle session. On obtient :
+- `chromium-1194/chrome-linux/*` → `chromium-1243/chrome-linux64/*` ;
+- `chromium_headless_shell-1194/chrome-linux/*` → `chromium_headless_shell-1243/chrome-headless-shell-linux64/*`, plus `headless_shell` ;
+- `ffmpeg-1011/*` → `ffmpeg-1011/*` ;
+- les marqueurs vides de Playwright.
+
+```bash
+PW=/tmp/claude-0/-home-user-Galahad-s-car-game/d539fc7a-7dfe-5fa5-86a5-9556ce005c65/scratchpad/pw-browsers; O=/opt/pw-browsers
+mkdir -p "$PW/chromium-1194/chrome-linux" "$PW/chromium_headless_shell-1194/chrome-linux" "$PW/ffmpeg-1011"
+for f in "$O"/chromium-1243/chrome-linux64/*; do ln -sfn "$f" "$PW/chromium-1194/chrome-linux/"; done
+for f in "$O"/chromium_headless_shell-1243/chrome-headless-shell-linux64/*; do ln -sfn "$f" "$PW/chromium_headless_shell-1194/chrome-linux/"; done
+ln -sfn "$O/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell" "$PW/chromium_headless_shell-1194/chrome-linux/headless_shell"
+for f in "$O"/ffmpeg-1011/*; do ln -sfn "$f" "$PW/ffmpeg-1011/"; done
+touch "$PW/chromium-1194/INSTALLATION_COMPLETE" "$PW/chromium_headless_shell-1194/INSTALLATION_COMPLETE" "$PW/chromium_headless_shell-1194/DEPENDENCIES_VALIDATED"
+```
+
+Si `node_modules/playwright-core/browsers.json` demande un jour la 1243, le contournement devient inutile : lancer les commandes sans la variable.
 
 ## Review Focus
 
@@ -51,15 +92,16 @@
 | `src/render/assets.ts` (créé) | `Art`, `NO_ART`, `ART_FILES`, `FLAME_FILES`, `bodyFile`, `loadArt` | 1 |
 | `tests/assets.test.ts` (créé, node) | chargeur (faux `Image`), puis budget et en-têtes de `public/sprites/` | 1, 2 |
 | `tools/sprites/lisere.py` (créé) | retire le liseré magenta des images Grok (flammes, étoile ; Terre à la 16) | 2 |
-| `tools/sprites/teinte.py` (créé) | teinte des carrosseries contre les constantes `color` | 2 |
+| `teinte.py` (scratchpad, non commité) | mesure des teintes du Step 10 ; commité dans `tools/sprites/` seulement si le papa aligne une constante (Q1 = b) | 2 |
 | `public/sprites/*.png` (13) | images servies : 7 carrosseries, roue, 4 flammes, étoile | 2 |
-| `assets/README.md` | chemins, noms ASCII, nouveaux outils, Terre restée pour la 16 | 2 |
+| `assets/README.md` | chemins, noms ASCII, `lisere.py`, Terre restée pour la 16 | 2 |
 | `src/render/renderer.ts` | `CarView.id`, `Renderer.setArt`, ordre ombres → effets → étoiles → voitures | 3 |
 | `src/render/car.ts` | images de carrosserie, de roue et de flamme ; `flameFrame`, `flightHeight`, `shadowScale`, `drawShadow` | 3 |
 | `src/render/track.ts` | `drawStar(…, img)` | 3 |
 | `src/sim/simulate.ts` (`carView`, l. 703–719) | `id: state.id` | 3 |
 | `tests/helpers/fake-ctx.ts` (créé) | faux contexte 2D sorti de `render-smoke.test.ts`, note aussi `globalAlpha` | 3 |
 | `tests/render-smoke.test.ts` | importe le faux contexte ; `id` dans ses deux `CarView` | 3 |
+| `tests/simulate.test.ts` (boucle l. 110–112) | `carView(sim, i).id` = id du pilote | 3 |
 | `tests/render-sprites.test.ts` (créé, node) | dessin des images, flammes, ombre, étoile | 3 |
 | `tests/renderer-art.test.ts` (créé, jsdom) | `Renderer` avec et sans images ; `Game` qui n'attend pas | 3, 4 |
 | `src/game.ts`, `src/main.ts` | `loadArt()` au démarrage, `new Game(…, art)`, `__game.art` | 4 |
@@ -185,7 +227,7 @@ Run: `npx vitest run tests/assets.test.ts`
 Expected: FAIL, « Failed to resolve import "../src/render/assets" ».
 
 - [ ] **Step 3 : Écrire `src/render/assets.ts`.**
-  - `bodyFile(id)` = `id.normalize('NFD').replace(/[̀-ͯ]/g, '') + '.png'`.
+  - `bodyFile(id)` = `id.normalize('NFD').replace(/[\u0300-\u036f]/g, '') + '.png'`.
   - Chaque fichier d'`ART_FILES` donne une promesse qui ne rejette jamais. `makeImage()` (par défaut `() => new Image()`), puis `onload` → l'image, `onerror` → `null`, puis `src = url`. Le tout est dans un `try`, et un `catch` donne `null`.
   - `Promise.all`, puis `Art` : `bodies` = les ids de `[GALAHAD, ...PILOTS]` dont l'image n'est pas `null` ; `flames` = le tableau si les 4 sont là, sinon `null` ; `loaded` et `failed` dans l'ordre d'`ART_FILES`.
   - Pas de délai d'abandon : un navigateur finit toujours par `load` ou `error`. `NO_ART` est figé par `Object.freeze`.
@@ -206,7 +248,7 @@ git commit -m "feat: chargeur des images (loadArt), une image en échec devient 
 ## Partie 2 — Images dans `public/sprites/` (Steps 5 à 11)
 
 **Files:**
-- Create: `tools/sprites/lisere.py`, `tools/sprites/teinte.py`, `public/sprites/` (13 fichiers)
+- Create: `tools/sprites/lisere.py`, `public/sprites/` (13 fichiers) ; `teinte.py` dans le scratchpad (mesure, non commitée sauf Q1 = b)
 - Move: `assets/sprites/{galahad,pablo,diego,matthis,malo,liam,wheel}.png` → `public/sprites/` ; `assets/sprites/timothée.png` → `public/sprites/timothe.png`
 - Replace: `assets/sprites/flame-{0..3}.png` et `star.png`, corrigés vers `public/sprites/` puis retirés d'`assets/` ; `assets/sprites/earth.png` **reste** (tâche 16)
 - Modify: `assets/README.md`, `tests/assets.test.ts`
@@ -251,12 +293,12 @@ describe('public/sprites (addendum §1.2 : budget ; README : cadre du gabarit)',
 Run: `npx vitest run tests/assets.test.ts`
 Expected: les 3 nouveaux tests en FAIL (`ENOENT … public/sprites`), les 7 de la Partie 1 verts.
 
-- [ ] **Step 6 : Écrire `tools/sprites/lisere.py`** (`python3 -I tools/sprites/lisere.py <entrée.png> <sortie.png>`). Il fait ce que le README demande, « de la même façon » que pour la roue : la couleur du bord vient du pixel opaque voisin, et tout alpha ≥ 240 passe à 255.
+- [ ] **Step 6 : Écrire `tools/sprites/lisere.py`** (`python3 -B -I tools/sprites/lisere.py <entrée.png> <sortie.png>`). Il fait ce que le README demande, « de la même façon » que pour la roue : la couleur du bord vient du pixel opaque voisin, et tout alpha ≥ 240 passe à 255.
   - « Rose » = `r − g > 40` et `b − g > 40`. Aucune couleur légitime des flammes (rouge, orange, jaune, blanc), de l'étoile (crème) ni de la Terre n'y entre.
-  - **Garde-fou** : le script refuse l'image (code de sortie 2, message) si plus de 25 % des pixels d'alpha ≥ 240 sont roses. Mesuré : `liam.png` 52 % (carrosserie rose, à ne jamais passer), flammes 6 à 9 %, Terre 0,6 %, étoile 0 %.
+  - **Garde-fou** : le script refuse l'image (code de sortie 2, message) si plus de 25 % des pixels d'alpha ≥ 240 sont roses. Mesuré, à ±2 points selon le dénominateur : `liam.png` ≈ 50 % (carrosserie rose, à ne jamais passer), flammes ≈ 6 à 9 %, Terre ≈ 0,6 %, étoile 0 %.
   - Pour atteindre aussi les points roses isolés, la couleur se propage par couches de 4-voisins sur toute l'image, transparent compris. Les sources sont les pixels non roses d'alpha ≥ 240. Seuls les pixels roses changent de couleur, et leur alpha ne change pas.
   - Le décalage `shift(arr, dy, dx)` remplit ses bords de zéros (pas de `np.roll`, qui enroule).
-  - Quantification : `quantize` de `controle.py`, importé après `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`, car `python3 -I` n'ajoute pas le dossier du script.
+  - Quantification : `quantize` de `controle.py`, importé après `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`, car `python3 -I` n'ajoute pas le dossier du script. Lancé en `-B` : pas de `__pycache__` dans `tools/sprites/`.
   - Rapport JSON : `source`, `octets_avant`, `octets_apres`, `roses_corriges`, `avant` et `apres` = `{roses_alpha_ge_16, alpha_240_254}`.
 
 Le cœur (seul algorithme que la signature ne fixe pas) :
@@ -287,10 +329,10 @@ def fix(px):  # px : int32, (h, w, 4)
 
 ```bash
 mkdir -p public/sprites
-for f in flame-0 flame-1 flame-2 flame-3 star; do python3 -I tools/sprites/lisere.py assets/sprites/$f.png public/sprites/$f.png; done
+for f in flame-0 flame-1 flame-2 flame-3 star; do python3 -B -I tools/sprites/lisere.py assets/sprites/$f.png public/sprites/$f.png; done
 ```
 
-Expected : mesuré le 2026-10-24 (Pillow 12.3.0) par le prototype ; les tailles peuvent varier de ±5 % avec une autre version de Pillow.
+Expected : valeurs ≈ mesurées le 2026-10-24 (Pillow 12.3.0) par le prototype. Les comptes de pixels sont exacts à Pillow égal ; les octets varient de ±5 % avec une autre version de Pillow. Ce qui doit être exact : « après » = 0 dans les deux colonnes.
 
 | Fichier | roses corrigés | roses visibles (α ≥ 16) avant → après | α 240–254 avant → après | octets avant → après |
 |---|---|---|---|---|
@@ -300,7 +342,7 @@ Expected : mesuré le 2026-10-24 (Pillow 12.3.0) par le prototype ; les tailles 
 | `flame-3.png` | 1 455 | 1 052 → 0 | 2 969 → 0 | 5 638 → 5 197 |
 | `star.png` | 658 | 399 → 0 | 21 012 → 0 | 10 423 → 10 298 |
 
-Idempotence : `python3 -I tools/sprites/lisere.py public/sprites/flame-1.png "$SCRATCH/x.png"` (`$SCRATCH` = le scratchpad de la session) → `roses_corriges: 0`, même taille. Garde-fou : `… assets/sprites/liam.png "$SCRATCH/y.png"` → refus, code de sortie 2. Joindre au papa l'aperçu avant / après sur le ciel du jeu (`#0a1030`), cinq images côte à côte, produit dans le scratchpad.
+Idempotence : `python3 -B -I tools/sprites/lisere.py public/sprites/flame-1.png <scratchpad>/x.png` (chemin du scratchpad écrit en clair) → `roses_corriges: 0`, même taille. Garde-fou : `… assets/sprites/liam.png <scratchpad>/y.png` → refus, code de sortie 2. Joindre au papa l'aperçu avant / après sur le ciel du jeu (`#0a1030`), cinq images côte à côte. Il est produit dans le scratchpad et n'est pas commité.
 
 - [ ] **Step 8 : Déplacer le reste**
 
@@ -318,16 +360,16 @@ Expected : `13`, puis `earth.png` seul.
 - [ ] **Step 9 : Vérifier le budget**
 
 Run: `npx vitest run tests/assets.test.ts`
-Expected: 10 verts ; imprimé « public/sprites : 146 846 octets » (≈ 143 KiB ≤ 400), à ±2 KiB près selon Pillow.
+Expected: 10 verts ; imprimé « public/sprites : ≈ 146 846 octets » (≈ 143 KiB, ±5 % selon Pillow ; exigé ≤ 400 KiB). On recopie ensuite **la valeur imprimée par le test**, pas celle-ci.
 
-- [ ] **Step 10 : Contrôler les teintes** (addendum §1.4). Écrire `tools/sprites/teinte.py` (`python3 -I tools/sprites/teinte.py <dossier> <fichier>=<RRGGBB> …`).
+- [ ] **Step 10 : Mesurer les teintes** (addendum §1.4). C'est une mesure, pas un outil du dépôt : écrire `<scratchpad>/teinte.py` (`python3 -B -I <scratchpad>/teinte.py <dossier> <fichier>=<RRGGBB> …`). Il n'est copié dans `tools/sprites/` et commité que si le papa aligne une constante (Q1 = b), pour que la mesure derrière le changement reste rejouable.
   - **Zone de caisse**, dans le repère du châssis (centre de l'image en (256, 128), 512/2,8 px/m) : x ∈ [−1,0 ; 1,0] m, y ∈ [−0,20 ; +0,35] m, y vers le haut. On prend les pixels d'alpha 255.
   - Parmi eux, les pixels à ΔE76 ≤ 25 de la constante (Lab D65) donnent la part de la zone et la médiane RGB. Le script calcule le ΔE76 entre cette médiane et la constante, et le Δteinte HSV quand la saturation de la constante est ≥ 0,2.
   - **Verdict** : « à montrer au papa » si la part est < 25 %, si ΔE76 > 20 ou si Δteinte > 15° ; sinon « garder ».
 
-Run: `python3 -I tools/sprites/teinte.py public/sprites galahad.png=1e5cff pablo.png=c8001e diego.png=2ecc40 timothe.png=f5f5f5 matthis.png=ffff00 malo.png=ff8000 liam.png=ff77aa`
+Run: `python3 -B -I <scratchpad>/teinte.py public/sprites galahad.png=1e5cff pablo.png=c8001e diego.png=2ecc40 timothe.png=f5f5f5 matthis.png=ffff00 malo.png=ff8000 liam.png=ff77aa`
 
-Expected : valeurs mesurées le 2026-10-24 ; les constantes viennent de `CONFIG.GALAHAD_COLOR` et de `PILOTS[].color`.
+Expected : valeurs ≈ mesurées le 2026-10-24, à ±1 sur ΔE76 et ±2 points sur la part selon l'arrondi de la zone ; les constantes viennent de `CONFIG.GALAHAD_COLOR` et de `PILOTS[].color`.
 
 | Fichier | constante | médiane du sprite | part | ΔE76 | Δteinte | verdict |
 |---|---|---|---|---|---|---|
@@ -339,21 +381,26 @@ Expected : valeurs mesurées le 2026-10-24 ; les constantes viennent de `CONFIG.
 | malo | `#ff8000` | `#fc7601` | 50 % | 4,7 | 2° | garder |
 | liam | `#ff77aa` | `#fb5b9b` | 53 % | 10,8 | 2° | garder |
 
-Aucune constante ne change dans la 8b : les sprites sont juste un peu plus saturés, sans changement de teinte. Le tableau va au papa avec la capture (question Q1). Si un verdict sort « à montrer », ne rien changer et poser Q1 avec la ligne concernée. S'il choisit d'aligner, la constante prend la médiane mesurée, puis `npx vitest run tests/pilots.test.ts` (contraste ≥ 3:1, aucun copain bleu) doit rester vert, et le papa re-valide les coloris comme en 5a.
+Aucune constante ne change dans la 8b : les sprites sont juste un peu plus saturés, sans changement de teinte. Le tableau va au papa avec la capture (question Q1). Si un verdict sort « à montrer », ne rien changer et poser Q1 avec la ligne concernée. S'il choisit d'aligner :
+- la constante prend la médiane mesurée ;
+- `npx vitest run tests/pilots.test.ts` (contraste ≥ 3:1, aucun copain bleu) doit rester vert ;
+- `teinte.py` est copié dans `tools/sprites/` et commité avec la constante ;
+- le papa re-valide les coloris comme en 5a.
 
 - [ ] **Step 11 : Mettre à jour `assets/README.md`, puis commiter.**
   - Titre et intro : les images servies sont dans `public/sprites/`, et `assets/` ne garde que les bruts (`generated/`), la Terre et les polices.
-  - Noms ASCII (`timothe.png`).
-  - Commande de `controle.py` : sortie `public/sprites/<fichier>`.
+  - Noms ASCII. Le brut reste `assets/generated/timothée.png` (accentué, non déplacé), la sortie servie est `public/sprites/timothe.png`. La commande `controle.py <brut> <sortie>` se lance donc avec ces deux noms, pas avec un `<id>.png` commun.
+  - Commande de `controle.py` : sortie `public/sprites/<fichier>`, outils en `python3 -B -I`.
   - Section « Roue, étoile, Terre, flammes » : liseré corrigé le 2026-10-24 par `lisere.py` (tableau du Step 7) ; Terre non corrigée, à passer à la tâche 16 ; ne jamais passer une carrosserie.
-  - `teinte.py` et son tableau.
-  - Budget : 146 846 octets.
+  - Teintes : une ligne (« mesurées le 2026-10-24, conformes, constantes gardées » ou la décision Q1).
+  - Budget : la valeur imprimée au Step 9.
 
 ```bash
 npm run typecheck
-git add tools/sprites/lisere.py tools/sprites/teinte.py
+git add tools/sprites/lisere.py
 git commit -m "chore: images dans public/sprites (liseré magenta retiré des flammes et de l'étoile), budget et cadre testés" \
-  -- public/sprites assets/sprites tools/sprites/lisere.py tools/sprites/teinte.py assets/README.md tests/assets.test.ts
+  -- public/sprites assets/sprites tools/sprites/lisere.py assets/README.md tests/assets.test.ts
+git status --short   # attendu : rien sous tools/ (pas de __pycache__)
 ```
 
 ---
@@ -362,7 +409,7 @@ git commit -m "chore: images dans public/sprites (liseré magenta retiré des fl
 
 **Files:**
 - Create: `tests/helpers/fake-ctx.ts`, `tests/render-sprites.test.ts` (node), `tests/renderer-art.test.ts` (jsdom)
-- Modify: `src/render/renderer.ts`, `src/render/car.ts`, `src/render/track.ts:296-321`, `src/sim/simulate.ts:703-719`, `tests/render-smoke.test.ts:10-26,56-60,72-74`
+- Modify: `src/render/renderer.ts`, `src/render/car.ts`, `src/render/track.ts:296-321`, `src/sim/simulate.ts:703-719`, `tests/render-smoke.test.ts:10-26,56-60,72-74`, `tests/simulate.test.ts:110-112`
 
 **Interfaces:**
 - Consumes : `Art`, `NO_ART` (Partie 1) ; `heightAt`, `slopeAt` (`src/track/query.ts`) ; `CarPose` déjà interpolée (`sceneOf`).
@@ -394,7 +441,7 @@ Valeurs fixées, en constantes de module de `car.ts` : ce sont des constantes de
 | `FLAME_FPS` | 14 | addendum §1.5 |
 | accroche des flammes, carrosserie image | (−1,31 ; −0,08), repère local y vers le bas | gabarit, calque `reperes` : triangle `-131 -12 … -131 -4` |
 | accroche des flammes, carrosserie par code | (−L/2 ; +0,08) | `drawFlames(ctx, −L/2, 0.08, t)` actuel |
-| `FLAME_SIZE_M`, `FLAME_RIGHT_M` | 1,2 (carré), 0,34 | bbox mesurées des 4 flammes (x 25–51 → 189–229 px, y centrés à 0,48) : flamme visible ≈ 0,62–0,74 m derrière l'arrière, 0,39–0,65 m de haut ; le bord droit du carré dépasse l'accroche de 0,34 m sous la carrosserie |
+| `FLAME_SIZE_M`, `FLAME_RIGHT_M` | 1,2 (carré), 0,34 | bbox mesurées des 4 flammes (x ≈ 23–51 → 189–229 px, y centrés à ≈ 0,47–0,50) : flamme visible ≈ 0,62–0,74 m derrière l'arrière, 0,39–0,65 m de haut ; le bord droit du carré dépasse l'accroche de 0,34 m sous la carrosserie |
 | `SHADOW_RX_M`, `SHADOW_RY_M`, `SHADOW_ALPHA`, `SHADOW_HALF_M` | 1,2, 0,15, 0,45, 1,5 | à juger sur capture |
 
 Ordre dans `drawCar` :
@@ -420,6 +467,7 @@ const draws = (calls: Call[]) => calls.filter((c) => c.name === 'drawImage');
 const before = (calls: Call[], c: Call, n: number) => calls.slice(calls.indexOf(c) - n, calls.indexOf(c)).map((d) => [d.name, ...d.args]);
 
 test('carrosserie image : cadre 2,80 × 1,40 m centré sur le châssis, tourné de −angle ; ni casque ni carrosserie par code', () => {
+  const { ctx, calls } = fakeCtx();
   drawCar(ctx, car, PPM, 0, S, CONFIG, art());
   const d = draws(calls);
   expect(d.map((c) => c.args[0])).toEqual([body, wheel, wheel]);
@@ -430,6 +478,8 @@ test('carrosserie image : cadre 2,80 × 1,40 m centré sur le châssis, tourné 
 });
 
 test('roue image à la position de chaque roue, tournée de −w.angle, par-dessus la carrosserie', () => {
+  const { ctx, calls } = fakeCtx();
+  drawCar(ctx, car, PPM, 0, S, CONFIG, art());
   const r = CONFIG.WHEEL_RADIUS * PPM;
   car.wheels.forEach((w, k) => {
     const d = draws(calls)[1 + k];
@@ -457,6 +507,8 @@ D'autres tests du même fichier (les noms suffisent, avec les assertions dites) 
     - voiture en `track.volcanoes[0].xLava` à 5 m de haut : aucun `ellipse`.
   - **Étoile image** : `drawStar(ctx, 100, 50, 2, PPM, star)` donne un `createRadialGradient` (halo gardé), 0 `lineTo`, `drawImage(star, −0,5·PPM, −0,5·PPM, PPM, PPM)` précédé de `translate(100, 50)`, `rotate(1,6)`. Sans `img`, les 9 `lineTo` d'aujourd'hui.
 
+`tests/simulate.test.ts`, dans la boucle existante des lignes 110 à 112 (`const view = carView(sim, i)`) : ajouter `expect(view.id).toBe(pilot.id);`. La boucle couvre les 5 pilotes de la grille, Galahad compris.
+
 `tests/renderer-art.test.ts` (`// @vitest-environment jsdom`, bloc `Renderer`) :
   - **Mise en place.** `getContext` espionné → `fakeCtx().ctx`. `clientWidth` et `clientHeight` du canvas définis à 1 280 et 800. Course `createRaceSim(generateTrack(1, 1680, CONFIG), CONFIG, { robots: true })`, scène `sceneOf(sim)`, caméra centrée sur la moyenne des x des 5 voitures (y sol + 3). Vider `calls` avant chaque `draw`.
   - **Sans images** (`NO_ART`) : 2 `drawImage` (le ciel).
@@ -474,19 +526,20 @@ Expected: FAIL. Il manque les exports `flameFrame`, `flightHeight`, `shadowScale
 - [ ] **Step 15 : `drawCar` avec `art`, `flameFrame`, ombre, étoile, aux interfaces et dans l'ordre ci-dessus.**
   - Sans allocation par trame : `Map.get`, index par calcul.
   - L'ombre passe par `globalAlpha` (pas de chaîne `rgba(…)` construite à chaque trame).
+  - Ordre exact dans `drawShadow`, que lisent les tests (le faux contexte note le `fillStyle` courant à chaque appel) : `save`, `globalAlpha = …`, `fillStyle = '#000000'`, `beginPath`, `ellipse`, `fill`, `restore`.
   - `overLava(track, x)` en boucle `for…of` locale à `car.ts` : |x − xLava| ≤ lavaWidth / 2 pour un volcan.
 
 - [ ] **Step 16 : `Renderer.setArt`** (champ `art = NO_ART`) **et l'ordre de `draw`.**
 
 - [ ] **Step 17 : Vérifier puis commiter**
 
-Run: `npx vitest run tests/render-sprites.test.ts tests/renderer-art.test.ts tests/render-smoke.test.ts tests/game-frame.test.ts && npm run typecheck`
+Run: `npx vitest run tests/render-sprites.test.ts tests/renderer-art.test.ts tests/render-smoke.test.ts tests/simulate.test.ts tests/game-frame.test.ts && npm run typecheck`
 Expected: tous verts, `render-smoke` inchangé sur le fond (rotations `[−0,3, −1, −1]`, casque en `helmet`), typecheck sans erreur.
 
 ```bash
 git add tests/helpers/fake-ctx.ts tests/render-sprites.test.ts tests/renderer-art.test.ts
 git commit -m "feat: carrosseries, roues, flammes et étoile en images, ombre au sol, repli par code image par image" \
-  -- src/render/renderer.ts src/render/car.ts src/render/track.ts src/sim/simulate.ts \
+  -- src/render/renderer.ts src/render/car.ts src/render/track.ts src/sim/simulate.ts tests/simulate.test.ts \
      tests/helpers/fake-ctx.ts tests/render-smoke.test.ts tests/render-sprites.test.ts tests/renderer-art.test.ts
 ```
 
@@ -503,8 +556,8 @@ git commit -m "feat: carrosseries, roues, flammes et étoile en images, ombre au
 - Produces :
 
 ```ts
-// src/game.ts
-constructor(canvas: HTMLCanvasElement, hudRoot: HTMLElement, opts: { seed: number; length: number; debug: boolean }, art?: Promise<Art>);
+// src/game.ts : 4e paramètre ajouté, le reste inchangé (`private readonly opts` compris)
+constructor(canvas: HTMLCanvasElement, hudRoot: HTMLElement, private readonly opts: { seed: number; length: number; debug: boolean }, art?: Promise<Art>);
 /** Images (debug, e2e, tâche 8b) : réglées ou non, fichiers chargés et en échec ; copies. */
 get art(): { settled: boolean; loaded: string[]; failed: string[] };
 // src/main.ts : const art = loadArt(); puis new Game(canvas, hud, opts, art)
@@ -523,7 +576,7 @@ Expected: FAIL. Le constructeur ignore `art`, et `game.art` est `undefined`.
 void art?.then((a) => { this.loadedArt = a; this.renderer.setArt(a); });
 ```
 
-Ajouter le champ `loadedArt: Art | null = null` et l'accesseur `art`. Dans `main.ts`, `const art = loadArt();` **avant** `new Game(…)`, avec un commentaire : les requêtes partent pendant que `generateTrack` tourne dans le constructeur.
+Ajouter le champ `loadedArt: Art | null = null` et l'accesseur `art`, par `Edit` après relecture de `src/game.ts`. Dans `main.ts`, `const art = loadArt();` **avant** `new Game(…)`, avec un commentaire : les requêtes partent pendant que `generateTrack` tourne dans le constructeur.
 
 Run: `npx vitest run tests/renderer-art.test.ts tests/game-frame.test.ts`
 Expected: verts.
@@ -540,14 +593,14 @@ Expected: verts.
     3. `holdFinger(page, 2)`, puis `state === 'racing'` et `progress` en hausse de plus de 3 m.
     4. Aucun `pageerror`. Les messages console « Failed to load resource » de la requête bloquée sont filtrés.
 
-Run: `npx playwright test e2e/sprites.spec.ts`
+Run: `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npx playwright test e2e/sprites.spec.ts` (section « Environnement »)
 Expected: 2 passed ; `e2e/screenshots/course-sprites.png` écrit. Le regarder : carrosseries reconnaissables, roues dans les arches, ombre sous Galahad en l'air.
 
 - [ ] **Step 21 : Empreinte et frontière de la simulation**
 
 ```bash
 npx vitest run tests/empreinte.test.ts tests/pilots.test.ts tests/deps.test.ts
-git diff --stat $BASE -- src/sim src/physics src/track src/cars src/ai src/loop src/config.ts
+git diff --stat <BASE> -- src/sim src/physics src/track src/cars src/ai src/loop src/config.ts   # <BASE> : SHA en clair, lu au registre
 ```
 
 Expected:
@@ -557,14 +610,16 @@ Expected:
 - [ ] **Step 22 : Suites complètes et build sous la base du site**
 
 ```bash
-npm run typecheck && npm test && npm run e2e
+npm run typecheck && npm test
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e
 VITE_BASE=/Galahad-s-car-game/ npm run build && ls dist/sprites | wc -l
 VITE_BASE=/Galahad-s-car-game/ npx vite preview --port 4174 --strictPort   # en arrière-plan
-E2E_LIVE_URL=http://localhost:4174/Galahad-s-car-game/ npx playwright test -c playwright.live.config.ts e2e/sprites.spec.ts
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers E2E_LIVE_URL=http://localhost:4174/Galahad-s-car-game/ \
+  npx playwright test -c playwright.live.config.ts e2e/sprites.spec.ts
 ```
 
 Expected:
-- typecheck sans erreur ; `npm test` tout vert (≈ 3 min) ; `npm run e2e` : la suite d'après la tâche 8, plus 2 ;
+- typecheck sans erreur ; `npm test` tout vert (≈ 3 min) ; `npm run e2e` : 16 passed (les 14 de la tâche 8, plus 2) ;
 - `13` fichiers dans `dist/sprites` ;
 - les 2 e2e des images verts **sous `/Galahad-s-car-game/`** (Review Focus 1), avant tout déploiement. Arrêter l'aperçu ensuite.
 
@@ -579,7 +634,7 @@ git commit -m "feat: images chargées au démarrage, __game.art, e2e course-spri
 
 ## Partie 5 — Relectures, passation, déploiement, validation (Steps 24 à 30)
 
-- [ ] **Step 24 : Quatre relectures** du diff `$BASE..HEAD`, par des sous-agents frais. Chacun reçoit ce plan, l'addendum §1, le README, `docs/sprites-gabarit.svg` et la consigne de ne lancer aucun test dans l'arbre partagé tant que l'implémenteur y travaille.
+- [ ] **Step 24 : Quatre relectures** du diff `<BASE>..HEAD`, avec `<BASE>` en SHA littéral recopié du registre, par des sous-agents frais. Chacun reçoit ce plan, l'addendum §1, le README, `docs/sprites-gabarit.svg` et la consigne de ne lancer aucun test dans l'arbre partagé tant que l'implémenteur y travaille.
   - **Standard** (spec et qualité).
   - **Adversariale.** Mutants à faire tuer par les tests, chacun réécrit puis restauré :
     - `rotate(+angle)` pour la carrosserie image ;
@@ -593,31 +648,33 @@ git commit -m "feat: images chargées au démarrage, __game.art, e2e course-spri
     - 3 flammes sur 4 utilisées ;
     - `setArt` jamais appelé ;
     - `loadArt` qui rejette quand `makeImage` lève ;
-    - `loadArt` attendu avant `start`.
+    - `loadArt` attendu avant `start` ;
+    - `carView` sans `id`, ou avec un `id` faux (`state.name`, par exemple).
 
     Sonde : capture à 2 graines de plus (`?seed=2`, `?seed=5`) avec un copain en turbo, si l'occasion se présente.
   - **Skill `code-review`.**
-  - **Skill `security-review`.** Il a besoin de `origin/HEAD` : lancer d'abord `git remote set-head origin ccr-5b6fabc4-n96ofo`. Points à regarder : images de même origine, aucune entrée de l'utilisateur dans une adresse (la base vient du build), `page.route` limité aux e2e, pas d'`innerHTML`.
+  - **Skill `security-review`.** Il a besoin de `origin/HEAD`, déjà posé dans ce conteneur ; dans un conteneur neuf, lancer d'abord `git remote set-head origin ccr-5b6fabc4-n96ofo`. Points à regarder : images de même origine, aucune entrée de l'utilisateur dans une adresse (la base vient du build), `page.route` limité aux e2e, pas d'`innerHTML`.
 
-- [ ] **Step 25 : Tours de correction** (≤ 5). Chaque constat retenu est corrigé avec son test. Puis `npm run typecheck && npm test`, et `npm run e2e` si le dessin ou le branchement a changé. Commit `fix: <constat> (tour n de la tâche 8b)`. Re-relecture ciblée des constats.
+- [ ] **Step 25 : Tours de correction** (≤ 5). Chaque constat retenu est corrigé avec son test. Puis `npm run typecheck && npm test`, et `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e` si le dessin ou le branchement a changé. Commit `fix: <constat> (tour n de la tâche 8b)`. Re-relecture ciblée des constats.
 
 - [ ] **Step 26 : Passation et registre.**
   - **Passation** (`docs/superpowers/handoff/2026-10-21-plan-b-passation.md`) :
-    - puce « Tâche 8b faite » dans « Où en est-on » : commits, 13 images, 146 846 octets, liseré, teintes gardées, tests et e2e comptés ;
+    - puce « Tâche 8b faite » dans « Où en est-on » : commits, 13 images, taille de `public/sprites/` (valeur imprimée par le test du Step 9), liseré, teintes gardées, tests et e2e comptés ;
     - ligne 8b du tableau ;
-    - « Prochaine action précise » → tâche 10, titre avec les copains, police, régime « écrans ».
-  - **Registre** (`docs/superpowers/handoff/sdd-ledger-plan-b.md`) : des lignes « Task 8b: … ».
-    - commits ;
-    - mesures (tableau du liseré, budget, teintes) ;
-    - un « Ruling » par choix de la section « Ambiguïtés et choix » réellement appliqué, avec son « coût si faux » ;
-    - verdicts des quatre relectures et tours ;
-    - « à dire au papa ».
+    - « Prochaine action précise » → tâche 10, titre avec les copains, police, régime « écrans » ;
+    - environnement : le contournement Playwright (section « Environnement ») remplace « Chromium pré-installé ».
+  - **Registre** (`docs/superpowers/handoff/sdd-ledger-plan-b.md`) : **3 à 5 lignes** « Task 8b: … » en plus de la ligne `BASE` du départ (addendum §5 : une ligne suffit au régime « écrans »).
+    1. Commits.
+    2. Mesures : liseré, budget, teintes.
+    3. Choix appliqués qui s'écartent de ce plan, s'il y en a, avec leur coût si faux.
+    4. Verdicts des relectures et tours.
+    5. À dire au papa.
 
 ```bash
 git commit -m "docs: tâche 8b (images), passation et registre" -- docs/superpowers/handoff/2026-10-21-plan-b-passation.md docs/superpowers/handoff/sdd-ledger-plan-b.md
 ```
 
-- [ ] **Step 27 : Fusion normale, push, CI, site en ligne.** Aucun sous-agent ne doit travailler dans l'arbre à ce moment. Si la tâche 8 n'est pas encore fusionnée, cette fusion la déploie aussi : le dire au papa avant de pousser.
+- [ ] **Step 27 : Fusion normale, push, CI, site en ligne.** Aucun sous-agent ne doit travailler dans l'arbre à ce moment. La tâche 8 est déjà fusionnée et déployée (état de départ) : cette fusion ne porte que la 8b. En cas d'échec en ligne ou de refus du papa, appliquer le **retour arrière** des Global Constraints.
 
 ```bash
 git status -sb
@@ -626,7 +683,7 @@ git checkout -B ccr-5b6fabc4-n96ofo origin/ccr-5b6fabc4-n96ofo
 git merge wip-plan-b -m "Merge de wip-plan-b : tâche 8b (images)"   # conflit possible : la passation, garder les deux côtés
 git push origin ccr-5b6fabc4-n96ofo                                  # session en mode « accepter les modifications »
 gh run list --branch ccr-5b6fabc4-n96ofo --limit 1                   # attendre « completed success »
-npm run e2e:live                                                     # tout vert, sprites.spec compris (Review Focus 1)
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live   # tout vert, sprites.spec compris (Review Focus 1)
 curl -sI https://i-dmk.github.io/Galahad-s-car-game/sprites/timothe.png | head -1   # HTTP/2 200
 git checkout wip-plan-b && git merge --ff-only ccr-5b6fabc4-n96ofo && git push origin wip-plan-b
 ```
@@ -640,7 +697,7 @@ Expected : run vert, e2e:live tout vert, captures du site dans `test-results/liv
 
 - [ ] **Step 29 : Clôture.**
   - Passation : 8b **validée** ; registre « Task 8b: complete … VALIDÉE par le papa le … ; déploiement vérifié (run n) ».
-  - Commit `docs: tâche 8b validée par le papa, passation et registre`, puis fusion et push comme au Step 27 (CI verte, `npm run e2e:live`).
+  - Commit `docs: tâche 8b validée par le papa, passation et registre`, puis fusion et push comme au Step 27 (CI verte, `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live`).
 
 - [ ] **Step 30 : Prévenir les sessions actives.** Si une autre session travaille sur `wip-plan-b` (`git ls-remote`, sessions actives), lui envoyer un message (`send_message`, priorité « later ») : nouvelle tête et fichiers touchés.
 
@@ -681,10 +738,14 @@ Expected : run vert, e2e:live tout vert, captures du site dans `test-results/liv
 | A9 | `Game` reçoit `Promise<Art>` en 4e paramètre facultatif ; `Renderer.setArt` ; `loadArt()` appelé dans `main.ts` avant `new Game` | « en parallèle de la création de la piste » (faite dans le constructeur) ; les tests existants ne changent pas | nul |
 | A10 | `CarView` gagne `id` (une ligne dans `carView`, `src/sim/simulate.ts`) | seul moyen de choisir la carrosserie ; vue de rendu, hors `stepRace` ; empreinte vérifiée (Step 21) | nul |
 | A11 | Constantes de dessin dans `render/car.ts`, pas dans `CONFIG` | précédent : `FOSSE_HALO_M`, `SKY_PARALLAX` ; `CONFIG` porte les paramètres de jeu | nul |
-| A12 | Teinte : « visiblement » = part < 25 %, ΔE76 > 20 ou Δteinte > 15° ; mesuré : aucun | ΔE76 ≈ 11–13 entre deux bleus (ou verts, ou roses) de même teinte ne change pas « la voiture bleue » | Q1 tranche |
+| A12 | Teinte : « visiblement » = part < 25 %, ΔE76 > 20 ou Δteinte > 15° ; mesuré : aucun ; `teinte.py` reste dans le scratchpad sauf alignement | ΔE76 ≈ 11–13 entre deux bleus (ou verts, ou roses) de même teinte ne change pas « la voiture bleue » ; le README dit déjà « couleurs conformes à la palette 5a » | Q1 tranche |
 | A13 | e2e dans un nouveau fichier `e2e/sprites.spec.ts` | `e2e/race.spec.ts` est à la tâche 8 | nul |
-| A14 | `lisere.py` importe `quantize` de `controle.py` (`sys.path`, à cause de `-I`) | une seule quantification (alpha ≥ 240 → 255 dans la palette) | nul |
+| A14 | `lisere.py` importe `quantize` de `controle.py` (`sys.path`, à cause de `-I`), lancé en `-B` | une seule quantification (alpha ≥ 240 → 255 dans la palette) ; pas de `__pycache__` dans l'arbre | nul |
 | A15 | Bruts `assets/generated/` (4,3 Mo) gardés, non servis | sources pour une nouvelle passe de `controle.py` | taille du dépôt |
+| A16 | Gardé tel quel (relecture M6) : le test « base par défaut » ne voit pas une base `'/'` écrite en dur | le test « tout charge » passe une base non racine ; une base codée en dur est prise au Step 22 (build et aperçu sous `/Galahad-s-car-game/`) et au Step 27 (`e2e:live`), avant que le papa ne voie quoi que ce soit | nul en ligne ; le défaut serait vu un step plus tard qu'en unitaire |
+| A17 | Gardé tel quel (relecture M8) : `overLava` ne teste que le centre du châssis ; à moins de 1,2 m du bord, l'ellipse peut déborder sur la lave | risque seulement visuel ; à juger sur la capture et sur la tablette (Q5) plutôt que de compliquer le test | un bout d'ombre sur la lave au bord ; si le papa le voit, tester les deux extrémités de l'ellipse (une ligne) |
+| A18 | Gardé tel quel (relecture M9) : lissage par défaut pour la roue réduite × 0,30 | aucune mesure ne montre de scintillement ; l'option à une ligne (`imageSmoothingQuality = 'medium'` dans `Renderer.draw`, ou `wheel.png` à 128 px) se mesure au fps sur la tablette si le papa le signale | roues qui scintillent : réglage ensuite, mesuré |
+| A19 | Gardé tel quel (relecture M10) : chargement tout ou rien, sans délai d'abandon (A8) | site statique sur GitHub Pages, où une requête qui stagne est rare ; l'e2e couvre l'échec franc (`abort`) | une image qui stagne retient les 12 autres ; remède prêt : délai de 8 à 10 s qui règle les restantes à `null` |
 
 ## Questions pour le papa
 
