@@ -212,6 +212,19 @@ test('portrait au titre : rien ne change (pas de pause au titre) ; JOUER tapé e
   expect(game.state).toBe('countdown');
 });
 
+test('portrait lu à l’entrée en décompte, sans événement resize (CR6)', () => {
+  const { game, q } = makeGame();
+  game.start();   // paysage (1280 × 800)
+  expect(game.portrait).toBe(false);
+  // La fenêtre passe en portrait sans que `resize` ne soit envoyé : JOUER doit relire l'orientation lui-même.
+  Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true });
+  Object.defineProperty(window, 'innerHeight', { value: 1280, configurable: true });
+  game.play();
+  expect(game.portrait).toBe(true);
+  expect(game.state).toBe('paused');
+  expect(q('.pause-text').textContent).toBe('TOURNE');
+});
+
 test('portrait lu dès start() sans resize préalable (fenêtre déjà en portrait au chargement)', () => {
   Object.defineProperty(window, 'innerWidth', { value: 800, configurable: true });
   Object.defineProperty(window, 'innerHeight', { value: 1280, configurable: true });
