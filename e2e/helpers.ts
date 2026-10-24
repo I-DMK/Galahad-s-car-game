@@ -8,13 +8,14 @@ export type GameSnapshot = { state: string; time: number; seed: number; progress
 export const SHOTS = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env
   .E2E_SHOTS ?? 'e2e/screenshots';
 
-/** Pose un doigt au centre de l'écran pendant `seconds`, puis le lève. */
+/** Pose un doigt au centre de l'écran (640, 400 à 1 280 × 800) pendant `seconds`, puis le lève. */
 export async function holdFinger(page: Page, seconds: number): Promise<void> {
+  const size = page.viewportSize() ?? { width: 1280, height: 800 };
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send('Input.dispatchTouchEvent', {
       type: 'touchStart',
-      touchPoints: [{ x: 640, y: 400 }],
+      touchPoints: [{ x: size.width / 2, y: size.height / 2 }],
     });
     await page.waitForTimeout(seconds * 1000);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -48,6 +49,49 @@ export async function waitForGame(page: Page): Promise<void> {
 /** Attend que le temps de course simulé atteigne `t` s (indépendant de la cadence d'affichage). */
 export async function waitForRaceTime(page: Page, t: number): Promise<void> {
   await page.waitForFunction((tt) => (window as any).__game.time >= tt, t);
+}
+
+/** Doigt posé par tranches d'une seconde jusqu'à ce que le temps de course atteigne `t` s (dépassement d'au plus 1 s). */
+export async function holdFingerUntilRaceTime(page: Page, t: number): Promise<void> {
+  while ((await gameState(page)).time < t) await holdFinger(page, 1);
+}
+
+/** Boîte d'un élément (px CSS, repère de la fenêtre). */
+export type Box = { x: number; y: number; width: number; height: number };
+
+/** Mise en page du HUD de course : blocs, petites voitures de la barre (dans l'ordre de la grille) et tailles de police. */
+export interface HudLayout {
+  viewport: { width: number; height: number };
+  position: Box;
+  bar: Box;
+  time: Box;
+  jump: Box;
+  /** Boîte de l'icône (petite voiture) de chacun des marqueurs de la barre, Galahad d'abord. */
+  markers: Box[];
+  rankFontPx: number;
+  timeFontPx: number;
+}
+
+/** Mise en page du HUD (`.hud-position`, `.hud-bar`, `.hud-time`, `.jump-button`, `.hud-marker svg`) lue dans un même rappel. */
+export async function hudLayout(page: Page): Promise<HudLayout> {
+  return page.evaluate(() => {
+    const box = (el: Element | null): Box => {
+      if (!el) throw new Error('élément du HUD introuvable');
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const fontPx = (sel: string): number => parseFloat(getComputedStyle(document.querySelector(sel)!).fontSize);
+    return {
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      position: box(document.querySelector('.hud-position')),
+      bar: box(document.querySelector('.hud-bar')),
+      time: box(document.querySelector('.hud-time')),
+      jump: box(document.querySelector('.jump-button')),
+      markers: [...document.querySelectorAll('.hud-marker svg')].map(box),
+      rankFontPx: fontPx('.hud-rank'),
+      timeFontPx: fontPx('.hud-time'),
+    };
+  });
 }
 
 /** Ids des pilotes (`window.__game.pilots`), dans l'ordre de la grille : Galahad puis les 4 copains. */

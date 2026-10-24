@@ -1,24 +1,45 @@
-// HUD en DOM au-dessus du canvas : position de Galahad en haut à gauche (tâche 8), barre de progression des 5
-// voitures en haut au centre (tâche 8), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug, sous
-// le bouton saut de `ui/jump-button.ts`, tâche 5e), calque d'arrivée, message d'erreur.
+// HUD en DOM au-dessus du canvas : position de Galahad en haut à gauche (tâche 8), barre de progression en cinq
+// couloirs en haut au centre (tâche 8 ; décision du papa du 2026-10-24 : une ligne fine par voiture, empilées, pour que
+// les copains ne se cachent pas sous Galahad), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug,
+// sous le bouton saut de `ui/jump-button.ts`, tâche 5e), calque d'arrivée, message d'erreur.
 // Le conteneur (#hud) est en `pointer-events: none` : seul le calque d'arrivée capte le toucher.
 import { ordinal } from '../cars/ranking';
 import type { StepCounts } from '../loop/frame-stats';
 
 const STYLE_ID = 'hud-style';
+/**
+ * px : épaisseur du couloir d'un copain et de Galahad (plus épais) sur la barre ; la petite voiture y est 2 fois plus
+ * large que haute. Le trait de chaque couloir est rentré de GALAHAD_LANE_PX (demi-largeur de la plus grosse voiture) à
+ * chaque bout : le centre de toute voiture est au bout du trait à 0 % et à 100 %, au même x dans les 5 couloirs.
+ */
+const LANE_PX = 10;
+const GALAHAD_LANE_PX = 18;
+/**
+ * Les tailles de la position, du chrono et de la barre suivent la largeur de la fenêtre (vw, bornées) : à 1 280 px la
+ * position fait 104 px et le chrono 64 px, comme à l'origine ; sur un téléphone en paysage (844 × 390) ils rétrécissent
+ * et ne se recouvrent pas (tests e2e).
+ */
 const CSS = `
-.hud-position{position:absolute;top:10px;left:28px;display:flex;align-items:center;gap:16px;
-  font:800 104px system-ui,sans-serif;line-height:1;color:#fff;text-shadow:0 4px 0 #000a,0 0 14px #000c}
+.hud-position{position:absolute;top:clamp(4px,.8vw,10px);left:clamp(10px,2.2vw,28px);display:flex;align-items:center;
+  gap:.15em;font:800 clamp(40px,8.1vw,104px) system-ui,sans-serif;line-height:1;color:#fff;
+  text-shadow:0 .04em 0 #000a,0 0 .13em #000c}
 .hud-position[hidden]{display:none}
-.hud-position-car{width:110px;height:55px;filter:drop-shadow(0 3px 0 #000a)}
-.hud-bar{position:absolute;top:30px;left:50%;width:clamp(240px,36vw,520px);height:16px;
-  transform:translateX(-50%);box-sizing:border-box;border:3px solid #fff;border-radius:10px;background:#0009;
-  box-shadow:0 3px 0 #000a}
-.hud-marker{position:absolute;top:50%;left:0;width:34px;height:17px;margin:-8.5px 0 0 -17px;color:#fff;z-index:1}
-.hud-marker.is-galahad{width:48px;height:24px;margin:-12px 0 0 -24px;z-index:2;filter:drop-shadow(0 0 4px #fff)}
-.hud-position-car svg,.hud-marker svg{display:block;width:100%;height:100%}
-.hud-time{position:absolute;top:16px;right:28px;font:700 64px system-ui,sans-serif;color:#fff;
-  text-shadow:0 3px 0 #000a,0 0 12px #000c;font-variant-numeric:tabular-nums;letter-spacing:2px}
+.hud-position-car{width:1.06em;height:.53em;filter:drop-shadow(0 .03em 0 #000a)}
+.hud-bar{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:clamp(240px,36vw,520px);
+  box-sizing:border-box;padding:1px 0;border-radius:8px;background:#0008;box-shadow:0 3px 0 #000a}
+.hud-lane{position:relative;height:${LANE_PX}px;color:#fff}
+.hud-lane.is-galahad{height:${GALAHAD_LANE_PX}px}
+.hud-lane::before{content:'';position:absolute;left:${GALAHAD_LANE_PX}px;right:${GALAHAD_LANE_PX}px;top:50%;height:2px;
+  margin-top:-1px;border-radius:1px;background:currentColor;opacity:.6}
+.hud-lane.is-galahad::before{height:5px;margin-top:-2.5px;border-radius:3px;opacity:1}
+.hud-marker{position:absolute;left:${GALAHAD_LANE_PX - LANE_PX}px;top:0;height:100%;width:calc(100% - ${2 * GALAHAD_LANE_PX}px);
+  will-change:transform}
+.hud-lane.is-galahad .hud-marker{left:0}
+.hud-marker svg{display:block;width:${2 * LANE_PX}px;height:100%}
+.hud-lane.is-galahad .hud-marker svg{width:${2 * GALAHAD_LANE_PX}px}
+.hud-position-car svg{display:block;width:100%;height:100%}
+.hud-time{position:absolute;top:clamp(6px,1.25vw,16px);right:clamp(10px,2.2vw,28px);font:700 clamp(26px,5vw,64px) system-ui,sans-serif;
+  color:#fff;text-shadow:0 .05em 0 #000a,0 0 .19em #000c;font-variant-numeric:tabular-nums;letter-spacing:.03em}
 .hud-fps{position:absolute;left:28px;bottom:6px;font:500 16px system-ui,sans-serif;color:#fffc;
   text-shadow:0 1px 2px #000;line-height:20px}
 .hud-steps{position:absolute;left:112px;bottom:6px;font:500 16px system-ui,sans-serif;color:#fffc;
@@ -45,7 +66,7 @@ const CAR_SVG = `<svg viewBox="0 0 44 22" aria-hidden="true" focusable="false">
 export interface HudRacer {
   /** Couleur CSS (#rrggbb) de sa carrosserie : celle de son pilote. */
   color: string;
-  /** Galahad : son marqueur est plus gros et passe au-dessus des autres ; sa couleur est celle de la voiture de la position. */
+  /** Galahad : son couloir est plus épais ; sa couleur est celle de la petite voiture de la position. */
   isGalahad: boolean;
 }
 
@@ -61,7 +82,7 @@ export class Hud {
   private readonly steps: HTMLDivElement;
   private readonly position: HTMLDivElement;
   private readonly rank: HTMLDivElement;
-  /** Un marqueur par voiture, dans l'ordre de `racers`. */
+  /** Le marqueur (petite voiture) du couloir de chaque voiture, dans l'ordre de `racers` (= de la grille, Galahad en haut). */
   private readonly markers: HTMLDivElement[];
   /** Dernière position écrite de chaque marqueur, en dixièmes de pour cent. */
   private readonly lastTenths: number[];
@@ -92,17 +113,20 @@ export class Hud {
     if (galahad) car.style.color = galahad.color;
     this.rank = this.div('hud-rank');
     this.position.append(car, this.rank);
-    // Barre : un marqueur par voiture, à 0 % (CSS) jusqu'au premier `setProgress`.
+    // Barre : un couloir par voiture, dans l'ordre de la grille (Galahad en haut, ordre fixe toute la course), avec son
+    // marqueur à 0 % (CSS) jusqu'au premier `setProgress`.
     const bar = this.div('hud-bar');
     this.markers = racers.map((r) => {
+      const lane = this.div('hud-lane');
+      lane.style.color = r.color;
+      if (r.isGalahad) lane.classList.add('is-galahad');
       const marker = this.div('hud-marker');
       marker.innerHTML = CAR_SVG;
-      marker.style.color = r.color;
-      if (r.isGalahad) marker.classList.add('is-galahad');
+      lane.appendChild(marker);
+      bar.appendChild(lane);
       return marker;
     });
     this.lastTenths = racers.map(() => NaN);
-    bar.append(...this.markers);
     root.append(this.time, this.position, bar, this.fps, this.steps);
     this.setTime(0);
   }
@@ -120,14 +144,18 @@ export class Hud {
     this.rank.textContent = rank === null ? '' : ordinal(rank);
   }
 
-  /** Place chaque voiture sur la barre : `fractions[i]` ∈ [0 ; 1] pour la voiture i ; écrit au dixième de pour cent. */
+  /**
+   * Place chaque voiture sur son couloir : `fractions[i]` ∈ [0 ; 1] pour la voiture i. Déplacée par `transform` (le
+   * compositeur, sans mise en page) : le marqueur est large comme la course libre de la petite voiture, donc `translateX`
+   * en pour cent de sa propre largeur ; écrit au dixième de pour cent, et seulement quand la valeur change.
+   */
   setProgress(fractions: readonly number[]): void {
     const n = Math.min(this.markers.length, fractions.length);
     for (let i = 0; i < n; i++) {
       const tenths = Math.round(fractions[i] * 1000);
       if (tenths === this.lastTenths[i]) continue;
       this.lastTenths[i] = tenths;
-      this.markers[i].style.left = `${tenths / 10}%`;
+      this.markers[i].style.transform = `translateX(${tenths / 10}%)`;
     }
   }
 

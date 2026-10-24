@@ -12,6 +12,7 @@ import { GALAHAD, drawPilots, type Pilot } from '../cars/pilots';
 import {
   applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
 } from '../cars/respawn';
+import type { RankEntry } from '../cars/ranking';
 import { isSafePointCandidate } from '../cars/safepoint';
 import { isStarActiveFor, newStarStates, takeStarFor, type StarState } from '../cars/stars';
 import { newCarState, type CarState, type SafePoint } from '../cars/state';
@@ -676,6 +677,14 @@ function poseOf(car: CarSim): CarPose {
 /** Poses de rendu de toutes les voitures au dernier pas, dans l'ordre des index (Galahad en premier). */
 export function posesOf(sim: RaceSim): CarPose[] {
   return sim.cars.map(poseOf);
+}
+
+/**
+ * Les voitures telles que `rankCars` et `DisplayedRank` les lisent : index (rang de grille), x du châssis et instant
+ * d'arrivée, rangées par index. Copie : l'état de la course n'est pas partagé.
+ */
+export function rankEntriesOf(sim: RaceSim): RankEntry[] {
+  return sim.cars.map((c, index) => ({ index, progress: c.state.progress, finishedAt: c.state.finishedAt }));
 }
 
 /** Ensemble vide partagé (aucune réapparition au dernier pas, le cas courant) : jamais modifié. */

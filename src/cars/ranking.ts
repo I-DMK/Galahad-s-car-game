@@ -26,22 +26,6 @@ export function rankCars(cars: readonly RankEntry[]): number[] {
     .map((c) => c.index);
 }
 
-/**
- * Écart (m) de progression entre la voiture `me` et celle qui occupe la place `place` (1 = première) du classement
- * brut `order` : pour `DisplayedRank`, la voiture avec laquelle `me` vient d'échanger quand `place` est la place
- * encore affichée (ruling R8-2). Nul si `me` occupe cette place.
- */
-export function gapToPlace(cars: readonly RankEntry[], order: readonly number[], me: number, place: number): number {
-  const other = order[place - 1];
-  let mine = NaN;
-  let theirs = NaN;
-  for (const c of cars) {
-    if (c.index === me) mine = c.progress;
-    if (c.index === other) theirs = c.progress;
-  }
-  return Math.abs(mine - theirs);
-}
-
 /** Place (1 = première) → « 1er », « 2e », « 3e »… (en français, seul le 1 prend « er »). */
 export function ordinal(rank: number): string {
   return rank === 1 ? '1er' : `${rank}e`;
@@ -58,10 +42,23 @@ export function progressFraction(x: number, xStart: number, xFinish: number): nu
 /** Seuils de l'hystérésis (CONFIG). */
 type RankConfig = Pick<Config, 'RANK_HYSTERESIS_S' | 'RANK_HYSTERESIS_M'>;
 
+/** Marge (s) sur la durée de tenue : 30 pas de 1/60 s font 0,49999999999999994 en flottant, pas 0,5. */
+const HOLD_EPSILON_S = 1e-9;
+
+/** Entrée de la voiture `index` : `cars` est rangé par index (`cars[i].index === i`), sinon erreur explicite. */
+function entryOf(cars: readonly RankEntry[], index: number): RankEntry {
+  const entry = cars[index];
+  if (entry === undefined || entry.index !== index) {
+    throw new RangeError(`DisplayedRank : pas d'entrée d'index ${index} (les entrées doivent être rangées par index, ${cars.length} reçues)`);
+  }
+  return entry;
+}
+
 /**
- * Place montrée au HUD (spec §7) : le classement brut est recalculé chaque image, mais un changement de place n'est
- * montré que s'il tient `RANK_HYSTERESIS_S` ou si l'écart avec la voiture échangée dépasse `RANK_HYSTERESIS_M`
- * (`gapToPlace`). La première place calculée est adoptée telle quelle. Places de 1 (première) à N.
+ * Place de Galahad montrée au HUD (spec §7) : le classement brut (`rankCars`) est recalculé à chaque appel, mais un
+ * changement de place n'est montré que s'il tient `RANK_HYSTERESIS_S` ou si l'écart de progression avec la voiture
+ * échangée dépasse `RANK_HYSTERESIS_M`. La première place calculée est adoptée telle quelle ; une fois la voiture
+ * arrivée, sa place est définitive et montrée tout de suite. Places de 1 (première) à N.
  */
 export class DisplayedRank {
   private shown: number | null = null;
@@ -71,24 +68,28 @@ export class DisplayedRank {
 
   constructor(private readonly cfg: RankConfig = CONFIG) {}
 
-  /** Place montrée jusque-là, null avant le premier `update`. */
-  get current(): number | null { return this.shown; }
-
   /**
-   * `rawRank` : place du classement brut ; `gapToNeighbourM` : écart (m) à la voiture qui occupe, dans ce classement,
-   * la place montrée jusque-là (ignoré tant qu'elle est la place brute) ; `t` : instant (s). Rend la place à montrer.
+   * `cars` : les voitures de la course, rangées par index ; `me` : l'index de la voiture dont on montre la place ;
+   * `t` : instant (s). Rend la place à montrer. L'écart (R8-2) est celui à la voiture qui occupe, dans le classement
+   * brut, la place montrée jusque-là (celle avec qui `me` vient d'échanger) ; il est ignoré tant que cette place est
+   * la place brute de `me`.
    */
-  update(rawRank: number, gapToNeighbourM: number, t: number): number {
-    if (this.shown === null || rawRank === this.shown || gapToNeighbourM > this.cfg.RANK_HYSTERESIS_M) {
+  update(cars: readonly RankEntry[], me: number, t: number): number {
+    const mine = entryOf(cars, me);
+    const order = rankCars(cars);
+    const raw = order.indexOf(me) + 1;
+    const place = this.shown ?? raw;
+    const gap = mine.finishedAt !== null ? Infinity : Math.abs(mine.progress - entryOf(cars, order[place - 1]).progress);
+    if (this.shown === null || raw === this.shown || gap > this.cfg.RANK_HYSTERESIS_M) {
       this.candidate = null;
-      return (this.shown = rawRank);
+      return (this.shown = raw);
     }
-    if (this.candidate !== rawRank) {
-      this.candidate = rawRank;
+    if (this.candidate !== raw) {
+      this.candidate = raw;
       this.since = t;
-    } else if (t - this.since >= this.cfg.RANK_HYSTERESIS_S) {
+    } else if (t - this.since >= this.cfg.RANK_HYSTERESIS_S - HOLD_EPSILON_S) {
       this.candidate = null;
-      this.shown = rawRank;
+      this.shown = raw;
     }
     return this.shown;
   }

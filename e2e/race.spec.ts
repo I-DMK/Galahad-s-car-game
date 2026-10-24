@@ -1,6 +1,9 @@
 // Course sur tablette simulée : chargement, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
 import { expect, test, type Page } from '@playwright/test';
-import { SHOTS, frameSteps, gameState, holdFinger, pilotIds, progressOf, waitForGame, waitForRaceTime, waitForState } from './helpers';
+import {
+  SHOTS, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, waitForGame, waitForRaceTime,
+  waitForState, type Box, type HudLayout,
+} from './helpers';
 
 /** Durée maximale doigt posé pour finir une piste de 300 m. */
 const MAX_HOLD_S = 90;
@@ -87,35 +90,101 @@ test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui parten
   await page.screenshot({ path: `${SHOTS}/course-5-voitures.png`, fullPage: true });
 });
 
-test('HUD : position vide au départ puis ordinal, barre à 5 marqueurs sans chevauchement ; capture course-copains.png', async ({ page }) => {
-  await page.goto('./?seed=1&len=300&debug=1');
+/** Hauteur maximale (px) de la barre de progression (cinq couloirs), décision du papa du 2026-10-24. */
+const BAR_MAX_HEIGHT = 60;
+
+/** Les deux boîtes se recouvrent-elles (surface commune non nulle) ? */
+const overlap = (a: Box, b: Box): boolean =>
+  a.x < b.x + b.width - 0.01 && b.x < a.x + a.width - 0.01 && a.y < b.y + b.height - 0.01 && b.y < a.y + a.height - 0.01;
+
+/**
+ * Mise en page du HUD de course : position, barre, chrono et bouton saut sans recouvrement ; position très grosse (plus
+ * que le chrono) et barre en haut, la barre centrée et d'au plus BAR_MAX_HEIGHT px ; cinq petites voitures dans la barre,
+ * aux boîtes disjointes (une par couloir, Galahad en haut, plus grosse que celles des copains).
+ */
+function expectHudLayout(l: HudLayout): void {
+  const blocks: [string, Box][] = [['position', l.position], ['barre', l.bar], ['chrono', l.time], ['bouton saut', l.jump]];
+  for (let i = 0; i < blocks.length; i++) {
+    for (let j = i + 1; j < blocks.length; j++) {
+      expect(overlap(blocks[i][1], blocks[j][1]), `${blocks[i][0]} et ${blocks[j][0]} se recouvrent`).toBe(false);
+    }
+  }
+  expect(l.bar.height, 'hauteur de la barre').toBeLessThanOrEqual(BAR_MAX_HEIGHT);
+  expect(Math.abs(l.bar.x + l.bar.width / 2 - l.viewport.width / 2), 'barre centrée').toBeLessThan(2);
+  expect(l.bar.y + l.bar.height, 'barre en haut').toBeLessThan(l.viewport.height * 0.3);
+  expect(l.position.y + l.position.height, 'position en haut').toBeLessThan(l.viewport.height * 0.3);
+  expect(l.rankFontPx, 'position plus grosse que le chrono').toBeGreaterThan(l.timeFontPx);
+  expect(l.markers).toHaveLength(5);
+  for (let i = 0; i < 5; i++) {
+    const m = l.markers[i];
+    expect(m.x, `voiture ${i} dans la barre (gauche)`).toBeGreaterThanOrEqual(l.bar.x - 0.5);
+    expect(m.x + m.width, `voiture ${i} dans la barre (droite)`).toBeLessThanOrEqual(l.bar.x + l.bar.width + 0.5);
+    expect(m.y, `voiture ${i} dans la barre (haut)`).toBeGreaterThanOrEqual(l.bar.y - 0.5);
+    expect(m.y + m.height, `voiture ${i} dans la barre (bas)`).toBeLessThanOrEqual(l.bar.y + l.bar.height + 0.5);
+    for (let j = i + 1; j < 5; j++) expect(overlap(m, l.markers[j]), `voitures ${i} et ${j} se recouvrent`).toBe(false);
+    if (i > 0) {
+      expect(m.y, `couloir ${i} sous le couloir ${i - 1}`).toBeGreaterThan(l.markers[i - 1].y);
+      expect(m.height, `la voiture de Galahad est plus grosse que la ${i}`).toBeLessThan(l.markers[0].height);
+    }
+  }
+}
+
+test('HUD : place en ordinal après 1 s, cinq couloirs aux voitures séparées à 30 s et 60 s, mise en page sans recouvrement ; capture course-copains.png', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
-  // Première seconde de course : la position est vide (texte lu dans le même rappel que le temps de course).
+  // Première seconde de course : la position est vide (texte et temps lus dans le même rappel ; la machine peut avoir
+  // été lente à charger : le vide n'est affirmé que si le temps lu est bien sous la seconde).
   const early = await page.evaluate(() => ({
     t: (window as any).__game.time as number,
     text: document.querySelector('.hud-rank')?.textContent ?? null,
+    display: getComputedStyle(document.querySelector('.hud-position')!).display,
   }));
-  expect(early.t).toBeLessThan(1);
-  expect(early.text).toBe('');
-  // La barre porte les 5 voitures, celle de Galahad seule distinguée.
-  await expect(page.locator('.hud-bar .hud-marker')).toHaveCount(5);
-  await expect(page.locator('.hud-bar .hud-marker.is-galahad')).toHaveCount(1);
+  // Le `display:flex` de la position ne doit pas l'emporter sur `hidden` : rien d'affiché, pas même la petite voiture.
+  if (early.t < 1) expect({ text: early.text, display: early.display }).toEqual({ text: '', display: 'none' });
+  // La barre porte les 5 voitures, une par couloir, celle de Galahad seule distinguée.
+  await expect(page.locator('.hud-bar .hud-lane')).toHaveCount(5);
+  await expect(page.locator('.hud-bar .hud-lane.is-galahad')).toHaveCount(1);
+  await expect(page.locator('.hud-bar .hud-lane').first()).toHaveClass(/is-galahad/);
   // Après 1 s de course : une place en ordinal (« 1er », « 2e »…).
   await waitForRaceTime(page, 1.2);
   const rank = page.locator('.hud-rank');
   await expect(rank).toHaveText(/^(1er|[2-5]e)$/);
-  // Doigt posé : les voitures quittent la grille, les marqueurs avancent (Galahad passe la ligne de départ).
-  await holdFinger(page, 6);
-  await expect(rank).toHaveText(/^(1er|[2-5]e)$/);
-  const lefts = await page.locator('.hud-marker').evaluateAll((els) => els.map((e) => parseFloat((e as HTMLElement).style.left)));
-  expect(lefts).toHaveLength(5);
-  expect(lefts[0], 'marqueur de Galahad').toBeGreaterThan(0);
-  for (const left of lefts) expect(left).toBeLessThanOrEqual(100);
-  // Mise en page à 1280 px : position, barre et chrono côte à côte sans se recouvrir.
-  const [pos, bar, time] = await Promise.all(['.hud-position', '.hud-bar', '.hud-time'].map((sel) => page.locator(sel).boundingBox()));
-  expect(pos!.x + pos!.width).toBeLessThan(bar!.x);
-  expect(bar!.x + bar!.width).toBeLessThan(time!.x);
+  // Sur la grille (tout le monde à 0 %), les cinq petites voitures sont centrées sur le même x : 0 % est au même endroit
+  // dans les cinq couloirs, malgré leurs tailles différentes.
+  const centres = (await hudLayout(page)).markers.map((m) => m.x + m.width / 2);
+  expect(Math.max(...centres) - Math.min(...centres), 'centres des voitures sur la grille').toBeLessThan(0.5);
+  // Doigt posé : à 30 s et à 60 s de course, les cinq voitures sont séparées dans la barre (elles se superposaient
+  // sur une seule ligne : les copains restent à 20 m de Galahad) et rien du HUD ne se recouvre.
+  const percents: number[][] = [];
+  for (const t of [30, 60]) {
+    await holdFingerUntilRaceTime(page, t);
+    expect((await gameState(page)).state).toBe('racing');
+    await expect(rank).toHaveText(/^(1er|[2-5]e)$/);
+    expectHudLayout(await hudLayout(page));
+    percents.push(await page.locator('.hud-marker').evaluateAll((els) => els.map((e) => parseFloat((e as HTMLElement).style.transform.replace(/[^\d.]/g, '')))));
+  }
+  // Les voitures ont avancé sur la barre, de plus en plus loin de la ligne de départ.
+  expect(percents[0][0], 'marqueur de Galahad à 30 s').toBeGreaterThan(5);
+  expect(percents[1][0], 'marqueur de Galahad à 60 s').toBeGreaterThan(percents[0][0]);
+  for (const l of percents) for (const left of l) expect(left).toBeLessThanOrEqual(100);
   await page.screenshot({ path: `${SHOTS}/course-copains.png`, fullPage: true });
+});
+
+test.describe('téléphone en paysage (844 × 390)', () => {
+  test.use({ viewport: { width: 844, height: 390 } });
+
+  test('HUD : position, barre en cinq couloirs et chrono sans recouvrement ni débordement ; capture course-copains-telephone.png', async ({ page }) => {
+    await page.goto('./?seed=1&debug=1');
+    await waitForGame(page);
+    await waitForRaceTime(page, 1.2);
+    await holdFinger(page, 5);
+    await expect(page.locator('.hud-rank')).toHaveText(/^(1er|[2-5]e)$/);
+    const layout = await hudLayout(page);
+    expect(layout.viewport).toEqual({ width: 844, height: 390 });
+    expectHudLayout(layout);
+    await page.screenshot({ path: `${SHOTS}/course-copains-telephone.png`, fullPage: true });
+  });
 });
 
 test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; capture compteur-images.png', async ({ page }) => {

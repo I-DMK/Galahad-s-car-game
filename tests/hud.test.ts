@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 // HUD de position et barre de progression (tâche 8 du plan B ; spec §6 « Grille de départ » : position vide la
 // première seconde ; §7 : place affichée avec hystérésis ; §8 « HUD » : position en haut à gauche, barre en haut
-// au centre avec les 5 voitures). `Hud` seul, puis `Game` sous jsdom (faux requestAnimationFrame, dessin intercepté,
-// comme tests/game-frame.test.ts) : le câblage réel, de l'état de la course à ce que le DOM affiche.
+// au centre avec les 5 voitures ; décision du papa du 2026-10-24 : une ligne fine par voiture, empilées, Galahad en
+// haut, plus épais). `Hud` seul, puis `Game` sous jsdom (faux requestAnimationFrame, dessin intercepté, comme
+// tests/game-frame.test.ts) : le câblage réel, de l'état de la course à ce que le DOM affiche. L'hystérésis et
+// R8-2 sont testés sur `DisplayedRank` (tests/ranking.test.ts) ; la géométrie (boîtes, recouvrements) en e2e.
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { DisplayedRank } from '../src/cars/ranking';
 import { CONFIG } from '../src/config';
 import { Game } from '../src/game';
 import { Renderer } from '../src/render/renderer';
-import type { RaceSim } from '../src/sim/simulate';
+import { GALAHAD_INDEX, type RaceSim } from '../src/sim/simulate';
 import { Hud, type HudRacer } from '../src/ui/hud';
 
 const DT = CONFIG.PHYSICS_DT;
@@ -27,6 +30,9 @@ function cssColor(color: string): string {
   probe.style.color = color;
   return probe.style.color;
 }
+
+/** Hauteur (px) donnée par la feuille de style à un élément (jsdom ne fait pas de mise en page : valeur déclarée). */
+const declaredHeight = (el: Element): number => parseFloat(getComputedStyle(el).height);
 
 let raf: FrameRequestCallback | null = null;
 const disposers: (() => void)[] = [];
@@ -57,10 +63,19 @@ describe('Hud : position', () => {
     return { root, hud, position: root.querySelector('.hud-position')!, text: root.querySelector('.hud-rank')! };
   }
 
-  test('vide au départ (rien d’affiché, ni texte ni voiture)', () => {
+  test('vide au départ : rien d’affiché (ni texte ni voiture)', () => {
     const { position, text } = makeHud();
     expect(position.hidden).toBe(true);
     expect(text.textContent).toBe('');
+  });
+
+  test('la feuille de style donne display:none à .hud-position[hidden] (sinon son display:flex l’emporte sur l’attribut hidden)', () => {
+    makeHud();
+    const rules = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]) as CSSStyleRule[];
+    const own = rules.filter((r) => r.selectorText === '.hud-position');
+    expect(own.some((r) => r.style.display !== ''), 'le test ne vise plus la règle display de .hud-position').toBe(true);
+    expect(rules.find((r) => r.selectorText === '.hud-position[hidden]')?.style.display).toBe('none');
+    // (jsdom donne toujours « none » à un élément hidden : le style calculé réel est vérifié en e2e, dans Chromium.)
   });
 
   test('setPosition : « 1er », « 3e », puis vide (null)', () => {
@@ -102,53 +117,71 @@ describe('Hud : position', () => {
   });
 });
 
-describe('Hud : barre de progression', () => {
-  function makeHud(): { hud: Hud; bar: HTMLElement; markers: HTMLElement[] } {
+describe('Hud : barre de progression en cinq couloirs', () => {
+  function makeHud(): { hud: Hud; bar: HTMLElement; lanes: HTMLElement[]; markers: HTMLElement[] } {
     const root = document.createElement('div');
     document.body.append(root);
     const hud = new Hud(root, RACERS);
     const bar = root.querySelector<HTMLElement>('.hud-bar')!;
-    return { hud, bar, markers: [...bar.querySelectorAll<HTMLElement>('.hud-marker')] };
+    const lanes = [...bar.querySelectorAll<HTMLElement>('.hud-lane')];
+    return { hud, bar, lanes, markers: lanes.map((l) => l.querySelector<HTMLElement>('.hud-marker')!) };
   }
 
-  test('5 marqueurs, un par voiture, de la couleur du pilote', () => {
-    const { markers } = makeHud();
-    expect(markers).toHaveLength(5);
-    markers.forEach((m, i) => {
-      expect(m.style.color, `marqueur ${i}`).toBe(cssColor(RACERS[i].color));
-      expect(m.querySelector('svg'), `marqueur ${i}`).not.toBeNull();
+  test('5 couloirs empilés dans l’ordre de la grille, un marqueur (petite voiture) dans chacun, de la couleur du pilote', () => {
+    const { bar, lanes, markers } = makeHud();
+    expect(lanes).toHaveLength(5);
+    expect([...bar.children]).toEqual(lanes);
+    lanes.forEach((lane, i) => {
+      expect(lane.style.color, `couloir ${i}`).toBe(cssColor(RACERS[i].color));
+      expect(markers[i], `couloir ${i}`).not.toBeNull();
+      expect(markers[i].querySelector('svg'), `couloir ${i}`).not.toBeNull();
+      expect(lane.querySelectorAll('.hud-marker'), `couloir ${i}`).toHaveLength(1);
     });
   });
 
-  test('setProgress place chaque marqueur en pour cent de la largeur de la barre', () => {
+  test('le couloir de Galahad est le premier (en haut), le seul marqué is-galahad, bleu, et plus épais que les autres', () => {
+    const { bar, lanes } = makeHud();
+    expect(bar.firstElementChild).toBe(lanes[0]);
+    expect(lanes.filter((l) => l.classList.contains('is-galahad'))).toEqual([lanes[0]]);
+    expect(lanes[0].style.color).toBe(cssColor('#1e5cff'));
+    const thickest = Math.max(...lanes.slice(1).map(declaredHeight));
+    expect(declaredHeight(lanes[0])).toBeGreaterThan(thickest);
+    // Les quatre copains ont un couloir de même épaisseur, qui ne s'annule pas.
+    expect(new Set(lanes.slice(1).map(declaredHeight)).size).toBe(1);
+    expect(thickest).toBeGreaterThan(0);
+  });
+
+  test('setProgress place chaque marqueur en pour cent de son couloir (transform, pas de mise en page)', () => {
     const { hud, markers } = makeHud();
     hud.setProgress([0, 0.25, 0.5, 0.75, 1]);
-    expect(markers.map((m) => m.style.left)).toEqual(['0%', '25%', '50%', '75%', '100%']);
+    expect(markers.map((m) => m.style.transform)).toEqual([
+      'translateX(0%)', 'translateX(25%)', 'translateX(50%)', 'translateX(75%)', 'translateX(100%)',
+    ]);
+    expect(markers.map((m) => m.style.left)).toEqual(['', '', '', '', '']);
     hud.setProgress([0.0333, 0.1, 0.5, 0.75, 1]);
-    expect(markers[0].style.left).toBe('3.3%');
+    expect(markers[0].style.transform).toBe('translateX(3.3%)');
   });
 
-  test('le DOM n’est touché que quand une position change (au dixième de pour cent)', () => {
-    const { hud, bar } = makeHud();
+  test('une position n’est réécrite que si elle change (au dixième de pour cent)', () => {
+    const { hud, markers } = makeHud();
+    const writes = markers.map((m) => {
+      const style = m.style;
+      let value = '';
+      const count = { n: 0 };
+      Object.defineProperty(style, 'transform', {
+        configurable: true,
+        get: () => value,
+        set: (v: string) => { count.n++; value = v; },
+      });
+      return count;
+    });
     hud.setProgress([0.2, 0.3, 0.4, 0.5, 0.6]);
-    const seen = new MutationObserver(() => {});
-    seen.observe(bar, { subtree: true, childList: true, characterData: true, attributes: true });
+    expect(writes.map((w) => w.n)).toEqual([1, 1, 1, 1, 1]);
     hud.setProgress([0.2, 0.3, 0.4, 0.5, 0.6]);
     hud.setProgress([0.2001, 0.3, 0.4, 0.5, 0.6]);   // même dixième de pour cent
-    expect(seen.takeRecords()).toHaveLength(0);
+    expect(writes.map((w) => w.n)).toEqual([1, 1, 1, 1, 1]);
     hud.setProgress([0.2, 0.3, 0.4, 0.5, 0.7]);
-    expect(seen.takeRecords()).toHaveLength(1);
-    seen.disconnect();
-  });
-
-  test('le marqueur de Galahad se distingue : seul à porter is-galahad, bleu, au-dessus des autres', () => {
-    const { markers } = makeHud();
-    const galahad = markers.filter((m) => m.classList.contains('is-galahad'));
-    expect(galahad).toEqual([markers[0]]);
-    expect(galahad[0].style.color).toBe(cssColor('#1e5cff'));
-    // « Au-dessus » : la feuille de style donne un z-index à `.is-galahad`.
-    const css = document.getElementById('hud-style')!.textContent!;
-    expect(css).toMatch(/\.hud-marker\.is-galahad\{[^}]*z-index:\s*[1-9]/);
+    expect(writes.map((w) => w.n)).toEqual([1, 1, 1, 1, 2]);
   });
 });
 
@@ -161,27 +194,27 @@ function pressFinger(): void {
 
 interface GameInternals {
   sim: RaceSim;
-  /** Classement et barre d'une image (appelé par `present`). */
-  updateRank(): void;
   stop(): void;
   throttle: { dispose(): void };
   jumpInput: { dispose(): void };
 }
 
-function makeGame(): { game: Game; root: HTMLElement; internals: GameInternals; position: HTMLElement; text: HTMLElement } {
+function makeGame(): { game: Game; root: HTMLElement; sim: RaceSim } {
   const canvas = document.createElement('canvas');
   const root = document.createElement('div');
   document.body.append(canvas, root);
   const game = new Game(canvas, root, { seed: 1, length: 1680, debug: false });
+  // `sim` n'est lu que pour comparer le DOM à l'état de la course ; tout passe par l'API publique (start, rAF, DOM).
   const internals = game as unknown as GameInternals;
   disposers.push(() => { internals.stop(); internals.throttle.dispose(); internals.jumpInput.dispose(); });
-  return { game, root, internals, position: root.querySelector('.hud-position')!, text: root.querySelector('.hud-rank')! };
+  return { game, root, sim: internals.sim };
 }
 
 describe('Game : HUD de position', () => {
-  test('position vide la première seconde de course, « 1er » ensuite', () => {
-    const { game, internals, position, text } = makeGame();
-    const { sim } = internals;
+  test('position vide la première seconde de course, « 1er » ensuite (Galahad en pole, doigt posé)', () => {
+    const { game, root, sim } = makeGame();
+    const position = root.querySelector<HTMLElement>('.hud-position')!;
+    const text = root.querySelector('.hud-rank')!;
     pressFinger();
     game.start();
     let now = 0;
@@ -205,12 +238,22 @@ describe('Game : HUD de position', () => {
     expect(shown).toBeGreaterThan(25);
   });
 
-  test('5 marqueurs, placés à (x − xStart) / (xFinish − xStart) de chaque voiture, grille à 0 %', () => {
-    const { game, root, internals } = makeGame();
-    const { sim } = internals;
+  test('Galahad est la voiture du couloir du haut et de la position : is-galahad sur le couloir 0, couleurs des pilotes', () => {
+    const { root, sim } = makeGame();
+    const lanes = [...root.querySelectorAll<HTMLElement>('.hud-lane')];
+    expect(lanes).toHaveLength(5);
+    expect(lanes.map((l) => l.style.color)).toEqual(sim.cars.map((c) => cssColor(c.state.color)));
+    expect(lanes.map((l) => l.classList.contains('is-galahad'))).toEqual([true, false, false, false, false]);
+    expect(sim.cars[GALAHAD_INDEX].state.id).toBe('galahad');
+    expect(root.querySelector<HTMLElement>('.hud-position-car')!.style.color).toBe(cssColor(sim.cars[GALAHAD_INDEX].state.color));
+    // Les copains ne sont pas bleus comme Galahad : la couleur du couloir 0 est bien celle de la voiture de la position.
+    expect(lanes.slice(1).map((l) => l.style.color)).not.toContain(lanes[0].style.color);
+  });
+
+  test('chaque marqueur est à (x − xStart) / (xFinish − xStart) de sa voiture, grille à 0 %', () => {
+    const { game, root, sim } = makeGame();
     const markers = [...root.querySelectorAll<HTMLElement>('.hud-marker')];
     expect(markers).toHaveLength(5);
-    expect(markers.map((m) => m.style.color)).toEqual(sim.cars.map((c) => cssColor(c.state.color)));
     pressFinger();
     game.start();
     let now = 0;
@@ -218,69 +261,44 @@ describe('Game : HUD de position', () => {
     const { xStart, xFinish } = sim.track;
     sim.cars.forEach((c, i) => {
       const expected = Math.min(1, Math.max(0, (c.state.progress - xStart) / (xFinish - xStart)));
+      const shown = parseFloat(/translateX\(([\d.]+)%\)/.exec(markers[i].style.transform)![1]);
       // Arrondi au dixième de pour cent.
-      expect(Math.abs(parseFloat(markers[i].style.left) - expected * 100), `voiture ${i}`).toBeLessThanOrEqual(0.05 + 1e-9);
+      expect(Math.abs(shown - expected * 100), `voiture ${i}`).toBeLessThanOrEqual(0.05 + 1e-9);
     });
-    // Galahad a passé la ligne de départ ; le dernier copain est encore sur la grille (ou à peine parti).
-    expect(parseFloat(markers[0].style.left)).toBeGreaterThan(1);
+    // Galahad a passé la ligne de départ.
     expect(sim.cars[0].state.progress).toBeGreaterThan(xStart);
+    expect(parseFloat(/translateX\(([\d.]+)%\)/.exec(markers[0].style.transform)![1])).toBeGreaterThan(1);
   });
 
-  /** Place chaque voiture à `xs[i]` (m) sans avancer la course : seul le classement est exercé. */
-  function place(internals: GameInternals, t: number, xs: number[], finishedAt: (number | null)[] = []): void {
-    internals.sim.time = t;
-    xs.forEach((x, i) => {
-      internals.sim.cars[i].state.progress = x;
-      internals.sim.cars[i].state.finishedAt = finishedAt[i] ?? null;
-    });
-    internals.updateRank();
-  }
-
-  test('changement de place : montré s’il tient 0,5 s, tout de suite si l’écart dépasse 2 m', () => {
-    const { internals, text } = makeGame();
-    place(internals, 5, [100, 90, 80, 70, 60]);
-    expect(text.textContent).toBe('1er');
-    // Le copain 1 passe devant, de 1 m : pas montré avant 0,5 s.
-    place(internals, 5.25, [100, 101, 80, 70, 60]);
-    expect(text.textContent).toBe('1er');
-    place(internals, 5.5, [100, 101, 80, 70, 60]);
-    expect(text.textContent).toBe('1er');
-    place(internals, 5.75, [100, 101, 80, 70, 60]);
-    expect(text.textContent).toBe('2e');
-    // Il repasse derrière, puis un autre file loin devant (écart 4,5 m > 2 m) : montré immédiatement.
-    place(internals, 6, [100, 90, 80, 70, 60]);
-    place(internals, 6.25, [100, 90, 80, 70, 60]);
-    place(internals, 6.5, [100, 90, 80, 70, 60]);
-    place(internals, 6.75, [100, 90, 80, 70, 60]);
-    expect(text.textContent).toBe('1er');
-    place(internals, 7, [100, 104.5, 80, 70, 60]);
-    expect(text.textContent).toBe('2e');
+  test('la place montrée vient du classement de la course : DisplayedRank reçoit les voitures, Galahad et le temps de course', () => {
+    const { game, sim } = makeGame();
+    const update = vi.spyOn(DisplayedRank.prototype, 'update');
+    pressFinger();
+    game.start();
+    for (let f = 0; f < 90; f++) raf!(5 + f * DT * 1000);
+    expect(update).toHaveBeenCalled();
+    const [cars, me, t] = update.mock.lastCall!;
+    expect(me).toBe(GALAHAD_INDEX);
+    expect(t).toBe(sim.time);
+    expect(cars).toEqual(sim.cars.map((c, i) => ({ index: i, progress: c.state.progress, finishedAt: c.state.finishedAt })));
   });
 
-  test('l’écart est mesuré à la voiture qui occupe la place déjà affichée, pas au chef de file (R8-2)', () => {
-    const { internals, text } = makeGame();
-    // Galahad 2e, loin derrière le chef de file (150 m), un copain à 0,5 m derrière lui.
-    place(internals, 5, [100, 90, 150, 99.5, 60]);
-    expect(text.textContent).toBe('2e');
-    // Le copain 3 le double de 0,5 m : échange de voisins, pas un saut de 50 m. Tenu 0,5 s avant d'être montré.
-    place(internals, 5.25, [100, 90, 150, 100.5, 60]);
-    expect(text.textContent).toBe('2e');
-    place(internals, 5.5, [100, 90, 150, 100.5, 60]);
-    expect(text.textContent).toBe('2e');
-    place(internals, 5.75, [100, 90, 150, 100.5, 60]);
-    expect(text.textContent).toBe('3e');
-  });
-
-  test('une fois Galahad arrivé, sa place est définitive et montrée tout de suite', () => {
-    const { internals, text } = makeGame();
-    place(internals, 4.5, [100, 90, 80, 70, 60]);
-    expect(text.textContent).toBe('1er');
-    // Le copain 1 passe devant de 1 m (candidat depuis 4,7), puis franchit la ligne à 4,8 s.
-    place(internals, 4.7, [100, 101, 80, 70, 60]);
-    place(internals, 4.8, [100, 101, 80, 70, 60], [null, 4.8]);
-    expect(text.textContent).toBe('1er');
-    // Galahad arrive à 5 s : 2e, sans attendre les 0,5 s ni un écart de 2 m.
-    place(internals, 5, [100, 101, 80, 70, 60], [5, 4.8]);
-    expect(text.textContent).toBe('2e');
+  test('pas de recalcul du classement ni de la barre aux images sans pas de course', () => {
+    const { game } = makeGame();
+    const update = vi.spyOn(DisplayedRank.prototype, 'update');
+    const progress = vi.spyOn(Hud.prototype, 'setProgress');
+    game.start();
+    // 5 ms : moins d'un pas (1/60 s) : l'image dessine, la course n'avance pas.
+    raf!(5);
+    expect(update).not.toHaveBeenCalled();
+    expect(progress).not.toHaveBeenCalled();
+    // 5 + 1/60 s : un pas.
+    raf!(5 + DT * 1000);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(progress).toHaveBeenCalledTimes(1);
+    // Image suivante à 5 ms : plus de pas, plus d'appel.
+    raf!(5 + DT * 1000 + 5);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(progress).toHaveBeenCalledTimes(1);
   });
 });

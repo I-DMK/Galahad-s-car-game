@@ -3,7 +3,7 @@
 // position et barre de progression, tâche 8) et bouton saut (tâche 5e : la demande de saut est prise au premier
 // pas de l'image, et reste en attente sans pas).
 import type { Pilot } from './cars/pilots';
-import { DisplayedRank, gapToPlace, progressFraction, rankCars, type RankEntry } from './cars/ranking';
+import { DisplayedRank, progressFraction } from './cars/ranking';
 import { CONFIG, type Config } from './config';
 import { JumpInput } from './input/jump';
 import { Throttle } from './input/throttle';
@@ -15,7 +15,7 @@ import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
 import { presentFrame, stepOutcome } from './sim/present';
 import {
-  createRaceSim, GALAHAD_INDEX, jumpReady, posesOf, rebuildCars, stepRace, type RaceSim, type SimEvent,
+  createRaceSim, GALAHAD_INDEX, jumpReady, posesOf, rankEntriesOf, rebuildCars, stepRace, type RaceSim, type SimEvent,
 } from './sim/simulate';
 import { generateTrack } from './track/generate';
 import { heightAt } from './track/query';
@@ -55,11 +55,8 @@ export class Game {
   /** Temps de course (s) à l'arrivée : chrono figé dessus ; null avant l'arrivée. */
   private finishTime: number | null = null;
   private finishShown = false;
-  /** Place de Galahad montrée au HUD (hystérésis), et ses entrées de classement, créées une fois et remises à jour à chaque image. */
+  /** Place de Galahad montrée au HUD (hystérésis, spec §7). */
   private readonly displayedRank: DisplayedRank;
-  private readonly rankEntries: RankEntry[];
-  /** Position de chaque voiture sur la barre de progression (0 à 1), remise à jour à chaque image. */
-  private readonly barFractions: number[];
   private running = false;
   private rafId = 0;
   private fpsFrames = 0;
@@ -74,8 +71,6 @@ export class Game {
     this.effects = new Effects(this.cfg);
     this.hud = new Hud(hudRoot, this.sim.cars.map((c, i) => ({ color: c.state.color, isGalahad: i === GALAHAD_INDEX })));
     this.displayedRank = new DisplayedRank(this.cfg);
-    this.rankEntries = this.sim.cars.map((c, i) => ({ index: i, progress: c.state.progress, finishedAt: c.state.finishedAt }));
-    this.barFractions = this.sim.cars.map(() => 0);
     this.loop.history.reset(posesOf(this.sim));
     this.throttle = new Throttle(window);
     this.jumpButton = new JumpButton(hudRoot, this.cfg);
@@ -205,33 +200,24 @@ export class Game {
   }
 
   /**
-   * Position de Galahad et barre de progression du HUD (lecture seule de `sim`). Le classement brut est recalculé à
-   * chaque image ; la place montrée suit l'hystérésis (spec §7) : écart mesuré à la voiture qui occupe la place déjà
-   * affichée (R8-2), et place définitive, montrée tout de suite, une fois Galahad arrivé. Vide la première seconde.
+   * Position de Galahad et barre de progression du HUD (lecture seule de `sim`), aux images où la course a avancé :
+   * `DisplayedRank` recalcule le classement brut et décide de la place montrée (hystérésis, spec §7) ; vide la première
+   * seconde (spec §6). Quelques petits tableaux par image (5 voitures), sans effet sur le reste de l'image.
    */
   private updateRank(): void {
     const { sim } = this;
-    const { xStart, xFinish } = sim.track;
-    for (let i = 0; i < sim.cars.length; i++) {
-      const { progress, finishedAt } = sim.cars[i].state;
-      this.rankEntries[i].progress = progress;
-      this.rankEntries[i].finishedAt = finishedAt;
-      this.barFractions[i] = progressFraction(progress, xStart, xFinish);
-    }
-    const order = rankCars(this.rankEntries);
-    const raw = order.indexOf(GALAHAD_INDEX) + 1;
-    const finished = sim.cars[GALAHAD_INDEX].state.finishedAt !== null;
-    const gap = finished ? Infinity : gapToPlace(this.rankEntries, order, GALAHAD_INDEX, this.displayedRank.current ?? raw);
-    const shown = this.displayedRank.update(raw, gap, sim.time);
+    const cars = rankEntriesOf(sim);
+    const shown = this.displayedRank.update(cars, GALAHAD_INDEX, sim.time);
     this.hud.setPosition(sim.time < this.cfg.RANK_HIDE_SECONDS ? null : shown);
-    this.hud.setProgress(this.barFractions);
+    const { xStart, xFinish } = sim.track;
+    this.hud.setProgress(cars.map((c) => progressFraction(c.progress, xStart, xFinish)));
   }
 
   /**
    * Caméra, effets, rendu et HUD d'une image, après les pas de course : voitures et caméra aux poses
    * dessinées `frame.poses` (interpolées, fraction `frame.alpha` du pas ; `presentFrame`). Ne modifie jamais `sim`.
    */
-  private present(now: number, elapsed: number, events: SimEvent[], frame: { poses: CarPose[]; alpha: number }): void {
+  private present(now: number, elapsed: number, events: SimEvent[], frame: { poses: CarPose[]; alpha: number; steps: number }): void {
     const { sim } = this;
     const galahad = sim.cars[GALAHAD_INDEX];
     const scene = presentFrame(sim, frame, this.camera, elapsed);
@@ -247,7 +233,8 @@ export class Game {
     this.effects.update(elapsed, sim.track, this.camera.x, half);
     this.renderer.draw(scene, this.camera, this.effects);
     this.hud.setTime(this.finishTime ?? sim.time);
-    this.updateRank();
+    // Le classement ne change qu'avec un pas de course : pas de recalcul aux images à 0 pas (écrans à 120 Hz).
+    if (frame.steps > 0) this.updateRank();
     // Après l'arrivée, la voiture roule encore FINISH_COAST_SECONDS en freinant, puis le calque s'affiche.
     if (this.finishTime !== null && !this.finishShown && sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {
       this.finishShown = true;

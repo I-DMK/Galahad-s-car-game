@@ -10,7 +10,7 @@ import { CAT, carCategory } from '../src/physics/world';
 import { makeRobotDriver } from '../src/ai/driver';
 import { carPairsTouching, simulateRace } from '../src/sim/harness';
 import {
-  carView, chassisX, createRaceSim, driverContext, rebuildCars, sceneOf, stepRace, type RaceSim, type SimEvent,
+  carView, chassisX, createRaceSim, driverContext, rankEntriesOf, rebuildCars, sceneOf, stepRace, type RaceSim, type SimEvent,
 } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import { AP } from './helpers/anciennes-pistes';
@@ -298,4 +298,18 @@ describe('rebuildCars (garde-fou après une exception de stepRace)', () => {
     expect(chassisX(g)).toBeGreaterThan(short.xFinish);
     expect(g.state.finishedAt).toBe(finishedAt);
   });
+});
+
+test('rankEntriesOf : une entrée par voiture, rangées par index, avec le x du châssis et l’instant d’arrivée (état de course)', () => {
+  const sim = createRaceSim(TRACK, CONFIG, { robots: true });
+  sim.cars[2].state.progress = 123.4;
+  sim.cars[3].state.finishedAt = 99.5;
+  const entries = rankEntriesOf(sim);
+  expect(entries.map((e) => e.index)).toEqual([0, 1, 2, 3, 4]);
+  expect(entries[2]).toEqual({ index: 2, progress: 123.4, finishedAt: null });
+  expect(entries[3].finishedAt).toBe(99.5);
+  expect(entries[0].progress).toBe(sim.cars[0].state.progress);
+  // Une copie : les entrées ne sont pas l'état de la course.
+  entries[2].progress = 0;
+  expect(sim.cars[2].state.progress).toBe(123.4);
 });

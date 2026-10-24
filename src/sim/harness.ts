@@ -8,7 +8,7 @@ import { carSpeedMps } from '../physics/car';
 import { inGhostZone } from '../track/query';
 import type { Track } from '../track/types';
 import {
-  chassisX, createRaceSim, GALAHAD_INDEX, stepRace, type RaceSim, type RespawnEvent, type SimEvent, type StarEvent,
+  chassisX, createRaceSim, GALAHAD_INDEX, rankEntriesOf, stepRace, type RaceSim, type RespawnEvent, type SimEvent, type StarEvent,
 } from './simulate';
 
 export interface SimulateResult {
@@ -191,7 +191,7 @@ export function simulateRace(
     const i = Math.round(t / cfg.PHYSICS_DT);
     return values[Math.min(values.length - 1, Math.max(0, i))];
   };
-  const ranking = rankCars(sim.cars.map((c, index) => ({ index, progress: c.state.progress, finishedAt: c.state.finishedAt })));
+  const ranking = rankCars(rankEntriesOf(sim));
   return {
     respawns: respawnsByCar[galahad.state.id], finishedAt: galahad.state.finishedAt, finishes,
     maxStuckSeconds: stuck[GALAHAD_INDEX].max, maxSpeed, starsTaken: [...starsByCar[galahad.state.id]], time: sim.time,
