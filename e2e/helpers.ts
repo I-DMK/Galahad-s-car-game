@@ -46,6 +46,56 @@ export async function waitForGame(page: Page): Promise<void> {
   await page.waitForFunction(() => (window as any).__game !== undefined);
 }
 
+/** Boîte d'un élément (px CSS, repère de la fenêtre). */
+export type Box = { x: number; y: number; width: number; height: number };
+
+/** Boîte de `selector` (px CSS) ; lève si absent ou caché. */
+export async function boxOf(page: Page, selector: string): Promise<Box> {
+  const box = await page.locator(selector).boundingBox();
+  if (!box) throw new Error(`${selector} : introuvable ou caché`);
+  return box;
+}
+
+/** Tap tactile (CDP) au centre de l'élément `selector` ; `holdMs` entre touchStart et touchEnd. */
+export async function tapAt(page: Page, selector: string, holdMs = 80): Promise<void> {
+  const b = await boxOf(page, selector);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: b.x + b.width / 2, y: b.y + b.height / 2 }] });
+    await page.waitForTimeout(holdMs);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await cdp.detach();
+  }
+}
+
+/**
+ * Depuis le titre (tâche 10 ; décision Q1 du papa : le vrai chemin de Galahad, pas de raccourci d'URL) : tap (CDP tactile,
+ * touchStart puis touchEnd) au centre du bouton `.btn-play`, puis attente de `racing` (décompte compris, ≤ 10 s).
+ */
+export async function startRace(page: Page): Promise<void> {
+  await tapAt(page, '.btn-play');
+  await waitForState(page, 'racing', 10_000);
+}
+
+/**
+ * Collecte (tableau rempli au fil des requêtes) les adresses dont l'origine n'est pas celle du document (origine de la
+ * première requête de navigation). À brancher avant `goto`. Police et images doivent venir du site (addendum §2).
+ */
+export function offSiteRequests(page: Page): string[] {
+  const off: string[] = [];
+  let origin: string | null = null;
+  page.on('request', (req) => {
+    const url = new URL(req.url());
+    if (origin === null) {
+      if (!req.isNavigationRequest()) return;
+      origin = url.origin;
+    }
+    if (url.origin !== origin) off.push(req.url());
+  });
+  return off;
+}
+
 /**
  * Retarde de `ms` ms chaque requête d'image du jeu (`sprites/*.png`, tâche 8b). La course part sans attendre les images
  * (addendum §1.2) mais l'événement `load` de la page, lui, les attend : c'est ce que fait un réseau lent (≈ 0,5 s en ligne,
@@ -68,9 +118,6 @@ export async function waitForRaceTime(page: Page, t: number): Promise<void> {
 export async function holdFingerUntilRaceTime(page: Page, t: number): Promise<void> {
   while ((await gameState(page)).time < t) await holdFinger(page, 1);
 }
-
-/** Boîte d'un élément (px CSS, repère de la fenêtre). */
-export type Box = { x: number; y: number; width: number; height: number };
 
 /** Mise en page du HUD de course : blocs, petites voitures de la barre (dans l'ordre de la grille) et tailles de police. */
 export interface HudLayout {

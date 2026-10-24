@@ -9,7 +9,7 @@ import { expect, test } from '@playwright/test';
 import { CONFIG } from '../src/config';
 import { defaultTrackLength, generateTrack } from '../src/track/generate';
 import { fosses } from '../src/track/query';
-import { SHOTS, waitForGame } from './helpers';
+import { SHOTS, startRace, waitForGame } from './helpers';
 
 const SEED = 18;
 
@@ -19,6 +19,7 @@ test('doigt tenu sans sauter jusqu’à la première fosse : captures, deux chut
   expect(f.xBord).toBeLessThan(400);
   await page.goto(`./?seed=${SEED}&debug=1`);
   await waitForGame(page);
+  await startRace(page);
   const progress = (x: number) => page.waitForFunction((xx) => (window as any).__game.progress('galahad') >= xx, x, { timeout: 90_000 });
   const cdp = await page.context().newCDPSession(page);
   try {

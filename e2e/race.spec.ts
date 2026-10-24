@@ -1,7 +1,9 @@
-// Course sur tablette simulée : chargement, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
+// Course sur tablette simulée : chargement (titre), JOUER, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
+// Depuis la tâche 10, la page arrive au TITRE : chaque test lance la course par le vrai bouton JOUER (`startRace`, décision
+// Q1 du papa), décompte de 3 s compris.
 import { expect, test, type Page } from '@playwright/test';
 import {
-  SHOTS, delaySprites, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, waitForGame,
+  SHOTS, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, startRace, waitForGame,
   waitForRaceTime, waitForState, type Box, type HudLayout,
 } from './helpers';
 
@@ -35,15 +37,18 @@ test('la page charge', async ({ page }) => {
     scrollHeight: document.documentElement.scrollHeight,
   }));
   expect(dims).toEqual({ scrollWidth: 1280, scrollHeight: 800 });
-  expect((await gameState(page)).state).toBe('racing');
+  expect((await gameState(page)).state).toBe('title');
   const canvas = page.locator('canvas#game');
   await expect(canvas).toHaveCount(1);
   expect(await canvas.evaluate((c) => c.clientWidth)).toBe(1280);
+  await startRace(page);
+  expect((await gameState(page)).state).toBe('racing');
 });
 
 test('doigt posé 3 s : la voiture avance', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   const before = (await gameState(page)).progress;
   await holdFinger(page, 3);
   const after = (await gameState(page)).progress;
@@ -60,12 +65,10 @@ test('doigt posé 3 s : la voiture avance', async ({ page }) => {
 const BEFORE_ROBOTS_S = 2;
 
 test('sans doigt : la voiture ne part pas toute seule, et les copains ne la poussent pas pendant au moins 2 s', async ({ page }) => {
-  // La course part au DOM prêt, sans attendre les images (addendum §1.2) ; l'événement `load`, que `goto` attend par défaut,
-  // les attend (≈ 0,5 s en ligne : le temps de course lu après `goto` valait 0,47 à 0,60 s, contre 0,17 s au DOM prêt).
-  // On ouvre donc au DOM prêt, et on impose le retard des images pour que la précondition ne dépende pas du réseau.
-  await delaySprites(page, 600);
-  await page.goto('./?seed=1&debug=1', { waitUntil: 'domcontentloaded' });
+  // Le temps de course part à PARTEZ (tâche 10) : lu quelques images après `waitForState('racing')`, il est encore sous 0,3 s.
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   const before = await gameState(page);
   expect(before.time).toBeLessThan(0.3);
   // Lu dans le même rappel que le temps : aucun pas de course entre les deux.
@@ -79,6 +82,7 @@ test('sans doigt : la voiture ne part pas toute seule, et les copains ne la pous
 test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui partent ; capture course-5-voitures.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   const ids = await pilotIds(page);
   expect(ids).toHaveLength(5);
   expect(ids[0]).toBe('galahad');
@@ -142,11 +146,12 @@ function expectHudLayout(l: HudLayout): void {
 
 test('HUD : place en ordinal après 1 s, cinq couloirs aux voitures séparées à 30 s et 60 s, mise en page sans recouvrement ; capture course-copains.png', async ({ page }) => {
   test.setTimeout(180_000);
-  // Au DOM prêt, pas à `load` (retardé par les images, voir « sans doigt ») : la première seconde est celle qu'on lit.
-  await page.goto('./?seed=1&debug=1', { waitUntil: 'domcontentloaded' });
+  await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  // La première seconde de course se lit juste après JOUER et le décompte (tâche 10 : le temps part à PARTEZ).
+  await startRace(page);
   // Première seconde de course : la position est vide (texte et temps lus dans le même rappel ; la machine peut avoir
-  // été lente à charger : le vide n'est affirmé que si le temps lu est bien sous la seconde).
+  // été lente : le vide n'est affirmé que si le temps lu est bien sous la seconde).
   const early = await page.evaluate(() => ({
     t: (window as any).__game.time as number,
     text: document.querySelector('.hud-rank')?.textContent ?? null,
@@ -189,6 +194,7 @@ test.describe('téléphone en paysage (844 × 390)', () => {
   test('HUD : position, barre en cinq couloirs et chrono sans recouvrement ni débordement ; capture course-copains-telephone.png', async ({ page }) => {
     await page.goto('./?seed=1&debug=1');
     await waitForGame(page);
+    await startRace(page);
     await waitForRaceTime(page, 1.2);
     await holdFinger(page, 5);
     await expect(page.locator('.hud-rank')).toHaveText(/^(1er|[2-5]e)$/);
@@ -202,6 +208,8 @@ test.describe('téléphone en paysage (844 × 390)', () => {
 test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; capture compteur-images.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  // Le compteur d'images compte les pas de course : il n'apparaît qu'en course.
+  await startRace(page);
   await page.waitForTimeout(2_000);
   const steps = page.locator('.hud-steps');
   await expect(steps).toBeVisible();
@@ -218,10 +226,13 @@ test('course courte : arrivée et calque ARRIVÉE, sans erreur console', async (
   const errors = collectErrors(page);
   await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
+  await startRace(page);
   await driveToFinish(page);
   expect((await gameState(page)).state).toBe('finished');
   await expect(page.getByText('ARRIVÉE')).toBeVisible({ timeout: 5_000 });
+  // ENCORE (même course) et MENU (titre), tous deux sans gaz (décision Q2 du papa, tâche 10).
   await expect(page.locator('button[data-no-pedal]', { hasText: 'ENCORE' })).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('button[data-no-pedal]', { hasText: 'MENU' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -229,11 +240,13 @@ test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau) et 
   test.setTimeout(150_000);
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   await holdFinger(page, 3);
   await page.screenshot({ path: `${SHOTS}/course.png`, fullPage: true });
 
   await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
+  await startRace(page);
   // Doigt posé par demi-secondes : la capture suit l'arrivée de Galahad de près, avant le calque ARRIVÉE (1,5 s de roue libre).
   await driveToFinish(page, 0.5);
   const layout = await hudLayout(page);
@@ -243,5 +256,7 @@ test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau) et 
   expectHudLayout(layout);
   await page.screenshot({ path: `${SHOTS}/course-copains-arrivee.png`, fullPage: true });
   await expect(page.getByText('ARRIVÉE')).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('button[data-no-pedal]', { hasText: 'ENCORE' })).toBeVisible();
+  await expect(page.locator('button[data-no-pedal]', { hasText: 'MENU' })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/arrivee.png`, fullPage: true });
 });

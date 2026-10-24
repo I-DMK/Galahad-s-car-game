@@ -1,12 +1,14 @@
 // Bouton saut sur tablette simulée (plan B, tâche 5e, Step 4) : tap seul (saut sans gaz), gaz + tap (la voiture
-// avance et saute), Espace (un saut, rien sur une répétition), HUD de debug sous le bouton, capture.
+// avance et saute), Espace (un saut, rien sur une répétition), HUD de debug sous le bouton, capture. Chaque test lance la
+// course par le vrai bouton JOUER (`startRace`, tâche 10).
 import { expect, test } from '@playwright/test';
-import { SHOTS, gameState, holdFingerAndTapJump, jumpState, tapJump, waitForGame, waitForRaceTime } from './helpers';
+import { SHOTS, gameState, holdFingerAndTapJump, jumpState, startRace, tapJump, waitForGame, waitForRaceTime } from './helpers';
 
 
 test('tap seul sur le bouton : un saut, sans gaz', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   expect((await jumpState(page)).jumps).toBe(0);
   const { throttleDuring } = await tapJump(page);
   expect(throttleDuring).toBe(false);
@@ -18,6 +20,7 @@ test('tap seul sur le bouton : un saut, sans gaz', async ({ page }) => {
 test('gaz d’un doigt + tap sur le bouton de l’autre : la voiture avance et saute', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   const before = (await gameState(page)).progress;
   const { throttleWithB, throttleAfterB } = await holdFingerAndTapJump(page);
   expect(throttleWithB).toBe(true);
@@ -30,6 +33,7 @@ test('gaz d’un doigt + tap sur le bouton de l’autre : la voiture avance et s
 test('Espace : un saut ; Espace répété (repeat) une fois la voiture prête : rien', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   await page.keyboard.down('Space');
   await page.waitForFunction(() => (window as any).__game.jumps >= 1);
   const t = (await gameState(page)).time;
@@ -47,6 +51,7 @@ test('Espace : un saut ; Espace répété (repeat) une fois la voiture prête : 
 test('HUD de debug sous le bouton : boîtes disjointes, bouton dans la vue ; capture bouton-saut.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   const button = page.locator('.jump-button');
   await expect(button).toBeVisible();
   await expect(page.locator('.hud-fps')).toBeVisible({ timeout: 5_000 });
@@ -99,6 +104,7 @@ test('HUD de debug sous le bouton : boîtes disjointes, bouton dans la vue ; cap
 test('plat étoile : l’étoile haute du 1er plat étoile à l’écran ; capture plat-etoile.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
+  await startRace(page);
   // Étoile du 1er plat étoile (tâche 5e) : x lu dans la piste du jeu (?debug=1).
   const x = await page.evaluate(() => {
     const t = (window as any).__game.sim.track;

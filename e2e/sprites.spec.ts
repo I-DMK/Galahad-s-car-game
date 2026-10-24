@@ -2,8 +2,9 @@
 // spec rejoue sur l'aperçu de build et sur le site en ligne), la capture montre Galahad en l'air (hauteur de vol lue), une
 // image refusée donne une voiture mi-image mi-code sans exception, la course roulant, les flammes du turbo sont vraiment
 // dessinées, et une image qui ne répond jamais est abandonnée au délai sans retenir l'événement `load` de la page.
+// Depuis la tâche 10, la page arrive au titre : la course part par le vrai bouton JOUER (`startRace`), sans attendre les images.
 import { expect, test, type Page } from '@playwright/test';
-import { SHOTS, delaySprites, gameState, holdFinger, holdFingerAndTapJump, jumpState, waitForGame, waitForRaceTime } from './helpers';
+import { SHOTS, delaySprites, gameState, holdFinger, holdFingerAndTapJump, jumpState, startRace, tapAt, waitForGame, waitForState } from './helpers';
 
 /** Les 13 images attendues, triées (`src/render/assets.ts`, `ART_FILES`). */
 const ART = [
@@ -26,6 +27,7 @@ test('images : __game.art complet sur la tablette simulée, Galahad en l’air (
   const art = await waitForArt(page);
   expect(art.failed).toEqual([]);
   expect([...art.loaded].sort()).toEqual(ART);
+  await startRace(page);
 
   const { throttleWithB } = await holdFingerAndTapJump(page, 2.5, 0.3);
   expect(throttleWithB).toBe(true);
@@ -49,6 +51,7 @@ test('une carrosserie bloquée (galahad.png) : repli par code, la course roule s
   const art = await waitForArt(page);
   expect(art.failed).toEqual(['galahad.png']);
   expect(art.loaded).toHaveLength(12);
+  await startRace(page);
 
   const before = (await gameState(page)).progress;
   await holdFinger(page, 2);
@@ -77,6 +80,7 @@ test('turbo : les images de flamme sont vraiment dessinées à l’arrière de G
   await page.goto('./?seed=5&debug=1');
   await waitForGame(page);
   await waitForArt(page);
+  await startRace(page);
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 400, id: 0 }] });
@@ -105,7 +109,8 @@ test('une image qui ne répond jamais (wheel.png) : abandonnée au délai, requ�
   await page.goto('./?seed=1&debug=1', { waitUntil: 'commit' });
   await waitForGame(page);
   expect(await page.evaluate(() => document.readyState), 'load retenu tant que la requête est en vol').not.toBe('complete');
-  // La course n'attend pas l'image : elle roule déjà.
+  // Le titre est là et JOUER lance la course sans attendre l'image : elle roule avant `load`.
+  await startRace(page);
   const t0 = (await gameState(page)).time;
   await holdFinger(page, 1);
   expect((await gameState(page)).time).toBeGreaterThan(t0);
@@ -126,20 +131,25 @@ test('une image qui ne répond jamais (wheel.png) : abandonnée au délai, requ�
   expect(errors).toEqual([]);
 });
 
-test('images lentes (1,5 s) : la course part sans les attendre ; l’événement load, lui, attend les 13 images', async ({ page }) => {
+test('images lentes (1,5 s) : le titre apparaît et JOUER lance le décompte sans attendre les images ; l’événement load, lui, attend les 13 images', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror : ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console : ${m.text()}`); });
   await delaySprites(page, 1_500);
   await page.goto('./?seed=1&debug=1', { waitUntil: 'domcontentloaded' });
   await waitForGame(page);
-  // Au DOM prêt, la course tourne déjà (addendum §1.2), sans images : dessin par code, `load` pas encore parti.
-  const t0 = (await gameState(page)).time;
-  expect(t0).toBeLessThan(0.5);
-  await waitForRaceTime(page, t0 + 0.3);
-  const early = await page.evaluate(() => ({ art: (window as any).__game.art as { settled: boolean }, readyState: document.readyState }));
+  // Au DOM prêt, le titre est là (addendum §1.2 : rien n'attend les images) : JOUER visible, images pas réglées, `load` pas parti.
+  const early = await page.evaluate(() => ({
+    state: (window as any).__game.state as string, art: (window as any).__game.art as { settled: boolean }, readyState: document.readyState,
+  }));
+  expect(early.state).toBe('title');
   expect(early.art.settled).toBe(false);
   expect(early.readyState).not.toBe('complete');
+  await expect(page.locator('.btn-play')).toBeVisible();
+  // JOUER lance le décompte avant que les images ne soient réglées.
+  await tapAt(page, '.btn-play');
+  await waitForState(page, 'countdown', 1_000);
+  expect(await page.evaluate(() => (window as any).__game.art.settled)).toBe(false);
   // Les 13 images arrivent ; `load` part avec elles, pas avant le retard.
   const art = await waitForArt(page);
   expect(art.failed).toEqual([]);
