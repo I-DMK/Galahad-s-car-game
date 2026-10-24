@@ -1,7 +1,9 @@
 // Boucle de jeu : une image (`runFrame` : pas fixes de l'accumulateur, pas de course de Galahad et ses 4 copains,
-// poses interpolées entre les deux derniers pas) → caméra sur la pose dessinée de Galahad → rendu → HUD et
-// bouton saut (tâche 5e : la demande de saut est prise au premier pas de l'image, et reste en attente sans pas).
+// poses interpolées entre les deux derniers pas) → caméra sur la pose dessinée de Galahad → rendu → HUD (chrono,
+// position et barre de progression, tâche 8) et bouton saut (tâche 5e : la demande de saut est prise au premier
+// pas de l'image, et reste en attente sans pas).
 import type { Pilot } from './cars/pilots';
+import { DisplayedRank, gapToPlace, progressFraction, rankCars, type RankEntry } from './cars/ranking';
 import { CONFIG, type Config } from './config';
 import { JumpInput } from './input/jump';
 import { Throttle } from './input/throttle';
@@ -53,6 +55,11 @@ export class Game {
   /** Temps de course (s) à l'arrivée : chrono figé dessus ; null avant l'arrivée. */
   private finishTime: number | null = null;
   private finishShown = false;
+  /** Place de Galahad montrée au HUD (hystérésis), et ses entrées de classement, créées une fois et remises à jour à chaque image. */
+  private readonly displayedRank: DisplayedRank;
+  private readonly rankEntries: RankEntry[];
+  /** Position de chaque voiture sur la barre de progression (0 à 1), remise à jour à chaque image. */
+  private readonly barFractions: number[];
   private running = false;
   private rafId = 0;
   private fpsFrames = 0;
@@ -65,7 +72,10 @@ export class Game {
     this.renderer = new Renderer(canvas, this.cfg);
     this.camera = new Camera(this.cfg);
     this.effects = new Effects(this.cfg);
-    this.hud = new Hud(hudRoot);
+    this.hud = new Hud(hudRoot, this.sim.cars.map((c, i) => ({ color: c.state.color, isGalahad: i === GALAHAD_INDEX })));
+    this.displayedRank = new DisplayedRank(this.cfg);
+    this.rankEntries = this.sim.cars.map((c, i) => ({ index: i, progress: c.state.progress, finishedAt: c.state.finishedAt }));
+    this.barFractions = this.sim.cars.map(() => 0);
     this.loop.history.reset(posesOf(this.sim));
     this.throttle = new Throttle(window);
     this.jumpButton = new JumpButton(hudRoot, this.cfg);
@@ -195,6 +205,29 @@ export class Game {
   }
 
   /**
+   * Position de Galahad et barre de progression du HUD (lecture seule de `sim`). Le classement brut est recalculé à
+   * chaque image ; la place montrée suit l'hystérésis (spec §7) : écart mesuré à la voiture qui occupe la place déjà
+   * affichée (R8-2), et place définitive, montrée tout de suite, une fois Galahad arrivé. Vide la première seconde.
+   */
+  private updateRank(): void {
+    const { sim } = this;
+    const { xStart, xFinish } = sim.track;
+    for (let i = 0; i < sim.cars.length; i++) {
+      const { progress, finishedAt } = sim.cars[i].state;
+      this.rankEntries[i].progress = progress;
+      this.rankEntries[i].finishedAt = finishedAt;
+      this.barFractions[i] = progressFraction(progress, xStart, xFinish);
+    }
+    const order = rankCars(this.rankEntries);
+    const raw = order.indexOf(GALAHAD_INDEX) + 1;
+    const finished = sim.cars[GALAHAD_INDEX].state.finishedAt !== null;
+    const gap = finished ? Infinity : gapToPlace(this.rankEntries, order, GALAHAD_INDEX, this.displayedRank.current ?? raw);
+    const shown = this.displayedRank.update(raw, gap, sim.time);
+    this.hud.setPosition(sim.time < this.cfg.RANK_HIDE_SECONDS ? null : shown);
+    this.hud.setProgress(this.barFractions);
+  }
+
+  /**
    * Caméra, effets, rendu et HUD d'une image, après les pas de course : voitures et caméra aux poses
    * dessinées `frame.poses` (interpolées, fraction `frame.alpha` du pas ; `presentFrame`). Ne modifie jamais `sim`.
    */
@@ -214,6 +247,7 @@ export class Game {
     this.effects.update(elapsed, sim.track, this.camera.x, half);
     this.renderer.draw(scene, this.camera, this.effects);
     this.hud.setTime(this.finishTime ?? sim.time);
+    this.updateRank();
     // Après l'arrivée, la voiture roule encore FINISH_COAST_SECONDS en freinant, puis le calque s'affiche.
     if (this.finishTime !== null && !this.finishShown && sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {
       this.finishShown = true;

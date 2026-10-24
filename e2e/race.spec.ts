@@ -87,6 +87,37 @@ test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui parten
   await page.screenshot({ path: `${SHOTS}/course-5-voitures.png`, fullPage: true });
 });
 
+test('HUD : position vide au départ puis ordinal, barre à 5 marqueurs sans chevauchement ; capture course-copains.png', async ({ page }) => {
+  await page.goto('./?seed=1&len=300&debug=1');
+  await waitForGame(page);
+  // Première seconde de course : la position est vide (texte lu dans le même rappel que le temps de course).
+  const early = await page.evaluate(() => ({
+    t: (window as any).__game.time as number,
+    text: document.querySelector('.hud-rank')?.textContent ?? null,
+  }));
+  expect(early.t).toBeLessThan(1);
+  expect(early.text).toBe('');
+  // La barre porte les 5 voitures, celle de Galahad seule distinguée.
+  await expect(page.locator('.hud-bar .hud-marker')).toHaveCount(5);
+  await expect(page.locator('.hud-bar .hud-marker.is-galahad')).toHaveCount(1);
+  // Après 1 s de course : une place en ordinal (« 1er », « 2e »…).
+  await waitForRaceTime(page, 1.2);
+  const rank = page.locator('.hud-rank');
+  await expect(rank).toHaveText(/^(1er|[2-5]e)$/);
+  // Doigt posé : les voitures quittent la grille, les marqueurs avancent (Galahad passe la ligne de départ).
+  await holdFinger(page, 6);
+  await expect(rank).toHaveText(/^(1er|[2-5]e)$/);
+  const lefts = await page.locator('.hud-marker').evaluateAll((els) => els.map((e) => parseFloat((e as HTMLElement).style.left)));
+  expect(lefts).toHaveLength(5);
+  expect(lefts[0], 'marqueur de Galahad').toBeGreaterThan(0);
+  for (const left of lefts) expect(left).toBeLessThanOrEqual(100);
+  // Mise en page à 1280 px : position, barre et chrono côte à côte sans se recouvrir.
+  const [pos, bar, time] = await Promise.all(['.hud-position', '.hud-bar', '.hud-time'].map((sel) => page.locator(sel).boundingBox()));
+  expect(pos!.x + pos!.width).toBeLessThan(bar!.x);
+  expect(bar!.x + bar!.width).toBeLessThan(time!.x);
+  await page.screenshot({ path: `${SHOTS}/course-copains.png`, fullPage: true });
+});
+
 test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; capture compteur-images.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);

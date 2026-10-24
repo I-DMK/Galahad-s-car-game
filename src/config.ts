@@ -155,5 +155,9 @@ export const CONFIG = {
   RUBBER_PREZONE_M: 40,         // m avant xLancement d'un volcan où la cible vaut au moins 1 (addendum §1.8 : de 0,6 à 1,0 en 2,7 s)
   SCREEN_REF_HALF_WIDTH_M,      // 11,2 m : demi-largeur de la vue de référence (VISIBLE_HEIGHT_M × 1 280 / 800 / 2), R7-16
   SCREEN_EDGE_MARGIN_M: 1.6,    // m : marge pour qu'un copain « hors écran » le soit en entier (définition de la relecture adversariale), R7-16
+  // Position et classement affichés (plan B, tâche 8 ; spec §6 « Grille de départ », §7 dernière puce, §8 « HUD »).
+  RANK_HYSTERESIS_S: 0.5,       // s : un changement de place n'est montré que s'il tient cette durée (src/cars/ranking.ts, DisplayedRank)…
+  RANK_HYSTERESIS_M: 2,         // m : …ou tout de suite si l'écart avec la voiture échangée dépasse celui-ci
+  RANK_HIDE_SECONDS: 1,         // s : la position reste vide la première seconde de course (pas de décompte avant la tâche 10 : sim.time)
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };

@@ -1,10 +1,22 @@
-// HUD en DOM au-dessus du canvas : chrono, fps et compteur d'images à 0 / 2+ pas (debug, sous le bouton saut
-// de `ui/jump-button.ts`, tâche 5e), calque d'arrivée, message d'erreur.
+// HUD en DOM au-dessus du canvas : position de Galahad en haut à gauche (tâche 8), barre de progression des 5
+// voitures en haut au centre (tâche 8), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug, sous
+// le bouton saut de `ui/jump-button.ts`, tâche 5e), calque d'arrivée, message d'erreur.
 // Le conteneur (#hud) est en `pointer-events: none` : seul le calque d'arrivée capte le toucher.
+import { ordinal } from '../cars/ranking';
 import type { StepCounts } from '../loop/frame-stats';
 
 const STYLE_ID = 'hud-style';
 const CSS = `
+.hud-position{position:absolute;top:10px;left:28px;display:flex;align-items:center;gap:16px;
+  font:800 104px system-ui,sans-serif;line-height:1;color:#fff;text-shadow:0 4px 0 #000a,0 0 14px #000c}
+.hud-position[hidden]{display:none}
+.hud-position-car{width:110px;height:55px;filter:drop-shadow(0 3px 0 #000a)}
+.hud-bar{position:absolute;top:30px;left:50%;width:clamp(240px,36vw,520px);height:16px;
+  transform:translateX(-50%);box-sizing:border-box;border:3px solid #fff;border-radius:10px;background:#0009;
+  box-shadow:0 3px 0 #000a}
+.hud-marker{position:absolute;top:50%;left:0;width:34px;height:17px;margin:-8.5px 0 0 -17px;color:#fff;z-index:1}
+.hud-marker.is-galahad{width:48px;height:24px;margin:-12px 0 0 -24px;z-index:2;filter:drop-shadow(0 0 4px #fff)}
+.hud-position-car svg,.hud-marker svg{display:block;width:100%;height:100%}
 .hud-time{position:absolute;top:16px;right:28px;font:700 64px system-ui,sans-serif;color:#fff;
   text-shadow:0 3px 0 #000a,0 0 12px #000c;font-variant-numeric:tabular-nums;letter-spacing:2px}
 .hud-fps{position:absolute;left:28px;bottom:6px;font:500 16px system-ui,sans-serif;color:#fffc;
@@ -21,6 +33,22 @@ const CSS = `
 .hud-error{font-weight:700;font-size:48px;padding:0 32px}
 `;
 
+/** Petite voiture de côté (SVG inline, sans fichier), carrosserie de la couleur CSS du conteneur (`currentColor`). */
+const CAR_SVG = `<svg viewBox="0 0 44 22" aria-hidden="true" focusable="false">
+  <path d="M3 16V11.5C3 10 4 9 5.5 8.8L13 7.5L17 2.5C17.6 1.8 18.4 1.5 19.3 1.5H27.5C28.4 1.5 29.2 1.9 29.8 2.6L33.5 7.5L39 8.8C40.6 9.2 41 10.2 41 11.5V16Z"
+    fill="currentColor" stroke="#000" stroke-opacity=".6" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="12" cy="16" r="4.5" fill="#1a1a1a" stroke="#fff" stroke-width="1.5"/>
+  <circle cx="32" cy="16" r="4.5" fill="#1a1a1a" stroke="#fff" stroke-width="1.5"/>
+</svg>`;
+
+/** Une voiture de la course telle que le HUD la montre sur la barre. */
+export interface HudRacer {
+  /** Couleur CSS (#rrggbb) de sa carrosserie : celle de son pilote. */
+  color: string;
+  /** Galahad : son marqueur est plus gros et passe au-dessus des autres ; sa couleur est celle de la voiture de la position. */
+  isGalahad: boolean;
+}
+
 /** Secondes → « mm:ss ». */
 export function formatTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -31,10 +59,18 @@ export class Hud {
   private readonly time: HTMLDivElement;
   private readonly fps: HTMLDivElement;
   private readonly steps: HTMLDivElement;
+  private readonly position: HTMLDivElement;
+  private readonly rank: HTMLDivElement;
+  /** Un marqueur par voiture, dans l'ordre de `racers`. */
+  private readonly markers: HTMLDivElement[];
+  /** Dernière position écrite de chaque marqueur, en dixièmes de pour cent. */
+  private readonly lastTenths: number[];
   private overlay: HTMLDivElement | null = null;
   private lastTime = '';
+  private lastRank: number | null = null;
 
-  constructor(private readonly root: HTMLElement) {
+  /** `racers` : les voitures de la course, dans l'ordre de `RaceSim.cars` (le même que celui de `setProgress`). */
+  constructor(private readonly root: HTMLElement, racers: readonly HudRacer[]) {
     const doc = root.ownerDocument;
     if (!doc.getElementById(STYLE_ID)) {
       const style = doc.createElement('style');
@@ -47,13 +83,52 @@ export class Hud {
     this.fps.hidden = true;
     this.steps = this.div('hud-steps');
     this.steps.hidden = true;
-    root.append(this.time, this.fps, this.steps);
+    // Position : vide (cachée) tant que `setPosition` ne reçoit pas de place.
+    this.position = this.div('hud-position');
+    this.position.hidden = true;
+    const car = this.div('hud-position-car');
+    car.innerHTML = CAR_SVG;
+    const galahad = racers.find((r) => r.isGalahad);
+    if (galahad) car.style.color = galahad.color;
+    this.rank = this.div('hud-rank');
+    this.position.append(car, this.rank);
+    // Barre : un marqueur par voiture, à 0 % (CSS) jusqu'au premier `setProgress`.
+    const bar = this.div('hud-bar');
+    this.markers = racers.map((r) => {
+      const marker = this.div('hud-marker');
+      marker.innerHTML = CAR_SVG;
+      marker.style.color = r.color;
+      if (r.isGalahad) marker.classList.add('is-galahad');
+      return marker;
+    });
+    this.lastTenths = racers.map(() => NaN);
+    bar.append(...this.markers);
+    root.append(this.time, this.position, bar, this.fps, this.steps);
     this.setTime(0);
   }
 
   setTime(seconds: number): void {
     const text = formatTime(seconds);
     if (text !== this.lastTime) this.time.textContent = this.lastTime = text;
+  }
+
+  /** Place de Galahad (1 = première) : « 1er », « 2e »… ; null vide l'affichage (première seconde). */
+  setPosition(rank: number | null): void {
+    if (rank === this.lastRank) return;
+    this.lastRank = rank;
+    this.position.hidden = rank === null;
+    this.rank.textContent = rank === null ? '' : ordinal(rank);
+  }
+
+  /** Place chaque voiture sur la barre : `fractions[i]` ∈ [0 ; 1] pour la voiture i ; écrit au dixième de pour cent. */
+  setProgress(fractions: readonly number[]): void {
+    const n = Math.min(this.markers.length, fractions.length);
+    for (let i = 0; i < n; i++) {
+      const tenths = Math.round(fractions[i] * 1000);
+      if (tenths === this.lastTenths[i]) continue;
+      this.lastTenths[i] = tenths;
+      this.markers[i].style.left = `${tenths / 10}%`;
+    }
   }
 
   setFps(fps: number | null): void {
