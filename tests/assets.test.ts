@@ -2,9 +2,13 @@ import { GALAHAD, PILOTS } from '../src/cars/pilots';
 import { ART_FILES, ART_TIMEOUT_MS, FLAME_FILES, NO_ART, bodyFile, loadArt, type Art } from '../src/render/assets';
 import { fringeProblems, readPng8 } from './helpers/png';
 
-/** Faux `Image` : `onload` (ou `onerror` si son fichier est dans `fail`) à la microtâche qui suit `src = …`. */
+/**
+ * Faux `Image` : `onload` (ou `onerror` si son fichier est dans `fail`) à la microtâche qui suit `src = …`. `cuts` : les
+ * adresses dont la requête a été coupée (`removeAttribute('src')`) ; une image chargée ou en erreur ne doit jamais l'être.
+ */
 function fakeImages(fail: readonly string[] = []) {
   const srcs: string[] = [];
+  const cuts: string[] = [];
   const makeImage = (): HTMLImageElement => {
     const img = {
       onload: null as (() => void) | null, onerror: null as (() => void) | null, url: '',
@@ -12,10 +16,11 @@ function fakeImages(fail: readonly string[] = []) {
         this.url = v; srcs.push(v);
         queueMicrotask(() => (fail.some((f) => v.endsWith(`/${f}`)) ? this.onerror : this.onload)?.());
       },
+      removeAttribute(name: string) { if (name === 'src') cuts.push(this.url); },
     };
     return img as unknown as HTMLImageElement;
   };
-  return { srcs, makeImage };
+  return { srcs, cuts, makeImage };
 }
 const urlOf = (img: CanvasImageSource | null | undefined) => (img as unknown as { url: string } | null | undefined)?.url;
 const B = '/Galahad-s-car-game/';
@@ -34,9 +39,10 @@ test('ART_FILES : 7 carrosseries, la roue, 4 flammes, l’étoile ; pas la Terre
 });
 
 test('tout charge : adresses sous la base, carrosseries par id de pilote, flammes dans l’ordre', async () => {
-  const { srcs, makeImage } = fakeImages();
+  const { srcs, cuts, makeImage } = fakeImages();
   const art = await loadArt({ base: B, makeImage });
   expect(srcs).toEqual(ART_FILES.map((f) => `${B}sprites/${f}`));
+  expect(cuts, 'une image chargée garde son src').toEqual([]);
   expect([...art.bodies.keys()]).toEqual([GALAHAD, ...PILOTS].map((p) => p.id));
   expect(urlOf(art.bodies.get('timothé'))).toBe(`${B}sprites/timothe.png`);
   expect(art.flames?.map(urlOf)).toEqual(FLAME_FILES.map((f) => `${B}sprites/${f}`));
@@ -104,34 +110,52 @@ describe('délai d’abandon par image (ART_TIMEOUT_MS)', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  /** Faux `Image` : chaque fichier répond (`onload`) après `delays[fichier]` ms ; 'jamais' : ni `load` ni `error` ; absent : tout de suite. */
-  function slowImages(delays: Record<string, number | 'jamais'>) {
+  /**
+   * Faux `Image` : chaque fichier répond (`onload`) après `delays[fichier]` ms ; 'jamais' : ni `load` ni `error` ; absent :
+   * tout de suite. `removeAttribute('src')` coupe la requête (la réponse en attente est annulée, comme dans un navigateur)
+   * sauf si `honourCut` est faux (une requête qu'on ne sait pas annuler : sa réponse tardive arrive quand même). `cuts` note
+   * chaque coupure (adresse, instant) ; `images` rend le faux objet de chaque fichier.
+   */
+  function slowImages(delays: Record<string, number | 'jamais'>, honourCut = true) {
+    const cuts: { url: string; at: number }[] = [];
+    const images = new Map<string, { onload: unknown; onerror: unknown }>();
     const makeImage = (): HTMLImageElement => {
       const img = {
         onload: null as (() => void) | null, onerror: null as (() => void) | null, url: '',
+        timer: undefined as ReturnType<typeof setTimeout> | undefined,
         set src(v: string) {
           this.url = v;
+          images.set(v.split('/').pop()!, this);
           const d = Object.entries(delays).find(([f]) => v.endsWith(`/${f}`))?.[1] ?? 0;
-          if (d !== 'jamais') setTimeout(() => this.onload?.(), d);
+          if (d !== 'jamais') this.timer = setTimeout(() => this.onload?.(), d);
+        },
+        removeAttribute(name: string) {
+          if (name !== 'src') return;
+          cuts.push({ url: this.url, at: Date.now() });
+          if (honourCut) clearTimeout(this.timer);
         },
       };
       return img as unknown as HTMLImageElement;
     };
-    return { makeImage };
+    return { makeImage, cuts, images };
   }
 
-  /** Lance `loadArt`, avance le temps de `ms` et rend l'état : résolu ou non, et l'Art. */
-  async function runFor(delays: Record<string, number | 'jamais'>, ms: number) {
+  /** Lance `loadArt`, avance le temps de `ms` et rend l'état : l'Art s'il est résolu, la promesse, les coupures et les images. */
+  async function runFor(delays: Record<string, number | 'jamais'>, ms: number, honourCut = true) {
+    const fake = slowImages(delays, honourCut);
     let art: Art | undefined;
-    const p = loadArt({ base: B, makeImage: slowImages(delays).makeImage }).then((a) => { art = a; });
+    const p = loadArt({ base: B, makeImage: fake.makeImage }).then((a) => { art = a; });
     await vi.advanceTimersByTimeAsync(ms);
-    return { art: () => art, p };
+    return { art: () => art, p, ...fake };
   }
 
-  test('une image qui ne répond jamais : null au bout du délai, les 12 autres chargées, la promesse se résout', async () => {
-    const { art, p } = await runFor({ 'wheel.png': 'jamais' }, ART_TIMEOUT_MS - 1);
+  test('une image qui ne répond jamais : null au bout du délai, sa requête coupée, les 12 autres chargées, la promesse se résout', async () => {
+    const { art, p, cuts, images } = await runFor({ 'wheel.png': 'jamais' }, ART_TIMEOUT_MS - 1);
     expect(art(), 'pas résolue avant le délai').toBeUndefined();
+    expect(cuts, 'requête encore vivante avant le délai').toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
+    // Échec rapide si le délai régresse : sans cette assertion, `await p` attendrait le délai du test (180 s).
+    expect(art(), 'résolue au délai').toBeDefined();
     await p;
     const a = art()!;
     expect(a.wheel).toBeNull();
@@ -140,20 +164,38 @@ describe('délai d’abandon par image (ART_TIMEOUT_MS)', () => {
     expect(a.bodies.size).toBe(7);
     expect(a.flames).toHaveLength(4);
     expect(a.star).not.toBeNull();
+    // La requête abandonnée est coupée une fois, au délai : sinon elle reste en vol et retient l'événement `load` de la page.
+    expect(cuts).toEqual([{ url: `${B}sprites/wheel.png`, at: Date.now() }]);
+    expect(images.get('wheel.png')).toMatchObject({ onload: null, onerror: null });
     expect(vi.getTimerCount(), 'aucune minuterie après la résolution').toBe(0);
   });
 
-  test('une image qui arrive à temps est gardée, sans attendre le délai', async () => {
-    const { art, p } = await runFor({ 'pablo.png': ART_TIMEOUT_MS - 1000 }, ART_TIMEOUT_MS - 1000);
+  test('plusieurs images muettes : toutes abandonnées et coupées au même délai, jamais plus tard', async () => {
+    const { art, p, cuts } = await runFor({ 'wheel.png': 'jamais', 'flame-1.png': 'jamais', 'liam.png': 'jamais' }, ART_TIMEOUT_MS);
+    expect(art(), 'résolue au délai').toBeDefined();
+    await p;
+    expect(art()!.failed).toEqual(['liam.png', 'wheel.png', 'flame-1.png']);
+    expect(art()!.flames).toBeNull();
+    expect(cuts.map((c) => c.url.split('/').pop()).sort()).toEqual(['flame-1.png', 'liam.png', 'wheel.png']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test('une image qui arrive à temps est gardée, sans attendre le délai, et n’est jamais coupée', async () => {
+    const { art, p, cuts } = await runFor({ 'pablo.png': ART_TIMEOUT_MS - 1000 }, ART_TIMEOUT_MS - 1000);
+    expect(art(), 'résolue dès l’arrivée de la dernière image').toBeDefined();
     await p;
     expect(art()!.loaded).toEqual(ART_FILES);
     expect(art()!.failed).toEqual([]);
     expect(art()!.bodies.has('pablo')).toBe(true);
+    expect(cuts).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(ART_TIMEOUT_MS);
+    expect(cuts, 'ni plus tard').toEqual([]);
   });
 
-  test('une image qui arrive après le délai reste en échec : son arrivée tardive ne change rien et ne lève pas', async () => {
-    const { art, p } = await runFor({ 'star.png': ART_TIMEOUT_MS + 5000 }, ART_TIMEOUT_MS);
+  test('une image qui arrive après le délai reste en échec, même si sa requête ne s’annule pas : son arrivée tardive ne change rien', async () => {
+    const { art, p, cuts } = await runFor({ 'star.png': ART_TIMEOUT_MS + 5000 }, ART_TIMEOUT_MS, false);
+    expect(art(), 'résolue au délai').toBeDefined();
     await p;
     const a = art()!;
     expect(a.star).toBeNull();
@@ -161,22 +203,26 @@ describe('délai d’abandon par image (ART_TIMEOUT_MS)', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     expect(art()).toBe(a);
     expect(a.star).toBeNull();
+    expect(cuts).toHaveLength(1);
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  test('tout répond tout de suite : résolu sans attendre le délai, aucune minuterie laissée', async () => {
-    const { art, p } = await runFor({}, 0);
+  test('tout répond tout de suite : résolu sans attendre le délai, aucune minuterie laissée, aucune coupure', async () => {
+    const { art, p, cuts } = await runFor({}, 0);
+    expect(art(), 'résolue sans attendre').toBeDefined();
     await p;
     expect(art()!.failed).toEqual([]);
+    expect(cuts).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
   });
 
   test('un échec franc (onerror) règle l’image sans attendre le délai et efface sa minuterie', async () => {
-    const { makeImage } = fakeImages(['liam.png']);
+    const { makeImage, cuts } = fakeImages(['liam.png']);
     const p = loadArt({ base: B, makeImage });
     await vi.advanceTimersByTimeAsync(0);
     const a = await p;
     expect(a.failed).toEqual(['liam.png']);
+    expect(cuts, 'une image en erreur n’a rien à couper').toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
   });
 });

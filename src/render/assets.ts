@@ -2,8 +2,11 @@
 // 4 flammes et l'étoile, servies depuis `public/sprites/` sous `import.meta.env.BASE_URL` (le site vit sous
 // `/Galahad-s-car-game/`). Le chargement ne lève jamais : une image en échec devient `null` et la pièce
 // correspondante est dessinée par code (repli de `render/car.ts`). Une image qui ne répond pas passe à `null` au bout de
-// `ART_TIMEOUT_MS` : elle ne retient ni les 12 autres ni l'événement `load` de la page. Les noms de fichiers sont en ASCII
-// (`timothe.png` pour l'id `timothé`) : adresses sans encodage `%C3%A9`, pas de piège NFC/NFD.
+// `ART_TIMEOUT_MS` et sa requête est coupée (`removeAttribute('src')`) : retirer seulement ses gestionnaires laisserait la
+// requête en vol, qui retient l'événement `load` de la page (mesuré avec Playwright : jamais parti à 25 s ; coupée, `load`
+// part en ≈ 1 s) et avec lui les e2e, un futur service worker et la roue de chargement de l'onglet ; les 12 autres images ne
+// sont plus retenues non plus. Les noms de fichiers sont en ASCII (`timothe.png` pour l'id `timothé`) : adresses sans
+// encodage `%C3%A9`, pas de piège NFC/NFD.
 import { GALAHAD, PILOTS } from '../cars/pilots';
 
 export interface Art {
@@ -71,8 +74,9 @@ export interface LoadArtOptions {
 
 /**
  * Une image, ou `null` en cas d'échec (erreur, délai de `ART_TIMEOUT_MS` écoulé, ou `makeImage` qui lève) : la promesse
- * ne rejette jamais. La minuterie est effacée dès que l'image est réglée ; une image qui arrive après le délai est
- * ignorée (ses gestionnaires sont retirés).
+ * ne rejette jamais. La minuterie est effacée dès que l'image est réglée. Au délai, les gestionnaires sont retirés puis la
+ * requête est coupée (`removeAttribute('src')`, pas `src = ''` que certains navigateurs résolvent en l'adresse de la page) :
+ * une requête pendante retiendrait l'événement `load` du document. Une image réussie ou en erreur garde son `src`.
  */
 function loadOne(url: string, makeImage: () => HTMLImageElement): Promise<CanvasImageSource | null> {
   return new Promise((resolve) => {
@@ -83,12 +87,17 @@ function loadOne(url: string, makeImage: () => HTMLImageElement): Promise<Canvas
       if (img) img.onload = img.onerror = null;
       resolve(result);
     };
+    /** Délai écoulé : l'image est abandonnée (gestionnaires retirés par `done`), puis sa requête est coupée. */
+    const abandon = (): void => {
+      done(null);
+      img?.removeAttribute('src');
+    };
     try {
       img = makeImage();
       const loading = img;
       img.onload = () => done(loading);
       img.onerror = () => done(null);
-      timer = setTimeout(() => done(null), ART_TIMEOUT_MS);
+      timer = setTimeout(abandon, ART_TIMEOUT_MS);
       img.src = url;
     } catch {
       done(null);

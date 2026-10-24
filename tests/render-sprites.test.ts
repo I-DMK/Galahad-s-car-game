@@ -308,6 +308,14 @@ describe('ombre au sol (addendum §1.5)', () => {
     }
   });
 
+  test('la hauteur de l’ombre vient des roues, pas du châssis : roues posées sous un châssis haut, l’ombre reste pleine', () => {
+    const { ctx, calls } = fakeCtx();
+    drawShadow(ctx, { ...carAt(x0, 0), y: heightAt(track, x0) + 20 }, track, PPM, S);
+    const e = calls.find((c) => c.name === 'ellipse')!;
+    expect(e.args[2] as number).toBeCloseTo(1.2 * PPM, 9);
+    expect(calls.find((c) => c.name === 'fill')!.globalAlpha as number).toBeCloseTo(0.45, 9);
+  });
+
   test('en vol à 1,5 m : moitié moins large, moitié moins sombre, toujours posée sur le sol', () => {
     const { ctx, calls } = fakeCtx();
     drawShadow(ctx, carAt(x0, 1.5), track, PPM, S);

@@ -1,6 +1,7 @@
 // Images du jeu (plan B, tâche 8b) sur la tablette simulée : les 13 images se chargent (sous la base du site : la même
-// spec rejoue sur l'aperçu de build et sur le site en ligne), la capture montre Galahad en l'air avec son ombre, et une
-// image bloquée donne une voiture mi-image mi-code sans exception, la course roulant.
+// spec rejoue sur l'aperçu de build et sur le site en ligne), la capture montre Galahad en l'air (hauteur de vol lue), une
+// image refusée donne une voiture mi-image mi-code sans exception, la course roulant, les flammes du turbo sont vraiment
+// dessinées, et une image qui ne répond jamais est abandonnée au délai sans retenir l'événement `load` de la page.
 import { expect, test, type Page } from '@playwright/test';
 import { SHOTS, gameState, holdFinger, holdFingerAndTapJump, jumpState, waitForGame } from './helpers';
 
@@ -10,9 +11,9 @@ const ART = [
   'matthis.png', 'pablo.png', 'star.png', 'timothe.png', 'wheel.png',
 ];
 
-/** `__game.art` (debug) : images réglées, fichiers chargés et en échec. */
-async function waitForArt(page: Page): Promise<{ settled: boolean; loaded: string[]; failed: string[] }> {
-  await page.waitForFunction(() => (window as any).__game.art.settled, null, { timeout: 10_000 });
+/** `__game.art` (debug) : images réglées, fichiers chargés et en échec. `timeout` : large si une image doit atteindre son délai d'abandon. */
+async function waitForArt(page: Page, timeout = 10_000): Promise<{ settled: boolean; loaded: string[]; failed: string[] }> {
+  await page.waitForFunction(() => (window as any).__game.art.settled, null, { timeout });
   return page.evaluate(() => (window as any).__game.art);
 }
 
@@ -91,5 +92,36 @@ test('turbo : les images de flamme sont vraiment dessinées à l’arrière de G
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await cdp.detach();
   }
+  expect(errors).toEqual([]);
+});
+
+test('une image qui ne répond jamais (wheel.png) : abandonnée au délai, requête coupée, l’événement load de la page part, la course roule', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(`pageerror : ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error' && !m.text().includes('Failed to load resource')) errors.push(`console : ${m.text()}`); });
+  // La requête reste en vol : ni réponse ni échec (un `route` qui n'appelle rien la laisse pendante).
+  await page.route('**/sprites/wheel.png', () => {});
+  // `commit` : `goto` n'attend pas `load`, que cette image retient tant que sa requête vit.
+  await page.goto('./?seed=1&debug=1', { waitUntil: 'commit' });
+  await waitForGame(page);
+  expect(await page.evaluate(() => document.readyState), 'load retenu tant que la requête est en vol').not.toBe('complete');
+  // La course n'attend pas l'image : elle roule déjà.
+  const t0 = (await gameState(page)).time;
+  await holdFinger(page, 1);
+  expect((await gameState(page)).time).toBeGreaterThan(t0);
+
+  // Au délai (8 s), l'image passe en échec, les 12 autres sont utilisées, et la requête coupée laisse partir `load`.
+  const art = await waitForArt(page, 20_000);
+  expect(art.failed).toEqual(['wheel.png']);
+  expect(art.loaded).toHaveLength(12);
+  await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 5_000 });
+  const loadEnd = await page.evaluate(() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).loadEventEnd);
+  expect(loadEnd, 'loadEventEnd (ms depuis le début de la navigation)').toBeGreaterThan(0);
+
+  const before = (await gameState(page)).progress;
+  await holdFinger(page, 2);
+  const after = await gameState(page);
+  expect(after.state).toBe('racing');
+  expect(after.progress - before).toBeGreaterThan(3);
   expect(errors).toEqual([]);
 });
