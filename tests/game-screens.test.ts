@@ -8,8 +8,9 @@ import Matter from 'matter-js';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { CONFIG } from '../src/config';
 import { Game } from '../src/game';
+import { cameraTarget } from '../src/loop/frame';
 import { Renderer } from '../src/render/renderer';
-import type { RaceSim } from '../src/sim/simulate';
+import { posesOf, type RaceSim } from '../src/sim/simulate';
 import { defaultPilotSeed, drawPilots, GALAHAD } from '../src/cars/pilots';
 import { placeCar } from '../src/physics/car';
 import { heightAt } from '../src/track/query';
@@ -40,7 +41,10 @@ afterEach(() => {
   history.replaceState(null, '', '/');
 });
 
-interface Internals { sim: RaceSim; stop(): void; throttle: { dispose(): void; pressed: boolean }; jumpInput: { dispose(): void; pending: boolean } }
+interface Internals {
+  sim: RaceSim; stop(): void; throttle: { dispose(): void; pressed: boolean }; jumpInput: { dispose(): void; pending: boolean };
+  historyArmed: boolean; effects: { count: number; spawnSparks(x: number, y: number): void }; camera: { x: number; y: number };
+}
 function makeGame(seed = 1, debug = false) {
   const canvas = document.createElement('canvas');
   const root = document.createElement('div');
@@ -260,8 +264,10 @@ test('AUTRE PISTE : nouvelle graine (Date.now() % 100000) dans l’URL (len et d
   const { game, q } = makeGame(1, true);
   game.start();
   const before = game.pilots.map((p) => p.id);
+  const len = history.length;
   q('.btn-other').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   expect(game.state).toBe('title');
+  expect(history.length).toBe(len);   // replaceState, jamais pushState (M7b)
   expect(game.seed).toBe(1_761_300_000_123 % 100_000);
   expect(new URLSearchParams(location.search).get('seed')).toBe(String(game.seed));
   expect(new URLSearchParams(location.search).get('len')).toBe('1680');
@@ -274,6 +280,136 @@ test('AUTRE PISTE : nouvelle graine (Date.now() % 100000) dans l’URL (len et d
   expect(game.time).toBe(0);
   frames(5, 0, 1000 / 60);
   expect(drawn.race).toBe(0);
+});
+
+test('AUTRE PISTE : un replaceState qui lève (quota) ne laisse ni exception ni graine sans course (std M1)', () => {
+  vi.spyOn(Date, 'now').mockReturnValue(777);
+  vi.spyOn(history, 'replaceState').mockImplementation(() => { throw new Error('quota (test)'); });
+  const { game } = makeGame();
+  game.start();
+  expect(() => game.otherTrack()).not.toThrow();
+  expect(game.seed).toBe(777);
+  expect(game.pilots.map((p) => p.id)).toEqual([GALAHAD, ...drawPilots(defaultPilotSeed(777))].map((p) => p.id));
+  expect(game.state).toBe('title');
+});
+
+test('tap sur le bouton saut (grisé) pendant le décompte : aucun saut à PARTEZ, demande jetée (adv I1)', () => {
+  const { game, q, internals } = makeGame();
+  game.start();
+  game.play();
+  let now = frames(1, 0, 1500);
+  pointer('pointerdown', 7, q('.jump-button'));
+  now = frames(3, now, 1000);
+  expect(game.state).toBe('racing');
+  now = frames(30, now);
+  expect(game.jumps).toBe(0);
+  expect(internals().jumpInput.pending).toBe(false);
+});
+
+test('popstate en pause : reste en pause, entrée consommée ; popstate au titre : rien ne casse (std M4)', () => {
+  const { game, internals } = makeGame();
+  game.start();
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  expect(game.state).toBe('title');
+  expect(internals().historyArmed).toBe(false);
+  game.play();
+  expect(internals().historyArmed).toBe(true);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  expect(game.state).toBe('paused');
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  expect(game.state).toBe('paused');
+  expect(internals().historyArmed).toBe(false);
+  game.resume();
+  expect(game.state).toBe('countdown');
+  expect(internals().historyArmed).toBe(true);
+});
+
+test('plein écran : le pointerup n’est écouté qu’après un JOUER au doigt (pas au clavier) ; stop() le retire (CR3, std M2)', () => {
+  const first = makeGame();
+  const add = vi.spyOn(window, 'addEventListener');
+  const remove = vi.spyOn(window, 'removeEventListener');
+  first.game.start();
+  first.q('.btn-play').dispatchEvent(new MouseEvent('click', { bubbles: true }));   // clavier : click sans pointeur
+  expect(first.game.state).toBe('countdown');
+  expect(add.mock.calls.filter((c) => c[0] === 'pointerup')).toHaveLength(0);
+  first.internals().stop();
+  const second = makeGame();
+  add.mockClear();
+  second.game.start();
+  pointer('pointerdown', 2, second.q('.btn-play'));
+  expect(second.game.state).toBe('countdown');
+  const ups = add.mock.calls.filter((c) => c[0] === 'pointerup');
+  expect(ups).toHaveLength(1);
+  remove.mockClear();   // le stop() du premier jeu a déjà retiré (à vide) le même écouteur
+  second.internals().stop();
+  expect(remove.mock.calls.filter((c) => c[0] === 'pointerup' && c[1] === ups[0][1])).toHaveLength(1);
+});
+
+test('pause et décompte : effets et caméra figés ; MENU vide les effets ; après MENU + JOUER la caméra se cale d’un coup sur la grille (CR2, adv M24, M25)', () => {
+  const { game, internals } = makeGame();
+  pointer('pointerdown', 1);
+  let now = startRacing(game, () => raf!);
+  now = frames(120, now);
+  internals().effects.spawnSparks(game.progress('galahad'), 1);
+  const n0 = internals().effects.count;
+  expect(n0).toBeGreaterThan(0);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  const camX = internals().camera.x;
+  now = frames(60, now);
+  expect(internals().effects.count).toBe(n0);
+  expect(internals().camera.x).toBe(camX);
+  // Le décompte de la reprise ne fait rien avancer non plus.
+  game.resume();
+  now = frames(30, now);
+  expect(internals().effects.count).toBe(n0);
+  expect(internals().camera.x).toBe(camX);
+  now = frames(3, now, 1000);
+  expect(game.state).toBe('racing');
+  // M24 : MENU vide les effets.
+  now = driveToArrival(game, internals, now);
+  internals().effects.spawnSparks(game.progress('galahad'), 1);
+  expect(internals().effects.count).toBeGreaterThan(0);
+  game.menu();
+  expect(internals().effects.count).toBe(0);
+  // M25 : la première image du décompte cale la caméra sur la grille, sans lissage depuis l'arrivée.
+  game.play();
+  frames(1, now);
+  const { sim } = internals();
+  const target = cameraTarget(posesOf(sim)[0], (x) => heightAt(sim.track, x));
+  expect(internals().camera.x).toBeCloseTo(target.x, 9);
+  expect(internals().camera.y).toBeCloseTo(target.y, 9);
+});
+
+test('MENU avec une entrée d’historique armée la consomme (history.back) ; AUTRE PISTE ensuite ne pousse rien ; geste retour pendant finished → titre sans history.back (CR1, adv M38)', () => {
+  const back = vi.spyOn(history, 'back').mockImplementation(() => {});
+  const { game, root, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  expect(internals().historyArmed).toBe(true);
+  now = driveToArrival(game, internals, now);
+  game.menu();
+  expect(game.state).toBe('title');
+  expect(back).toHaveBeenCalledTimes(1);
+  // Le navigateur dépile l'entrée et envoie popstate : la phase est title, rien d'autre ne bouge.
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  expect(internals().historyArmed).toBe(false);
+  expect(game.state).toBe('title');
+  expect(root.querySelector('.hud-overlay')).toBeNull();
+  const len = history.length;
+  vi.spyOn(Date, 'now').mockReturnValue(4242);
+  game.otherTrack();
+  expect(history.length).toBe(len);
+  expect(game.seed).toBe(4242);
+  expect(new URLSearchParams(location.search).get('seed')).toBe('4242');
+  // Geste retour pendant finished (A5) : titre, calque retiré, sans history.back (le popstate a déjà consommé l'entrée).
+  back.mockClear();
+  now = startRacing(game, () => raf!, now + 10_000);
+  now = driveToArrival(game, internals, now);
+  expect(root.querySelector('.hud-overlay')).not.toBeNull();
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  expect(game.state).toBe('title');
+  expect(root.querySelector('.hud-overlay')).toBeNull();
+  expect(back).not.toHaveBeenCalled();
+  expect(internals().historyArmed).toBe(false);
 });
 
 test('AUTRE PISTE ignoré hors du titre', () => {

@@ -43,13 +43,15 @@ test('titre : nom du jeu, version, JOUER sans data-no-pedal (le doigt compte com
   expect(q('.btn-other svg')).not.toBeNull();  // dé
 });
 
-test('JOUER : onPlay au pointerdown ET au click ; AUTRE PISTE : onOtherTrack au click seulement', () => {
+test('JOUER : onPlay au pointerdown (viaPointer vrai) ET au click (faux : clavier) ; AUTRE PISTE : onOtherTrack au click seulement', () => {
   const { screens, actions, q } = make();
   screens.showTitle();
   q('.btn-play').dispatchEvent(pointer('pointerdown', 1));
   expect(actions.onPlay).toHaveBeenCalledTimes(1);
+  expect(actions.onPlay).toHaveBeenLastCalledWith(true);
   q('.btn-play').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   expect(actions.onPlay).toHaveBeenCalledTimes(2);
+  expect(actions.onPlay).toHaveBeenLastCalledWith(false);
   q('.btn-other').dispatchEvent(pointer('pointerdown', 2));
   expect(actions.onOtherTrack).not.toHaveBeenCalled();
   q('.btn-other').dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -82,6 +84,19 @@ test('décompte : texte affiché, calque sans toucher (pointer-events none), rem
   expect(q('.countdown-text').textContent).toBe('PARTEZ');
   screens.hide();
   expect(q<HTMLElement>('.screen-countdown').hidden).toBe(true);
+});
+
+test('showCountdown : le même texte deux fois ne touche pas au DOM (ni texte ni attribut hidden) ; un autre texte, si (CR5)', () => {
+  const { screens, root } = make();
+  screens.showTitle();
+  screens.showCountdown('3');
+  const seen = new MutationObserver(() => {});
+  seen.observe(root, { subtree: true, childList: true, characterData: true, attributes: true });
+  screens.showCountdown('3');
+  expect(seen.takeRecords()).toHaveLength(0);
+  screens.showCountdown('2');
+  expect(seen.takeRecords().length).toBeGreaterThan(0);
+  seen.disconnect();
 });
 
 test('pause en paysage : « PAUSE », REPRENDRE visible, onResume au pointerdown ET au click ; le voile entier porte data-no-pedal ; tablette cachée', () => {

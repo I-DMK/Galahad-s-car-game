@@ -32,8 +32,19 @@ test('titre : état title, aucun pas, les copains de la graine dans l’ordre de
   }
   expect(overlap(play, other)).toBe(false);
   expect(overlap(play, name)).toBe(false);
+  // Le mot d'AUTRE PISTE est rembourré (S1 : la règle générique des boutons ne doit pas écraser le padding déclaré).
+  const otherStyle = await page.locator('.btn-other').evaluate((el) => ({
+    paddingLeft: getComputedStyle(el).paddingLeft, labelWidth: el.querySelector('.btn-label')!.getBoundingClientRect().width,
+  }));
+  expect(otherStyle.paddingLeft).toBe('28px');
+  expect(other.width).toBeGreaterThanOrEqual(otherStyle.labelWidth + 56);
   await expect(page.locator('.hud-time')).toBeHidden();
+  await expect(page.locator('.hud-bar')).toBeHidden();
+  await expect(page.locator('.hud-position')).toBeHidden();
   await expect(page.locator('.jump-button')).toBeHidden();
+  // Avec ?debug=1, le fps (en bas à gauche) et la version (en bas à droite) ne se recouvrent pas.
+  await expect(page.locator('.hud-fps')).toBeVisible({ timeout: 5_000 });
+  expect(overlap(version, await boxOf(page, '.hud-fps'))).toBe(false);
   await page.screenshot({ path: `${SHOTS}/titre.png`, fullPage: true });
 });
 
@@ -110,6 +121,11 @@ test('portrait en course → TOURNE sans REPRENDRE, course figée ; paysage → 
   await expect(page.locator('.pause-text')).toHaveText('PAUSE');
   const resume = await boxOf(page, '.btn-resume');
   expect(Math.min(resume.width, resume.height)).toBeGreaterThanOrEqual(96);
+  const resumeStyle = await page.locator('.btn-resume').evaluate((el) => ({
+    paddingLeft: getComputedStyle(el).paddingLeft, labelWidth: el.querySelector('.btn-label')!.getBoundingClientRect().width,
+  }));
+  expect(resumeStyle.paddingLeft).toBe('36px');
+  expect(resume.width).toBeGreaterThanOrEqual(resumeStyle.labelWidth + 72);
   await page.screenshot({ path: `${SHOTS}/pause.png`, fullPage: true });
   // Doigt posé sur REPRENDRE et GARDÉ à travers le décompte et la première seconde de course : jamais du gaz (data-no-pedal).
   const cdp = await page.context().newCDPSession(page);
