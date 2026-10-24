@@ -7,6 +7,7 @@
 import { CONFIG, type Config } from '../config';
 import { heightAt, overLava, slopeAt } from '../track/query';
 import type { Track } from '../track/types';
+import { canvasFont } from '../ui/font';
 import { FLAME_FILES, NO_ART, type Art } from './assets';
 import type { CarView } from './renderer';
 
@@ -74,7 +75,7 @@ export function drawCar(
   if (car.name !== 'Galahad') {
     const top = toScreen({ x: car.x, y: car.y + 1.3 });
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${Math.round((14 * ppm) / 57)}px sans-serif`;
+    ctx.font = canvasFont(700, (14 * ppm) / 57);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillText(car.name, top.x, top.y);

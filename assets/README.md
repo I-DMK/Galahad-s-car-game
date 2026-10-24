@@ -3,8 +3,8 @@
 **Les images servies sont dans `public/sprites/`** (13 fichiers, tâche 8b) : Vite les copie telles quelles
 dans `dist/sprites/` et `src/render/assets.ts` les charge sous `import.meta.env.BASE_URL`
 (`${BASE_URL}sprites/<fichier>`, le site vit sous `/Galahad-s-car-game/`). **Ce dossier `assets/` ne garde
-que ce qui n'est pas servi** : les bruts du générateur (`generated/`), la Terre (`sprites/earth.png`, tâche 16)
-et les polices (`fonts/`, tâche 10, qui les déplacera dans `public/fonts/`).
+que ce qui n'est pas servi** : les bruts du générateur (`generated/`) et la Terre (`sprites/earth.png`, tâche 16).
+Les polices sont servies depuis `public/fonts/` (tâche 10).
 
 Les noms de fichiers servis sont en ASCII (`timothe.png` pour l'id `timothé`, `bodyFile` dans
 `src/render/assets.ts`) : adresses sans encodage, pas de piège NFC/NFD. Le brut reste
@@ -72,11 +72,12 @@ PNG-8 à 256 couleurs avec tramage.
   1 751 roses visibles). À passer à `lisere.py` à la tâche 16 (la Terre), qui la déplacera dans
   `public/sprites/`.
 
-## `fonts/` (40 KB)
+## `fonts/` : déplacées dans `public/fonts/` à la tâche 10
 
-Fredoka, graisses 600 et 700, sous-ensemble latin, `woff2`, tels que livrés par
-`@fontsource/fredoka` 5.3 dans l'archive. Licence SIL Open Font License 1.1
-(https://openfontlicense.org), auto-hébergement autorisé. Addendum §2.
+Fredoka, graisses 600 et 700 (`fredoka-latin-600.woff2`, 16 468 octets ; `fredoka-latin-700.woff2`, 15 900 octets),
+sous-ensemble latin, `woff2`, tels que livrés par `@fontsource/fredoka` 5.3 dans l'archive. Licence SIL Open Font
+License 1.1 (https://openfontlicense.org), auto-hébergement autorisé. Addendum §2. Déclarées en `@font-face` dans
+`index.html` (`url(/fonts/…)`, réécrite sous la base par Vite), `font-display: swap` ; vérifiées par `tests/fonts.test.ts`.
 
 ## `generated/` : les sept sprites générés, bruts (addendum §1.3, option A)
 

@@ -158,6 +158,9 @@ export const CONFIG = {
   // Position et classement affichés (plan B, tâche 8 ; spec §6 « Grille de départ », §7 dernière puce, §8 « HUD »).
   RANK_HYSTERESIS_S: 0.5,       // s : un changement de place n'est montré que s'il tient cette durée (src/cars/ranking.ts, DisplayedRank)…
   RANK_HYSTERESIS_M: 2,         // m : …ou tout de suite si l'écart avec la voiture échangée dépasse celui-ci
-  RANK_HIDE_SECONDS: 1,         // s : la position reste vide la première seconde de course (pas de décompte avant la tâche 10 : sim.time)
+  RANK_HIDE_SECONDS: 1,         // s : la position reste vide la première seconde de course (`sim.time`, qui part à PARTEZ)
+  // Décompte (plan B, tâche 10 ; spec §4) : 3, 2, 1 puis PARTEZ ; aucun pas de course pendant le décompte.
+  COUNTDOWN_SECONDS: 3,         // s : 3, 2, 1 (un chiffre par seconde) avant PARTEZ (spec §4, tâche 10)
+  COUNTDOWN_GO_SECONDS: 1,      // s : « PARTEZ » reste affiché pendant la première seconde de course
 } as const;
 export type Config = { readonly [K in keyof typeof CONFIG]: number };
