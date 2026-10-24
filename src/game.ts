@@ -10,6 +10,7 @@ import { Throttle } from './input/throttle';
 import { runFrame, type FrameState, type StepOutcome } from './loop/frame';
 import { StepHistogram, type StepCounts } from './loop/frame-stats';
 import { PoseHistory, type CarPose } from './loop/interpolation';
+import type { Art } from './render/assets';
 import { Camera } from './render/camera';
 import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
@@ -61,12 +62,22 @@ export class Game {
   private rafId = 0;
   private fpsFrames = 0;
   private fpsSince = 0;
+  /** Images arrivées (tâche 8b) ; null tant que la promesse n'est pas résolue : la course ne les attend jamais. */
+  private loadedArt: Art | null = null;
 
-  constructor(canvas: HTMLCanvasElement, hudRoot: HTMLElement, private readonly opts: { seed: number; length: number; debug: boolean }) {
+  /**
+   * `art` : promesse des images (`loadArt`, lancée par `main.ts` avant la construction). À sa résolution, le rendu passe
+   * du dessin par code aux images à la trame suivante ; la course n'attend jamais.
+   */
+  constructor(
+    canvas: HTMLCanvasElement, hudRoot: HTMLElement, private readonly opts: { seed: number; length: number; debug: boolean },
+    art?: Promise<Art>,
+  ) {
     const track = generateTrack(opts.seed, opts.length, this.cfg);
     // Course à 5 voitures ; les copains et leur ordre sur la grille dépendent de la graine de piste : recharger (ENCORE) redonne les mêmes.
     this.sim = createRaceSim(track, this.cfg, { robots: true });
     this.renderer = new Renderer(canvas, this.cfg);
+    void art?.then((a) => { this.loadedArt = a; this.renderer.setArt(a); });
     this.camera = new Camera(this.cfg);
     this.effects = new Effects(this.cfg);
     this.hud = new Hud(hudRoot, this.sim.cars.map((c, i) => ({ color: c.state.color, isGalahad: i === GALAHAD_INDEX })));
@@ -93,6 +104,11 @@ export class Game {
   get respawns(): { reason: string; t: number; x: number; targetX: number }[] { return this.respawnLog.map((r) => ({ ...r })); }
   /** Doigt de gaz posé (debug, e2e : un tap sur le bouton saut n'en est jamais un). */
   get throttlePressed(): boolean { return this.throttle.pressed; }
+  /** Images (debug, e2e, tâche 8b) : réglées ou non, fichiers chargés et en échec ; copies. */
+  get art(): { settled: boolean; loaded: string[]; failed: string[] } {
+    const a = this.loadedArt;
+    return { settled: a !== null, loaded: a ? [...a.loaded] : [], failed: a ? [...a.failed] : [] };
+  }
 
   /** Pilotes de la course, dans l'ordre de la grille (Galahad en premier). */
   get pilots(): Pilot[] { return this.sim.cars.map((c) => c.pilot); }

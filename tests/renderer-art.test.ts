@@ -2,9 +2,10 @@
 // Les images dans le rendu (tâche 8b) : `Renderer` sans puis avec `setArt` (ordre ombres → effets → étoiles → voitures,
 // carrosserie de chaque voiture = celle de son pilote), puis `Game`, qui reçoit la promesse des images sans jamais
 // l'attendre. Faux contexte 2D, fausses images (`{ name }`).
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { GALAHAD, PILOTS } from '../src/cars/pilots';
 import { CONFIG } from '../src/config';
+import { Game } from '../src/game';
 import { NO_ART, type Art } from '../src/render/assets';
 import { Camera } from '../src/render/camera';
 import type { Effects } from '../src/render/effects';
@@ -18,6 +19,7 @@ const img = (name: string) => ({ name }) as unknown as CanvasImageSource;
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   document.body.innerHTML = '';
 });
 
@@ -118,5 +120,80 @@ describe('Renderer : dessin par code puis avec les images', () => {
     calls.length = 0;
     expect(() => renderer.draw(scene, cam)).not.toThrow();
     expect(draws(calls).length).toBeGreaterThanOrEqual(2 + 5 + 10);
+  });
+});
+
+describe('Game : les images n’arrêtent ni ne retardent jamais la course', () => {
+  const DT = CONFIG.PHYSICS_DT;
+  let raf: FrameRequestCallback | null = null;
+  let draw: ReturnType<typeof vi.spyOn>;
+  let setArt: ReturnType<typeof vi.spyOn>;
+
+  // Même harnais que tests/game-frame.test.ts : faux requestAnimationFrame, rendu intercepté ; `setArt` est espionné
+  // (il appelle le vrai) avant la construction de `Game`.
+  beforeEach(() => {
+    raf = null;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { raf = cb; return 1; });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({} as unknown as RenderingContext);
+    vi.spyOn(Renderer.prototype, 'resize').mockImplementation(() => {});
+    draw = vi.spyOn(Renderer.prototype, 'draw').mockImplementation(() => {});
+    setArt = vi.spyOn(Renderer.prototype, 'setArt');
+  });
+
+  function makeGame(art?: Promise<Art>) {
+    const canvas = document.createElement('canvas');
+    const hud = document.createElement('div');
+    document.body.append(canvas, hud);
+    const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false }, art);
+    const internals = game as unknown as { stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void } };
+    const dispose = () => { internals.stop(); internals.throttle.dispose(); internals.jumpInput.dispose(); };
+    let now = 0;
+    const frames = (n: number) => { for (let i = 0; i < n; i++) { now += DT * 1000; raf!(now); } };
+    return { game, dispose, frames };
+  }
+
+  test('promesse jamais résolue : la course roule, chaque image est dessinée, setArt n’est jamais appelé', () => {
+    const { game, dispose, frames } = makeGame(new Promise<Art>(() => {}));
+    game.start();
+    frames(10);
+    expect(draw).toHaveBeenCalledTimes(10);
+    expect(game.time).toBeCloseTo(10 * DT, 9);
+    expect(game.art).toEqual({ settled: false, loaded: [], failed: [] });
+    expect(setArt).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  test('sans promesse (jeux de tests, anciens appels) : même comportement qu’avant la 8b', () => {
+    const { game, dispose, frames } = makeGame();
+    game.start();
+    frames(3);
+    expect(draw).toHaveBeenCalledTimes(3);
+    expect(game.art).toEqual({ settled: false, loaded: [], failed: [] });
+    expect(setArt).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  test('images arrivées en pleine course : setArt une seule fois, avec ces images, sans perdre une image dessinée', async () => {
+    const a: Art = { ...NO_ART, loaded: ['galahad.png'], failed: ['wheel.png'] };
+    const { game, dispose, frames } = makeGame(Promise.resolve(a));
+    game.start();
+    frames(3);
+    // La résolution n'arrive qu'entre deux trames : rien n'a attendu.
+    expect(setArt).not.toHaveBeenCalled();
+    expect(game.art.settled).toBe(false);
+    await Promise.resolve();
+    await Promise.resolve();
+    frames(3);
+    expect(setArt).toHaveBeenCalledTimes(1);
+    expect(setArt).toHaveBeenCalledWith(a);
+    expect(draw).toHaveBeenCalledTimes(6);
+    expect(game.art).toEqual({ settled: true, loaded: ['galahad.png'], failed: ['wheel.png'] });
+    // Copies : modifier le tableau rendu ne change pas ce que le jeu répond ensuite.
+    game.art.loaded.push('x.png');
+    game.art.failed.length = 0;
+    expect(game.art).toEqual({ settled: true, loaded: ['galahad.png'], failed: ['wheel.png'] });
+    dispose();
   });
 });
