@@ -147,6 +147,13 @@ export const CONFIG = {
   ROCK_STAR_GAP: 10,            // m entre un rocher et toute étoile basse ; aussi l'écart après l'étoile de réception d'une fosse
   ROCK_SPACING: 60,             // m entre deux rochers retenus (glouton dans l'ordre de la piste)
   ROCK_JUMP_AIM: 1,             // s : rockJumpLead(v) = ROCK_JUMP_AIM − ROCK_WIDTH / (2 max(v, 1)), centre de la fenêtre (0,89 / 0,87 / 0,81 s à 14 / 11,2 / 8 m/s ; MESURÉ 0,91 / 0,86 / 0,81)
+  // Zone fantôme d'un rocher (ruling R-11c-1, comme les volcans de la 5b) : [xStart − ROCK_GHOST_BEFORE, xEnd +
+  // ROCK_GHOST_AFTER] ; les voitures s'y traversent (à 5 voitures, 70 % des chocs suivaient un contact entre voitures qui
+  // sautaient ensemble). MESURÉ (piste plate, Galahad seul) : premier bord de la fenêtre 1,42 s avant xStart à 21 m/s
+  // (29,8 m), 1,39 s en turbo pris 40 m avant ; atterrissage le plus long d'un saut qui passe xEnd + 30,4 m (21 m/s),
+  // + 28,5 m (turbo), rebond qui survole jusqu'à xEnd + 31,8 m.
+  ROCK_GHOST_BEFORE: 35,        // m avant xStart : 29,8 m mesurés + marge
+  ROCK_GHOST_AFTER: 35,         // m après xEnd : 31,8 m mesurés (rebond compris) + marge
   ROCK_JUMP_LATE: 0.5,          // s : bord au plus tard de la fenêtre (MESURÉ 0,48 à 14 m/s, 0,51 à 8 : la hauteur le fixe, pas la vitesse) ; information, pas de bascule
   // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : driver de
   // chaque copain (src/ai/driver.ts).

@@ -115,7 +115,8 @@ describe('le vol d’un saut ne compte pas comme un blocage', () => {
  *   vol se clôt à l'atterrissage sur le toit (≈ 1,8 s), « bloquée » 2 s plus tard (≈ 3,8 s).
  */
 function perchedRun(kind: 'perché' | 'toit'): { stuckAt: number | null; others: RespawnEvent[]; landedOnRoof: boolean } {
-  const sim: RaceSim = createRaceSim(generateTrack(3, 400, CONFIG, { onlyPlat: true }), CONFIG);
+  // Plat sans rocher (tâche 11c : dans la zone fantôme d'un rocher, le « toit » d'une autre voiture serait traversé).
+  const sim: RaceSim = createRaceSim({ ...generateTrack(3, 400, CONFIG, { onlyPlat: true }), rocks: [] }, CONFIG);
   const g = sim.cars[0];
   const box = (x: number, y: number, w: number, h: number, category: number): Matter.Body => {
     const p = worldToPhys({ x, y });

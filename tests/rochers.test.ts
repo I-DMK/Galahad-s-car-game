@@ -10,7 +10,7 @@ import { mpsToPxPerStep, speedMps, toPx } from '../src/physics/units';
 import { CAT, carCategory, createWorld } from '../src/physics/world';
 import { chassisX, createRaceSim, GALAHAD_INDEX, stepRace, type SimEvent } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
-import { heightAt } from '../src/track/query';
+import { heightAt, inGhostZone } from '../src/track/query';
 import type { Rock, Track } from '../src/track/types';
 import { disposeSolo, launchSolo, setCarSpeed, soloSim } from './helpers/jump-runs';
 import { fossePiste } from './helpers/fosses';
@@ -407,4 +407,30 @@ describe('vraies pistes, Galahad seul, doigt posé sans saut (graines 0 à 4 ; 5
     expect(r.finishedAt).not.toBeNull();
     expect(r.finishedAt!).toBeLessThan(240);
   }, 120_000);
+});
+
+describe('zone fantôme d’un rocher (ruling R-11c-1)', () => {
+  test('inGhostZone vrai sur [xStart − ROCK_GHOST_BEFORE, xEnd + ROCK_GHOST_AFTER], faux juste au-delà ; aucune zone sans rocher', () => {
+    const track = rockTrack([ROCK_X]);
+    const r = track.rocks[0];
+    for (const x of [r.xStart - CONFIG.ROCK_GHOST_BEFORE, r.xStart, r.xEnd, r.xEnd + CONFIG.ROCK_GHOST_AFTER]) expect(inGhostZone(track, x, CONFIG), `x = ${x}`).toBe(true);
+    expect(inGhostZone(track, r.xStart - CONFIG.ROCK_GHOST_BEFORE - 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(track, r.xEnd + CONFIG.ROCK_GHOST_AFTER + 0.01, CONFIG)).toBe(false);
+    expect(inGhostZone(rockTrack([]), ROCK_X, CONFIG)).toBe(false);
+    // Bornes mesurées : premier bord de la fenêtre à 21 m/s (1,42 s, 29,8 m) et atterrissage le plus long (31,8 m) dedans.
+    expect(CONFIG.ROCK_GHOST_BEFORE).toBeGreaterThanOrEqual(1.42 * 21);
+    expect(CONFIG.ROCK_GHOST_AFTER).toBeGreaterThanOrEqual(31.8);
+  });
+
+  test('5 voitures : deux voitures dans la zone d’un rocher se traversent (masques sans les autres voitures)', () => {
+    const track = rockTrack([ROCK_X]);
+    const sim = createRaceSim(track, CONFIG, { robots: true });
+    const [g, c] = sim.cars;
+    placeCar(g.body, ROCK_X - 10, (u) => heightAt(track, u), 0, CONFIG);
+    placeCar(c.body, ROCK_X - 12, (u) => heightAt(track, u), 0, CONFIG);
+    stepRace(sim, false);
+    expect(g.ghost).toBe(true);
+    expect(c.ghost).toBe(true);
+    expect((g.body.chassis.collisionFilter.mask ?? 0) & CAT.ALL_CARS).toBe(0);
+  });
 });

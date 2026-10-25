@@ -265,7 +265,8 @@ describe('poli derrière Galahad doigt levé, dans le vrai pas de course (décis
    * pendant `liftSeconds` ; les autres copains garés au départ. Doigt du copain à chaque pas, contacts avec Galahad.
    */
   function run(gap: number, opts: { liftSeconds?: number; ghost?: boolean; finished?: boolean } = {}) {
-    const track = generateTrack(1, 600, CONFIG, { onlyPlat: true });
+    // Plat sans rocher (tâche 11c : la zone fantôme d'un rocher rendrait les voitures traversables).
+    const track = { ...generateTrack(1, 600, CONFIG, { onlyPlat: true }), rocks: [] };
     const sim = createRaceSim(track, CONFIG, { robots: true });
     for (const star of sim.stars) star.takenAt.forEach((_, k) => takeStarFor(star, k, 1e9));
     sim.cars.forEach((car, k) => {

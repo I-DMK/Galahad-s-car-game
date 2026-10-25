@@ -16,6 +16,7 @@ function makeTrack(): Track {
   throw new Error('aucune piste avec deux tremplins et deux fosses');
 }
 const track = makeTrack();
+const TRACK = track;
 const [t0, t1] = tremplins(track);
 const [f0, f1] = fosses(track);
 
@@ -156,6 +157,8 @@ describe('volcanoAhead / nearestVolcanoZone', () => {
 
   test('inGhostZone : fosse, châssis dans [xLancement − FOSSE_GUARD, bord aval + FOSSE_GHOST_AFTER] (ruling R-F16, garde comprise depuis le tour 1 de la tâche 6)', () => {
     expect(CONFIG.FOSSE_GHOST_AFTER).toBe(40);
+    // Règle de la fosse seule : sans les zones fantômes des rochers (tâche 11c, ruling R-11c-1 ; testées dans rochers.test).
+    const track = { ...TRACK, rocks: [] };
     const slice = sliceAt(track, f0.xLancement);
     expect(slice.type).toBe('fosse');
     expect(f0.xLancement - CONFIG.FOSSE_GUARD).toBeCloseTo(slice.xStart, 6);

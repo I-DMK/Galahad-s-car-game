@@ -147,12 +147,17 @@ export function inElanZone(track: Track, x: number): boolean {
  * attend). La garde en fait partie depuis la tâche 6 : Galahad en turbo qui percute un copain plus lent (ou reposé au
  * point sûr) juste avant l'approche était catapulté par-dessus et tombait dans la lave (graines 33 et 36, à 2–4 m de
  * xLancement). Les voitures s'y traversent, pour qu'aucun choc ne fasse tomber une voiture dans la lave (décision du
- * papa, tâche 5b) ; partout ailleurs, elles se cognent.
+ * papa, tâche 5b). Rocher (tâche 11c, ruling R-11c-1) : [xStart − ROCK_GHOST_BEFORE, xEnd + ROCK_GHOST_AFTER] : les
+ * voitures qui sautent ensemble ne se font plus retomber sur le rocher. Partout ailleurs, elles se cognent.
  */
 export function inGhostZone(
-  track: Track, chassisX: number, cfg: Pick<Config, 'WHEEL_BASE' | 'WHEEL_RADIUS' | 'FOSSE_GHOST_AFTER' | 'FOSSE_GUARD'>,
+  track: Track, chassisX: number,
+  cfg: Pick<Config, 'WHEEL_BASE' | 'WHEEL_RADIUS' | 'FOSSE_GHOST_AFTER' | 'FOSSE_GUARD' | 'ROCK_GHOST_BEFORE' | 'ROCK_GHOST_AFTER'>,
 ): boolean {
   const rear = cfg.WHEEL_BASE / 2 + cfg.WHEEL_RADIUS;
+  for (const r of track.rocks) {
+    if (chassisX >= r.xStart - cfg.ROCK_GHOST_BEFORE && chassisX <= r.xEnd + cfg.ROCK_GHOST_AFTER) return true;
+  }
   return track.volcanoes.some((v) => (v.kind === 'fosse'
     ? chassisX >= v.xLancement - cfg.FOSSE_GUARD && chassisX <= v.xReception + cfg.FOSSE_GHOST_AFTER
     : chassisX >= v.xLancement && chassisX <= v.xReception + rear));
