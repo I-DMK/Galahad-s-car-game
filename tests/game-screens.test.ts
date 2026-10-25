@@ -778,3 +778,23 @@ test('stop() ferme la fenêtre d’avalement du click de MENU (tour 2)', () => {
   internals().stop();
   expect(cancel).toHaveBeenCalledTimes(1);
 });
+
+test('podium : le fond est dessiné sans les voitures de la course (décision du papa, Q5, tour 3) ; la course et le titre gardent les leurs', () => {
+  const scenes: { cars: unknown[] }[] = [];
+  vi.spyOn(Renderer.prototype, 'draw').mockImplementation((scene) => { drawn.race++; scenes.push(scene); });
+  const titles: { cars: unknown[] }[] = [];
+  vi.spyOn(Renderer.prototype, 'drawTitle').mockImplementation((scene) => { drawn.title++; titles.push(scene); });
+  const { game, internals } = makeGame();
+  game.start();
+  frames(2, 0);
+  expect(titles.at(-1)!.cars).toHaveLength(5);
+  let now = startRacing(game, () => raf!);
+  now = frames(10, now);
+  expect(scenes.at(-1)!.cars).toHaveLength(5);   // en course
+  now = driveToPodium(game, internals, now);
+  const n = scenes.length;
+  frames(10, now);
+  const podium = scenes.slice(n);
+  expect(podium).toHaveLength(10);
+  for (const s of podium) expect(s.cars).toEqual([]);
+});

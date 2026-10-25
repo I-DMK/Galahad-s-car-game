@@ -533,7 +533,7 @@ export class Game {
   /**
    * Une image du podium : aucun pas ; la scène de course aux poses du dernier pas, caméra immobile (temps écoulé nul pour
    * elle) ; seuls les confettis tombent, nés au-dessus du haut de l'écran, sur la largeur visible (`updateConfetti` : les
-   * autres particules restent figées, aucune bulle ni fumée ne naît).
+   * autres particules restent figées, aucune bulle ni fumée ne naît). Sans les voitures de la course (décision du papa, Q5).
    */
   private podiumFrame(elapsed: number): void {
     const { sim, camera } = this;
@@ -541,7 +541,9 @@ export class Game {
     this.effects.rainConfetti(elapsed, camera.x, camera.y + this.cfg.VISIBLE_HEIGHT_M / 2, half);
     this.effects.updateConfetti(elapsed);
     const scene = presentFrame(sim, { poses: this.loop.history.at(1), alpha: 1 }, camera, 0);
-    this.renderer.draw(scene, camera, this.effects);
+    // Décision du papa sur capture (Q5, tour 3) : le fond garde ciel, Terre et sol, sans les voitures de la course (ni
+    // prénoms, ombres, flammes) : elles faisaient doublon avec celles des marches. Les confettis restent au-dessus.
+    this.renderer.draw({ ...scene, cars: [] }, camera, this.effects);
   }
 
   /** Images par seconde (debug), à toute phase : le titre et le décompte ont un fps aussi. */
