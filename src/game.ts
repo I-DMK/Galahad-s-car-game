@@ -250,12 +250,23 @@ export class Game {
     if (this.historyArmed) history.back();
   }
 
-  /** Envoie `ev` à la machine ; vrai si la phase a changé. */
+  /** Envoie `ev` à la machine ; vrai si la phase a changé (le bouton pause suit alors la phase : `syncPauseButton`). */
   private send(ev: GameEvent): boolean {
     const next = transition(this.machine, ev);
     if (next === this.machine) return false;
     this.machine = next;
+    this.syncPauseButton();
     return true;
+  }
+
+  /**
+   * Bouton pause (tâche 11, Partie 5 ; cr 6 du tour 1) : visible si et seulement si la phase est `countdown` ou `racing` et
+   * la tablette en paysage (en portrait, TOURNE prend la main) ; règle unique, appliquée après chaque changement de phase,
+   * à chaque lecture de l'orientation et dans `fail`.
+   */
+  private syncPauseButton(): void {
+    const { phase } = this.machine;
+    this.pauseButton.setVisible((phase === 'countdown' || phase === 'racing') && !this._portrait);
   }
 
   /**
@@ -287,7 +298,6 @@ export class Game {
     this.screens.showTitle();
     this.hud.setRaceVisible(false);
     this.jumpButton.setVisible(false);
-    this.pauseButton.setVisible(false);
   }
 
   /**
@@ -304,7 +314,6 @@ export class Game {
     this.jumpButton.setReady(false);
     this.jumpInput.clear();
     this.armHistory();
-    this.pauseButton.setVisible(true);
     if (this._portrait) this.pause();
   }
 
@@ -316,7 +325,6 @@ export class Game {
   /** Depuis `countdown` ou `racing` : pause (calque PAUSE ou TOURNE), demande de saut jetée ; sans effet ailleurs. */
   private pause(): void {
     if (!this.send('pause')) return;
-    this.pauseButton.setVisible(false);
     this.countdownLabel = null;
     this.jumpInput.clear();
     this.jumpButton.setReady(false);
@@ -338,6 +346,7 @@ export class Game {
 
   private readPortrait(): void {
     this._portrait = window.innerHeight > window.innerWidth;
+    this.syncPauseButton();
   }
 
   /** 3 échecs de `stepRace` ou une exception de rendu : « Oups ! Recharge la page », boucle arrêtée. */
@@ -345,7 +354,7 @@ export class Game {
     this.send('error');
     this.countdownLabel = null;
     this.screens.hide();
-    this.pauseButton.setVisible(false);
+    this.syncPauseButton();
     this.hud.showError('Oups ! Recharge la page');
     this.stop();
   }
@@ -500,7 +509,6 @@ export class Game {
     this.jumpInput.clear();
     this.hud.setRaceVisible(false);
     this.jumpButton.setVisible(false);
-    this.pauseButton.setVisible(false);
     this.screens.showPodium(view, this.paintPodiumCar);
     if (view.galahadPlace === 1) this.effects.startConfetti();
   }
@@ -565,8 +573,6 @@ export class Game {
       }
       if (this.finishTime === null && sim.events.some((e) => e.type === 'finish' && e.carId === galahad.id)) {
         this.send('finish');
-        // Arrivée : plus de pause par le bouton (la roue libre et le podium n'ont pas de pause).
-        this.pauseButton.setVisible(false);
         this.finishTime = galahad.finishedAt;
       }
       return stepOutcome(sim);

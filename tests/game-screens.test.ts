@@ -742,3 +742,29 @@ test('podium : les confettis naissent au-dessus du haut de l’écran et descend
   now = frames(30, now);
   first.forEach((p, i) => expect(p.y).toBeLessThan(born[i]));
 });
+
+test('bouton pause : caché en erreur (3 pas qui lèvent en course) ; visible ⇔ décompte ou course en paysage (adv M3, cr 6, tour 1)', () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const update = vi.spyOn(Matter.Engine, 'update');
+  const { game, q } = makeGame();
+  let now = startRacing(game, () => raf!);
+  const btn = q('.pause-button');
+  expect(btn.hidden).toBe(false);
+  update.mockImplementation(() => { throw new Error('pas qui lève (test)'); });
+  now = frames(3, now);
+  expect(game.state).toBe('error');
+  expect(btn.hidden).toBe(true);
+  expect(error).toHaveBeenCalled();
+});
+
+test('bouton pause : une erreur de rendu pendant le décompte le cache aussi (cr 6, tour 1)', () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const { game, q } = makeGame();
+  game.start();
+  game.play();
+  expect(q('.pause-button').hidden).toBe(false);
+  vi.spyOn(Renderer.prototype, 'draw').mockImplementation(() => { throw new Error('canvas perdu (test)'); });
+  frames(1, 0);
+  expect(game.state).toBe('error');
+  expect(q('.pause-button').hidden).toBe(true);
+});
