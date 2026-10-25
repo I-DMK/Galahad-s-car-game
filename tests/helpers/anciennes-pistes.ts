@@ -14,10 +14,13 @@ import { CONFIG, type Config } from '../../src/config';
  * curseur [xReception, xEnd] des tremplins ; sans fosse, `STAR_FOSSE_LANDING` ne sert pas.
  * `TREMPLIN_AFTER_DOUBLE_BOSSE` 1 (tour 1 de la 5g, décision du papa d1012c6) : tremplin permis après une double-bosse,
  * comme avant. `VOLCANO_WEIGHT` 3 (tour 2 de la 5g, décision du papa : 4 dans CONFIG) : poids de tirage d'avant.
+ * `ROCKS_PER_RACE` 0 (tâche 11c) : aucun rocher.
  */
 export const ANCIENNES_PISTES: Readonly<Record<string, number>> = {
   STAR_FLATS_PER_RACE: 0, FOSSE_PERIOD: 0, STAR_HIGH_PER_RACE: 0, STAR_STEP_MIN: 60, STAR_STEP_MAX: 100,
   STAR_TREMPLIN_LANDING: 0, TREMPLIN_AFTER_DOUBLE_BOSSE: 1, VOLCANO_WEIGHT: 3,
+  // Tâche 11c : aucun rocher (pistes d'avant les rochers, au bit près ; tirés après tout le reste).
+  ROCKS_PER_RACE: 0,
 };
 
 /** `cfg` avec les pistes d'avant (clés d'`ANCIENNES_PISTES` présentes dans `cfg` seulement). */

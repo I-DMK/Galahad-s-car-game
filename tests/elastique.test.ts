@@ -16,6 +16,7 @@ import {
 import { generateTrack } from '../src/track/generate';
 import { fosses, heightAt, inVolcanoZone, slopeAt, tremplins } from '../src/track/query';
 import type { Track, Volcano } from '../src/track/types';
+import { AP } from './helpers/anciennes-pistes';
 import { sauteurParfait } from './helpers/fosses';
 import { launchSolo, setCarSpeed } from './helpers/jump-runs';
 import { BrakeWatch } from './helpers/objective';
@@ -38,10 +39,13 @@ interface CarStep {
 }
 interface RecordedStep { t: number; galahadSpeed: number; cars: CarStep[] }
 
-/** Course à 5 de la graine 1 : Galahad doigt posé avec le saut parfait aux fosses, 60 s, chaque pas relevé. */
-function recordRace(seconds: number): { sim: RaceSim; steps: RecordedStep[]; brake: BrakeWatch; stars: string[] } {
-  const track = trackFor(1);
-  const sim = createRaceSim(track, CONFIG, { robots: true });
+/**
+ * Course à 5 de la graine 1 : Galahad doigt posé avec le saut parfait aux fosses, 60 s, chaque pas relevé ; pistes de
+ * `cfg` (CONFIG par défaut).
+ */
+function recordRace(seconds: number, cfg: Config = CONFIG): { sim: RaceSim; steps: RecordedStep[]; brake: BrakeWatch; stars: string[] } {
+  const track = trackFor(1, cfg);
+  const sim = createRaceSim(track, cfg, { robots: true });
   const jump = sauteurParfait(track);
   const brake = new BrakeWatch(sim);
   const steps: RecordedStep[] = [];
@@ -49,7 +53,7 @@ function recordRace(seconds: number): { sim: RaceSim; steps: RecordedStep[]; bra
   while (sim.time < seconds - 1e-9) {
     const t = sim.time;
     const before = sim.cars.map((c) => ({
-      x: chassisX(c), finished: c.state.finishedAt !== null, turbo: turboFactor(c.state, t, CONFIG), factor: c.factor, rubberBefore: c.rubber,
+      x: chassisX(c), finished: c.state.finishedAt !== null, turbo: turboFactor(c.state, t, cfg), factor: c.factor, rubberBefore: c.rubber,
     }));
     stepRace(sim, true, jump(t, sim));
     brake.observe(sim);
@@ -80,13 +84,16 @@ describe('course à 5 de la graine 1, Galahad doigt posé (saut parfait aux foss
     }
   });
 
-  test('Galahad, effet physique : de son premier turbo à 3 s après, il dépasse 19 m/s (sous l’élastique, il plafonnerait à 18,2)', () => {
-    const first = rec.steps.find((s) => s.cars[0].turbo > 1);
+  // Tâche 11c : rocher en 62,5 m sur la graine 1 de CONFIG (Galahad doigt posé le touche, premier turbo à 17,7 s, 18,7 m/s
+  // au plus) ; ce test juge la physique du turbo sans élastique, pas la piste : il roule sur les pistes d'avant (AP).
+  test('Galahad, effet physique : de son premier turbo à 3 s après, il dépasse 19 m/s (sous l’élastique, il plafonnerait à 18,2) ; pistes d’avant', () => {
+    const ap = recordRace(60, AP);
+    const first = ap.steps.find((s) => s.cars[0].turbo > 1);
     expect(first, 'Galahad prend une étoile avant 60 s').toBeDefined();
-    const vmax = Math.max(...rec.steps.filter((s) => s.t >= first!.t && s.t <= first!.t + 3).map((s) => s.galahadSpeed));
-    console.log(`Galahad : premier turbo à ${f2(first!.t)} s, vitesse maximale dans les 3 s qui suivent ${f2(vmax)} m/s`);
+    const vmax = Math.max(...ap.steps.filter((s) => s.t >= first!.t && s.t <= first!.t + 3).map((s) => s.galahadSpeed));
+    console.log(`Galahad (pistes d'avant) : premier turbo à ${f2(first!.t)} s, vitesse maximale dans les 3 s qui suivent ${f2(vmax)} m/s`);
     expect(vmax).toBeGreaterThan(19);
-  });
+  }, 120_000);
 
   test('copains : couple = plafond (speedFactor === torqueFactor) à chaque pas où ils conduisent ; jamais au-delà de 1,3', () => {
     for (const s of rec.steps) {

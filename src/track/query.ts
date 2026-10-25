@@ -1,5 +1,5 @@
 import type { Config } from '../config';
-import type { Fosse, Slice, Track, Tremplin, Volcano } from './types';
+import type { Fosse, Rock, Slice, Track, Tremplin, Volcano } from './types';
 
 /** Indice i (1 ≤ i ≤ n − 1) du premier point d'abscisse ≥ x (x supposé dans l'intervalle des points). */
 function upperIndex(track: Track, x: number): number {
@@ -61,6 +61,12 @@ export function fosses(track: Track): Fosse[] {
 /** Première fosse (dans l'ordre de la piste) dont le bord amont est strictement devant x (tâche 5g) ; sans allocation. */
 export function nextFosse(track: Track, x: number): Fosse | undefined {
   for (const v of track.volcanoes) if (v.kind === 'fosse' && v.xBord > x) return v;
+  return undefined;
+}
+
+/** Premier rocher (dans l'ordre de la piste) dont xStart est strictement devant x, undefined sinon (tâche 11c) ; sans allocation. */
+export function nextRock(track: Track, x: number): Rock | undefined {
+  for (const r of track.rocks) if (r.xStart > x) return r;
   return undefined;
 }
 

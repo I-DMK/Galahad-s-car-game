@@ -1,5 +1,6 @@
 import type { Config } from '../config';
 import { mulberry32, pickWeighted } from './rng';
+import { placeRocks } from './rocks';
 import { placeStars, starFlatStarX } from './stars';
 import {
   bosses, doubleBosse, fosse, plat, platEtoile, rampeSaut, rampeVolcan, type SliceProfile, type VolcanoProfile,
@@ -199,6 +200,8 @@ function buildTrack(
     xStart: cfg.START_LENGTH - 5, xFinish, xWall,
   };
   track.stars = placeStars(track, rng, cfg);
+  // Rochers (tâche 11c, spec « rochers » §3) : tirés après tous les autres tirages, terrain et étoiles inchangés.
+  track.rocks = placeRocks(track, rng, cfg);
   return { track, flatsPlaced, flatsWanted: nFlats };
 }
 
