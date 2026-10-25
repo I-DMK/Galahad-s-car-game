@@ -7,7 +7,7 @@
 // La course entière est recréée (`newRace`) pour AUTRE PISTE, ENCORE et MENU ; la simulation ne fait aucun pas hors de
 // `racing` et `finished` (le podium est une scène figée).
 import type { Pilot } from './cars/pilots';
-import { DisplayedRank, podiumView, progressFraction, type PodiumView } from './cars/ranking';
+import { DisplayedRank, podiumView, progressFraction, type PodiumPlace, type PodiumView } from './cars/ranking';
 import { CONFIG, type Config } from './config';
 import { JumpInput } from './input/jump';
 import { Throttle } from './input/throttle';
@@ -359,13 +359,17 @@ export class Game {
     document.removeEventListener('visibilitychange', this.onVisibility);
   }
 
-  /** Taille du canvas, puis orientation : portrait pendant le décompte ou la course → pause ; en pause → le calque suit. */
+  /**
+   * Taille du canvas, puis orientation : portrait pendant le décompte ou la course → pause ; en pause → le calque suit ; au
+   * podium → petites voitures repeintes à leur nouvelle taille (rotation de la tablette, cr 5).
+   */
   private readonly onResize = (): void => {
     this.renderer.resize();
     this.readPortrait();
     const { phase } = this.machine;
     if (this._portrait && (phase === 'countdown' || phase === 'racing')) this.pause();
     else if (phase === 'paused') this.screens.setPortrait(this._portrait);
+    else if (phase === 'podium' && this.podiumData) this.screens.showPodium(this.podiumData, this.paintPodiumCar);
   };
 
   /** Geste retour : l'entrée est consommée ; pause pendant le décompte ou la course, MENU après l'arrivée (A5). */
@@ -497,9 +501,21 @@ export class Game {
     this.hud.setRaceVisible(false);
     this.jumpButton.setVisible(false);
     this.pauseButton.setVisible(false);
-    this.screens.showPodium(view, (canvas, p) => this.renderer.paintCarIcon(canvas, p.pilot));
+    this.screens.showPodium(view, this.paintPodiumCar);
     if (view.galahadPlace === 1) this.effects.startConfetti();
   }
+
+  /**
+   * Petite voiture d'une place du podium. Une peinture qui lève (image cassée, contexte perdu) laisse la toile vide :
+   * le podium s'affiche quand même, sans « Oups » (cr 1, tour 1).
+   */
+  private readonly paintPodiumCar = (canvas: HTMLCanvasElement, p: PodiumPlace): void => {
+    try {
+      this.renderer.paintCarIcon(canvas, p.pilot);
+    } catch (err) {
+      console.error('petite voiture du podium non peinte', err);
+    }
+  };
 
   /**
    * Une image du podium : aucun pas ; la scène de course aux poses du dernier pas, caméra immobile (temps écoulé nul pour

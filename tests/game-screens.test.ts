@@ -701,3 +701,44 @@ test('podium : seuls les confettis bougent ; une étincelle présente à l’ent
   expect(others()).toEqual(before);
   expect(internals().effects.confettiCount).toBeGreaterThan(0);   // la pluie, elle, tombe
 });
+
+test('podium : une petite voiture qui ne se peint pas (drawCar lève) n’empêche pas le podium, sans « Oups » (cr 1, tour 1)', () => {
+  vi.spyOn(Renderer.prototype, 'paintCarIcon').mockImplementation(() => { throw new Error('drawCar lève (test)'); });
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const { game, q, root, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = driveToPodium(game, internals, now);
+  frames(30, now);
+  expect(game.state).toBe('podium');
+  expect(q('.screen-podium').hidden).toBe(false);
+  expect(q('.btn-again').hidden).toBe(false);
+  expect(root.querySelector('.hud-error')).toBeNull();
+  expect(error).toHaveBeenCalled();
+});
+
+test('podium : rotation de la tablette (resize) → petites voitures repeintes à la nouvelle taille (cr 5, tour 1)', () => {
+  const { game, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = driveToPodium(game, internals, now);
+  expect(painted).toHaveLength(3);
+  setOrientation(800, 1280);
+  expect(game.state).toBe('podium');
+  expect(painted).toHaveLength(6);
+  expect(painted.slice(3)).toEqual(painted.slice(0, 3));
+  frames(5, now);
+});
+
+test('podium : les confettis naissent au-dessus du haut de l’écran et descendent (adv M1, tour 1)', () => {
+  const { game, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = driveToPodium(game, internals, now);
+  const parts = () => (internals().effects as unknown as { particles: { kind: string; y: number }[] }).particles.filter((p) => p.kind === 'confetti');
+  const top = internals().camera.y + CONFIG.VISIBLE_HEIGHT_M / 2;
+  now = frames(1, now);
+  const born = parts().map((p) => p.y);
+  expect(born.length).toBeGreaterThan(0);
+  for (const y of born) expect(y).toBeGreaterThanOrEqual(top - 2.6 * 2 * DT);
+  const first = parts().slice(0, born.length);
+  now = frames(30, now);
+  first.forEach((p, i) => expect(p.y).toBeLessThan(born[i]));
+});
