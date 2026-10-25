@@ -22,8 +22,31 @@ export const TITLE_WHEEL_SPIN_RAD_S = 6;
 export const TITLE_NAME_SCALE = 1.8;
 
 /** m : le châssis repose WHEEL_DROP au-dessus de l'axe des roues (gabarit : axes à (±0,75 ; −0,25) du châssis). */
-export const CHASSIS_ABOVE_AXLE_M = 0.25;
-export const WHEEL_X_M = 0.75;
+const CHASSIS_ABOVE_AXLE_M = 0.25;
+const WHEEL_X_M = 0.75;
+
+/**
+ * Voiture de `pilot` posée au repos, de profil (titre, et petites voitures du podium de la tâche 11) : châssis à
+ * x, y = WHEEL_RADIUS + 0,25 + h, roues à (x ± 0,75 ; WHEEL_RADIUS + h) tournées de `wheelAngle`, angle 0, sans turbo ;
+ * `name` écrit par `drawCar` (vide : rien d'écrit).
+ */
+export function restingCarView(
+  pilot: Pilot, x: number, h: number, wheelAngle: number, name: string, cfg: Pick<Config, 'WHEEL_RADIUS'>,
+): CarView {
+  const R = cfg.WHEEL_RADIUS;
+  return {
+    id: pilot.id,
+    x,
+    y: R + CHASSIS_ABOVE_AXLE_M + h,
+    angle: 0,
+    wheels: [{ x: x - WHEEL_X_M, y: R + h, angle: wheelAngle }, { x: x + WHEEL_X_M, y: R + h, angle: wheelAngle }],
+    color: colorHex(pilot.color),
+    accent: colorHex(pilot.accent),
+    helmet: colorHex(pilot.helmet),
+    name,
+    turbo: false,
+  };
+}
 
 /** Hauteur du bond à l'instant t : parabole périodique 4H·u(1 − u), u = (t mod T)/T ; 0 aux rebonds, H à mi-période ; ≥ 0 pour t < 0. */
 export function bounceHeight(t: number): number {
@@ -50,7 +73,6 @@ export interface TitleScene {
  * `helmet` du pilote. Tableau construit du dernier rang au rang 0 ; `centerX` = milieu de la première et de la dernière.
  */
 export function titleScene(pilots: readonly Pilot[], t: number, cfg: Config): TitleScene {
-  const R = cfg.WHEEL_RADIUS;
   const spacing = cfg.GRID_SPACING_FACTOR * cfg.CAR_LENGTH;
   const cars: CarView[] = [];
   const heights: number[] = [];
@@ -59,18 +81,7 @@ export function titleScene(pilots: readonly Pilot[], t: number, cfg: Config): Ti
     const x = rank === 0 ? 0 : -rank * spacing;
     const h = rank === 0 ? bounceHeight(t) : 0;
     const wheelAngle = rank === 0 ? -t * TITLE_WHEEL_SPIN_RAD_S : 0;
-    cars.push({
-      id: p.id,
-      x,
-      y: R + CHASSIS_ABOVE_AXLE_M + h,
-      angle: 0,
-      wheels: [{ x: x - WHEEL_X_M, y: R + h, angle: wheelAngle }, { x: x + WHEEL_X_M, y: R + h, angle: wheelAngle }],
-      color: colorHex(p.color),
-      accent: colorHex(p.accent),
-      helmet: colorHex(p.helmet),
-      name: p.name,
-      turbo: false,
-    });
+    cars.push(restingCarView(p, x, h, wheelAngle, p.name, cfg));
     heights.push(h);
   }
   const centerX = cars.length === 0 ? 0 : (cars[0].x + cars[cars.length - 1].x) / 2;

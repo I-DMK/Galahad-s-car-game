@@ -2,7 +2,7 @@
 // Podium (plan B, tâche 11 ; spec §6 « Arrivée », §8 « Écrans » et « Rendu ») : classement final pur (`podiumView`),
 // confettis (`Effects`), petite voiture peinte par `Renderer.paintCarIcon`, écran DOM (`Screens.showPodium`, Partie 2).
 import { afterEach, expect, test, vi } from 'vitest';
-import { GALAHAD, PILOTS, colorHex, type Pilot } from '../src/cars/pilots';
+import { GALAHAD, PILOTS, type Pilot } from '../src/cars/pilots';
 import { ordinal, podiumView, rankCars, type RankEntry } from '../src/cars/ranking';
 import { CONFIG } from '../src/config';
 import { CONFETTI_PER_SECOND, CONFETTI_SECONDS, Effects, MAX_PARTICLES } from '../src/render/effects';
@@ -25,7 +25,7 @@ test('podiumView : arrivés par temps, puis non arrivés par progression (rankCa
   expect(v.places.map((p) => p.index)).toEqual(rankCars(entries));
   expect(v.places.map((p) => p.index)).toEqual([2, 0, 3, 4, 1]);
   expect(v.places.map((p) => p.place)).toEqual([1, 2, 3, 4, 5]);
-  expect(v.places[0]).toEqual({ place: 1, index: 2, id: 'diego', name: 'Diego', color: colorHex(PILOTS[1].color), isGalahad: false });
+  expect(v.places[0]).toEqual({ place: 1, index: 2, id: 'diego', name: 'Diego', pilot: PILOTS[1], isGalahad: false });
   expect(v.places.filter((p) => p.isGalahad).map((p) => p.id)).toEqual(['galahad']);
   expect(v.galahadPlace).toBe(2);
   expect(v.galahadTime).toBe(80);

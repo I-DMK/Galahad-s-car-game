@@ -1,7 +1,7 @@
 // Classement de course (spec §6 « Arrivée ») et place affichée au HUD (tâche 8 : hystérésis, ordinal, position
 // sur la barre) : pur (ni DOM, ni matter-js).
 import { CONFIG, type Config } from '../config';
-import { colorHex, type Pilot } from './pilots';
+import type { Pilot } from './pilots';
 
 export interface RankEntry {
   /** Index de la voiture (Galahad = 0). */
@@ -35,8 +35,8 @@ export interface PodiumPlace {
   index: number;
   id: string;
   name: string;
-  /** Couleur CSS (#rrggbb) de la carrosserie. */
-  color: string;
+  /** Le pilote (sa voiture est peinte d'après lui au podium). */
+  pilot: Pilot;
   isGalahad: boolean;
 }
 
@@ -58,7 +58,7 @@ export function podiumView(entries: readonly RankEntry[], pilots: readonly Pilot
   const places = rankCars(entries).map((index, k): PodiumPlace => {
     const p = pilots[index];
     if (p === undefined) throw new RangeError(`podiumView : pas de pilote d'index ${index} (${pilots.length} reçus)`);
-    return { place: k + 1, index, id: p.id, name: p.name, color: colorHex(p.color), isGalahad: index === galahadIndex };
+    return { place: k + 1, index, id: p.id, name: p.name, pilot: p, isGalahad: index === galahadIndex };
   });
   return { places, galahadPlace: places.findIndex((p) => p.isGalahad) + 1, galahadTime };
 }

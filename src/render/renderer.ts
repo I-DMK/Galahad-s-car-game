@@ -2,7 +2,7 @@
 // Les images (tâche 8b) arrivent par `setArt` ; tant qu'elles manquent, tout se dessine par code.
 // Tout est dessiné en pixels « backing » (canvas.width × canvas.height) ; pxPerMeter vient de la hauteur backing.
 // Le renderer reçoit des coordonnées du monde (mètres, y vers le haut) et n'importe jamais matter-js.
-import { colorHex, type Pilot } from '../cars/pilots';
+import type { Pilot } from '../cars/pilots';
 import type { Config } from '../config';
 import type { Track } from '../track/types';
 import { Camera, computeBackingSize, type BackingSize } from './camera';
@@ -10,7 +10,7 @@ import { prerenderSky } from './background';
 import { NO_ART, type Art } from './assets';
 import { SHADOW_ALPHA, SHADOW_RX_M, SHADOW_RY_M, drawCar, drawShadow, shadowScale } from './car';
 import type { Effects } from './effects';
-import { CHASSIS_ABOVE_AXLE_M, TITLE_GROUND_FRAC, TITLE_NAME_SCALE, WHEEL_X_M, type TitleScene } from './title';
+import { TITLE_GROUND_FRAC, TITLE_NAME_SCALE, restingCarView, type TitleScene } from './title';
 import { drawStar, drawTrack } from './track';
 
 /** Voiture à dessiner, en coordonnées du monde. `angle` : angle du monde (positif = nez en haut). */
@@ -178,13 +178,8 @@ export class Renderer {
     ctx.globalAlpha = 1;
     ctx.clearRect(0, 0, w, h);
     const ppm = w / ICON_W_M;
-    const R = this.cfg.WHEEL_RADIUS;
-    const car: CarView = {
-      id: pilot.id, x: 0, y: R + CHASSIS_ABOVE_AXLE_M, angle: 0,
-      wheels: [{ x: -WHEEL_X_M, y: R, angle: 0 }, { x: WHEEL_X_M, y: R, angle: 0 }],
-      color: colorHex(pilot.color), accent: colorHex(pilot.accent), helmet: colorHex(pilot.helmet),
-      name: '', turbo: false,
-    };
+    // Même pose au repos que le titre (`restingCarView`), sans prénom : le DOM l'écrit.
+    const car = restingCarView(pilot, 0, 0, 0, '', this.cfg);
     const toScreen = (p: { x: number; y: number }) => ({ x: w / 2 + p.x * ppm, y: h / 2 - (p.y - ICON_CENTER_Y_M) * ppm });
     drawCar(ctx, car, ppm, 0, toScreen, this.cfg, this.loaded ?? NO_ART);
   }

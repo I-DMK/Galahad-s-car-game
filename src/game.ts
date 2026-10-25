@@ -479,7 +479,7 @@ export class Game {
     this.present(now, elapsed, events, frame);
     // Roue libre finie (FINISH_COAST_SECONDS de temps de course après l'arrivée de Galahad : les copains ont roulé) : podium.
     if (this.machine.phase === 'finished' && this.finishTime !== null && this.sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {
-      this.enterPodium(this.finishTime);
+      this.enterPodium();
     }
     return true;
   }
@@ -489,16 +489,15 @@ export class Game {
    * copains non arrivés sont classés par progression), HUD de course et bouton saut cachés, écran du podium avec les petites
    * voitures peintes par `drawCar`, confettis si Galahad est 1er. Plus aucun pas ensuite (`podiumFrame`).
    */
-  private enterPodium(galahadTime: number): void {
-    if (!this.send('podium')) return;
-    const { sim } = this;
-    const view = podiumView(rankEntriesOf(sim), this.pilots, GALAHAD_INDEX, galahadTime);
+  private enterPodium(): void {
+    if (this.finishTime === null || !this.send('podium')) return;
+    const view = podiumView(rankEntriesOf(this.sim), this.pilots, GALAHAD_INDEX, this.finishTime);
     this.podiumData = view;
     this.jumpInput.clear();
     this.hud.setRaceVisible(false);
     this.jumpButton.setVisible(false);
     this.pauseButton.setVisible(false);
-    this.screens.showPodium(view, (canvas, p) => this.renderer.paintCarIcon(canvas, sim.cars[p.index].pilot));
+    this.screens.showPodium(view, (canvas, p) => this.renderer.paintCarIcon(canvas, p.pilot));
     if (view.galahadPlace === 1) this.effects.startConfetti();
   }
 
