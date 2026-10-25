@@ -87,6 +87,8 @@ export function fallCause(o: { kind: Fall['kind']; robot: boolean; jumped: boole
  * partout, 1,93 à 1,97 s de vol avant la reprise ; robots-sauts, race-invariants et race-sans-saut : voir le registre.
  */
 export const isSansTentative = (f: Fall): boolean => f.cause === 'sans-tentative';
+/** s : une réapparition dans cette durée après un choc contre un rocher est un défaut (tâche 11c). */
+export const ROCK_RESPAWN_WINDOW = 3;
 /** Fenêtre (s) avant la chute dans laquelle un contact entre voitures en fait une chute « par choc ». */
 export const CONTACT_WINDOW = 5;
 export const describeFall = (f: Fall): string =>
@@ -119,6 +121,13 @@ export interface FiveCarRace {
   firstStarCars: string[];
   /** Sauts de copain dans [xLancement, xReception] d'un tremplin (`inNoJumpZone` au x du saut) : 0 attendu (tâche 6). */
   noJumpZoneJumps: string[];
+  /** Chocs contre un rocher par voiture (événements 'rock', tâche 11c), toutes les voitures. */
+  rocksByCar: Record<string, number>;
+  /**
+   * Réapparitions d'une voiture dans les ROCK_RESPAWN_WINDOW s qui suivent son choc contre un rocher (tâche 11c, spec
+   * « rochers » §0 : un rocher ne cause jamais de réapparition) : vide attendu.
+   */
+  rockRespawns: string[];
   /** Résumé lisible (par voiture), imprimé et repris dans les messages d'assertion. */
   summary: string;
   /** Durée mur de la simulation (s). */
@@ -215,6 +224,9 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
   const falls: Fall[] = [];
   const noJumpZoneJumps: string[] = [];
   const starCounts: Record<string, number> = {};
+  const rockCounts: Record<string, number> = {};
+  const lastRock = new Map<string, number>();
+  const rockRespawns: string[] = [];
   let firstStar: FiveCarRace['firstStar'] = null;
   const firstStarCars: string[] = [];
   const r = simulateRace(track, {
@@ -235,7 +247,15 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
           firstStar ??= { carId: e.carId, t: e.t };
           if (e.t === firstStar.t && !firstStarCars.includes(e.carId)) firstStarCars.push(e.carId);
         }
+        if (e.type === 'rock') {
+          rockCounts[e.carId] = (rockCounts[e.carId] ?? 0) + 1;
+          lastRock.set(e.carId, e.t);
+        }
         if (e.type !== 'respawn') continue;
+        const hitAt = lastRock.get(e.carId);
+        if (hitAt !== undefined && e.t - hitAt <= ROCK_RESPAWN_WINDOW) {
+          rockRespawns.push(`${e.carId} t = ${f1(e.t)} s (${e.reason}), choc contre un rocher à ${f1(hitAt)} s`);
+        }
         if (e.reason === 'lava') {
           const v = nearestVolcanoZone(track, e.x) ?? volcanoAhead(track, e.x);
           const c = lastContact.get(e.carId) ?? null;
@@ -259,17 +279,19 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
   });
   const seconds = (performance.now() - t0) / 1000;
   const stars = Object.fromEntries(Object.keys(r.respawnsByCar).map((id) => [id, starCounts[id] ?? 0]));
+  const rocksByCar = Object.fromEntries(Object.keys(r.respawnsByCar).map((id) => [id, rockCounts[id] ?? 0]));
   const cars = Object.keys(r.respawnsByCar).map((id) => {
     const rs = r.respawnsByCar[id];
-    return `${id} : respawns ${rs.length}, lave ${r.lavaByCar[id]}, étoiles ${stars[id]}, blocage max ${f2(r.maxStuckByCar[id])} s, `
+    return `${id} : respawns ${rs.length}, lave ${r.lavaByCar[id]}, étoiles ${stars[id]}, rochers ${rocksByCar[id]}/${track.rocks.length}, blocage max ${f2(r.maxStuckByCar[id])} s, `
       + `arrivée ${f1(r.finishedAtByCar[id])} s [${describeRespawns(rs).join(' ; ')}]`;
   });
   const variant = opts.jump === 'jamais' ? ', Galahad sans saut' : opts.jump === 'sauteur' ? ', Galahad sauteur' : '';
   const summary = `seed ${seed}${opts.solo ? ' (Galahad seul)' : ''}${variant}${opts.traits ? `, copains ${opts.traits.jumpTry} / ${opts.traits.jumpSkill}` : ''} : Galahad arrivé à ${f1(r.finishedAt)} s, fin à ${f1(r.time)} s, classement ${r.ranking.join(' > ')}, `
     + `meanStepMs ${f2(r.meanStepMs)} (indicateur, cible < 4), maxStepMs ${f1(r.maxStepMs)}, durée ${f1(seconds)} s\n  ${cars.join('\n  ')}`
     + `\n  chutes dans la lave : ${falls.length ? falls.map(describeFall).join(' ; ') : 'aucune'}`
-    + (noJumpZoneJumps.length ? `\n  sauts de copain dans la zone d'un tremplin : ${noJumpZoneJumps.join(' ; ')}` : '');
-  return { r, track, falls, noJumpZoneJumps, stars, firstStar, firstStarCars, summary, seconds };
+    + (noJumpZoneJumps.length ? `\n  sauts de copain dans la zone d'un tremplin : ${noJumpZoneJumps.join(' ; ')}` : '')
+    + (rockRespawns.length ? `\n  réapparitions après un rocher : ${rockRespawns.join(' ; ')}` : '');
+  return { r, track, falls, noJumpZoneJumps, rocksByCar, rockRespawns, stars, firstStar, firstStarCars, summary, seconds };
 }
 
 /**
@@ -315,6 +337,8 @@ export function expectRaceInvariants(race: FiveCarRace): void {
   expect(falls.filter((f) => f.cause === 'fosse' && f.carId === 'galahad').map(describeFall), summary).toEqual([]);
   expect(falls.filter(isSansTentative).map(describeFall), summary).toEqual([]);
   expect(race.noJumpZoneJumps, summary).toEqual([]);
+  // Un rocher ne cause jamais de réapparition (tâche 11c, spec « rochers » §0), pour aucune voiture.
+  expect(race.rockRespawns, summary).toEqual([]);
   // Fantômes près des volcans : aucune paire active entre deux voitures dont l'une est dans une zone fantôme.
   expect(r.ghostContacts, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {

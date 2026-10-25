@@ -15,7 +15,7 @@ import type { Rock, Track } from '../src/track/types';
 import { disposeSolo, launchSolo, setCarSpeed, soloSim } from './helpers/jump-runs';
 import { fossePiste } from './helpers/fosses';
 import {
-  BLOCK_HALF_STEPS, leadOf, localRockLead, passedRock, ROCK_X, rockBlock, rockRun, rockStart, rockTrack, rockWorld,
+  BLOCK_HALF_STEPS, leadOf, localRockLead, passedRock, realTrackRun, ROCK_X, rockBlock, rockRun, rockStart, rockTrack, rockWorld,
 } from './helpers/rochers';
 import { f2 } from './helpers/runs';
 
@@ -364,4 +364,47 @@ describe('saut voulu devant un rocher (cars/jump.ts, fonctions pures)', () => {
     }
     expect(checked).toBe(50);
   });
+});
+
+describe('Review Focus 4 : masque du capteur à 5 voitures', () => {
+  test('Galahad devant touche le rocher, puis un copain : hitAt n’a que leurs cases, masque = OU des 3 autres ; un seul événement par voiture', () => {
+    const track = rockTrack([ROCK_X]);
+    const sim = createRaceSim(track, CONFIG, { robots: true });
+    const [g, c] = sim.cars;
+    const launch = (car: typeof g, x: number): void => {
+      placeCar(car.body, x, (u) => heightAt(track, u), 0, CONFIG);
+      setCarSpeed(car, track, x, 14, CONFIG);
+    };
+    launch(g, ROCK_X - 20);
+    const events: Extract<SimEvent, { type: 'rock' }>[] = [];
+    const run = (seconds: number): void => {
+      for (let k = 0; k < seconds / DT; k++) {
+        stepRace(sim, true);
+        for (const e of sim.events) if (e.type === 'rock') events.push(e);
+      }
+    };
+    run(2);
+    expect(events.map((e) => e.carId)).toEqual([g.state.id]);
+    expect(sim.rocks[0].hitAt.map((h) => h !== null)).toEqual([true, false, false, false, false]);
+    expect(sim.rockBodies[0].collisionFilter.mask).toBe(carCategory(1) | carCategory(2) | carCategory(3) | carCategory(4));
+    // Le copain de rang 1, lancé 20 m avant ; son driver est remplacé par un doigt posé sans saut, pour un choc sûr.
+    c.driver = () => ({ throttle: true, jump: false });
+    launch(c, ROCK_X - 20);
+    run(3);
+    expect(events.map((e) => e.carId)).toEqual([g.state.id, c.state.id]);
+    expect(sim.rocks[0].hitAt.map((h) => h !== null)).toEqual([true, true, false, false, false]);
+    expect(sim.rockBodies[0].collisionFilter.mask).toBe(carCategory(2) | carCategory(3) | carCategory(4));
+  });
+});
+
+describe('vraies pistes, Galahad seul, doigt posé sans saut (graines 0 à 4 ; 5 à 9 en suite lente)', () => {
+  test.each([0, 1, 2, 3, 4])('graine %i : chaque rocher donne exactement un « rock » de Galahad ; aucune réapparition dans les 3 s après ; arrivée avant 240 s', (seed) => {
+    const r = realTrackRun(seed);
+    console.log(`graine ${seed} : ${r.rocks} rochers, chocs ${r.hits.join(', ')}, arrivée ${r.finishedAt?.toFixed(1)} s${r.missed.length ? `, SURVOLS ${r.missed.join(' ; ')}` : ''}`);
+    expect(r.missed).toEqual([]);
+    expect([...r.hits].sort((a, b) => a - b)).toEqual(Array.from({ length: r.rocks }, (_, k) => k));
+    expect(r.rockRespawns).toEqual([]);
+    expect(r.finishedAt).not.toBeNull();
+    expect(r.finishedAt!).toBeLessThan(240);
+  }, 120_000);
 });

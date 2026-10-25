@@ -11,9 +11,11 @@ import { physToWorld } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
 import { chassisX, GALAHAD_INDEX, stepRace, type RaceSim } from '../../src/sim/simulate';
 import { generateTrack } from '../../src/track/generate';
-import { heightAt } from '../../src/track/query';
+import { simulateRace } from '../../src/sim/harness';
+import { heightAt, sliceAt } from '../../src/track/query';
 import type { Rock, Track } from '../../src/track/types';
 import { disposeSolo, launchSolo, soloSim } from './jump-runs';
+import { ROCK_RESPAWN_WINDOW } from './race';
 
 /** x (m) du rocher par défaut de la piste plate. */
 export const ROCK_X = 250;
@@ -273,3 +275,45 @@ export function rockBlock(world: World, rock: Rock, v: number | 'arrêt', opts: 
 
 /** Position du châssis (m) d'une voiture de la course. */
 export const chassisPos = (sim: RaceSim, i: number): { x: number; y: number } => physToWorld(sim.cars[i].body.chassis.position);
+
+/** Course de Galahad seul, doigt posé, sans saut, sur une vraie piste (tâche 11c, Step 25). */
+export interface RealTrackRun {
+  seed: number; rocks: number;
+  /** Ids des rochers de ses événements 'rock', dans l'ordre. */
+  hits: number[];
+  /** Réapparitions dans les ROCK_RESPAWN_WINDOW s après un choc (vide attendu). */
+  rockRespawns: string[];
+  /** Rochers non touchés (survol) : x, tranche précédente, vitesse et hauteur du châssis à 1,5 m de xStart. */
+  missed: string[];
+  finishedAt: number | null;
+}
+
+/** Galahad seul, doigt posé sans saut, piste de la graine (1 680 m, CONFIG), jusqu'à 240 s. */
+export function realTrackRun(seed: number, cfg: Config = CONFIG): RealTrackRun {
+  const track = generateTrack(seed, 1680, cfg);
+  const hits: number[] = [];
+  const rockRespawns: string[] = [];
+  const near = new Map<number, string>();
+  let lastHit = -Infinity;
+  const r = simulateRace(track, {
+    throttle: () => true, maxSeconds: 240, cfg,
+    onStep: (sim) => {
+      const g = sim.cars[GALAHAD_INDEX];
+      const x = chassisX(g);
+      for (const rk of track.rocks) {
+        if (near.has(rk.id) || x <= rk.xStart - 1.5) continue;
+        const p = physToWorld(g.body.chassis.position);
+        near.set(rk.id, `${carSpeedMps(g.body).toFixed(1)} m/s, châssis à ${(p.y - heightAt(track, p.x)).toFixed(2)} m`);
+      }
+      for (const e of sim.events) {
+        if (e.type === 'rock') { hits.push(e.id); lastHit = e.t; }
+        if (e.type === 'respawn' && e.t - lastHit <= ROCK_RESPAWN_WINDOW) rockRespawns.push(`${e.reason} à ${e.t.toFixed(1)} s, choc à ${lastHit.toFixed(1)} s`);
+      }
+    },
+  });
+  const missed = track.rocks.filter((rk) => !hits.includes(rk.id)).map((rk) => {
+    const i = track.slices.indexOf(sliceAt(track, rk.xStart));
+    return `rocher ${rk.id} en ${rk.xStart.toFixed(1)} (tranche précédente ${track.slices[i - 1]?.type ?? '—'}, ${near.get(rk.id) ?? 'jamais atteint'})`;
+  });
+  return { seed, rocks: track.rocks.length, hits, rockRespawns, missed, finishedAt: r.finishedAt };
+}
