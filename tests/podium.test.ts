@@ -6,7 +6,9 @@ import { GALAHAD, PILOTS, type Pilot } from '../src/cars/pilots';
 import { ordinal, podiumView, rankCars, type RankEntry } from '../src/cars/ranking';
 import { CONFIG } from '../src/config';
 import { CONFETTI_PER_SECOND, CONFETTI_SECONDS, Effects, MAX_PARTICLES } from '../src/render/effects';
-import { Renderer } from '../src/render/renderer';
+import { Camera } from '../src/render/camera';
+import { Renderer, type CarView } from '../src/render/renderer';
+import { generateTrack } from '../src/track/generate';
 import { formatTime } from '../src/ui/hud';
 import { Screens } from '../src/ui/screens';
 import { fakeCtx } from './helpers/fake-ctx';
@@ -66,7 +68,7 @@ test('confettis : nés au-dessus de topY dans [cx − demi-largeur, cx + demi-la
   fx.rainConfetti(0.5, 100, 20, 11);
   expect(fx.confettiCount).toBe(0.5 * CONFETTI_PER_SECOND);
   const { ctx, calls, state } = fakeCtx();
-  fx.draw(ctx, (p) => ({ x: p.x, y: p.y }), 1);
+  fx.drawConfetti(ctx, (p) => ({ x: p.x, y: p.y }), 1);
   const rects = calls.filter((c) => c.name === 'fillRect');
   expect(rects).toHaveLength(fx.confettiCount);
   for (const r of rects) {
@@ -271,4 +273,32 @@ test('confettis : la pluie ne dépasse jamais MAX_PARTICLES, même avec 300 part
     expect(fx.count).toBeLessThanOrEqual(MAX_PARTICLES);
   }
   expect(fx.confettiCount).toBe(CONFETTI_SECONDS * CONFETTI_PER_SECOND);   // les plus anciennes (étincelles) cèdent la place
+});
+
+test('confettis dessinés au-dessus de la scène : après les voitures (spec §8), pas avec les autres particules (cr 3, tour 1)', () => {
+  const { ctx, calls } = fakeCtx();
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ctx as unknown as RenderingContext);
+  const renderer = new Renderer(document.createElement('canvas'), CONFIG);
+  const track = generateTrack(1, 300, CONFIG);
+  const camera = new Camera(CONFIG);
+  camera.update(100, 2, 0, 1);
+  const car: CarView = {
+    id: 'robot', x: 100, y: 1, angle: 0, wheels: [{ x: 99.25, y: 0.4, angle: 0 }, { x: 100.75, y: 0.4, angle: 0 }],
+    color: '#1e5cff', accent: '#e2231a', helmet: '#00ff00', name: 'Robot', turbo: false,
+  };
+  const fx = new Effects(CONFIG);
+  fx.startConfetti();
+  fx.rainConfetti(0.5, 100, 3, 2);
+  fx.spawnSparks(100, 1);
+  calls.length = 0;
+  renderer.draw({ track, cars: [car], stars: [], t: 0 }, camera, fx);
+  const name = calls.findIndex((c) => c.name === 'fillText' && c.args[0] === 'Robot');
+  expect(name).toBeGreaterThan(-1);
+  const after = calls.slice(name + 1);
+  expect(after.filter((c) => c.name === 'fillRect')).toHaveLength(fx.confettiCount);
+  expect(after.some((c) => c.name === 'stroke')).toBe(false);   // les étincelles, elles, restent sous les voitures
+  // Effects.draw seul ne dessine plus les confettis.
+  calls.length = 0;
+  fx.draw(ctx, (p) => p, 1);
+  expect(calls.filter((c) => c.name === 'fillRect')).toHaveLength(0);
 });

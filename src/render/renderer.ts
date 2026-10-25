@@ -92,7 +92,7 @@ export class Renderer {
     return camera.visibleHalfWidthM(this.view.w, this.view.h);
   }
 
-  /** `effects` : particules dessinées après la piste et les ombres, avant les étoiles et les voitures. */
+  /** `effects` : particules dessinées après la piste et les ombres, avant les étoiles et les voitures ; confettis en dernier. */
   draw(scene: Scene, camera: Camera, effects?: Effects): void {
     const { ctx, view } = this;
     const art = this.loaded ?? NO_ART;
@@ -121,6 +121,8 @@ export class Renderer {
       if (Math.abs(car.x - camera.x) > carReach) continue;
       drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, art);
     }
+    // Confettis du podium (tâche 11) par-dessus tout : la fête est devant la scène (spec §8).
+    effects?.drawConfetti(ctx, toScreen, ppm);
   }
 
   /**

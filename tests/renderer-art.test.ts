@@ -81,11 +81,14 @@ describe('Renderer : dessin par code puis avec les images', () => {
     expect(calls.indexOf(sh[4])).toBeLessThan(calls.indexOf(bodyDraws[0]));
   });
 
-  test('ordre : ombres, puis effets, puis voitures', () => {
+  test('ordre : ombres, puis effets, puis voitures, puis confettis (tâche 11)', () => {
     const { renderer, calls } = setup();
     renderer.setArt(full);
-    // Faux effets : leur `draw` note un appel « effets » dans le même journal que le faux contexte.
-    const effects = { draw: (c: CanvasRenderingContext2D) => (c as unknown as { effets(): void }).effets() } as unknown as Effects;
+    // Faux effets : leurs `draw` et `drawConfetti` notent « effets » et « confettis » dans le même journal que le faux contexte.
+    const effects = {
+      draw: (c: CanvasRenderingContext2D) => (c as unknown as { effets(): void }).effets(),
+      drawConfetti: (c: CanvasRenderingContext2D) => (c as unknown as { confettis(): void }).confettis(),
+    } as unknown as Effects;
     calls.length = 0;
     renderer.draw(scene, cameraOnCars(), effects);
     const at = calls.findIndex((c) => c.name === 'effets');
@@ -93,6 +96,8 @@ describe('Renderer : dessin par code puis avec les images', () => {
     const firstBody = calls.findIndex((c) => c.name === 'drawImage' && [...bodies.values()].includes(c.args[0] as CanvasImageSource));
     expect(lastShadow).toBeLessThan(at);
     expect(at).toBeLessThan(firstBody);
+    const lastImage = calls.map((c) => c.name).lastIndexOf('drawImage');
+    expect(calls.findIndex((c) => c.name === 'confettis')).toBeGreaterThan(lastImage);
   });
 
   test('étoile : l’image des étoiles chargées est celle qui est dessinée', () => {

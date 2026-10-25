@@ -181,20 +181,32 @@ export class Effects {
     }
   }
 
+  /**
+   * Confettis (tâche 11) : passe séparée, dessinée par `Renderer.draw` après les voitures (au-dessus de la scène, spec §8).
+   * Papier qui se retourne : largeur × |cos| (au moins 1 px), opacité qui baisse le dernier tiers de sa vie.
+   */
+  drawConfetti(ctx: CanvasRenderingContext2D, toScreen: (p: { x: number; y: number }) => { x: number; y: number }, ppm: number): void {
+    ctx.save();
+    for (const p of this.particles) {
+      if (p.kind !== 'confetti') continue;
+      const s = toScreen(p);
+      const r = p.size * ppm;
+      const w = Math.max(1, 2 * r * Math.abs(Math.cos((p.phase ?? 0) + p.life * CONFETTI_FLUTTER)));
+      ctx.globalAlpha = Math.min(1, (3 * p.life) / p.maxLife);
+      ctx.fillStyle = p.color ?? '#ffffff';
+      ctx.fillRect(s.x - w / 2, s.y - r / 2, w, r);
+    }
+    ctx.restore();
+  }
+
+  /** Étincelles, poussière, bulles et fumée (sous les voitures) ; les confettis sont dessinés à part (`drawConfetti`). */
   draw(ctx: CanvasRenderingContext2D, toScreen: (p: { x: number; y: number }) => { x: number; y: number }, ppm: number): void {
     ctx.save();
     for (const p of this.particles) {
+      if (p.kind === 'confetti') continue;
       const k = p.life / p.maxLife; // 1 → 0
       const s = toScreen(p);
       let r = p.size * ppm;
-      if (p.kind === 'confetti') {
-        // Papier qui se retourne : largeur × |cos| (au moins 1 px), opacité qui baisse le dernier tiers de sa vie.
-        const w = Math.max(1, 2 * r * Math.abs(Math.cos((p.phase ?? 0) + p.life * CONFETTI_FLUTTER)));
-        ctx.globalAlpha = Math.min(1, 3 * k);
-        ctx.fillStyle = p.color ?? '#ffffff';
-        ctx.fillRect(s.x - w / 2, s.y - r / 2, w, r);
-        continue;
-      }
       switch (p.kind) {
         case 'spark':
           ctx.globalAlpha = k;
