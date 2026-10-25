@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Régime « écrans » de l'addendum « présentation » §5, **durci par la décision du papa du 2026-10-23** : un implémenteur frais pour toute la tâche (Parties 1 à 5), puis **quatre relectures** du diff de la tâche (standard, adversariale, skill `code-review`, skill `security-review`), tours de correction (≤ 5), **validation du papa sur capture** avant la fusion. Pas de suite lente. Jamais de PR.
 
-**Statut :** v1.1 (2026-10-24), relu contre le code (`.superpowers/sdd/2026-10-21-plan-b-copains-et-finitions/plan-10-review.md` : 7 importants, 8 mineurs, tous intégrés), en attente des réponses du papa (Q1 à Q4).
+**Statut :** v1.1 (2026-10-24), **exécuté** : tâche 10 faite (BASE 106f714, commits a25efb0…638932e et le tour 3), trois tours de correction, validée par le papa sur capture le 2026-10-25 (Q1 à Q6 au registre) ; jugement final sur la tablette après déploiement. Écart de compte : 27 e2e (20 + 7), pas 28.
 - v1 (`59223f6`) : brouillon.
 - v1.1 : REPRENDRE au `pointerdown` aussi (doigt tenu) ; voile de pause en `data-no-pedal` ; `[hidden]{display:none}` sur les calques flex et le bouton saut ; champs `sim`, `loop`, `step` de `Game` gardés (tests et `__game.sim`) ; adaptation précise des tests existants (`now` relatif, `mockClear`, caméra témoin) ; `defaultPilotSeed(trackSeed)` pur dans `cars/pilots.ts` ; portrait lu à `start`/`play`/`resume` ; fps compté dans `frame` ; `go` testé avant le texte ; flottants en `toBeCloseTo` ; `Camera.reset` au Step 12 ; comptes (28 e2e, 5 fichiers Vitest).
 
