@@ -1,13 +1,17 @@
 // Écrans DOM du jeu (plan B, tâche 10 ; spec §8 « Écrans », §4 « pause » ; addendum « présentation » §2) dans #hud :
 // titre (nom du jeu, version, JOUER avec drapeau, AUTRE PISTE avec dé ; la scène des voitures est dessinée derrière par
 // le canvas, `render/title.ts`), décompte (3, 2, 1, PARTEZ ; calque sans toucher) et pause (« PAUSE » + REPRENDRE en
-// paysage, « TOURNE » + dessin de tablette en portrait). Les trois calques sont créés une fois et cachés par `hidden`,
+// paysage, « TOURNE » + dessin de tablette en portrait) et, depuis la tâche 11, podium (temps de Galahad, trois marches
+// avec prénom, petite voiture et médaille, case de Galahad hors podium, ENCORE et MENU). Les quatre calques sont créés une
+// fois et cachés par `hidden`,
 // jamais retirés : un doigt posé sur JOUER garde ainsi sa cible jusqu'au `pointerup`, qui remonte à `window` et relâche
 // le gaz (`Throttle`). Chromium redirige de lui-même vers `window` le `pointerup` d'une cible retirée (mesuré en e2e) ;
 // la protection vaut pour jsdom et les autres navigateurs, et ne coûte rien. JOUER n'a PAS `data-no-pedal` (« le
 // pointerdown sur JOUER compte comme doigt posé », spec §8) ; AUTRE PISTE, REPRENDRE et le voile de pause entier en
-// portent (un tap n'y est jamais du gaz).
+// portent (un tap n'y est jamais du gaz) ; au podium, le voile entier, ENCORE et MENU aussi.
+import { ordinal, type PodiumPlace, type PodiumView } from '../cars/ranking';
 import { FONT_FAMILY } from './font';
+import { formatTime } from './hud';
 
 const STYLE_ID = 'screens-style';
 
@@ -53,6 +57,36 @@ const CSS = `
 .pause-tablet svg{display:block;width:100%;height:auto}
 .btn-resume{min-width:96px;min-height:96px;height:96px;padding:0 36px;margin:0;border-radius:24px;background:#e2231a;
   font-weight:700;font-size:28px}
+.screen-podium{background:rgba(0,0,20,.35);pointer-events:auto;justify-content:space-between;padding:2vh 0 4vh;box-sizing:border-box}
+.podium-time{font-size:clamp(40px,12vh,110px);font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.podium-row{display:flex;align-items:flex-end;justify-content:center;gap:clamp(8px,1.5vw,20px)}
+.podium-step,.podium-me{display:flex;flex-direction:column;align-items:center;width:clamp(110px,16vw,200px)}
+.podium-name{font-size:clamp(16px,3.4vh,28px);font-weight:700;line-height:1.1;white-space:nowrap}
+.podium-car{display:block;width:100%;height:auto;aspect-ratio:2/1}
+.podium-block{width:100%;box-sizing:border-box;display:flex;justify-content:center;align-items:flex-start;padding-top:6px;
+  background:#c8c8c8;border:3px solid #fff;border-bottom:none;border-radius:10px 10px 0 0;box-shadow:inset 0 -6px 0 #0002}
+.step-1 .podium-block{height:24vh}
+.step-2 .podium-block{height:18vh}
+.step-3 .podium-block{height:13vh}
+.podium-medal{height:min(9vh,80px)}
+.podium-medal svg{display:block;height:100%;width:auto}
+.podium-step.is-galahad .podium-name{color:#ffd23f}
+.podium-step.is-galahad .podium-block{background:#ffe27a}
+.podium-me{margin-left:clamp(16px,4vw,56px);align-self:center}
+.podium-me-place{font-size:clamp(40px,10vh,88px);font-weight:700;line-height:1}
+.podium-buttons{display:flex;align-items:center;justify-content:center;gap:clamp(20px,6vw,80px)}
+.btn-again{min-width:96px;min-height:96px;width:clamp(96px,16vh,130px);height:clamp(96px,16vh,130px);border-radius:50%;
+  padding:0;margin:0;background:#e2231a;font-weight:700;font-size:clamp(18px,3.2vh,26px)}
+.btn-again .btn-icon{width:36%;height:36%}
+.btn-menu{min-width:96px;min-height:96px;height:96px;padding:0 28px;margin:0;border-radius:24px;background:#1e5cff;
+  font-weight:700;font-size:20px}
+.btn-menu .btn-icon{width:38px;height:38px}
+@media (orientation:portrait){
+  .podium-row{flex-wrap:wrap}
+  .podium-step{width:24vw}
+  .podium-me{width:100%;margin:2vh 0 0;flex-direction:row;justify-content:center;gap:12px}
+  .podium-me .podium-car{width:24vw}
+}
 `;
 
 /** Drapeau à damier (SVG inline, sans fichier) : mât et 3 × 3 cases. */
@@ -84,6 +118,23 @@ const TABLET_SVG = `<svg viewBox="0 0 120 160" aria-hidden="true" focusable="fal
   <path d="M108 100 L96 116 L84 102" />
 </svg>`;
 
+/** Médaille (SVG inline) : ruban bleu, disque `fill` cerclé de `rim`, chiffre de la place. Arguments constants uniquement. */
+const medal = (fill: string, rim: string, n: 1 | 2 | 3) => `<svg viewBox="0 0 64 80" aria-hidden="true" focusable="false">
+  <path d="M18 0h12l6 24H24zM34 0h12l-6 24H28z" fill="#1e5cff"/>
+  <circle cx="32" cy="50" r="25" fill="${fill}" stroke="${rim}" stroke-width="5"/>
+  <text x="32" y="61" text-anchor="middle" font-size="30" font-weight="700" font-family="Fredoka, system-ui, sans-serif" fill="#3a2a00">${n}</text>
+</svg>`;
+/** Or, argent, bronze : médailles des places 1, 2, 3. */
+const MEDAL_SVG = [medal('#ffd23f', '#c99a00', 1), medal('#d9dee6', '#9aa3ad', 2), medal('#e08a4a', '#a3592a', 3)] as const;
+/** Flèche en boucle (ENCORE). */
+const AGAIN_SVG = `<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" fill="none" stroke="#fff" stroke-width="8"
+  stroke-linecap="round" stroke-linejoin="round"><path d="M50 32a18 18 0 1 1-6-13.4"/><path d="M46 6v14H32"/></svg>`;
+/**
+ * Maison (MENU). Aucun blanc entre les balises (ni dans AGAIN_SVG) : un nœud texte « \n  » dans l'icône s'ajouterait au
+ * `textContent` du bouton (« \n  MENU »), que les tests comparent à « MENU ». Les médailles ne sont pas dans des boutons.
+ */
+const HOME_SVG = `<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" fill="#fff"><path d="M32 8 6 30h8v24h14V40h8v14h14V30h8z"/></svg>`;
+
 export interface TitleActions {
   /**
    * JOUER : au `pointerdown` (`viaPointer` vrai : le doigt compte comme gaz, spec §8, et le plein écran se demande au
@@ -94,6 +145,17 @@ export interface TitleActions {
   onOtherTrack(): void;
 }
 
+export interface PodiumActions {
+  /**
+   * ENCORE : au `pointerdown` ET au `click` (data-no-pedal). Un doigt de gaz peut rester posé quand le podium arrive : avec
+   * un autre doigt sur l'écran, le `click` du tap ne part pas toujours (leçon de REPRENDRE, session 6). Le doublon est sans
+   * effet : après le premier, la phase est `countdown`, qui n'a pas de ligne `again`.
+   */
+  onAgain(): void;
+  /** MENU : au `click` seul (data-no-pedal) : A20. */
+  onMenu(): void;
+}
+
 export class Screens {
   private readonly title: HTMLDivElement;
   private readonly countdown: HTMLDivElement;
@@ -102,14 +164,27 @@ export class Screens {
   private readonly pauseText: HTMLDivElement;
   private readonly tablet: HTMLDivElement;
   private readonly resume: HTMLButtonElement;
+  private readonly podium: HTMLDivElement;
+  private readonly podiumTime: HTMLDivElement;
+  /** Les trois marches, de gauche à droite : 2e, 1er, 3e. */
+  private readonly steps: { place: 1 | 2 | 3; step: HTMLDivElement; name: HTMLDivElement; car: HTMLCanvasElement }[];
+  /** Case de Galahad hors podium (4e, 5e) : place, petite voiture, prénom. */
+  private readonly me: HTMLDivElement;
+  private readonly meRank: HTMLDivElement;
+  private readonly meName: HTMLDivElement;
+  private readonly meCar: HTMLCanvasElement;
+  /** Les quatre calques (titre, décompte, pause, podium) : `show()` et la création les parcourent. */
+  private readonly layers: HTMLDivElement[];
   private lastCountdown = '';
 
   /**
-   * Crée les trois calques cachés dans `root` (#hud), après le HUD et le bouton saut, et injecte le style une fois
+   * Crée les quatre calques cachés dans `root` (#hud), après le HUD et le bouton saut, et injecte le style une fois
    * (`screens-style`). `onResume` : REPRENDRE, au `pointerdown` ET au `click` (un doigt tenu sur le bouton n'émet pas de
-   * `click` avant d'être levé ; `Game` ignore le doublon).
+   * `click` avant d'être levé ; `Game` ignore le doublon). `onAgain`, `onMenu` : ENCORE et MENU du podium (`PodiumActions`).
    */
-  constructor(private readonly root: HTMLElement, opts: { version: string }, actions: TitleActions & { onResume(): void }) {
+  constructor(
+    private readonly root: HTMLElement, opts: { version: string }, actions: TitleActions & PodiumActions & { onResume(): void },
+  ) {
     const doc = root.ownerDocument;
     if (!doc.getElementById(STYLE_ID)) {
       const style = doc.createElement('style');
@@ -156,8 +231,49 @@ export class Screens {
     this.resume.addEventListener('click', () => actions.onResume());
     this.pause.append(this.pauseText, this.tablet, this.resume);
 
-    for (const s of [this.title, this.countdown, this.pause]) s.hidden = true;
-    root.append(this.title, this.countdown, this.pause);
+    // Podium (tâche 11) : voile data-no-pedal (un doigt laissé dessus n'est pas du gaz à PARTEZ après ENCORE), temps de
+    // Galahad, trois marches (2e, 1er, 3e de gauche à droite), case de Galahad hors podium, ENCORE et MENU. Rempli par `showPodium`.
+    this.podium = this.div('screen screen-podium');
+    this.podium.setAttribute('data-no-pedal', '');
+    this.podiumTime = this.div('podium-time');
+    const row = this.div('podium-row');
+    this.steps = ([2, 1, 3] as const).map((place) => {
+      const step = this.div(`podium-step step-${place}`);
+      const name = this.div('podium-name');
+      const car = doc.createElement('canvas');
+      car.className = 'podium-car';
+      const block = this.div('podium-block');
+      const medalBox = this.div('podium-medal');
+      medalBox.innerHTML = MEDAL_SVG[place - 1];
+      block.appendChild(medalBox);
+      step.append(name, car, block);
+      row.appendChild(step);
+      return { place, step, name, car };
+    });
+    this.me = this.div('podium-me');
+    this.meRank = this.div('podium-me-place');
+    this.meCar = doc.createElement('canvas');
+    this.meCar.className = 'podium-car';
+    this.meName = this.div('podium-name');
+    this.me.append(this.meRank, this.meCar, this.meName);
+    this.me.hidden = true;
+    row.appendChild(this.me);
+    const podiumButtons = this.div('podium-buttons');
+    const again = this.button('btn-again', 'ENCORE', AGAIN_SVG);
+    again.setAttribute('data-no-pedal', '');
+    // ENCORE au pointerdown (doigt de gaz encore posé : le click peut ne pas partir) et au click (clavier) ; doublon ignoré par `Game`.
+    again.addEventListener('pointerdown', () => actions.onAgain());
+    again.addEventListener('click', () => actions.onAgain());
+    // MENU au click seul (A20) : au titre, AUTRE PISTE est presque à la même place ; un click fantôme y changerait de piste.
+    const menu = this.button('btn-menu', 'MENU', HOME_SVG);
+    menu.setAttribute('data-no-pedal', '');
+    menu.addEventListener('click', () => actions.onMenu());
+    podiumButtons.append(again, menu);
+    this.podium.append(this.podiumTime, row, podiumButtons);
+
+    this.layers = [this.title, this.countdown, this.pause, this.podium];
+    for (const s of this.layers) s.hidden = true;
+    root.append(...this.layers);
   }
 
   /** Montre le titre (les autres calques cachés). */
@@ -187,7 +303,33 @@ export class Screens {
     this.applyPortrait(portrait);
   }
 
-  /** Cache les trois calques (course, arrivée, erreur). */
+  /**
+   * Montre le podium (les autres calques cachés) : temps de Galahad (mm:ss), les trois premiers sur leurs marches (2e, 1er,
+   * 3e de gauche à droite : prénom, petite toile peinte par `paintCar`, médaille), la marche de Galahad surlignée ; hors
+   * podium, sa case à droite (« 4e », sa voiture, son prénom). Rappelé à chaque arrivée : tout est réécrit, rien n'est ajouté.
+   */
+  showPodium(view: PodiumView, paintCar: (canvas: HTMLCanvasElement, place: PodiumPlace) => void): void {
+    this.podiumTime.textContent = formatTime(view.galahadTime);
+    for (const s of this.steps) {
+      const p = view.places[s.place - 1];
+      s.step.hidden = p === undefined;
+      s.step.classList.toggle('is-galahad', p?.isGalahad === true);
+      s.name.textContent = p?.name ?? '';
+    }
+    const me = view.places[view.galahadPlace - 1];
+    this.me.hidden = me === undefined || view.galahadPlace <= 3;
+    this.meRank.textContent = ordinal(view.galahadPlace);
+    this.meName.textContent = me?.name ?? '';
+    this.show(this.podium);
+    // Après `show` : la mise en page donne leur largeur aux petites toiles (jsdom : 0, `paintCarIcon` prend sa largeur par défaut).
+    for (const s of this.steps) {
+      const p = view.places[s.place - 1];
+      if (p) paintCar(s.car, p);
+    }
+    if (!this.me.hidden && me) paintCar(this.meCar, me);
+  }
+
+  /** Cache les quatre calques (course, arrivée, erreur). */
   hide(): void {
     this.show(null);
   }
@@ -200,7 +342,7 @@ export class Screens {
 
   /** Montre `shown` seul ; `null` cache tout. Les calques restent dans le DOM (jamais retirés). */
   private show(shown: HTMLDivElement | null): void {
-    for (const s of [this.title, this.countdown, this.pause]) s.hidden = s !== shown;
+    for (const s of this.layers) s.hidden = s !== shown;
   }
 
   private div(className: string, text?: string): HTMLDivElement {

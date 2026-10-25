@@ -12,7 +12,7 @@ afterEach(() => { document.body.innerHTML = ''; document.head.innerHTML = ''; })
 function make() {
   const root = document.createElement('div');
   document.body.append(root);
-  const actions = { onPlay: vi.fn(), onOtherTrack: vi.fn(), onResume: vi.fn() };
+  const actions = { onPlay: vi.fn(), onOtherTrack: vi.fn(), onResume: vi.fn(), onAgain: vi.fn(), onMenu: vi.fn() };
   const screens = new Screens(root, { version: '1.1.0' }, actions);
   const q = <T extends Element>(sel: string): T => root.querySelector<T>(sel)!;
   return { root, screens, actions, q };
@@ -20,9 +20,9 @@ function make() {
 const declaredPx = (el: Element, prop: 'width' | 'height' | 'min-width' | 'min-height') => parseFloat(getComputedStyle(el).getPropertyValue(prop));
 const pointer = (type: string, id: number) => { const e = new Event(type, { bubbles: true, cancelable: true }); Object.defineProperty(e, 'pointerId', { value: id }); return e; };
 
-test('trois calques créés cachés, dans root, style injecté une fois', () => {
+test('quatre calques créés cachés, dans root, style injecté une fois', () => {
   const { root, q } = make();
-  for (const s of ['.screen-title', '.screen-countdown', '.screen-pause']) expect(q<HTMLElement>(s).hidden, s).toBe(true);
+  for (const s of ['.screen-title', '.screen-countdown', '.screen-pause', '.screen-podium']) expect(q<HTMLElement>(s).hidden, s).toBe(true);
   make();
   expect(document.querySelectorAll('#screens-style')).toHaveLength(1);
   expect(root.querySelectorAll('.screen-title')).toHaveLength(1);

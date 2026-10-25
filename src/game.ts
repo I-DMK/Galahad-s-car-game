@@ -114,6 +114,7 @@ export class Game {
     // Les écrans viennent après le HUD et le bouton saut : au-dessus d'eux (le voile de pause couvre le bouton saut).
     this.screens = new Screens(hudRoot, { version: opts.version ?? '' }, {
       onPlay: (viaPointer) => this.play(viaPointer), onOtherTrack: () => this.otherTrack(), onResume: () => this.resume(),
+      onAgain: () => this.again(), onMenu: () => this.menu(),
     });
     // Course à 5 voitures ; les copains et leur ordre sur la grille dépendent de la graine de piste : ENCORE redonne les mêmes.
     this.newRace(this.opts.seed);
