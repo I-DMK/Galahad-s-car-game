@@ -1,14 +1,13 @@
 // Écrans DOM du jeu (plan B, tâche 10 ; spec §8 « Écrans », §4 « pause » ; addendum « présentation » §2) dans #hud :
 // titre (nom du jeu, version, JOUER avec drapeau, AUTRE PISTE avec dé ; la scène des voitures est dessinée derrière par
-// le canvas, `render/title.ts`), décompte (3, 2, 1, PARTEZ ; calque sans toucher) et pause (« PAUSE » + REPRENDRE en
+// le canvas, `render/title.ts`), décompte (3, 2, 1, PARTEZ ; calque sans toucher), pause (« PAUSE » + REPRENDRE en
 // paysage, « TOURNE » + dessin de tablette en portrait) et, depuis la tâche 11, podium (temps de Galahad, trois marches
-// avec prénom, petite voiture et médaille, case de Galahad hors podium, ENCORE et MENU). Les quatre calques sont créés une
-// fois et cachés par `hidden`,
-// jamais retirés : un doigt posé sur JOUER garde ainsi sa cible jusqu'au `pointerup`, qui remonte à `window` et relâche
-// le gaz (`Throttle`). Chromium redirige de lui-même vers `window` le `pointerup` d'une cible retirée (mesuré en e2e) ;
-// la protection vaut pour jsdom et les autres navigateurs, et ne coûte rien. JOUER n'a PAS `data-no-pedal` (« le
-// pointerdown sur JOUER compte comme doigt posé », spec §8) ; AUTRE PISTE, REPRENDRE et le voile de pause entier en
-// portent (un tap n'y est jamais du gaz) ; au podium, le voile entier, ENCORE et MENU aussi.
+// avec prénom, petite voiture et médaille, case de Galahad hors podium, ENCORE et MENU). Les quatre calques sont créés
+// une fois et cachés par `hidden`, jamais retirés : un doigt posé sur JOUER garde ainsi sa cible jusqu'au `pointerup`,
+// qui remonte à `window` et relâche le gaz (`Throttle`). Chromium redirige de lui-même vers `window` le `pointerup` d'une
+// cible retirée (mesuré en e2e) ; la protection vaut pour jsdom et les autres navigateurs, et ne coûte rien. JOUER n'a
+// PAS `data-no-pedal` (« le pointerdown sur JOUER compte comme doigt posé », spec §8) ; AUTRE PISTE, REPRENDRE et le
+// voile de pause entier en portent (un tap n'y est jamais du gaz) ; au podium, le voile entier, ENCORE et MENU aussi.
 import { ordinal, type PodiumPlace, type PodiumView } from '../cars/ranking';
 import { FONT_FAMILY } from './font';
 import { formatTime } from './hud';

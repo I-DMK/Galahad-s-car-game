@@ -52,6 +52,7 @@ test('course courte jusqu’au podium : 1,5 s de roue libre, puis marches du cla
   await expectPodiumLayout(page);
   if (podium.galahadPlace === 1) {
     await expect(page.locator('.step-1')).toHaveClass(/is-galahad/);
+    await expect(page.locator('.podium-me'), 'pas de case à côté quand Galahad est sur le podium').toBeHidden();
     await page.waitForFunction(() => (window as any).__game.confetti > 20);
   } else {
     test.info().annotations.push({ type: 'podium', description: `Galahad ${podium.galahadPlace}e sur seed=1 len=300` });

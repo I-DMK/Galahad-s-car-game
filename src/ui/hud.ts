@@ -3,8 +3,9 @@
 // les copains ne se cachent pas sous Galahad, avec un drapeau à damier côté arrivée), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug,
 // sous le bouton saut de `ui/jump-button.ts`, tâche 5e), message d'erreur. Chrono,
 // position et barre sont cachés au titre (`setRaceVisible`, tâche 10) ; `setRacers` refait les couloirs à chaque course.
-// Le conteneur (#hud) est en `pointer-events: none` : seuls le message d'erreur et les écrans (`ui/screens.ts`, dont le
-// podium de la tâche 11, qui a remplacé le calque d'arrivée) captent le toucher.
+// Le conteneur (#hud) est en `pointer-events: none` : seuls le message d'erreur, les boutons saut (`ui/jump-button.ts`) et
+// pause (`ui/pause-button.ts`, tâche 11) et les écrans (`ui/screens.ts`, dont le podium de la tâche 11, qui a remplacé le
+// calque d'arrivée) captent le toucher.
 import { ordinal } from '../cars/ranking';
 import type { StepCounts } from '../loop/frame-stats';
 import { FONT_FAMILY } from './font';

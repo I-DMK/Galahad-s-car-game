@@ -406,7 +406,8 @@ export class Game {
 
   /**
    * Une image, selon la phase : titre (scène du titre), décompte (texte, scène de course figée, aucun pas), pause (scène
-   * figée), course et arrivée (`raceFrame`), podium (scène figée, confettis : `podiumFrame`). Toute exception (rendu, HUD, caméra) → `fail` : sans ce garde-fou, elle
+   * figée), course et arrivée (`raceFrame`), podium (scène figée, confettis : `podiumFrame`). Toute exception (rendu, HUD,
+   * caméra) → `fail` : sans ce garde-fou, elle
    * tuerait la boucle en silence. Le fps (debug) est compté ici, à toute phase.
    */
   private readonly frame = (now: number): void => {
@@ -474,7 +475,10 @@ export class Game {
     this.present(now, 0, [], { poses: this.loop.history.at(1), alpha: 1, steps: 0 });
   }
 
-  /** Course et arrivée : pas de l'accumulateur, bouton saut, compteur d'images, PARTEZ retiré après sa seconde, rendu. Faux si la boucle s'arrête. */
+  /**
+   * Course et arrivée : pas de l'accumulateur, bouton saut, compteur d'images, PARTEZ retiré après sa seconde, rendu, puis
+   * podium à la fin de la roue libre. Faux si la boucle s'arrête.
+   */
   private raceFrame(now: number, elapsed: number): boolean {
     const pressed = this.throttle.pressed;
     // `sim.events` ne contient que le dernier pas : on les recueille à chaque pas.

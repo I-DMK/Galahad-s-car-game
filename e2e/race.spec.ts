@@ -164,7 +164,9 @@ test('HUD : place en ordinal après 1 s, cinq couloirs aux voitures séparées �
     await holdFingerUntilRaceTime(page, t);
     expect((await gameState(page)).state).toBe('racing');
     await expect(rank).toHaveText(/^(1er|[2-5]e)$/);
-    expectHudLayout(await hudLayout(page));
+    const l = await hudLayout(page);
+    expect(l.pause, 'bouton pause montré en course').not.toBeNull();
+    expectHudLayout(l);
     percents.push(await page.locator('.hud-marker').evaluateAll((els) => els.map((e) => parseFloat((e as HTMLElement).style.transform.replace(/[^\d.]/g, '')))));
   }
   // Les voitures ont avancé sur la barre, de plus en plus loin de la ligne de départ.
@@ -186,6 +188,7 @@ test.describe('téléphone en paysage (844 × 390)', () => {
     await expect(page.locator('.hud-rank')).toHaveText(/^(1er|[2-5]e)$/);
     const layout = await hudLayout(page);
     expect(layout.viewport).toEqual({ width: 844, height: 390 });
+    expect(layout.pause, 'bouton pause montré en course').not.toBeNull();
     expectHudLayout(layout);
     await page.screenshot({ path: `${SHOTS}/course-copains-telephone.png`, fullPage: true });
   });
