@@ -125,6 +125,20 @@ export class Effects {
     }
   }
 
+  /**
+   * Podium (tâche 11, tour 1) : ne fait bouger et vieillir que les confettis. Étincelles, poussière, bulles et fumée restent
+   * figées comme la course derrière, et les minuteries des volcans ne tournent pas (aucune bulle ni fumée ne naît).
+   */
+  updateConfetti(dt: number): void {
+    for (const p of this.particles) {
+      if (p.kind !== 'confetti') continue;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+    }
+    this.particles = this.particles.filter((p) => p.kind !== 'confetti' || p.life > 0);
+  }
+
   update(dt: number, track: Pick<Track, 'volcanoes'>, cameraX: number, halfWidthM: number): void {
     for (const p of this.particles) {
       if (p.kind === 'spark') p.vy += SPARK_GRAVITY * dt;

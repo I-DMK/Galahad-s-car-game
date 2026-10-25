@@ -503,13 +503,14 @@ export class Game {
 
   /**
    * Une image du podium : aucun pas ; la scène de course aux poses du dernier pas, caméra immobile (temps écoulé nul pour
-   * elle) ; seuls les confettis tombent, au-dessus du haut de l'écran, sur la largeur visible.
+   * elle) ; seuls les confettis tombent, nés au-dessus du haut de l'écran, sur la largeur visible (`updateConfetti` : les
+   * autres particules restent figées, aucune bulle ni fumée ne naît).
    */
   private podiumFrame(elapsed: number): void {
     const { sim, camera } = this;
     const half = this.renderer.visibleHalfWidthM(camera);
     this.effects.rainConfetti(elapsed, camera.x, camera.y + this.cfg.VISIBLE_HEIGHT_M / 2, half);
-    this.effects.update(elapsed, sim.track, camera.x, half);
+    this.effects.updateConfetti(elapsed);
     const scene = presentFrame(sim, { poses: this.loop.history.at(1), alpha: 1 }, camera, 0);
     this.renderer.draw(scene, camera, this.effects);
   }

@@ -687,3 +687,17 @@ test('bouton pause (option) : ≥ 96 px déclarés, règle .pause-button[hidden]
   const kids = [...root.children];
   expect(kids.indexOf(root.querySelector('.pause-button')!)).toBeLessThan(kids.indexOf(root.querySelector('.screen-pause')!));
 });
+
+test('podium : seuls les confettis bougent ; une étincelle présente à l’entrée reste en place et les autres particules (bulles, fumée) ne naissent ni ne vieillissent (adv I1, tour 1)', () => {
+  const { game, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = driveToPodium(game, internals, now);
+  const fx = internals().effects as unknown as { spawnSparks(x: number, y: number): void; particles: { kind: string; x: number; y: number; life: number }[] };
+  fx.spawnSparks(internals().camera.x, internals().camera.y);
+  const others = () => fx.particles.filter((p) => p.kind !== 'confetti').map((p) => ({ ...p }));
+  const before = others();
+  expect(before.length).toBeGreaterThan(0);
+  now = frames(60, now);
+  expect(others()).toEqual(before);
+  expect(internals().effects.confettiCount).toBeGreaterThan(0);   // la pluie, elle, tombe
+});
