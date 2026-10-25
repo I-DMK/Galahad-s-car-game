@@ -29,14 +29,17 @@ const LAVA_SURFACE_DROP = 0.15;
 /** Confettis du podium si Galahad gagne (tâche 11 ; spec §8 « Rendu ») : pluie de CONFETTI_SECONDS au-dessus de l'écran. */
 export const CONFETTI_SECONDS = 4;
 export const CONFETTI_PER_SECOND = 40;
-/** s : de quoi traverser les 14 m de la vue à ≈ 2 m/s. */
-const CONFETTI_LIFE = 7;
+/** m/s : chute la plus lente d'un confetti (vy dans [−2,6 ; −1,6]). */
+const CONFETTI_MIN_FALL = 1.6;
+/** m : marge sous le bas de l'écran (taille d'un confetti comprise) avant qu'il ne disparaisse. */
+const CONFETTI_EXIT_MARGIN_M = 0.5;
 const CONFETTI_COLORS = ['#ffd23f', '#ff4d6d', '#4dd2ff', '#7cff4d', '#ffffff', '#c77dff'] as const;
 /** rad/s : battement du papier (largeur dessinée × |cos|). */
 const CONFETTI_FLUTTER = 8;
 /**
  * s : reste de pluie tenu pour nul. 240 retraits de 1/60 laissent ≈ 1e-15 s au lieu de 0 : sans cette tolérance, l'image
- * suivante émettrait un 161e confetti (comme COUNTDOWN_EPS dans `game.ts` et HOLD_EPSILON_S dans `ranking.ts`).
+ * suivante émettrait un 161e confetti (comme COUNTDOWN_EPS dans `game.ts` et HOLD_EPSILON_S dans `ranking.ts`). Même
+ * tolérance sur la fraction reportée : 240 × 40/60 font 159,99999… et le 160e ne partirait jamais (tour 1).
  */
 const CONFETTI_EPS = 1e-9;
 
@@ -88,11 +91,14 @@ export class Effects {
     const d = Math.min(dt, this.confettiLeft);
     this.confettiLeft -= d;
     this.confettiCarry += d * CONFETTI_PER_SECOND;
-    while (this.confettiCarry >= 1) {
+    // Durée de vie : de quoi traverser toute la vue (né jusqu'à 1 m au-dessus du haut, VISIBLE_HEIGHT_M de haut) à la
+    // chute la plus lente, plus une marge : aucun confetti ne disparaît encore à l'écran (cr 4, tour 1).
+    const life = (this.cfg.VISIBLE_HEIGHT_M + 1 + CONFETTI_EXIT_MARGIN_M) / CONFETTI_MIN_FALL;
+    while (this.confettiCarry >= 1 - CONFETTI_EPS) {
       this.confettiCarry -= 1;
       this.add({
-        x: cx + rand(-halfWidthM, halfWidthM), y: topY + rand(0, 1), vx: rand(-0.6, 0.6), vy: rand(-2.6, -1.6),
-        life: CONFETTI_LIFE, maxLife: CONFETTI_LIFE, kind: 'confetti', size: rand(0.1, 0.16),
+        x: cx + rand(-halfWidthM, halfWidthM), y: topY + rand(0, 1), vx: rand(-0.6, 0.6), vy: rand(-2.6, -CONFETTI_MIN_FALL),
+        life, maxLife: life, kind: 'confetti', size: rand(0.1, 0.16),
         color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)], phase: rand(0, Math.PI * 2),
       });
     }

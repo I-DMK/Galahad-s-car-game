@@ -50,10 +50,10 @@ test('confettis : rien sans startConfetti ; pluie de CONFETTI_SECONDS, puis plus
   fx.startConfetti();
   let max = 0;
   for (let i = 0; i < Math.round(CONFETTI_SECONDS / DT); i++) { tick(); max = Math.max(max, fx.confettiCount); }
-  expect(max).toBeGreaterThanOrEqual(0.9 * CONFETTI_SECONDS * CONFETTI_PER_SECOND);
+  expect(max).toBe(CONFETTI_SECONDS * CONFETTI_PER_SECOND);   // exactement 160 : ni 159 (fraction reportée), ni 161
   expect(max).toBeLessThanOrEqual(Math.min(MAX_PARTICLES, CONFETTI_SECONDS * CONFETTI_PER_SECOND));
   const after = fx.confettiCount;
-  // Aucun confetti ne meurt avant 7 s : un seul de plus (reste flottant de la pluie, CONFETTI_EPS) se verrait ici.
+  // Aucun confetti ne meurt avant ≈ 9,7 s (traversée de la vue) : un seul de plus (reste flottant, CONFETTI_EPS) se verrait ici.
   for (let i = 0; i < 30; i++) tick();
   expect(fx.confettiCount).toBe(after);
   for (let i = 0; i < 600; i++) tick();
@@ -239,4 +239,36 @@ test('la feuille : .screen-podium (flex de .screen) et la case de Galahad caché
   expect(rules.find((r) => r.selectorText === '.screen [hidden]')?.style.display).toBe('none');
   expect(rules.find((r) => r.selectorText.split(',').map((s) => s.trim()).includes('.podium-me'))?.style.display).toBe('flex');
   expect(rules.find((r) => r.selectorText === '.screen')?.style.fontFamily).toMatch(/Fredoka/);
+});
+
+test('confettis : chacun traverse toute la vue avant de disparaître (sous le bas de l’écran, VISIBLE_HEIGHT_M sous topY) (cr 4, tour 1)', () => {
+  const fx = new Effects(CONFIG);
+  const parts = () => (fx as unknown as { particles: { kind: string; y: number }[] }).particles;
+  const top = 20;
+  fx.startConfetti();
+  let died = 0;
+  for (let i = 0; i < Math.round(20 / DT); i++) {
+    const before = new Map(parts().map((p) => [p, p.y]));
+    fx.rainConfetti(DT, 100, top, 11);
+    fx.updateConfetti(DT);
+    const alive = new Set(parts());
+    for (const [p, y] of before) {
+      if (alive.has(p)) continue;
+      died++;
+      expect(y, 'mort encore dans la vue').toBeLessThanOrEqual(top - CONFIG.VISIBLE_HEIGHT_M);
+    }
+  }
+  expect(died).toBe(CONFETTI_SECONDS * CONFETTI_PER_SECOND);
+});
+
+test('confettis : la pluie ne dépasse jamais MAX_PARTICLES, même avec 300 particules déjà présentes (adv M2, tour 1)', () => {
+  const fx = new Effects(CONFIG);
+  while (fx.count < MAX_PARTICLES) fx.spawnSparks(0, 0);
+  expect(fx.count).toBe(MAX_PARTICLES);
+  fx.startConfetti();
+  for (let i = 0; i < Math.round(CONFETTI_SECONDS / DT); i++) {
+    fx.rainConfetti(DT, 100, 20, 11);
+    expect(fx.count).toBeLessThanOrEqual(MAX_PARTICLES);
+  }
+  expect(fx.confettiCount).toBe(CONFETTI_SECONDS * CONFETTI_PER_SECOND);   // les plus anciennes (étincelles) cèdent la place
 });
