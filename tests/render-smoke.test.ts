@@ -6,6 +6,7 @@ import type { CarView } from '../src/render/renderer';
 import { drawStar, drawTrack } from '../src/render/track';
 import { generateTrack } from '../src/track/generate';
 import { fosses, tremplins } from '../src/track/query';
+import { canvasFont } from '../src/ui/font';
 import { fakeCtx, type Call } from './helpers/fake-ctx';
 
 const view = { w: 1920, h: 1200, scale: 1.5 };
@@ -49,6 +50,18 @@ test('drawCar tourne la carrosserie de −angle (nez en haut = anti-horaire à l
   const { ctx: ctx2, calls: calls2 } = fakeCtx();
   drawCar(ctx2, { ...car, name: 'Galahad' }, 85.7, 0.5, (p) => p);
   expect(calls2.some((c) => c.name === 'fillText')).toBe(false);
+});
+
+test('drawCar sans échelle de prénom (la course) : prénom en canvasFont(700, 14 × ppm / 57), inchangé par la tâche 10', () => {
+  const car: CarView = {
+    id: 'malo', x: 10, y: 1, angle: 0, wheels: [], color: '#ff8000', accent: '#3cd2be', helmet: '#ffa040', name: 'Malo', turbo: false,
+  };
+  const { ctx, calls } = fakeCtx();
+  drawCar(ctx, car, 85.7, 0, (p) => p);
+  const text = calls.find((c) => c.name === 'fillText')!;
+  expect(text).toBeDefined();
+  expect(ctx.font).toBe(canvasFont(700, (14 * 85.7) / 57));
+  expect(canvasFont(700, (14 * 85.7) / 57)).toBe('700 21px Fredoka, system-ui, sans-serif');
 });
 
 test('drawCar peint le casque avec `helmet` (et plus avec `accent`)', () => {

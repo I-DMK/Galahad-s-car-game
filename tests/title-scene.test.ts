@@ -8,8 +8,9 @@ import { GALAHAD, PILOTS, colorHex, defaultPilotSeed, drawPilots } from '../src/
 import { CONFIG } from '../src/config';
 import { Renderer } from '../src/render/renderer';
 import {
-  TITLE_BOUNCE_HEIGHT_M, TITLE_BOUNCE_PERIOD_S, TITLE_GROUND_FRAC, bounceHeight, titleScene,
+  TITLE_BOUNCE_HEIGHT_M, TITLE_BOUNCE_PERIOD_S, TITLE_GROUND_FRAC, TITLE_NAME_SCALE, bounceHeight, titleScene,
 } from '../src/render/title';
+import { canvasFont } from '../src/ui/font';
 import { createRaceSim } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import { fakeCtx } from './helpers/fake-ctx';
@@ -119,6 +120,12 @@ test('Renderer.drawTitle : ciel, sol #8b8b8b, cinq ombres avant les voitures, ci
   expect(shadows[0].args[1] as number).toBeCloseTo(TITLE_GROUND_FRAC * h, 0);
   // Rien ne fuit : pile save/restore vide, opacité 1.
   expect(state()).toMatchObject({ depth: 0, globalAlpha: 1, underflows: 0 });
+  // Prénoms des quatre copains (pas de Galahad), × TITLE_NAME_SCALE = 1,8 par rapport à la course (décision du papa, tour 3).
+  const ppm = h / CONFIG.VISIBLE_HEIGHT_M;
+  const texts = calls.filter((c) => c.name === 'fillText');
+  expect(texts.map((c) => c.args[0])).toEqual(scene.cars.slice(0, 4).map((c) => c.name));
+  expect(TITLE_NAME_SCALE).toBe(1.8);
+  expect(ctx.font).toBe(canvasFont(700, ((14 * ppm) / 57) * 1.8));
   // Sans images : tout par code, toujours cinq ombres, aucune image hormis le ciel (2 copies).
   renderer.setArt({ bodies: new Map(), wheel: null, flames: null, star: null, loaded: [], failed: [] });
   calls.length = 0;

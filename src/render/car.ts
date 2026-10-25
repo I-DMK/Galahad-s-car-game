@@ -41,10 +41,12 @@ const SHADOW_HALF_M = 1.5;
 /**
  * Dessine `car` (coordonnées du monde) ; `toScreen` convertit un point du monde en pixels écran,
  * `ppm` = pixels par mètre, `t` = temps (s) pour l'animation des flammes. `art` : images chargées (`NO_ART` : tout par code).
+ * `nameScale` : taille du prénom par rapport à celle de la course (1 ; 1,8 au titre, `TITLE_NAME_SCALE`, tâche 10).
  * Ordre : flammes, carrosserie, puis roues par-dessus, puis prénom.
  */
 export function drawCar(
   ctx: Ctx, car: CarView, ppm: number, t: number, toScreen: (p: Pt) => Pt, dims: CarDims = CONFIG, art: Art = NO_ART,
+  nameScale = 1,
 ): void {
   const L = dims.CAR_LENGTH;
   const H = dims.CAR_HEIGHT;
@@ -78,7 +80,7 @@ export function drawCar(
   if (car.name !== 'Galahad') {
     const top = toScreen({ x: car.x, y: car.y + 1.3 });
     ctx.fillStyle = '#ffffff';
-    ctx.font = canvasFont(700, (14 * ppm) / 57);
+    ctx.font = canvasFont(700, ((14 * ppm) / 57) * nameScale);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     ctx.fillText(car.name, top.x, top.y);

@@ -9,7 +9,7 @@ import { prerenderSky } from './background';
 import { NO_ART, type Art } from './assets';
 import { SHADOW_ALPHA, SHADOW_RX_M, SHADOW_RY_M, drawCar, drawShadow, shadowScale } from './car';
 import type { Effects } from './effects';
-import { TITLE_GROUND_FRAC, type TitleScene } from './title';
+import { TITLE_GROUND_FRAC, TITLE_NAME_SCALE, type TitleScene } from './title';
 import { drawStar, drawTrack } from './track';
 
 /** Voiture à dessiner, en coordonnées du monde. `angle` : angle du monde (positif = nez en haut). */
@@ -151,7 +151,8 @@ export class Renderer {
       ctx.fill();
       ctx.restore();
     });
-    for (const car of scene.cars) drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, art);
+    // Prénoms plus gros qu'en course (TITLE_NAME_SCALE) : au titre, Galahad doit pouvoir les lire.
+    for (const car of scene.cars) drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, art, TITLE_NAME_SCALE);
   }
 
   /** Début de toute image : transformation identité, opacité 1, effacement, puis le ciel (parallaxe sur `cameraX`). */

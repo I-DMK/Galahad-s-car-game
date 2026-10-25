@@ -15,6 +15,11 @@ export const TITLE_BOUNCE_HEIGHT_M = 0.5;
 export const TITLE_GROUND_FRAC = 0.62;
 /** rad/s : roues de Galahad qui tournent (sens de la marche). */
 export const TITLE_WHEEL_SPIN_RAD_S = 6;
+/**
+ * Prénoms des copains au titre : 1,8 fois ceux de la course (≈ 25 px CSS au lieu de 14 sur la tablette), pour que Galahad
+ * les lise (décision du papa sur capture, tour 3 de la tâche 10). La course garde sa taille (`drawCar`, échelle 1).
+ */
+export const TITLE_NAME_SCALE = 1.8;
 
 /** m : le châssis repose WHEEL_DROP au-dessus de l'axe des roues (gabarit : axes à (±0,75 ; −0,25) du châssis). */
 const CHASSIS_ABOVE_AXLE_M = 0.25;
