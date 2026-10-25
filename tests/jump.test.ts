@@ -19,7 +19,7 @@ const G = CONFIG.GRAVITY;
 const STEPS = (s: number): number => Math.round(s / DT);
 
 /** Piste plate (tranches `plat` seulement), sans étoile : sauts sur le plat, sans turbo parasite. */
-const FLAT: Track = { ...generateTrack(3, 300, CONFIG, { onlyPlat: true }), stars: [] };
+const FLAT: Track = { ...generateTrack(3, 300, CONFIG, { onlyPlat: true }), stars: [], rocks: [] };
 
 /** Première rampe-saut (graines 0 à 19) précédée d'un plat d'au moins 20 m, sur une piste sans étoile. */
 function rampTrack(): { track: Track; ramp: Slice; seed: number } {
@@ -27,7 +27,7 @@ function rampTrack(): { track: Track; ramp: Slice; seed: number } {
     const t = generateTrack(seed, 1680, CONFIG);
     const i = t.slices.findIndex((s, k) => s.type === 'rampe-saut' && k > 1
       && t.slices[k - 1].type === 'plat' && t.slices[k - 1].xEnd - t.slices[k - 1].xStart >= 20);
-    if (i >= 0) return { track: { ...t, stars: [] }, ramp: t.slices[i], seed };
+    if (i >= 0) return { track: { ...t, stars: [], rocks: [] }, ramp: t.slices[i], seed };
   }
   throw new Error('aucune rampe-saut précédée d’un plat de 20 m');
 }

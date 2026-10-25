@@ -14,7 +14,7 @@ import { jumpRun, lastGroundedBefore, rampSautTrack } from './helpers/jump-runs'
 
 const DT = CONFIG.PHYSICS_DT;
 const STEPS = (s: number): number => Math.round(s / DT);
-const FLAT: Track = { ...generateTrack(3, 400, CONFIG, { onlyPlat: true }), stars: [] };
+const FLAT: Track = { ...generateTrack(3, 400, CONFIG, { onlyPlat: true }), stars: [], rocks: [] };
 const RAMP = rampSautTrack();
 const RAMP_RUN = CONFIG.RAMP_LENGTH * Math.cos(CONFIG.RAMP_ANGLE);
 const jumps = (sim: RaceSim): number => sim.events.filter((e) => e.type === 'jump').length;

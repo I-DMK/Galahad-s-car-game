@@ -195,7 +195,7 @@ function buildTrack(
   const xWall = xNow();
 
   const track: Track = {
-    seed, targetLength, length: xWall, points, exemptPointIndices, slices, volcanoes, stars: [],
+    seed, targetLength, length: xWall, points, exemptPointIndices, slices, volcanoes, stars: [], rocks: [],
     xStart: cfg.START_LENGTH - 5, xFinish, xWall,
   };
   track.stars = placeStars(track, rng, cfg);

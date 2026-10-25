@@ -289,7 +289,7 @@ describe('choix et fusion', () => {
     ];
     const t: Track = {
       seed: 0, targetLength: 460, length: 460, points: [{ x: 0, y: 0 }, { x: 460, y: 0 }], exemptPointIndices: [],
-      slices, volcanoes: [], stars: [], xStart: 21.5, xFinish: 400, xWall: 460,
+      slices, volcanoes: [], stars: [], rocks: [], xStart: 21.5, xFinish: 400, xWall: 460,
     };
     // Pas de curseur (pas immense), pas de volcan : aucune étoile basse. Élan et atterrissage de 15 m, dégagement de
     // bosses de 12 m : la fixture ne dépend pas du jeu retenu dans config.ts.

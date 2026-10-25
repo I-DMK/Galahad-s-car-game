@@ -132,6 +132,22 @@ export const CONFIG = {
   // jusqu'à 17,6 m après le bord aval (sauts au centre, turbo compris). Voir le registre, tâche 5g.
   STAR_TREMPLIN_LANDING: 55,    // m après le pied de la descente aval d'un tremplin sans étoile basse (reste ≈ 9,3 m de réception)
   STAR_FOSSE_LANDING: 22,       // m après le bord aval d'une fosse sans étoile basse du curseur ; l'étoile de réception (FOSSE_STAR_AFTER) est au-delà
+  // Rochers (plan C, tâche 11c ; spec « rochers » §7, décisions Q-C1 à Q-C8 et Q-C4 bis du papa) : capteur posé sur un
+  // plat ordinaire ou une réception de fosse par `placeRocks` (src/track/rocks.ts), tirages après tous les autres ; au
+  // choc, chaque pièce de la voiture est ramenée à ROCK_HIT_SPEED et la voiture devient traversable.
+  ROCKS_PER_RACE: 4,            // au plus N rochers par course (Q-C4) ; 0 = aucun, pistes d'avant la 11c au bit près (ANCIENNES_PISTES)
+  ROCK_WIDTH: 3,                // m : largeur du capteur et du dessin (Q-C3) : fenêtre 0,77 / 0,88 s à 11,2 / 14 m/s (MESURÉ, spec §2.2)
+  ROCK_HEIGHT: 1.6,             // m au-dessus du sol local (Q-C3) : plus haut que la voiture, fixe le dernier appui à ≈ 0,48 s avant
+  ROCK_HIT_SPEED: 2,            // m/s : norme imposée à chaque pièce au choc (Q-C2) : ≈ 1,22 s perdues à 14 m/s (MESURÉ, spec §2.1)
+  ROCK_HIT_TRAVERSABLE: 1.5,    // s : la voiture ralentie est traversable (Q-C8), levée par releaseInvulnerability comme après une réapparition
+  ROCK_MIN_PLAT: 20,            // m : longueur minimale d'un plat porteur (le minimum du générateur, spec §3)
+  ROCK_RAMP_CLEARANCE: 50,      // m après la fin d'une rampe-saut (vol doigt posé jusqu'à 61 m à 21 m/s ; comme STAR_HIGH_RAMP_CLEARANCE)
+  ROCK_VOLCANO_GAP: 60,         // m entre la fin du rocher et le début de la prochaine tranche volcan (Q-C4 : D_LANCE pour revenir à 14 m/s après un choc)
+  ROCK_HIGH_STAR_LANDING: 30,   // m après une étoile haute (atterrissage d'un saut d'étoile en turbo ≤ 27 m)
+  ROCK_STAR_GAP: 10,            // m entre un rocher et toute étoile basse ; aussi l'écart après l'étoile de réception d'une fosse
+  ROCK_SPACING: 60,             // m entre deux rochers retenus (glouton dans l'ordre de la piste)
+  ROCK_JUMP_AIM: 1,             // s : rockJumpLead(v) = ROCK_JUMP_AIM − ROCK_WIDTH / (2 max(v, 1)), centre de la fenêtre (0,89 / 0,87 / 0,81 s à 14 / 11,2 / 8 m/s ; MESURÉ 0,91 / 0,86 / 0,81)
+  ROCK_JUMP_LATE: 0.5,          // s : bord au plus tard de la fenêtre (MESURÉ 0,48 à 14 m/s, 0,51 à 8 : la hauteur le fixe, pas la vitesse) ; information, pas de bascule
   // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : driver de
   // chaque copain (src/ai/driver.ts).
   POLITE_SPEED: 2,              // m/s : robots polis (décision du papa, 5b) : une voiture plus lente que ça, doigt levé (vraiment arrêtée, tour 1 de la tâche 6), juste devant, fait lever le pied

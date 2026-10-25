@@ -439,7 +439,7 @@ describe('shiftTarget : respawn groupé (addendum §1.6)', () => {
   function synthetic(y: (x: number) => number, slices: Slice[] = [], volcanoes: Volcano[] = []): Track {
     const points = Array.from({ length: Math.round(LENGTH / SPACING) + 1 }, (_, i) => ({ x: i * SPACING, y: y(i * SPACING) }));
     return {
-      seed: 0, targetLength: LENGTH, length: LENGTH, points, exemptPointIndices: [], volcanoes, stars: [],
+      seed: 0, targetLength: LENGTH, length: LENGTH, points, exemptPointIndices: [], volcanoes, stars: [], rocks: [],
       slices: slices.length > 0 ? slices : [{ type: 'plat', xStart: 0, xEnd: LENGTH }],
       xStart: 21.5, xFinish: 150, xWall: LENGTH,
     };

@@ -49,7 +49,7 @@ export function trackOf(profiles: SliceProfile[], cfg: Config = CONFIG, seed = 0
   }
   const length = (points.length - 1) * s;
   return {
-    seed, targetLength: length, length, points, exemptPointIndices, slices, volcanoes, stars: [],
+    seed, targetLength: length, length, points, exemptPointIndices, slices, volcanoes, stars: [], rocks: [],
     xStart: 2, xFinish: length - 60, xWall: length,
   };
 }

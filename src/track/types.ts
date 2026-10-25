@@ -50,6 +50,11 @@ export interface Fosse extends VolcanoBase {
 export type Volcano = Tremplin | Fosse;
 /** Étoile : `high` = étoile haute ajoutée (tâche 5e, à STAR_HIGH_Y au-dessus du sol), sinon étoile basse (0,6 m). */
 export interface Star { id: number; x: number; y: number; high: boolean }
+/**
+ * Rocher (plan C, tâche 11c, spec « rochers » §1) : boîte [xStart, xEnd] × [sol, sol + ROCK_HEIGHT], sur du plat ;
+ * xEnd = xStart + ROCK_WIDTH ; ids 0, 1, 2… dans l'ordre de la piste.
+ */
+export interface Rock { id: number; xStart: number; xEnd: number }
 export interface Track {
   seed: number;
   targetLength: number;
@@ -60,6 +65,8 @@ export interface Track {
   slices: Slice[];
   volcanoes: Volcano[];
   stars: Star[];
+  /** Rochers (tâche 11c), dans l'ordre de la piste ; vide si ROCKS_PER_RACE = 0. Posés après les étoiles (`placeRocks`). */
+  rocks: Rock[];
   xStart: number;
   xFinish: number;
   xWall: number;

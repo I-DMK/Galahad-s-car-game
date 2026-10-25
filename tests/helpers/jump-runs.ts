@@ -192,7 +192,7 @@ export function rampSautTrack(cfg: Config = CONFIG): { track: Track; ramp: Track
     const t = generateTrack(seed, 1680, cfg);
     const i = t.slices.findIndex((s, k) => s.type === 'rampe-saut' && k > 1
       && t.slices[k - 1].type === 'plat' && t.slices[k - 1].xEnd - t.slices[k - 1].xStart >= 20);
-    if (i >= 0) return { track: { ...t, stars: [] }, ramp: t.slices[i], seed };
+    if (i >= 0) return { track: { ...t, stars: [], rocks: [] }, ramp: t.slices[i], seed };
   }
   throw new Error('aucune rampe-saut précédée d’un plat de 20 m');
 }
@@ -202,7 +202,7 @@ const flatWorlds = new WeakMap<Config, World>();
 function flatWorld(cfg: Config): World {
   let w = flatWorlds.get(cfg);
   if (!w) {
-    const track: Track = { ...generateTrack(3, 400, cfg, { onlyPlat: true }), stars: [] };
+    const track: Track = { ...generateTrack(3, 400, cfg, { onlyPlat: true }), stars: [], rocks: [] };
     w = createWorld(track, cfg);
     flatWorlds.set(cfg, w);
   }
