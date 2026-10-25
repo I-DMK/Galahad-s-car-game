@@ -314,3 +314,31 @@ test('rankEntriesOf : une entrée par voiture, rangées par index, avec le x du 
   entries[2].progress = 0;
   expect(sim.cars[2].state.progress).toBe(123.4);
 });
+
+describe('rochers (tâche 11c, Review Focus 5)', () => {
+  test('createRaceSim sur une piste sans rocher (ROCKS_PER_RACE 0) : rocks et rockBodies vides, aucun corps « rock » dans le monde', () => {
+    const cfg = { ...CONFIG, ROCKS_PER_RACE: 0 };
+    const sim = createRaceSim(generateTrack(1, 1680, cfg), cfg, { robots: true });
+    expect(sim.track.rocks).toEqual([]);
+    expect(sim.rocks).toEqual([]);
+    expect(sim.rockBodies).toEqual([]);
+    expect(Matter.Composite.allBodies(sim.world.engine.world).filter((b) => b.label === 'rock')).toEqual([]);
+  });
+
+  test('createRaceSim sur une piste à rochers : un capteur par rocher, un état par rocher avec une case par voiture', () => {
+    const sim = createRaceSim(generateTrack(1, 1680, CONFIG), CONFIG, { robots: true });
+    const n = sim.track.rocks.length;
+    expect(n).toBeGreaterThan(0);
+    expect(sim.rocks.map((r) => r.id)).toEqual(sim.track.rocks.map((r) => r.id));
+    for (const r of sim.rocks) expect(r.hitAt).toEqual([null, null, null, null, null]);
+    expect(Matter.Composite.allBodies(sim.world.engine.world).filter((b) => b.label === 'rock')).toHaveLength(n);
+    sim.rockBodies.forEach((b, k) => {
+      expect(b.plugin.rockId).toBe(k);
+      const rock = sim.track.rocks[k];
+      expect(b.bounds.min.x / CONFIG.PIXELS_PER_METER).toBeCloseTo(rock.xStart, 6);
+      expect(b.bounds.max.x / CONFIG.PIXELS_PER_METER).toBeCloseTo(rock.xEnd, 6);
+      expect(-b.bounds.min.y / CONFIG.PIXELS_PER_METER).toBeCloseTo(heightAt(sim.track, rock.xStart) + CONFIG.ROCK_HEIGHT, 6);
+      expect(-b.bounds.max.y / CONFIG.PIXELS_PER_METER).toBeCloseTo(heightAt(sim.track, rock.xStart), 6);
+    });
+  });
+});

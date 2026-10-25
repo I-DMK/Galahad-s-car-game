@@ -430,8 +430,11 @@ interface DriverSlot {
   others: OtherCar[];
   star: { index: number; x: number; available: boolean };
   fosse: { xBord: number; index: number; attempt: 1 | 2 };
+  rock: { xStart: number; index: number };
   /** Curseur dans `highStars` : première étoile haute strictement devant le dernier x vu. */
   starCursor: number;
+  /** Curseur dans `track.rocks` : premier rocher strictement devant le dernier x vu (tâche 11c). */
+  rockCursor: number;
 }
 /**
  * Par course : un emplacement par voiture (ordre des index), les indices (dans `track.stars`) des étoiles hautes, et
@@ -455,8 +458,12 @@ function driverCache(sim: RaceSim): DriverCache {
     }]));
     const ctx: DriverContext = {
       t: 0, state: car.state, track: sim.track, speed: 0, x: 0, traversable: false, others, nextHighStar: null, nextFosse: null,
+      nextRock: null,
     };
-    return { ctx, others, star: { index: -1, x: 0, available: false }, fosse: { xBord: 0, index: -1, attempt: 1 }, starCursor: 0 };
+    return {
+      ctx, others, star: { index: -1, x: 0, available: false }, fosse: { xBord: 0, index: -1, attempt: 1 },
+      rock: { xStart: 0, index: -1 }, starCursor: 0, rockCursor: 0,
+    };
   });
   cache = {
     slots,
@@ -488,12 +495,14 @@ function snapshotCars(sim: RaceSim, cache: DriverCache): void {
  * Contexte du driver de la voiture d'index `i` (`DriverContext`), d'après l'instantané : t, état, x et vitesse,
  * traversable, autres voitures (ordre des index), étoile haute la plus proche devant à moins de JUMP_LOOKAHEAD (curseur
  * sur les étoiles hautes ; disponibilité pour cette voiture), prochaine fosse devant à moins de JUMP_LOOKAHEAD (bord
- * amont, rang parmi les fosses, tentative : 2 si la voiture est déjà tombée dans cette fosse, `CarSim.lavaFalls`).
+ * amont, rang parmi les fosses, tentative : 2 si la voiture est déjà tombée dans cette fosse, `CarSim.lavaFalls`),
+ * prochain rocher devant à moins de JUMP_LOOKAHEAD et encore actif pour cette voiture (curseur sur `track.rocks`, tâche
+ * 11c ; le premier rocher devant seulement : s'il n'est plus actif pour elle, null).
  */
 function fillContext(sim: RaceSim, cache: DriverCache, i: number): DriverContext {
   const { cfg, track, time: t } = sim;
   const slot = cache.slots[i];
-  const { ctx, star, fosse } = slot;
+  const { ctx, star, fosse, rock } = slot;
   const x = cache.xs[i];
   ctx.t = t;
   ctx.state = sim.cars[i].state;
@@ -535,6 +544,17 @@ function fillContext(sim: RaceSim, cache: DriverCache, i: number): DriverContext
       break;
     }
     rank++;
+  }
+  const rocks = track.rocks;
+  let r = slot.rockCursor;
+  while (r < rocks.length && rocks[r].xStart <= x) r++;
+  while (r > 0 && rocks[r - 1].xStart > x) r--;
+  slot.rockCursor = r;
+  ctx.nextRock = null;
+  if (r < rocks.length && rocks[r].xStart - x <= cfg.JUMP_LOOKAHEAD && isRockActiveFor(sim.rocks[r], i)) {
+    rock.xStart = rocks[r].xStart;
+    rock.index = r;
+    ctx.nextRock = rock;
   }
   return ctx;
 }

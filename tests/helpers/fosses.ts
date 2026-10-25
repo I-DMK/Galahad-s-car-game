@@ -2,7 +2,7 @@
 // run de Galahad seul par le vrai `stepRace` (`fosseRun` : contact débouncé, tolérance de sol, saut, capteur de lave,
 // réapparitions), fenêtre de saut balayée pas à pas (`fosseWindow`, suite lente) ou bloc central de 0,4 s autour de
 // l'instant visé par les copains (`fosseBlock`, CI, ruling R-F17), et le sauteur parfait des courses (`sauteurParfait`).
-import { fosseJumpLead, fosseJumpWanted } from '../../src/cars/jump';
+import { fosseJumpLead, fosseJumpWanted, rockJumpWanted } from '../../src/cars/jump';
 import { activateTurbo } from '../../src/cars/turbo';
 import { CONFIG, type Config } from '../../src/config';
 import { carSpeedMps } from '../../src/physics/car';
@@ -328,13 +328,14 @@ export const fosseEarliestLead = (v: number, cfg: Config = CONFIG): number => (1
  * une double-bosse juste avant une fosse, atterrissage sur l'approche et rebond de 1,1 m, la voiture vole pendant tout le
  * centre de la fenêtre) : sur l'approche, en l'air, au dernier pas de la tolérance de sol alors que le centre est plus
  * loin, il saute tout de suite si le bord est déjà à portée d'un saut avancé (au plus `fosseEarliestLead(v)` − 0,1 s).
+ * Rochers (tâche 11c) : il saute aussi chaque rocher au centre de sa fenêtre (`rockJumpWanted`, sans erreur).
  */
 export function sauteurParfait(track: Track, cfg: Config = CONFIG): (t: number, sim: RaceSim) => boolean {
   return (_t, sim) => {
     const car = sim.cars[GALAHAD_INDEX];
     const x = chassisX(car);
     const v = carSpeedMps(car.body);
-    if (fosseJumpWanted(track, x, v, cfg)) return true;
+    if (fosseJumpWanted(track, x, v, cfg) || rockJumpWanted(track, x, v, cfg)) return true;
     const f = nextFosse(track, x);
     if (!f || x < f.xLancement || car.grounded || car.lastGroundedAt === null) return false;
     const graceLeft = car.lastGroundedAt + cfg.JUMP_GROUND_GRACE - sim.time;

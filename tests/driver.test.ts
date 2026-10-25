@@ -3,13 +3,15 @@
 // physique). Délai de départ, zone volcan, lever de pied, robots polis, sauts d'étoile haute et de fosse, déterminisme.
 // Le câblage dans `stepRace` (contexte réel `driverContext`, garde `inNoJumpZone`) : tests/robots.test.ts.
 import { driverSeed, makeRobotDriver, robotDraws, type Driver, type DriverContext, type OtherCar } from '../src/ai/driver';
-import { fosseJumpLead, fosseJumpWanted, fosseLatestLead } from '../src/cars/jump';
+import { fosseJumpLead, fosseJumpWanted, fosseLatestLead, inRockJumpWindow, rockJumpLead } from '../src/cars/jump';
 import { PILOTS, type Pilot } from '../src/cars/pilots';
 import { newCarState, type CarState } from '../src/cars/state';
 import { CONFIG } from '../src/config';
+import { createRaceSim, driverContext, stepRace } from '../src/sim/simulate';
+import { generateTrack } from '../src/track/generate';
 import { fosses, inNoJumpZone, inVolcanoZone, sliceAt, tremplins } from '../src/track/query';
 import { mulberry32 } from '../src/track/rng';
-import { fosse, plat } from '../src/track/slices';
+import { fosse, plat, rampeVolcan } from '../src/track/slices';
 import type { Star, Track } from '../src/track/types';
 import { fossePiste, trackOf } from './helpers/fosses';
 import { trackFor } from './helpers/runs';
@@ -31,12 +33,16 @@ const other = (o: Other): OtherCar => ({
 });
 
 /**
- * Contexte comme `stepRace` le remplit (étoile haute et fosse devant, à moins de JUMP_LOOKAHEAD), fabriqué à la main ;
- * `falls` : chutes déjà faites dans la fosse devant (tentative 2 dès une chute).
+ * Contexte comme `stepRace` le remplit (étoile haute, fosse et rocher devant, à moins de JUMP_LOOKAHEAD), fabriqué à la
+ * main ; `falls` : chutes déjà faites dans la fosse devant (tentative 2 dès une chute) ; `rockActive` : le rocher devant
+ * est encore actif pour cette voiture (défaut vrai ; faux : `nextRock` null, comme après son choc).
  */
 function ctxOf(
   track: Track,
-  o: { t: number; x: number; v: number; state: CarState; others?: Other[]; available?: boolean; falls?: number; traversable?: boolean },
+  o: {
+    t: number; x: number; v: number; state: CarState; others?: Other[]; available?: boolean; falls?: number; traversable?: boolean;
+    rockActive?: boolean;
+  },
 ): DriverContext {
   let nextHighStar: DriverContext['nextHighStar'] = null;
   const k = track.stars.findIndex((s) => s.high && s.x > o.x);
@@ -48,9 +54,12 @@ function ctxOf(
     const f = fs[r];
     nextFosse = { xBord: f.xBord, index: r, attempt: (o.falls ?? 0) >= 1 ? 2 : 1 };
   }
+  let nextRock: DriverContext['nextRock'] = null;
+  const q = track.rocks.findIndex((rk) => rk.xStart > o.x);
+  if (q >= 0 && track.rocks[q].xStart - o.x <= CONFIG.JUMP_LOOKAHEAD && (o.rockActive ?? true)) nextRock = { xStart: track.rocks[q].xStart, index: q };
   return {
     t: o.t, state: o.state, track, speed: o.v, x: o.x, traversable: o.traversable ?? false, others: (o.others ?? []).map(other),
-    nextHighStar, nextFosse,
+    nextHighStar, nextFosse, nextRock,
   };
 }
 
@@ -64,13 +73,13 @@ function drive(
   driver: Driver, track: Track,
   o: {
     x0: number; x1: number; v: number; t0: number; state: CarState; serve?: boolean; others?: (x: number) => Other[]; available?: boolean;
-    falls?: number;
+    falls?: number; rockActive?: boolean;
   },
 ): Step[] {
   const steps: Step[] = [];
   let t = o.t0;
   for (let x = o.x0; x < o.x1; x += o.v * DT, t += DT) {
-    const out = driver(ctxOf(track, { t, x, v: o.v, state: o.state, others: o.others?.(x), available: o.available, falls: o.falls }));
+    const out = driver(ctxOf(track, { t, x, v: o.v, state: o.state, others: o.others?.(x), available: o.available, falls: o.falls, rockActive: o.rockActive }));
     steps.push({ t, x, throttle: out.throttle, jump: out.jump });
     if (out.jump && o.serve) o.state.lastJumpAt = t;
   }
@@ -393,7 +402,9 @@ describe('saut d’étoile haute', () => {
           for (let x = v.xLancement - 45; x < x1; x += 0.1, t += DT) {
             // Hors de la fenêtre d'une fosse : seul le saut d'étoile peut demander.
             const f = fosses(track).find((ff) => x >= ff.xLancement && x < ff.xBord);
-            const out = driver(ctxOf(track, { t, x, v: 14, state }));
+            // Rochers inactifs ici (tâche 11c) : un rocher sur une réception de fosse y est sauté à bon droit ; la garde
+            // `inNoJumpZone` des rochers est testée dans « saut de rocher ».
+            const out = driver(ctxOf(track, { t, x, v: 14, state, rockActive: false }));
             if (!out.jump || f) continue;
             if (inNoJumpZone(track, x)) bad.push(`g${seed} tremplin x = ${x.toFixed(1)} (zone [${v.xLancement.toFixed(1)}, ${v.xReception.toFixed(1)}])`);
             else if (sliceAt(track, x).type === 'fosse') bad.push(`g${seed} étoile demandée dans la tranche fosse, x = ${x.toFixed(1)}`);
@@ -633,5 +644,138 @@ describe('déterminisme', () => {
     expect(robotDraws(PABLO, 1, track, SEED, CONFIG)).toEqual(a);
     expect(a.starErr).not.toEqual(b.starErr);
     expect(a.fosseErr).not.toEqual(b.fosseErr);
+  });
+});
+
+// ——— Rochers (plan C, tâche 11c ; spec « rochers » §4) ———
+
+/** Tirages de BASE (9a0744a) du driver de Pablo, rang 1, piste de la graine 7 (CONFIG, 1 680 m), graine des pilotes 0. */
+/**
+ * Avec rochers (2 sur la graine 7), tirés après les erreurs de fosse et avant les levers de pied (tâche 11c, figés au
+ * Step 16) : chaque erreur de rocher prend deux tirages (Box-Muller), les levers de pied sont ceux de BASE décalés de 4.
+ */
+const PABLO_7_ROCKS = {
+  rockErr: [0.3279890529704017, -0.025048890007267486],
+  lift: Array.from({ length: 26 }, (_, k) => k === 18),
+};
+
+const PABLO_7_BASE = {
+  starTry: [true, false, false, false, false, false, false, true, false],
+  starErr: [-0.038527450289567236, 0, 0, 0, -0.026243848721933312, 0, 0, -0.18419294636757194, 0],
+  fosseErr: [[-0.5656385342241183, 0.3095324877509764]],
+  lift: Array.from({ length: 26 }, (_, k) => k === 22),
+};
+
+describe('saut de rocher', () => {
+  const rng = mulberry32(1);
+  const base = trackOf([plat(rng, CONFIG, 300)]);
+  const ROCK = { id: 0, xStart: 200, xEnd: 200 + CONFIG.ROCK_WIDTH };
+  const track: Track = { ...base, rocks: [ROCK] };
+  const window = (steps: Step[], v: number, e = 0) => steps.flatMap((s, i) => (inRockJumpWindow(ROCK.xStart, s.x, v, CONFIG, e) ? [i] : []));
+
+  test('robotDraws : rockErr.length === track.rocks.length, N(0, 2,5 × jumpSkill) (200 graines : écart-type dans [0,8 ; 1,2] × 2,5 × jumpSkill) ; avec rochers, starTry, starErr, fosseErr de BASE (ordre fosseErr → rockErr → lift, Pablo rang 1, graine 7)', () => {
+    const t7 = trackFor(7);
+    expect(t7.rocks.length).toBe(2);
+    const d = robotDraws(PABLO, 1, t7, 0, CONFIG);
+    expect(d.rockErr).toHaveLength(t7.rocks.length);
+    expect(d.starTry).toEqual(PABLO_7_BASE.starTry);
+    expect(d.starErr).toEqual(PABLO_7_BASE.starErr);
+    expect(d.fosseErr).toEqual(PABLO_7_BASE.fosseErr);
+    // Valeurs avec rochers (tirées après fosseErr, avant lift) : figées ici.
+    expect(d.rockErr).toEqual(PABLO_7_ROCKS.rockErr);
+    expect(d.lift).toEqual(PABLO_7_ROCKS.lift);
+    // Ordre fosseErr → rockErr → lift : les levers de pied sont ceux de BASE décalés de 2 tirages par rocher.
+    expect(d.lift.slice(0, 26 - 4)).toEqual(PABLO_7_BASE.lift.slice(4));
+    const errs: number[] = [];
+    for (let s = 0; s < 200; s++) errs.push(...robotDraws(PABLO, 1, t7, s, CONFIG).rockErr);
+    const mean = errs.reduce((a, e) => a + e, 0) / errs.length;
+    const sd = Math.sqrt(errs.reduce((a, e) => a + (e - mean) ** 2, 0) / errs.length);
+    const sigma = CONFIG.FOSSE_SKILL_FACTOR * PABLO.jumpSkill;
+    console.log(`erreurs aux rochers, Pablo (200 graines, ${errs.length} tirages) : moyenne ${mean.toFixed(3)}, écart-type ${sd.toFixed(3)} (σ = ${sigma.toFixed(3)})`);
+    expect(sd).toBeGreaterThanOrEqual(0.8 * sigma);
+    expect(sd).toBeLessThanOrEqual(1.2 * sigma);
+    expect(robotDraws(PABLO, 1, { ...t7, rocks: [] }, 0, CONFIG).rockErr).toEqual([]);
+  });
+
+  test.each([8, 11.2, 14])('jumpSkill 0, %s m/s, rocher actif : jump vrai à chaque pas de la fenêtre ; faux après le saut (lastJumpAt changé) ; faux si le rocher n’est plus actif (nextRock null)', (v) => {
+    const mk = () => makeRobotDriver(pilot({ jumpSkill: 0 }), 1, track, SEED, CONFIG);
+    const steps = drive(mk(), track, { x0: ROCK.xStart - 60, x1: ROCK.xEnd + 5, v, t0: 2, state: freshState() });
+    const win = window(steps, v);
+    expect(win.length).toBeGreaterThan(0);
+    expect(where(steps, (s) => s.jump)).toEqual(win);
+    expect(rockJumpLead(v, CONFIG) * v).toBeGreaterThan(ROCK.xStart - steps[win[0]].x - v * DT - EPS);
+    const served = drive(mk(), track, { x0: ROCK.xStart - 60, x1: ROCK.xEnd + 5, v, t0: 2, state: freshState(), serve: true });
+    expect(where(served, (s) => s.jump)).toEqual([win[0]]);
+    const inactive = drive(mk(), track, { x0: ROCK.xStart - 60, x1: ROCK.xEnd + 5, v, t0: 2, state: freshState(), rockActive: false });
+    expect(where(inactive, (s) => s.jump)).toEqual([]);
+  });
+
+  test('erreur pré-tirée par rocher : la demande commence à rockJumpLead(v) + e', () => {
+    const p = pilot({ jumpSkill: 0.18 });
+    const seed = Array.from({ length: 200 }, (_, s) => s).find((s) => Math.abs(robotDraws(p, 1, track, s, CONFIG).rockErr[0]) > 0.15)!;
+    const e = robotDraws(p, 1, track, seed, CONFIG).rockErr[0];
+    const steps = drive(makeRobotDriver(p, 1, track, seed, CONFIG), track, { x0: ROCK.xStart - 60, x1: ROCK.xEnd + 5, v: 14, t0: 2, state: freshState(), serve: true });
+    expect(where(steps, (s) => s.jump)).toEqual([window(steps, 14, e)[0]]);
+    expect(window(steps, 14, e)[0]).not.toBe(window(steps, 14)[0]);
+  });
+
+  test('un saut servi : plus aucune demande pour ce rocher dans la tentative ; après une réapparition avant lui, la demande est rejouée', () => {
+    const driver = makeRobotDriver(pilot({ jumpSkill: 0 }), 1, track, SEED, CONFIG);
+    const state = freshState();
+    const a = drive(driver, track, { x0: ROCK.xStart - 60, x1: ROCK.xStart, v: 14, t0: 2, state, serve: true });
+    expect(where(a, (s) => s.jump)).toHaveLength(1);
+    const again = drive(driver, track, { x0: ROCK.xStart - 30, x1: ROCK.xStart, v: 14, t0: 8, state, serve: true });
+    expect(where(again, (s) => s.jump)).toEqual([]);
+    state.respawnCount++;
+    const b = drive(driver, track, { x0: ROCK.xStart - 30, x1: ROCK.xStart, v: 14, t0: 12, state, serve: true });
+    expect(where(b, (s) => s.jump)).toEqual([window(b, 14)[0]]);
+  });
+
+  test('priorité : sur l’approche d’une fosse, la demande est celle de la fosse (rocher fictif juste après le bord amont)', () => {
+    const { track: fp, f } = fossePiste();
+    const rock = { id: 0, xStart: f.xBord + 1, xEnd: f.xBord + 1 + CONFIG.ROCK_WIDTH };
+    const both: Track = { ...fp, rocks: [rock] };
+    const v = 14;
+    // La fenêtre du rocher s'ouvre plus tôt (0,89 s) que celle de la fosse (0,71 s).
+    expect(rockJumpLead(v, CONFIG)).toBeGreaterThan(fosseJumpLead(v, CONFIG));
+    const steps = drive(makeRobotDriver(pilot({ jumpSkill: 0 }), 1, both, SEED, CONFIG), both, { x0: f.xLancement - 10, x1: f.xBord, v, t0: 2, state: freshState(), serve: true });
+    const fosseFirst = steps.findIndex((s) => s.x >= f.xLancement && fosseJumpWanted(both, s.x, v, CONFIG));
+    expect(where(steps, (s) => s.jump)).toEqual([fosseFirst]);
+  });
+
+  test('jamais dans inNoJumpZone : rocher fictif juste après la réception d’un tremplin, aucune demande tant que x est dans [xLancement, xReception]', () => {
+    const r = mulberry32(1);
+    const tt = trackOf([plat(r, CONFIG, 150), rampeVolcan(CONFIG), plat(r, CONFIG, 100)]);
+    const [v0] = tremplins(tt);
+    const rock = { id: 0, xStart: v0.xReception + 4, xEnd: v0.xReception + 4 + CONFIG.ROCK_WIDTH };
+    const tr: Track = { ...tt, rocks: [rock] };
+    const steps = drive(makeRobotDriver(pilot({ jumpSkill: 0 }), 1, tr, SEED, CONFIG), tr, { x0: v0.xLancement - 10, x1: rock.xStart, v: 14, t0: 2, state: freshState() });
+    const asked = where(steps, (s) => s.jump);
+    expect(asked.length).toBeGreaterThan(0);
+    for (const i of asked) expect(inNoJumpZone(tr, steps[i].x)).toBe(false);
+    expect(where(steps, (s) => inNoJumpZone(tr, s.x) && inRockJumpWindow(rock.xStart, s.x, 14, CONFIG)).length).toBeGreaterThan(0);
+  });
+
+  test('ROCKS_PER_RACE 0 : nextRock null à tout pas d’une course de 10 s (driverContext) ; avec rochers, nextRock est le rocher devant à moins de JUMP_LOOKAHEAD, actif pour la voiture', () => {
+    const cfg = { ...CONFIG, ROCKS_PER_RACE: 0 };
+    const sim = createRaceSim(generateTrack(1, 1680, cfg), cfg, { robots: true });
+    for (let k = 0; k < 10 / DT; k++) {
+      stepRace(sim, true);
+      for (let i = 0; i < sim.cars.length; i++) expect(driverContext(sim, i).nextRock).toBeNull();
+    }
+    const withRocks = createRaceSim(generateTrack(1, 1680, CONFIG), CONFIG, { robots: true });
+    const r0 = withRocks.track.rocks[0];
+    let seen = 0;
+    for (let k = 0; k < 10 / DT; k++) {
+      stepRace(withRocks, true);
+      for (let i = 0; i < withRocks.cars.length; i++) {
+        const ctx = driverContext(withRocks, i);
+        const x = ctx.x;
+        const expected = x < r0.xStart && r0.xStart - x <= CONFIG.JUMP_LOOKAHEAD && withRocks.rocks[0].hitAt[i] === null;
+        if (expected) { seen++; expect(ctx.nextRock).toEqual({ xStart: r0.xStart, index: 0 }); }
+        else if (x < r0.xStart) expect(ctx.nextRock).toBeNull();
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
   });
 });

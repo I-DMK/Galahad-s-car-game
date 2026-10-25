@@ -3,6 +3,7 @@
 // `stepRace` (`rockRun` : contact débouncé, tolérance de sol, saut, capteur du rocher, choc, réapparitions), fenêtre de
 // saut balayée pas à pas (`rockWindow`, suite lente) et bloc central de 0,4 s autour de l'instant visé par les copains
 // (`rockBlock`, CI).
+import { rockJumpLead, rockJumpWanted } from '../../src/cars/jump';
 import { activateTurbo } from '../../src/cars/turbo';
 import { CONFIG, type Config } from '../../src/config';
 import { carAngle, carSpeedMps } from '../../src/physics/car';
@@ -25,11 +26,8 @@ export const WINDOW_SWEEP_SECONDS = 2;
 /** Pas de part et d'autre de k* du bloc central de la CI : 25 appuis, 0,4 s. */
 export const BLOCK_HALF_STEPS = 12;
 
-/**
- * Centre de la fenêtre d'un rocher en s avant xStart (spec §2.2) : ROCK_JUMP_AIM − ROCK_WIDTH / (2 max(v, 1)). Formule
- * locale en attendant `rockJumpLead` (Partie 3).
- */
-export const localRockLead = (v: number, cfg: Config = CONFIG): number => cfg.ROCK_JUMP_AIM - cfg.ROCK_WIDTH / (2 * Math.max(v, 1));
+/** Centre de la fenêtre d'un rocher en s avant xStart (spec §2.2) : `rockJumpLead` (Partie 3). */
+export const localRockLead = (v: number, cfg: Config = CONFIG): number => rockJumpLead(v, cfg);
 
 /** Piste plate de 700 m (graine 3, tranches `plat` seulement), sans étoile, avec les rochers aux `xs` donnés (ids 0, 1…). */
 export function rockTrack(xs: readonly number[], cfg: Config = CONFIG): Track {
@@ -257,15 +255,12 @@ export interface RockBlock {
   failed: number[];
 }
 
-/**
- * CI : k* = premier pas du témoin où (xStart − x) / max(v, 1) ≤ centre de la fenêtre (`localRockLead`, puis
- * `rockJumpWanted` en Partie 3) ; un appui à chaque pas de [k* − 12, k* + 12].
- */
+/** CI : k* = premier pas du témoin où `rockJumpWanted` est vrai (centre de la fenêtre) ; un appui à chaque pas de [k* − 12, k* + 12]. */
 export function rockBlock(world: World, rock: Rock, v: number | 'arrêt', opts: { turboAtX?: number; x0?: number; cfg?: Config } = {}): RockBlock {
   const cfg = opts.cfg ?? CONFIG;
   const base = { x0: opts.x0 ?? rockStart(rock, v), v, turboAtX: opts.turboAtX, cfg };
   const witness = rockRun(world, rock, { ...base, pressAtStep: null, trace: true });
-  const kStar = witness.xs.findIndex((x, k) => x < rock.xStart && leadOf(rock, x, witness.speeds[k]) <= localRockLead(witness.speeds[k], cfg));
+  const kStar = witness.xs.findIndex((x, k) => x < rock.xStart && rockJumpWanted(world.track, x, witness.speeds[k], cfg));
   if (kStar < 0 || witness.hitStep === null) throw new Error(`rockBlock : témoin sans k* ou sans choc (rocher en ${rock.xStart}, v = ${v})`);
   let passed = 0;
   const failed: number[] = [];

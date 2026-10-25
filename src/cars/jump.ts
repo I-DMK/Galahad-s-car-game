@@ -1,7 +1,7 @@
 // Décision de saut (plan B, tâche 5e ; addendum « bouton saut » §1, amendé [plan]) et saut voulu devant une fosse
-// (tâche 5g, saut §6.8) : pur (ni DOM, ni matter-js).
+// (tâche 5g, saut §6.8) et devant un rocher (tâche 11c) : pur (ni DOM, ni matter-js).
 import type { Config } from '../config';
-import { nextFosse } from '../track/query';
+import { nextFosse, nextRock } from '../track/query';
 import type { Track } from '../track/types';
 
 /** Tolérance (s) des comparaisons de temps : `sim.time` est une somme de PHYSICS_DT. */
@@ -84,4 +84,45 @@ export function fosseJumpWanted(track: Track, x: number, v: number, cfg: Config,
   const f = nextFosse(track, x);
   if (!f || x < f.xLancement) return false;
   return inFosseJumpWindow(f.xBord, x, v, cfg, error);
+}
+
+// ——— Rochers (plan C, tâche 11c ; spec « rochers » §2.2 et §4) ———
+
+/**
+ * Centre de la fenêtre de saut d'un rocher, en s avant son xStart, à la vitesse v (m/s) : ROCK_JUMP_AIM − ROCK_WIDTH /
+ * (2 max(v, 1)) : 0,81 / 0,87 / 0,89 s à 8 / 11,2 / 14 m/s, à 0,02 s des centres MESURÉS (0,81 / 0,86 / 0,91).
+ */
+export function rockJumpLead(v: number, cfg: Config): number {
+  return cfg.ROCK_JUMP_AIM - cfg.ROCK_WIDTH / (2 * Math.max(v, 1));
+}
+
+/**
+ * Bord au plus tard de la fenêtre d'un rocher, en s avant xStart : ROCK_JUMP_LATE (0,5 s), constant (MESURÉ 0,48 s à
+ * 14 m/s, 0,51 à 8 : c'est la hauteur qui le fixe, pas la vitesse). Information des tests ; pas de bascule (spec §4).
+ */
+export function rockLatestLead(_v: number, cfg: Config): number {
+  return cfg.ROCK_JUMP_LATE;
+}
+
+/**
+ * Fenêtre de demande du saut d'un rocher dont le bord amont est en `xStart` (spec §4) : (xStart − x) / max(v, 1) ≤
+ * max(rockJumpLead(v) + error, JUMP_BUFFER + PHYSICS_DT) et > JUMP_BUFFER (une demande gardée en mémoire partirait sinon
+ * contre le rocher). Pas de bascule d'une erreur trop tardive (contrairement aux fosses) : un saut trop tard se voit, la
+ * voiture bute et le rocher éclate.
+ */
+export function inRockJumpWindow(xStart: number, x: number, v: number, cfg: Config, error = 0): boolean {
+  const tte = (xStart - x) / Math.max(v, 1);
+  const lead = Math.max(rockJumpLead(v, cfg) + error, cfg.JUMP_BUFFER + cfg.PHYSICS_DT);
+  return tte <= lead + EPS && tte > cfg.JUMP_BUFFER + EPS;
+}
+
+/**
+ * Saut voulu devant un rocher : le prochain rocher (`nextRock`, xStart strictement devant x) est à au plus
+ * JUMP_LOOKAHEAD et x est dans sa fenêtre (`inRockJumpWindow`) ; faux sinon. Sans allocation. Le sauteur parfait des
+ * tests (`sauteurParfait`) ; le driver des copains lit son rocher dans son contexte (`DriverContext.nextRock`).
+ */
+export function rockJumpWanted(track: Track, x: number, v: number, cfg: Config, error = 0): boolean {
+  const r = nextRock(track, x);
+  if (!r || r.xStart - x > cfg.JUMP_LOOKAHEAD) return false;
+  return inRockJumpWindow(r.xStart, x, v, cfg, error);
 }

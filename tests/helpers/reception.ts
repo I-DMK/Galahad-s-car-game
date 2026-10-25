@@ -21,7 +21,10 @@ export interface ReceptionRow {
   kind: Volcano['kind'];
   /** x (m après xReception) du châssis au premier contact d'une roue après le sommet ou le bord ; NaN sans contact. */
   touch: number;
-  /** Dernier x (m après xReception) où toutes les roues passent au-dessus d'une étoile basse ; −Infinity sinon. */
+  /**
+   * Dernier x (m après xReception) où toutes les roues passent au-dessus d'une étoile basse, avant tout saut de Galahad sur
+   * la réception (rocher, tâche 11c) ; −Infinity sinon.
+   */
   lastMiss: number;
   /** Turbo actif au passage du sommet ou du bord (volcan pris en turbo). */
   turbo: boolean;
@@ -41,7 +44,7 @@ export function receptionRun(seed: number, track: Track, cfg: Config = CONFIG): 
   const lowStars = track.stars.filter((s) => !s.high);
   const taken = new Set<number>();
   const rows: ReceptionRow[] = [];
-  let cur: { v: Volcano; passed: boolean; row: ReceptionRow } | null = null;
+  let cur: { v: Volcano; passed: boolean; jumpedOnReception: boolean; row: ReceptionRow } | null = null;
   const close = (): void => {
     if (!cur) return;
     const { v, row } = cur;
@@ -56,13 +59,16 @@ export function receptionRun(seed: number, track: Track, cfg: Config = CONFIG): 
       for (const e of sim.events) {
         if (e.type === 'star' && e.carId === g.state.id) taken.add(e.id);
         if (e.type === 'respawn' && e.carId === g.state.id) cur = null;
+        // Saut de Galahad sur la réception (rocher, tâche 11c) : ce n'est pas l'atterrissage du volcan, le survol qui
+        // suit n'est plus relevé (les étoiles de la réception restent jugées).
+        if (e.type === 'jump' && e.carId === g.state.id && cur && e.x >= cur.v.xReception) cur.jumpedOnReception = true;
       }
       const x = chassisX(g);
       if (cur && x >= cur.v.xEnd) close();
       if (!cur) {
         const v = track.volcanoes.find((w) => x >= w.xLancement && x < w.xEnd);
         if (!v) return;
-        cur = { v, passed: false, row: { seed, kind: v.kind, touch: NaN, lastMiss: -Infinity, turbo: false, stars: [] } };
+        cur = { v, passed: false, jumpedOnReception: false, row: { seed, kind: v.kind, touch: NaN, lastMiss: -Infinity, turbo: false, stars: [] } };
       }
       const { v, row } = cur;
       const edge = v.kind === 'fosse' ? v.xBord : v.xLip;
@@ -72,7 +78,7 @@ export function receptionRun(seed: number, track: Track, cfg: Config = CONFIG): 
         return p.y - cfg.WHEEL_RADIUS - heightAt(track, p.x);
       }));
       if (cur.passed && Number.isNaN(row.touch) && x > v.xLava && low < 0.05) row.touch = x - v.xReception;
-      if (x >= v.xReception && low > STAR_TOP) row.lastMiss = Math.max(row.lastMiss, x - v.xReception);
+      if (x >= v.xReception && low > STAR_TOP && !cur.jumpedOnReception) row.lastMiss = Math.max(row.lastMiss, x - v.xReception);
     },
   });
   close();

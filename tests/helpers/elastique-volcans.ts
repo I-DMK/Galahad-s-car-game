@@ -263,7 +263,7 @@ export function elasticRun(o: ElasticRunOptions): ElasticRun {
  * vitesse : sert à savoir si une demande tombe pendant un vol (au-delà de la tolérance de sol), sans effet sur la course.
  */
 function ctxOf(sim: RaceSim, x: number, speed: number): DriverContext {
-  return { t: sim.time, state: sim.cars[1].state, track: sim.track, speed, x, traversable: false, others: [], nextHighStar: null, nextFosse: null };
+  return { t: sim.time, state: sim.cars[1].state, track: sim.track, speed, x, traversable: false, others: [], nextHighStar: null, nextFosse: null, nextRock: null };
 }
 
 /** Pire point sûr d'un volcan : 1 cm avant sa zone interdite (comme `worstSafePoint` de runs.ts). */

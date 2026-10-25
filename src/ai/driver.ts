@@ -1,7 +1,7 @@
 // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : le
 // driver de chaque copain décide, à chaque pas, de son doigt (gaz) et de sa demande de saut. Pur (ni DOM, ni
 // matter-js) : `sim/simulate.ts` lui passe un `DriverContext` et applique sa réponse.
-import { inFosseJumpWindow } from '../cars/jump';
+import { inFosseJumpWindow, inRockJumpWindow } from '../cars/jump';
 import type { Pilot } from '../cars/pilots';
 import type { CarState } from '../cars/state';
 import type { Config } from '../config';
@@ -51,6 +51,11 @@ export interface DriverContext {
    * voiture est déjà tombée dans cette fosse, 1 sinon) ; null sinon.
    */
   nextFosse: { xBord: number; index: number; attempt: 1 | 2 } | null;
+  /**
+   * Prochain rocher devant (tâche 11c), à moins de JUMP_LOOKAHEAD, encore actif pour CETTE voiture (jamais touché par
+   * elle) : xStart et rang dans `track.rocks` ; null sinon.
+   */
+  nextRock: { xStart: number; index: number } | null;
 }
 
 /** Réponse d'un driver : doigt posé, et demande de saut (filtrée par `wantsJump`, `canJump` et la garde de `stepRace`). */
@@ -88,6 +93,8 @@ export interface RobotDraws {
   starErr: number[];
   /** Par fosse (ordre de la piste) : erreurs (s) des tentatives 1 et 2, N(0, FOSSE_SKILL_FACTOR × jumpSkill). */
   fosseErr: [number, number][];
+  /** Par rocher (ordre de la piste, tâche 11c) : erreur (s) sur l'instant du saut, N(0, FOSSE_SKILL_FACTOR × jumpSkill). */
+  rockErr: number[];
   /** Par rampe-saut ou double-bosse (ordre de la piste) : lève-t-il le pied avant elle ? */
   lift: boolean[];
 }
@@ -95,8 +102,10 @@ export interface RobotDraws {
 /**
  * Tirages du driver du copain `pilot`, de rang `rank`, sur `track` (`seed` = graine des pilotes), sur la graine du
  * driver, dans cet ordre : pour chaque étoile haute (ordre de la piste) « tente-t-il ? » (`rng() < jumpTry`) puis son
- * erreur (Box-Muller) ; pour chaque fosse, deux erreurs, une par tentative ; pour chaque rampe-saut et double-bosse,
- * « lève-t-il le pied ? » (`rng() < lift`).
+ * erreur (Box-Muller) ; pour chaque fosse, deux erreurs, une par tentative ; pour chaque rocher (tâche 11c, spec
+ * « rochers » §4), une erreur ; pour chaque rampe-saut et double-bosse, « lève-t-il le pied ? » (`rng() < lift`). Les
+ * erreurs des rochers viennent après celles des fosses et avant les levers de pied : sans rocher (ROCKS_PER_RACE 0),
+ * aucun tirage de plus.
  */
 export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: number, cfg: Config): RobotDraws {
   const rng = mulberry32(driverSeed(seed, rank));
@@ -109,8 +118,9 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
   });
   const fosseErr = fosses(track)
     .map((): [number, number] => [normal(rng) * cfg.FOSSE_SKILL_FACTOR * pilot.jumpSkill, normal(rng) * cfg.FOSSE_SKILL_FACTOR * pilot.jumpSkill]);
+  const rockErr = track.rocks.map(() => normal(rng) * cfg.FOSSE_SKILL_FACTOR * pilot.jumpSkill);
   const lift = track.slices.filter(isLiftSlice).map(() => rng() < pilot.lift);
-  return { starTry, starErr, fosseErr, lift };
+  return { starTry, starErr, fosseErr, rockErr, lift };
 }
 
 /**
@@ -141,6 +151,10 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
  *   tardive, plus tard que le bord au plus tard CALCULÉ, devient un saut trop tôt du même écart, à fosseJumpLead(v) − e :
  *   décision du papa au tour 2, le raté se voit) ;
  *   redemandée à chaque pas jusqu'au saut, puis plus aucune jusqu'à la tentative suivante (une réapparition) ;
+ * - rocher (tâche 11c, spec « rochers » §4 ; toujours tenté, sans tirage `jumpTry`) : le rocher du contexte
+ *   (`ctx.nextRock`, encore actif pour cette voiture), hors `inNoJumpZone`, `inRockJumpWindow` avec l'erreur pré-tirée
+ *   de ce rocher (pas de bascule) ; redemandé à chaque pas jusqu'au saut, une seule tentative par rocher et par
+ *   réapparition (après un choc, il n'est plus actif) ; après la fosse, avant l'étoile haute ;
  * - étoile haute disponible et tentée : demande tant que JUMP_STAR_MIN_LEAD ≤ (xÉtoile − x) / max(v, 1) ≤
  *   JUMP_STAR_LEAD + erreur, redemandée à chaque pas jusqu'au saut ; abandonnée sous JUMP_STAR_MIN_LEAD (un saut plus
  *   tardif passe sous l'étoile, par exemple après un survol en turbo) ; après une réapparition, la même décision est
@@ -150,13 +164,14 @@ export function robotDraws(pilot: Pilot, rank: number, track: Track, seed: numbe
  * la tentative où il a été demandé.
  */
 export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: number, cfg: Config): Driver {
-  const { starTry, starErr, fosseErr, lift: liftDraw } = robotDraws(pilot, rank, track, seed, cfg);
+  const { starTry, starErr, fosseErr, rockErr, lift: liftDraw } = robotDraws(pilot, rank, track, seed, cfg);
   const fosseList = fosses(track);
   const liftSlices = track.slices.filter(isLiftSlice);
   const liftUsed = liftSlices.map(() => false);
   /** Tentative (`respawnCount`) où la cible a été sautée ; −1 : jamais. */
   const starDone = track.stars.map(() => -1);
   const fosseDone = fosseList.map(() => -1);
+  const rockDone = track.rocks.map(() => -1);
 
   const startAt = rank * cfg.START_DELAY_PER_RANK;
   let liftUntil = -Infinity;
@@ -164,7 +179,7 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
   let waitTarget = -1;
   let waited = 0;
   let waitEpoch = 0;
-  /** Dernière demande de saut : cible (0 aucune, 1 étoile, 2 fosse), son indice, sa tentative. Sans allocation. */
+  /** Dernière demande de saut : cible (0 aucune, 1 étoile, 2 fosse, 3 rocher), son indice, sa tentative. Sans allocation. */
   let pendingKind = 0;
   let pendingIndex = -1;
   let pendingEpoch = -1;
@@ -179,7 +194,7 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
 
   /** Demande de saut du pas, ou false ; note la cible demandée. */
   function wantJump(ctx: DriverContext, epoch: number): boolean {
-    const { x, speed, nextFosse, nextHighStar } = ctx;
+    const { x, speed, nextFosse, nextHighStar, nextRock } = ctx;
     if (nextFosse) {
       const k = nextFosse.index;
       if (x >= fosseList[k].xLancement) {
@@ -187,6 +202,11 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
         // Fosse du contexte (bord amont, rang, tentative) : une seule source, une seule formule de fenêtre (tour 3).
         return inFosseJumpWindow(nextFosse.xBord, x, speed, cfg, fosseErr[k][nextFosse.attempt - 1]) && request(2, k, epoch);
       }
+    }
+    // Rocher (tâche 11c) : après la fosse, avant l'étoile haute ; jamais dans [xLancement, xReception] d'un tremplin.
+    if (nextRock && rockDone[nextRock.index] !== epoch && !inNoJumpZone(track, x)
+      && inRockJumpWindow(nextRock.xStart, x, speed, cfg, rockErr[nextRock.index])) {
+      return request(3, nextRock.index, epoch);
     }
     const s = nextHighStar;
     if (!s || !s.available || !starTry[s.index] || starDone[s.index] === epoch) return false;
@@ -233,6 +253,7 @@ export function makeRobotDriver(pilot: Pilot, rank: number, track: Track, seed: 
       seenJumpAt = state.lastJumpAt;
       if (pendingKind !== 0 && state.lastJumpAt !== null) {
         if (pendingKind === 2) fosseDone[pendingIndex] = pendingEpoch;
+        else if (pendingKind === 3) rockDone[pendingIndex] = pendingEpoch;
         else starDone[pendingIndex] = pendingEpoch;
       }
       pendingKind = 0;
