@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Régime « écrans » de l'addendum « présentation » §5, **durci par la décision du papa du 2026-10-23** : un implémenteur frais pour toute la tâche (Parties 1 à 4, plus la Partie 5 si le papa la retient), puis **quatre relectures** du diff de la tâche (standard, adversariale, skill `code-review`, skill `security-review`), tours de correction (≤ 5), **validation du papa sur capture** avant la fusion. Pas de suite lente. Jamais de PR.
 
-**Statut :** v1 (2026-10-25), brouillon, à relire contre le code avant l'implémenteur (leçon de la session 6), puis questions Q1 à Q3 au papa.
+**Statut :** v1.1 (2026-10-25), relu contre le code ; Q1 à Q3 tranchées par le papa le 2026-10-25 : **(a) partout** — bouton pause dans la 11 (Partie 5 faite), en haut à droite sous le chrono, visible pendant le décompte et la course.
+- v1 (`b6fbbc9`) : brouillon.
+- v1.1 : corrections de la relecture contre le code. SVG de MENU sans blanc entre les balises (`textContent` exact) ; tolérance `CONFETTI_EPS` sur le reste de la pluie (sinon un 161e confetti) ; ENCORE au `pointerdown` ET au `click` (un doigt de gaz peut rester posé à l'arrivée), MENU au `click` seul (A20), e2e à deux doigts ; caméra figée vérifiée au podium ; `.podium-me` caché dès la création (testé) ; médaille plafonnée à 9vh et marche du 3e à 13vh ; `tests/game-frame.test.ts` commenté (commit du Step 13) ; repli en portrait étroit (A11) ; assertion `throttlePressed` lue pendant l'appui.
 
 **Goal:** Remplacer le calque ARRIVÉE par un vrai podium : 1,5 s après l'arrivée de Galahad (roue libre, les copains roulent encore), la course se fige et l'écran montre le temps de Galahad en gros, les trois premiers sur des marches (prénom, voiture, médaille), Galahad toujours visible (sur sa marche ou à côté avec sa place), ENCORE (gros) et MENU, et une pluie de confettis s'il gagne ; sans changer un bit de la simulation. En option (Partie 5, selon la réponse du papa à Q1) : un bouton pause en course.
 
@@ -19,7 +21,7 @@
 - « La physique ne change pas d'un bit » : aucun pas de `stepRace` hors de `racing` et `finished` (le `case 'podium'` de `Game.frame`, qui menait aujourd'hui à `raceFrame`, mène à un rendu figé) ; `tests/empreinte.test.ts` reste identique ; rien ne change sous `src/sim/`, `src/physics/`, `src/track/`, `src/ai/` ; sous `src/cars/`, seul `ranking.ts` gagne `podiumView` (pur) ; `src/config.ts` ne change pas ; sous `src/loop/`, seul le commentaire de la table dans `states.ts` change. Le Step 14 le vérifie par `git diff --stat`.
 - Arrivée (spec §4, §6) : `finished` dure `FINISH_COAST_SECONDS` (1,5 s) de **temps de course** (la course continue : les copains roulent, Galahad freine), puis `podium`. Le classement final est `rankCars` (arrivés par temps, puis non arrivés par progression, égalité par index), **calculé une fois** à l'entrée au podium.
 - Podium (spec §8, plan v2.1 Task 11) : les 3 premiers sur des marches avec prénom, voiture et médaille ; Galahad toujours affiché (sa marche surlignée, ou une case à côté avec sa place « 4e », « 5e ») ; son temps en gros chiffres (mm:ss, comme le chrono) ; gros bouton ENCORE (même piste, mêmes copains : `again()` de la 10) ; bouton MENU (titre : `menu()` de la 10) ; confettis **seulement si Galahad est 1er**. Le bouton son et la trompette : tâche 12, rien ici.
-- Boutons ≥ 96 px CSS de côté, mots courts avec icône (addendum §2, spec §8) ; ENCORE et MENU portent `data-no-pedal`, le voile entier du podium aussi (un doigt laissé sur le podium n'est pas du gaz à PARTEZ après ENCORE ; même règle que le voile de pause, plan 10 A18) ; tout calque ou bouton caché par l'attribut `hidden` alors qu'une règle lui donne `display` a sa règle `…[hidden]{display:none}` (leçon de la session 6), testée sur la feuille en jsdom et sur la boîte en e2e.
+- Boutons ≥ 96 px CSS de côté, mots courts avec icône (addendum §2, spec §8) ; ENCORE et MENU portent `data-no-pedal`, le voile entier du podium aussi (un doigt laissé sur le podium n'est pas du gaz à PARTEZ après ENCORE ; même règle que le voile de pause, plan 10 A18) ; ENCORE agit au `pointerdown` et au `click` (un doigt de gaz peut rester posé quand le podium arrive, A7), MENU au `click` seul (A20) ; tout calque ou bouton caché par l'attribut `hidden` alors qu'une règle lui donne `display` a sa règle `…[hidden]{display:none}` (leçon de la session 6), testée sur la feuille en jsdom et sur la boîte en e2e.
 - Prénoms et textes en `textContent` ; `innerHTML` réservé aux SVG **constants** (médailles, icônes).
 - Version `1.2.0` dans `package.json` (décision Q3 de la 10 : +1 par tâche déployée) ; `package-lock.json` n'est pas touché (voir « Écarts »).
 - Plan B : une seule dépendance d'exécution ; `track/`, `cars/`, `ai/` et `loop/` sans DOM ni matter-js (`tests/deps.test.ts`), `render/` sans matter-js ; aucun cycle d'import (`ui/screens.ts` importe `ui/hud.ts` et `cars/ranking.ts`, jamais l'inverse) ; pas de `@types/node`.
@@ -44,7 +46,7 @@ Le skill `security-review` a besoin de `origin/HEAD` : `git remote set-head orig
 
 1. **Roue libre puis podium.** Galahad passe la ligne : `finished`, la course avance encore 1,5 s de temps de course (les copains roulent), aucun podium avant ; puis `podium` et plus **aucun pas** (le chrono de course et les voitures ne bougent plus, seuls les confettis tombent). Couvert par le test jsdom « podium : FINISH_COAST_SECONDS de roue libre » (Step 9) et l'e2e « course courte jusqu'au podium » (Step 16).
 2. **Galahad hors du podium.** Trois copains arrivés avant lui : les marches sont à eux, Galahad est dans sa case à côté avec « 4e », sa voiture et son prénom ; pas de confettis. Couvert par le test jsdom « Galahad 4e » (Step 9) et l'e2e « Galahad 4e », téléphone compris (Step 16).
-3. **ENCORE depuis le podium, puis un second podium.** Même graine, mêmes copains, chrono à 0, podium caché, confettis effacés **et pluie arrêtée** (un second podium où Galahad n'est pas 1er ne doit pas hériter de confettis), entrée d'historique remplacée, pas poussée. Couvert par les tests jsdom « ENCORE et MENU » et « confettis : clear() arrête la pluie » (Steps 1 et 9).
+3. **ENCORE depuis le podium, puis un second podium.** Même graine, mêmes copains, chrono à 0, podium caché, confettis effacés **et pluie arrêtée** (un second podium où Galahad n'est pas 1er ne doit pas hériter de confettis), entrée d'historique remplacée, pas poussée ; ENCORE répond même quand un doigt de gaz est resté posé depuis la course (le `click` peut alors ne pas partir : ENCORE agit au `pointerdown`). Couvert par les tests jsdom « ENCORE et MENU » et « confettis : clear() arrête la pluie » (Steps 1, 5 et 9) et l'e2e à deux doigts « doigt de gaz encore posé + ENCORE » (Step 16).
 4. **Geste retour et onglet caché au podium.** Retour → titre (entrée déjà consommée par le navigateur, pas de `history.back()`) ; onglet caché → rien (la table n'a pas de pause au podium), aucun pas. Couvert par les tests jsdom adaptés (Step 9).
 5. **Téléphone en paysage (844 × 390).** Temps, marches, case de Galahad et boutons dans la fenêtre, sans recouvrement, boutons ≥ 96 px. Couvert par l'e2e « Galahad 4e » (passage à 844 × 390, Step 16).
 6. **(Partie 5, si retenue)** Doigt de gaz posé et tap sur ⏸ : pause, et ni le tap ni la reprise ne sont du gaz ; bouton sans recouvrir chrono, barre, drapeau, position, saut. Couvert par les tests de la Partie 5 (Steps 19 et 22).
@@ -66,9 +68,10 @@ Le skill `security-review` a besoin de `origin/HEAD` : `git remote set-head orig
 | `src/loop/states.ts` | commentaire de la table seulement | 3 |
 | `package.json` | `"version": "1.2.0"` | 3 |
 | `tests/game-screens.test.ts` | espion `paintCarIcon` ; `driveToFinished` / `driveToPodium` ; tests du podium ; deux tests adaptés | 3 |
+| `tests/game-frame.test.ts` | commentaire seulement (s'arrête avant le podium) | 3 |
 | `e2e/helpers.ts` | `driveToFinish` et `collectErrors` sortis de `race.spec.ts` ; `driveToFinish` rend sur `finished` **ou** `podium` | 4 |
 | `e2e/race.spec.ts` | « course courte » déplacé dans `podium.spec.ts` ; « captures » finit au podium (plus d'`arrivee.png`) | 4 |
-| `e2e/podium.spec.ts` (créé) | course courte jusqu'au podium, Galahad 4e, téléphone, captures | 4 |
+| `e2e/podium.spec.ts` (créé) | course courte jusqu'au podium, Galahad 4e, téléphone, ENCORE à deux doigts, captures | 4 |
 | `src/ui/pause-button.ts` (créé), `src/game.ts`, `tests/game-screens.test.ts`, `e2e/screens.spec.ts`, `e2e/helpers.ts`, `e2e/race.spec.ts` | **Partie 5 (optionnelle)** : bouton ⏸ en course | 5 |
 | passation, registre | lignes de la tâche 11 | 6 |
 
@@ -171,10 +174,11 @@ test('confettis : rien sans startConfetti ; pluie de CONFETTI_SECONDS, puis plus
   let max = 0;
   for (let i = 0; i < Math.round(CONFETTI_SECONDS / DT); i++) { tick(); max = Math.max(max, fx.confettiCount); }
   expect(max).toBeGreaterThanOrEqual(0.9 * CONFETTI_SECONDS * CONFETTI_PER_SECOND);
-  expect(max).toBeLessThanOrEqual(Math.min(MAX_PARTICLES, CONFETTI_SECONDS * CONFETTI_PER_SECOND + 1));
+  expect(max).toBeLessThanOrEqual(Math.min(MAX_PARTICLES, CONFETTI_SECONDS * CONFETTI_PER_SECOND));
   const after = fx.confettiCount;
+  // Aucun confetti ne meurt avant 7 s : un seul de plus (reste flottant de la pluie, CONFETTI_EPS) se verrait ici.
   for (let i = 0; i < 30; i++) tick();
-  expect(fx.confettiCount).toBeLessThanOrEqual(after);
+  expect(fx.confettiCount).toBe(after);
   for (let i = 0; i < 600; i++) tick();
   expect(fx.confettiCount).toBe(0);
 });
@@ -281,6 +285,11 @@ const CONFETTI_LIFE = 7;
 const CONFETTI_COLORS = ['#ffd23f', '#ff4d6d', '#4dd2ff', '#7cff4d', '#ffffff', '#c77dff'] as const;
 /** rad/s : battement du papier (largeur dessinée × |cos|). */
 const CONFETTI_FLUTTER = 8;
+/**
+ * s : reste de pluie tenu pour nul. 240 retraits de 1/60 laissent ≈ 1e-15 s au lieu de 0 : sans cette tolérance, l'image
+ * suivante émettrait un 161e confetti (comme COUNTDOWN_EPS dans `game.ts` et HOLD_EPSILON_S dans `ranking.ts`).
+ */
+const CONFETTI_EPS = 1e-9;
 
 // dans la classe :
 private confettiLeft = 0;
@@ -303,7 +312,7 @@ startConfetti(): void {
  * `topY + 1` (au-dessus du haut de l'écran), x dans [cx − halfWidthM, cx + halfWidthM], qui tombent à 1,6–2,6 m/s en dérivant.
  */
 rainConfetti(dt: number, cx: number, topY: number, halfWidthM: number): void {
-  if (this.confettiLeft <= 0 || dt <= 0) return;
+  if (this.confettiLeft <= CONFETTI_EPS || dt <= 0) return;
   const d = Math.min(dt, this.confettiLeft);
   this.confettiLeft -= d;
   this.confettiCarry += d * CONFETTI_PER_SECOND;
@@ -386,9 +395,13 @@ paintCarIcon(target: HTMLCanvasElement, pilot: Pilot): void {
 
 ```ts
 export interface PodiumActions {
-  /** ENCORE : au `click` (data-no-pedal). */
+  /**
+   * ENCORE : au `pointerdown` ET au `click` (data-no-pedal). Un doigt de gaz peut rester posé quand le podium arrive : avec
+   * un autre doigt sur l'écran, le `click` du tap ne part pas toujours (leçon de REPRENDRE, session 6). Le doublon est sans
+   * effet : après le premier, la phase est `countdown`, qui n'a pas de ligne `again`.
+   */
   onAgain(): void;
-  /** MENU : au `click` (data-no-pedal). */
+  /** MENU : au `click` seul (data-no-pedal) : A20. */
   onMenu(): void;
 }
 export class Screens {
@@ -414,10 +427,10 @@ DOM et classes (tests et e2e s'y accrochent) : `.screen.screen-podium` (`data-no
 .podium-block{width:100%;box-sizing:border-box;display:flex;justify-content:center;align-items:flex-start;padding-top:6px;
   background:#c8c8c8;border:3px solid #fff;border-bottom:none;border-radius:10px 10px 0 0;box-shadow:inset 0 -6px 0 #0002}
 .step-1 .podium-block{height:24vh}
-.step-2 .podium-block{height:17vh}
-.step-3 .podium-block{height:11vh}
-.podium-medal{width:clamp(36px,8vh,64px)}
-.podium-medal svg{display:block;width:100%;height:auto}
+.step-2 .podium-block{height:18vh}
+.step-3 .podium-block{height:13vh}
+.podium-medal{height:min(9vh,80px)}
+.podium-medal svg{display:block;height:100%;width:auto}
 .podium-step.is-galahad .podium-name{color:#ffd23f}
 .podium-step.is-galahad .podium-block{background:#ffe27a}
 .podium-me{margin-left:clamp(16px,4vw,56px);align-self:center}
@@ -429,9 +442,15 @@ DOM et classes (tests et e2e s'y accrochent) : `.screen.screen-podium` (`data-no
 .btn-menu{min-width:96px;min-height:96px;height:96px;padding:0 28px;margin:0;border-radius:24px;background:#1e5cff;
   font-weight:700;font-size:20px}
 .btn-menu .btn-icon{width:38px;height:38px}
+@media (orientation:portrait){
+  .podium-row{flex-wrap:wrap}
+  .podium-step{width:24vw}
+  .podium-me{width:100%;margin:2vh 0 0;flex-direction:row;justify-content:center;gap:12px}
+  .podium-me .podium-car{width:24vw}
+}
 ```
 
-(`.podium-me` et les marches ont `display:flex` : leur `hidden` est couvert par la règle existante `.screen [hidden]{display:none}`, de spécificité 0,2,0, plus forte que 0,1,0 ; le test de la feuille le vérifie. Hauteurs vérifiées sur le papier : à 390 px de haut, 8 + 47 (temps) + 20 + 67 + 94 (marche du 1er) + 96 (ENCORE) + 16 = 348 px ; à 844 px de large, 3 × 135 + 2 × 8 + 34 + 135 = 590 px.)
+(`.podium-me` et les marches ont `display:flex` : leur `hidden` est couvert par la règle existante `.screen [hidden]{display:none}`, de spécificité 0,2,0, plus forte que 0,1,0 ; le test de la feuille le vérifie. Hauteurs vérifiées sur le papier : à 390 px de haut, 8 + 47 (temps) + 20 + 67 + 94 (marche du 1er) + 96 (ENCORE) + 16 = 348 px ; à 844 px de large, 3 × 135 + 2 × 8 + 34 + 135 = 590 px. La médaille est réglée sur la hauteur (9vh, au plus 80 px : rapport 64 × 80) pour tenir dans la marche du 3e : à 390 px, 35 + 6 de marge = 41 px dans 13vh = 51 px (avec 8vh de large et 11vh de marche, elle dépassait d'≈ 8 px). Le bloc `orientation:portrait` est un repli : la rangée ferait ≈ 470 px dans 390 (A11) ; les marches passent à 24vw et la case de Galahad sous elles.)
 
 - [ ] **Step 5 : Tests.** Dans `tests/screens.test.ts` : `make()` reçoit `onAgain: vi.fn(), onMenu: vi.fn()` dans `actions` ; le premier test devient « quatre calques créés cachés » avec `'.screen-podium'` dans la liste. Puis, à la fin de `tests/podium.test.ts` (ajouter les imports `ordinal` de `../src/cars/ranking`, `formatTime` de `../src/ui/hud`, `Screens` de `../src/ui/screens`, `type Pilot` de `../src/cars/pilots`) :
 
@@ -454,6 +473,7 @@ const pointerDown = (el: Element) => { const e = new Event('pointerdown', { bubb
 test('podium : calque caché à la création, montré seul par showPodium, voile entier data-no-pedal, temps de Galahad en mm:ss', () => {
   const { screens, q } = makeScreens();
   expect(q('.screen-podium').hidden).toBe(true);
+  expect(q('.podium-me').hidden).toBe(true);   // la case de Galahad ne se montre jamais avant un podium où il est 4e ou 5e
   screens.showTitle();
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   expect(q('.screen-podium').hidden).toBe(false);
@@ -502,7 +522,7 @@ test('Galahad 4e puis 5e : case à droite avec sa place, sa voiture (peinte en 4
   expect(q('.podium-me-place').textContent).toBe('5e');
 });
 
-test('ENCORE et MENU : data-no-pedal, mots et icônes, onAgain / onMenu au click seulement (pas au pointerdown), ≥ 96 px déclarés', () => {
+test('ENCORE et MENU : data-no-pedal, mots et icônes ; onAgain au pointerdown ET au click (un doigt de gaz peut rester posé) ; onMenu au click seul (A20) ; ≥ 96 px déclarés', () => {
   const { screens, actions, q } = makeScreens();
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   const again = q('.btn-again');
@@ -515,11 +535,14 @@ test('ENCORE et MENU : data-no-pedal, mots et icônes, onAgain / onMenu au click
   }
   expect(again.textContent).toBe('ENCORE');
   expect(menu.textContent).toBe('MENU');
-  pointerDown(again); pointerDown(menu);
-  expect(actions.onAgain).not.toHaveBeenCalled();
-  expect(actions.onMenu).not.toHaveBeenCalled();
-  click(again);
+  expect(again.querySelector('.btn-label')!.textContent).toBe('ENCORE');
+  expect(menu.querySelector('.btn-label')!.textContent).toBe('MENU');
+  pointerDown(again);
   expect(actions.onAgain).toHaveBeenCalledTimes(1);
+  click(again);   // le click qui suit le doigt levé : `Game` l'ignore (aucune ligne `again` depuis `countdown`)
+  expect(actions.onAgain).toHaveBeenCalledTimes(2);
+  pointerDown(menu);
+  expect(actions.onMenu).not.toHaveBeenCalled();
   click(menu);
   expect(actions.onMenu).toHaveBeenCalledTimes(1);
 });
@@ -583,9 +606,11 @@ const MEDAL_SVG = [medal('#ffd23f', '#c99a00', 1), medal('#d9dee6', '#9aa3ad', 2
 /** Flèche en boucle (ENCORE). */
 const AGAIN_SVG = `<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" fill="none" stroke="#fff" stroke-width="8"
   stroke-linecap="round" stroke-linejoin="round"><path d="M50 32a18 18 0 1 1-6-13.4"/><path d="M46 6v14H32"/></svg>`;
-/** Maison (MENU). */
-const HOME_SVG = `<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" fill="#fff">
-  <path d="M32 8 6 30h8v24h14V40h8v14h14V30h8z"/></svg>`;
+/**
+ * Maison (MENU). Aucun blanc entre les balises (ni dans AGAIN_SVG) : un nœud texte « \n  » dans l'icône s'ajouterait au
+ * `textContent` du bouton (« \n  MENU »), que les tests comparent à « MENU ». Les médailles ne sont pas dans des boutons.
+ */
+const HOME_SVG = `<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" fill="#fff"><path d="M32 8 6 30h8v24h14V40h8v14h14V30h8z"/></svg>`;
 ```
 
   - Champs : `podium`, `podiumTime`, `steps: { place: 1 | 2 | 3; step: HTMLDivElement; name: HTMLDivElement; car: HTMLCanvasElement }[]`, `me`, `meRank`, `meName`, `meCar`, et `layers: HTMLDivElement[]` (les quatre calques : `show()` et la boucle de création les parcourent).
@@ -622,7 +647,10 @@ row.appendChild(this.me);
 const podiumButtons = this.div('podium-buttons');
 const again = this.button('btn-again', 'ENCORE', AGAIN_SVG);
 again.setAttribute('data-no-pedal', '');
+// ENCORE au pointerdown (doigt de gaz encore posé : le click peut ne pas partir) et au click (clavier) ; doublon ignoré par `Game`.
+again.addEventListener('pointerdown', () => actions.onAgain());
 again.addEventListener('click', () => actions.onAgain());
+// MENU au click seul (A20) : au titre, AUTRE PISTE est presque à la même place ; un click fantôme y changerait de piste.
 const menu = this.button('btn-menu', 'MENU', HOME_SVG);
 menu.setAttribute('data-no-pedal', '');
 menu.addEventListener('click', () => actions.onMenu());
@@ -669,7 +697,7 @@ showPodium(view: PodiumView, paintCar: (canvas: HTMLCanvasElement, place: Podium
 ## Partie 3 — `Game` : roue libre, podium figé, confettis (Steps 9 à 14)
 
 **Files:**
-- Modify: `src/game.ts` (à éditer avec `Edit` après relecture), `src/ui/hud.ts`, `src/loop/states.ts` (commentaire l. 30–31), `package.json`, `tests/game-screens.test.ts`
+- Modify: `src/game.ts` (à éditer avec `Edit` après relecture), `src/ui/hud.ts`, `src/loop/states.ts` (commentaire l. 30–31), `package.json`, `tests/game-screens.test.ts`, `tests/game-frame.test.ts` (commentaire l. 171)
 
 **Interfaces :**
 - Consumes : `podiumView` (Partie 1), `Screens.showPodium` (Partie 2), `Renderer.paintCarIcon`, `Effects.startConfetti` / `rainConfetti` / `confettiCount`, `presentFrame`, `rankEntriesOf`.
@@ -789,11 +817,16 @@ test('podium : FINISH_COAST_SECONDS de roue libre après l’arrivée (la course
   expect(game.state).toBe('podium');
   expect(q('.screen-podium').hidden).toBe(false);
   expect(sim.time).toBeGreaterThanOrEqual(finishedAt + CONFIG.FINISH_COAST_SECONDS);
+  now = frames(1, now);   // au moins une image de podium (`podiumFrame`) avant de relever la caméra
   const t = sim.time;
   const x = game.progress(game.pilots[1].id);
+  const cam = { x: internals().camera.x, y: internals().camera.y };
   now = frames(120, now);
   expect(sim.time).toBe(t);   // aucun pas au podium
   expect(game.progress(game.pilots[1].id)).toBe(x);
+  // Caméra immobile : `presentFrame(…, 0)` ; avec le temps écoulé de l'image, elle glisserait vers son avance de vitesse.
+  expect(internals().camera.x).toBe(cam.x);
+  expect(internals().camera.y).toBe(cam.y);
   expect(q('.podium-time').textContent).toBe(formatTime(finishedAt));
   expect(game.podium!.time).toBe(finishedAt);
   for (const sel of ['.hud-time', '.hud-bar', '.hud-position', '.jump-button']) expect(q(sel).hidden, sel).toBe(true);
@@ -851,7 +884,7 @@ test('onglet caché au podium : reste au podium (pas de pause), aucun pas', () =
 });
 ```
 
-L'en-tête du fichier (l. 4–6) remplace « ARRIVÉE avec ENCORE et MENU » par « podium (roue libre, classement figé, confettis, ENCORE et MENU) » et cite `paintCarIcon` parmi les méthodes interceptées. `tests/game-frame.test.ts` n'est pas touché : il s'arrête 70 images (1,17 s) après l'arrivée, avant le podium (marge de 20 images, notée en commentaire l. 171 : « avant le podium, à FINISH_COAST_SECONDS »).
+L'en-tête du fichier (l. 4–6) remplace « ARRIVÉE avec ENCORE et MENU » par « podium (roue libre, classement figé, confettis, ENCORE et MENU) » et cite `paintCarIcon` parmi les méthodes interceptées. `tests/game-frame.test.ts` : **un commentaire seulement**, aucune assertion changée. Il s'arrête 70 images (1,17 s) après l'arrivée, avant le podium ; au-dessus de la boucle de 60 images (l. 171), ajouter « 60 + 10 images (1,17 s) : on reste en `finished`, le podium vient à FINISH_COAST_SECONDS (1,5 s) ; au-delà, `paintCarIcon` serait appelé sur le faux contexte `{}` et lèverait ». Le fichier est dans le commit du Step 13.
 
 - [ ] **Step 10 : Vérifier l'échec** : `npx vitest run tests/game-screens.test.ts` → FAIL (état `finished` au lieu de `podium`, `game.podium` absent).
 
@@ -923,9 +956,9 @@ private podiumFrame(elapsed: number): void {
   - `package.json` : `"version": "1.2.0"`.
   - `npm run typecheck` → 0 ; `npm test` → tout vert (≈ 3 min).
 
-- [ ] **Step 12 : Mutants à tuer avant de commiter** (chacun réécrit puis restauré, le test cité doit rougir) : podium dès l'arrivée, sans roue libre (« FINISH_COAST_SECONDS de roue libre ») ; `case 'podium'` qui appelle `raceFrame` (« aucun pas ensuite ») ; `podiumView` recalculé à chaque image (« classement figé ») ; confettis pour toute place (« Galahad 4e … aucun confetti ») ; confettis jamais lancés (« Galahad 1er → confettis ») ; `Effects.clear` qui n'arrête pas la pluie (« clear() arrête la pluie ») ; `hud.setRaceVisible(false)` oublié à l'entrée au podium (« HUD de course … cachés ») ; ENCORE sans `data-no-pedal` ; ENCORE au `pointerdown` (« au click seulement ») ; `textContent` des prénoms remplacé par `innerHTML` (« prénom à balises ») ; case de Galahad montrée quand il est 3e ; marches dans l'ordre 1, 2, 3.
+- [ ] **Step 12 : Mutants à tuer avant de commiter** (chacun réécrit puis restauré, le test cité doit rougir) : podium dès l'arrivée, sans roue libre (« FINISH_COAST_SECONDS de roue libre ») ; `case 'podium'` qui appelle `raceFrame` (« aucun pas ensuite ») ; `podiumView` recalculé à chaque image (« classement figé ») ; confettis pour toute place (« Galahad 4e … aucun confetti ») ; confettis jamais lancés (« Galahad 1er → confettis ») ; `Effects.clear` qui n'arrête pas la pluie (« clear() arrête la pluie ») ; `hud.setRaceVisible(false)` oublié à l'entrée au podium (« HUD de course … cachés ») ; ENCORE sans `data-no-pedal` ; ENCORE sans écouteur `pointerdown` (« onAgain au pointerdown ET au click ») ; MENU au `pointerdown` (« onMenu au click seul ») ; reste de pluie sans `CONFETTI_EPS` (« plus aucun nouveau ») ; `presentFrame(…, elapsed)` au podium (« caméra immobile ») ; `textContent` des prénoms remplacé par `innerHTML` (« prénom à balises ») ; case de Galahad montrée quand il est 3e ; marches dans l'ordre 1, 2, 3.
 
-- [ ] **Step 13 : Commit** : `git commit -m "feat: podium 1,5 s après l'arrivée (scène figée, classement final, confettis si Galahad gagne), calque ARRIVÉE retiré, version 1.2.0" -- src/game.ts src/ui/hud.ts src/loop/states.ts package.json tests/game-screens.test.ts`
+- [ ] **Step 13 : Commit** : `git commit -m "feat: podium 1,5 s après l'arrivée (scène figée, classement final, confettis si Galahad gagne), calque ARRIVÉE retiré, version 1.2.0" -- src/game.ts src/ui/hud.ts src/loop/states.ts package.json tests/game-screens.test.ts tests/game-frame.test.ts`
 
 - [ ] **Step 14 : Empreinte et frontière de la simulation** :
 
@@ -969,7 +1002,7 @@ export async function driveToFinish(page: Page, chunkS = 5): Promise<void> {
 ```ts
 // Podium (plan B, tâche 11) sur la tablette simulée : course courte (?len=300) jusqu'au podium, 1,5 s après l'arrivée ;
 // trois marches (prénoms du classement final), temps de Galahad, ENCORE et MENU ; Galahad 4e à côté du podium, à 1280 × 800
-// puis 844 × 390 ; captures podium.png, podium-4e.png, podium-telephone.png.
+// puis 844 × 390 ; doigt de gaz encore posé + ENCORE (deux doigts) ; captures podium.png, podium-4e.png, podium-telephone.png.
 import { expect, test, type Page } from '@playwright/test';
 import {
   SHOTS, boxOf, collectErrors, driveToFinish, gameState, pilotIds, startRace, tapAt, waitForGame, waitForState, type Box,
@@ -1036,8 +1069,35 @@ test('course courte jusqu’au podium : 1,5 s de roue libre, puis marches du cla
   const after = await gameState(page);
   expect(after.seed).toBe(seed);
   expect(after.time).toBe(0);
-  expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(false);
   expect(errors).toEqual([]);
+});
+
+test('doigt de gaz encore posé à l’arrivée + tap sur ENCORE de l’autre doigt : décompte ; le doigt sur ENCORE n’est pas du gaz', async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto('./?seed=1&len=300&debug=1');
+  await waitForGame(page);
+  await startRace(page);
+  // Doigt A posé en course (gaz) et GARDÉ jusqu'au podium : avec lui sur l'écran, le `click` d'un second doigt ne part pas
+  // toujours ; ENCORE doit répondre au `pointerdown` (A7).
+  const { width, height } = page.viewportSize()!;
+  const a = { x: width / 2, y: height / 2, id: 0 };
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] });
+    await page.waitForFunction(() => (window as any).__game.state === 'podium', null, { timeout: 120_000 });
+    expect(await page.evaluate(() => (window as any).__game.throttlePressed), 'doigt A toujours posé').toBe(true);
+    const e = await boxOf(page, '.btn-again');
+    const b = { x: e.x + e.width / 2, y: e.y + e.height / 2, id: 1 };
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a, b] });
+    await waitForState(page, 'countdown', 2_000);
+    // A levé, B encore posé sur ENCORE (caché sous le doigt, jamais retiré du DOM) : plus de gaz.
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [b] });
+    expect(await page.evaluate(() => (window as any).__game.throttlePressed), 'le doigt sur ENCORE n’est pas du gaz').toBe(false);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await cdp.detach();
+  }
+  expect((await gameState(page)).state).toBe('countdown');   // le click éventuel du doigt B n'a rien relancé
 });
 
 test('Galahad 4e : sa place à côté du podium, pas de confettis ; tient en 844 × 390 ; MENU → titre ; captures podium-4e.png, podium-telephone.png', async ({ page }) => {
@@ -1082,9 +1142,9 @@ VITE_BASE=/Galahad-s-car-game/ npx vite preview --port 4174 --strictPort   # en 
 PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers E2E_LIVE_URL=http://localhost:4174/Galahad-s-car-game/ npx playwright test -c playwright.live.config.ts e2e/podium.spec.ts
 ```
 
-Expected : typecheck 0 ; `npm test` tout vert (≈ 3 min, +1 fichier : `tests/podium.test.ts`) ; `npm run e2e` : **28 passed** (27 d'avant − « course courte » + les 2 de `podium.spec.ts`) ; la version dans le bundle ; les 2 e2e du podium verts **sous la base** (sprites servis sous `/Galahad-s-car-game/` : petites voitures en images). Mesurer et noter au registre : place de Galahad sur `seed=1&len=300` (attendu 1er ; sinon l'annotation du test le dit et `podium.png` reste valable), temps d'image au podium (`?debug=1`, fps) avec et sans confettis. Arrêter l'aperçu.
+Expected : typecheck 0 ; `npm test` tout vert (≈ 3 min, +1 fichier : `tests/podium.test.ts`) ; `npm run e2e` : **29 passed** (27 d'avant − « course courte » + les 3 de `podium.spec.ts`) ; la version dans le bundle ; les 3 e2e du podium verts **sous la base** (sprites servis sous `/Galahad-s-car-game/` : petites voitures en images). Mesurer et noter au registre : place de Galahad sur `seed=1&len=300` (attendu 1er ; sinon l'annotation du test le dit et `podium.png` reste valable), temps d'image au podium (`?debug=1`, fps) avec et sans confettis. Arrêter l'aperçu.
 
-- [ ] **Step 18 : Commit** : `git add e2e/podium.spec.ts && git commit -m "test: e2e du podium (course courte, Galahad 4e, téléphone) ; driveToFinish et collectErrors partagés" -- e2e`
+- [ ] **Step 18 : Commit** : `git add e2e/podium.spec.ts && git commit -m "test: e2e du podium (course courte, Galahad 4e, téléphone, ENCORE à deux doigts) ; driveToFinish et collectErrors partagés" -- e2e`
 
 ---
 
@@ -1258,7 +1318,7 @@ test('bouton pause en course : tap → PAUSE, course figée, le tap n’est pas 
 });
 ```
 
-- [ ] **Step 23 : Suites et commit** : `npm run typecheck && npm test` ; `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e` → **29 passed**. Commit : `git add src/ui/pause-button.ts && git commit -m "feat: bouton pause en course et pendant le décompte (demande du papa)" -- src/ui/pause-button.ts src/game.ts tests/game-screens.test.ts e2e/screens.spec.ts e2e/helpers.ts e2e/race.spec.ts`
+- [ ] **Step 23 : Suites et commit** : `npm run typecheck && npm test` ; `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e` → **30 passed**. Commit : `git add src/ui/pause-button.ts && git commit -m "feat: bouton pause en course et pendant le décompte (demande du papa)" -- src/ui/pause-button.ts src/game.ts tests/game-screens.test.ts e2e/screens.spec.ts e2e/helpers.ts e2e/race.spec.ts`
 
 ---
 
@@ -1266,7 +1326,7 @@ test('bouton pause en course : tap → PAUSE, course figée, le tap n’est pas 
 
 - [ ] **Step 24 : Quatre relectures** du diff `<BASE>..HEAD` (`<BASE>` = `5bc711d` recopié), par des sous-agents frais qui reçoivent ce plan, la spec §4, §6, §8, l'addendum §2 et §5, la passation, et la consigne de ne lancer aucun test dans l'arbre partagé tant que l'implémenteur y travaille (worktree du scratchpad avec lien `node_modules` sinon).
   - **Standard** (spec et qualité) : chaque ligne des Global Constraints pointe sur du code et un test ; rien ne reste du calque ARRIVÉE (`grep -rn "ARRIVÉE\|hud-again\|hud-menu\|showFinished" src tests e2e` ne rend que des commentaires historiques, s'il en reste).
-  - **Adversariale.** Mutants (chacun réécrit puis restauré, le test cité doit rougir) : ceux du Step 12 ; `rankCars` sans tri des non-arrivés ; `podiumView` qui prend `pilots[k]` au lieu de `pilots[index]` ; marche de Galahad non surlignée ; temps de la course au lieu du temps d'arrivée (`sim.time` au podium) ; `paintCarIcon` qui écrit le prénom ; `paintCarIcon` sans `clearRect` (deux voitures superposées au second podium) ; voile du podium sans `data-no-pedal` ; `.podium-me` sans `hidden` à la création ; `Effects.clear` oublié à `newRace` ; rendu du podium qui fait avancer la caméra (`presentFrame(…, elapsed)`) ; `MAX_PARTICLES` dépassé par la pluie. Sondes : captures du podium à 3 graines (`?seed=2&len=300`, `?seed=5&len=300`, `?seed=18&len=300`) ; Galahad 2e et 3e (deux copains, puis un, déclarés arrivés) ; temps d'image au podium avec la pluie (≤ celui d'une image de course) ; ENCORE → podium → MENU → JOUER × 3 sans écouteur ni toile en trop (`document.querySelectorAll('canvas').length` stable) ; geste retour au podium ; images absentes (`page.route('**/sprites/*.png', r => r.abort())`) : petites voitures par code, sans exception. **Partie 5 si faite** : ⏸ sans `data-no-pedal` ; ⏸ visible au podium ; ⏸ sous le voile de pause (ordre du DOM) ; doigt de gaz tenu + tap ⏸ + REPRENDRE : la voiture repart à PARTEZ avec le doigt, jamais à cause du tap.
+  - **Adversariale.** Mutants (chacun réécrit puis restauré, le test cité doit rougir) : ceux du Step 12 ; `rankCars` sans tri des non-arrivés ; `podiumView` qui prend `pilots[k]` au lieu de `pilots[index]` ; marche de Galahad non surlignée ; temps de la course au lieu du temps d'arrivée (`sim.time` au podium) ; `paintCarIcon` qui écrit le prénom ; `paintCarIcon` sans `clearRect` (deux voitures superposées au second podium) ; voile du podium sans `data-no-pedal` ; `.podium-me` sans `hidden` à la création ; `Effects.clear` oublié à `newRace` ; rendu du podium qui fait avancer la caméra (`presentFrame(…, elapsed)`) ; `MAX_PARTICLES` dépassé par la pluie. Sondes : podium en portrait (390 × 844, repli A11 : tout dans la fenêtre, sans recouvrement, capture) ; captures du podium à 3 graines (`?seed=2&len=300`, `?seed=5&len=300`, `?seed=18&len=300`) ; Galahad 2e et 3e (deux copains, puis un, déclarés arrivés) ; temps d'image au podium avec la pluie (≤ celui d'une image de course) ; ENCORE → podium → MENU → JOUER × 3 sans écouteur ni toile en trop (`document.querySelectorAll('canvas').length` stable) ; geste retour au podium ; images absentes (`page.route('**/sprites/*.png', r => r.abort())`) : petites voitures par code, sans exception. **Partie 5 si faite** : ⏸ sans `data-no-pedal` ; ⏸ visible au podium ; ⏸ sous le voile de pause (ordre du DOM) ; doigt de gaz tenu + tap ⏸ + REPRENDRE : la voiture repart à PARTEZ avec le doigt, jamais à cause du tap.
   - **Skill `code-review`** (niveau `high`).
   - **Skill `security-review`.** Points : prénoms en `textContent` ; `innerHTML` réservé aux SVG constants (médailles construites par `medal()` sur des arguments constants) ; aucune nouvelle entrée lue de l'URL ; l'écriture de `__game.sim` n'existe que dans un e2e, sous `?debug=1` ; aucune requête hors du site.
 
@@ -1293,7 +1353,7 @@ git push -u origin ccr-5b6fabc4-n96ofo                 # session en mode « acce
 # run GitHub Actions (outils mcp__github__actions_list / actions_get) : attendre « completed success »
 VITE_BASE=/Galahad-s-car-game/ npm run build && ls dist/assets   # hash du index-*.js local
 curl -s https://i-dmk.github.io/Galahad-s-car-game/ | grep -o 'index-[A-Za-z0-9_-]*\.js'   # même hash
-PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live   # 28 verts (29 avec la Partie 5), podium.spec compris
+PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live   # 29 verts (30 avec la Partie 5), podium.spec compris
 git checkout wip-plan-b && git merge --ff-only ccr-5b6fabc4-n96ofo && git push -u origin wip-plan-b
 ```
 
@@ -1332,11 +1392,11 @@ Expected : run vert ; hash du bundle servi = hash du build local à la même bas
 | A4 | Classement calculé **une fois** à l'entrée (`podiumView`), copains non arrivés par progression à cet instant | spec §6 ; plan v2.1 ; aucune place qui change sous les yeux de Galahad | nul |
 | A5 | Podium en DOM (`Screens`), voitures en petites toiles peintes une fois par `drawCar` (sprites et roues), plutôt qu'une scène canvas comme le titre | mise en page robuste (téléphone), tests jsdom simples, mêmes voitures qu'en course (jalon : « reconnaît les voitures ») ; un sprite en `<img>` serait sans roues | 3 ou 4 toiles ; une scène canvas reste possible |
 | A6 | Confettis dans `Effects`, en coordonnées du monde, pluie de 4 s au-dessus de l'écran ; constantes visuelles dans `effects.ts`, pas dans `CONFIG` | plan v2.1 Task 11 (« `src/render/effects.ts` ») ; spec §8 « Rendu » ; comme `SPARK_GRAVITY`, ce ne sont pas des réglages de jeu | réglages à la capture (Q6) |
-| A7 | ENCORE et MENU au `click`, `data-no-pedal` ; voile du podium entier `data-no-pedal` | décision Q2 de la 10 ; un doigt laissé sur le podium ne doit pas devenir du gaz à PARTEZ (spec §4 « tap consommé ») | si le papa veut qu'un doigt gardé sur ENCORE soit du gaz (comme JOUER) : un attribut et un `pointerdown` |
+| A7 | ENCORE au `pointerdown` ET au `click`, `data-no-pedal` ; voile du podium entier `data-no-pedal` | décision Q2 de la 10 ; un doigt de gaz peut rester posé quand le podium arrive, et avec un second doigt le `click` ne part pas toujours (leçon de REPRENDRE) ; le doublon est sans effet (`countdown` n'a pas de ligne `again`) ; un doigt laissé sur le podium ne devient pas du gaz par ce tap (spec §4 « tap consommé ») | si le papa veut qu'un doigt gardé sur ENCORE soit du gaz (comme JOUER) : retirer un attribut |
 | A8 | Temps de Galahad en mm:ss (`formatTime` du HUD) | le chrono de course est en mm:ss (spec §8) ; Galahad commence à lire | dixièmes à ajouter (Q6) |
 | A9 | Galahad sur le podium : sa marche surlignée (prénom jaune, marche dorée) ; hors podium : une case à droite des marches avec « 4e » / « 5e », sa voiture et son prénom | spec §8 « sur le podium ou à côté avec sa place » | Q4 |
 | A10 | HUD de course et bouton saut cachés au podium ; fps et compteur (debug) restent | le podium montre son propre temps ; aucun bouton de course hors course | nul |
-| A11 | Au podium : geste retour → MENU (déjà câblé, A5 de la 10) ; onglet caché → rien (la table n'a pas de pause au podium) | le podium est un écran immobile : rien à mettre en pause | nul |
+| A11 | Au podium : geste retour → MENU (déjà câblé, A5 de la 10) ; onglet caché → rien ; **portrait → rien non plus** (pas de TOURNE : la table n'a pas de pause au podium), la feuille a un repli `orientation:portrait` (marches à 24vw, case de Galahad sous les marches) car la rangée de paysage (≈ 470 px) déborderait de 390 px | le podium est un écran immobile : rien à mettre en pause ; la tablette tournée au podium est rare et le manifeste de la tâche 13 fixera le paysage | repli vu seulement sur une sonde de la relecture adversariale (capture à 390 × 844), pas d'e2e dédié |
 | A12 | e2e « Galahad 4e » : trois copains déclarés arrivés au départ par la poignée de débogage (`__game.sim`, `?debug=1`) | doigt posé depuis la pole, Galahad gagne presque toujours ; des copains polis ne le doublent pas s'il s'arrête : aucun chemin réel déterministe ; le vrai chemin est couvert par l'autre e2e et par jsdom | une écriture d'état dans un test ; rien dans le code livré |
 | A13 | Version `1.2.0` dans `package.json` seul ; `package-lock.json` non touché | décision Q3 de la 10 ; la tâche 10 avait fait de même ; un `npm install` changerait le lock pour rien | nul (voir Écarts) |
 | A14 | L'e2e « course courte » quitte `race.spec.ts` pour `podium.spec.ts` ; `race.spec.ts` « captures » finit au podium sans capture ; `arrivee.png` n'est plus produite | une course de 300 m de moins dans la suite (≈ 40 s) ; une capture d'un écran qui n'existe plus tromperait | nul |
@@ -1344,6 +1404,7 @@ Expected : run vert ; hash du bundle servi = hash du build local à la même bas
 | A16 | `drawCar` n'écrit pas un prénom vide (garde ajoutée) | la petite voiture du podium a son prénom en DOM | nul |
 | A17 | `podiumView` accepte moins de trois voitures (marches vides cachées) | `createRaceSim` sans robots existe (tests) ; `Game` en a toujours cinq | nul |
 | A18 | Le bouton pause n'est fait que sur réponse (a) à Q1 (Partie 5) | il amende spec §8 « aucun bouton pendant la course » : au papa de trancher | une Partie de plus ou de moins |
+| A20 | MENU au `click` seul, pas au `pointerdown` | au titre, AUTRE PISTE (`click`) est presque à la même place que MENU : un MENU au `pointerdown` montrerait le titre sous le doigt, et le `click` du même tap partirait sur AUTRE PISTE (piste changée sans le vouloir). Un doigt de gaz encore posé peut empêcher ce `click` : il suffit de retaper MENU, rien n'est perdu | un tap de plus dans ce cas rare |
 | A19 | (Partie 5) Bouton sous le chrono, en haut à droite, 96 px, visible au décompte et en course, `pointerdown` + `click` | en bas à gauche : le saut ; en bas à droite : la main du gaz ; en haut à gauche, à 844 px, la place manque entre la position et la barre (≈ 77 px) | Q2, Q3 |
 
 ## Questions pour le papa
