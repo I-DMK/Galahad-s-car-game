@@ -86,6 +86,7 @@ const CSS = `
 @media (orientation:portrait){
   .podium-row{flex-wrap:wrap}
   .podium-step{width:24vw}
+  .podium-name{font-size:min(28px,5.6vw)}
   .podium-me{width:100%;margin:2vh 0 0;flex-direction:row;justify-content:center;gap:12px}
   .podium-me .podium-car{width:24vw}
 }

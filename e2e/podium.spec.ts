@@ -99,7 +99,7 @@ test('doigt de gaz encore posé à l’arrivée + tap sur ENCORE de l’autre do
   expect((await gameState(page)).state).toBe('countdown');   // le click éventuel du doigt B n'a rien relancé
 });
 
-test('Galahad 4e : sa place à côté du podium, pas de confettis ; tient en 844 × 390 ; MENU → titre ; captures podium-4e.png, podium-telephone.png', async ({ page }) => {
+test('Galahad 4e : sa place à côté du podium, pas de confettis ; tient en 844 × 390 ; MENU → titre ; captures podium-4e.png, podium-telephone.png, podium-portrait.png', async ({ page }) => {
   test.setTimeout(150_000);
   await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
@@ -124,6 +124,23 @@ test('Galahad 4e : sa place à côté du podium, pas de confettis ; tient en 844
   expect((await gameState(page)).state).toBe('podium');
   await expectPodiumLayout(page);
   await page.screenshot({ path: `${SHOTS}/podium-telephone.png`, fullPage: true });
+  // Portrait étroit (repli A11, adv M4 du tour 1) : chaque prénom (« Timothé », 7 lettres) tient dans sa colonne.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => window.innerWidth)).toBe(390);
+  const cols = await page.evaluate(() => [...document.querySelectorAll('.podium-step, .podium-me')].map((step) => {
+    const s = step.getBoundingClientRect();
+    const n = step.querySelector('.podium-name')!;
+    const r = document.createRange();
+    r.selectNodeContents(n);
+    const t = r.getBoundingClientRect();
+    return { name: n.textContent, step: { x: s.x, w: s.width }, text: { x: t.x, w: t.width } };
+  }));
+  for (const c of cols) {
+    expect(c.text.x, `${c.name} déborde à gauche`).toBeGreaterThanOrEqual(c.step.x - 0.5);
+    expect(c.text.x + c.text.w, `${c.name} déborde à droite`).toBeLessThanOrEqual(c.step.x + c.step.w + 0.5);
+    expect(c.step.x + c.step.w, `${c.name} hors de la fenêtre`).toBeLessThanOrEqual(390);
+  }
+  await page.screenshot({ path: `${SHOTS}/podium-portrait.png`, fullPage: true });
   await tapAt(page, '.btn-menu');
   await waitForState(page, 'title', 2_000);
   await expect(page.locator('.screen-title')).toBeVisible();
