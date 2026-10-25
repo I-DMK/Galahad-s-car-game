@@ -312,6 +312,16 @@ test('la feuille : .screen-podium (flex de .screen) et la case de Galahad caché
   expect(rules.find((r) => r.selectorText === '.screen')?.style.fontFamily).toMatch(/Fredoka/);
 });
 
+test('la feuille : l’or est à la marche du 1er seule ; la marche de Galahad a un liseré bleu, jamais le fond doré (démo tablette : 2e sur une marche dorée)', () => {
+  makeScreens();
+  const rules = [...document.styleSheets].flatMap((s) => [...s.cssRules]) as CSSStyleRule[];
+  const rule = (sel: string) => rules.find((r) => r.selectorText === sel)?.style;
+  expect(rule('.step-1 .podium-block')?.background).toMatch(/#ffe27a|rgb\(255, 226, 122\)/);
+  expect(rule('.podium-step.is-galahad .podium-block')?.background ?? '').toBe('');
+  expect(rule('.podium-step.is-galahad .podium-block')?.borderColor).toMatch(/#4d8bff|rgb\(77, 139, 255\)/);
+  expect(rule('.podium-step.is-galahad .podium-name')?.color).toMatch(/#ffd23f|rgb\(255, 210, 63\)/);
+});
+
 test('confettis : chacun traverse toute la vue avant de disparaître (sous le bas de l’écran, VISIBLE_HEIGHT_M sous topY) (cr 4, tour 1)', () => {
   const fx = new Effects(CONFIG);
   const parts = () => (fx as unknown as { particles: { kind: string; y: number }[] }).particles;

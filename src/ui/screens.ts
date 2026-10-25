@@ -69,13 +69,13 @@ const CSS = `
 .podium-car{display:block;width:100%;height:auto;aspect-ratio:2/1}
 .podium-block{width:100%;box-sizing:border-box;display:flex;justify-content:center;align-items:flex-start;padding-top:6px;
   background:#c8c8c8;border:3px solid #fff;border-bottom:none;border-radius:10px 10px 0 0;box-shadow:inset 0 -6px 0 #0002}
-.step-1 .podium-block{height:24vh}
+.step-1 .podium-block{height:24vh;background:#ffe27a}
 .step-2 .podium-block{height:18vh}
 .step-3 .podium-block{height:13vh}
 .podium-medal{height:min(9vh,80px)}
 .podium-medal svg{display:block;height:100%;width:auto}
 .podium-step.is-galahad .podium-name{color:#ffd23f}
-.podium-step.is-galahad .podium-block{background:#ffe27a}
+.podium-step.is-galahad .podium-block{border-color:#4d8bff;border-width:6px}
 .podium-me{margin-left:clamp(16px,4vw,56px);align-self:center}
 .podium-me-place{font-size:clamp(40px,10vh,88px);font-weight:700;line-height:1}
 .podium-buttons{display:flex;align-items:center;justify-content:center;gap:clamp(20px,6vw,80px)}
@@ -332,8 +332,9 @@ export class Screens {
 
   /**
    * Montre le podium (les autres calques cachés) : temps de Galahad (mm:ss), les trois premiers sur leurs marches (2e, 1er,
-   * 3e de gauche à droite : prénom, petite toile peinte par `paintCar`, médaille), la marche de Galahad surlignée ; hors
-   * podium, sa case à droite (« 4e », sa voiture, son prénom). Rappelé à chaque arrivée : tout est réécrit, rien n'est ajouté.
+   * 3e de gauche à droite : prénom, petite toile peinte par `paintCar`, médaille), l'or à la marche du 1er seule, celle de
+   * Galahad cerclée de bleu (démo tablette : 2e sur une marche dorée, il se croyait gagnant) ; hors podium, sa case à droite
+   * (« 4e », sa voiture, son prénom). Rappelé à chaque arrivée : tout est réécrit, rien n'est ajouté.
    */
   showPodium(view: PodiumView, paintCar: (canvas: HTMLCanvasElement, place: PodiumPlace) => void): void {
     this.podiumTime.textContent = formatTime(view.galahadTime);

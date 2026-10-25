@@ -100,6 +100,28 @@ test('doigt de gaz encore posé à l’arrivée + tap sur ENCORE de l’autre do
   expect((await gameState(page)).state).toBe('countdown');   // le click éventuel du doigt B n'a rien relancé
 });
 
+test('Galahad 2e : l’or reste à la marche du 1er, celle de Galahad est cerclée de bleu (démo tablette) ; capture podium-2e.png', async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto('./?seed=1&len=300&debug=1');
+  await waitForGame(page);
+  await startRace(page);
+  // Un copain déclaré arrivé dès le départ (A12) : Galahad finit 2e.
+  await page.evaluate(() => { (window as any).__game.sim.cars[1].state.finishedAt = 0.1; });
+  await driveToFinish(page);
+  await waitForState(page, 'podium', 5_000);
+  expect((await podiumOf(page))!.galahadPlace).toBe(2);
+  await expect(page.locator('.step-2')).toHaveClass(/is-galahad/);
+  const look = await page.evaluate(() => {
+    const css = (sel: string) => getComputedStyle(document.querySelector(sel)!);
+    return { gold: css('.step-1 .podium-block').backgroundColor, mine: css('.step-2 .podium-block').backgroundColor,
+      border: css('.step-2 .podium-block').borderTopColor, other: css('.step-3 .podium-block').backgroundColor };
+  });
+  expect(look.gold).toBe('rgb(255, 226, 122)');
+  expect(look.mine, 'la marche de Galahad 2e n’est pas dorée').toBe(look.other);
+  expect(look.border).toBe('rgb(77, 139, 255)');
+  await page.screenshot({ path: `${SHOTS}/podium-2e.png`, fullPage: true });
+});
+
 test('Galahad 4e : sa place à côté du podium, pas de confettis ; tient en 844 × 390 ; MENU → titre ; captures podium-4e.png, podium-telephone.png, podium-portrait.png', async ({ page }) => {
   test.setTimeout(150_000);
   await page.goto('./?seed=1&len=300&debug=1');
