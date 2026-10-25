@@ -1,9 +1,10 @@
 // HUD en DOM au-dessus du canvas : position de Galahad en haut à gauche (tâche 8), barre de progression en cinq
 // couloirs en haut au centre (tâche 8 ; décision du papa du 2026-10-24 : une ligne fine par voiture, empilées, pour que
 // les copains ne se cachent pas sous Galahad, avec un drapeau à damier côté arrivée), chrono en haut à droite, fps et compteur d'images à 0 / 2+ pas (debug,
-// sous le bouton saut de `ui/jump-button.ts`, tâche 5e), calque d'arrivée (ENCORE, MENU), message d'erreur. Chrono,
+// sous le bouton saut de `ui/jump-button.ts`, tâche 5e), message d'erreur. Chrono,
 // position et barre sont cachés au titre (`setRaceVisible`, tâche 10) ; `setRacers` refait les couloirs à chaque course.
-// Le conteneur (#hud) est en `pointer-events: none` : seuls le calque d'arrivée et les écrans (`ui/screens.ts`) captent le toucher.
+// Le conteneur (#hud) est en `pointer-events: none` : seuls le message d'erreur et les écrans (`ui/screens.ts`, dont le
+// podium de la tâche 11, qui a remplacé le calque d'arrivée) captent le toucher.
 import { ordinal } from '../cars/ranking';
 import type { StepCounts } from '../loop/frame-stats';
 import { FONT_FAMILY } from './font';
@@ -77,15 +78,6 @@ const CSS = `
 .hud-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:24px;background:rgba(0,0,20,.65);pointer-events:auto;color:#fff;
   font-family:${FONT_FAMILY};text-align:center;text-shadow:0 3px 0 #000a}
-.hud-title{font-weight:800;font-size:72px;letter-spacing:4px}
-.hud-big{font-weight:800;font-size:120px;font-variant-numeric:tabular-nums}
-.hud-buttons{display:flex;align-items:center;justify-content:center;gap:40px}
-.hud-again{width:120px;height:120px;border-radius:50%;border:4px solid #fff;background:#e2231a;
-  color:#fff;font:800 22px ${FONT_FAMILY};box-shadow:0 6px 0 #0008;cursor:pointer;
-  touch-action:none;-webkit-tap-highlight-color:transparent}
-.hud-menu{min-width:120px;height:96px;padding:0 28px;border-radius:24px;border:4px solid #fff;background:#1e5cff;
-  color:#fff;font:800 22px ${FONT_FAMILY};box-shadow:0 6px 0 #0008;cursor:pointer;
-  touch-action:none;-webkit-tap-highlight-color:transparent}
 .hud-error{font-weight:700;font-size:48px;padding:0 32px}
 `;
 
@@ -239,35 +231,11 @@ export class Hud {
     this.steps.textContent = `0 pas : ${counts.zero} · 2+ pas : ${counts.multi}`;
   }
 
-  /**
-   * Calque ARRIVÉE : chrono, ENCORE (`onAgain` : même piste, mêmes copains) et MENU (`onMenu` : titre), tous deux
-   * data-no-pedal (décision Q2 du papa, tâche 10 ; le podium de la tâche 11 remplacera ce calque).
-   */
-  showFinished(seconds: number, onAgain: () => void, onMenu: () => void): void {
-    const overlay = this.showOverlay();
-    const title = this.div('hud-title', 'ARRIVÉE');
-    const big = this.div('hud-big', formatTime(seconds));
-    const buttons = this.div('hud-buttons');
-    buttons.append(this.button('hud-again', 'ENCORE', onAgain), this.button('hud-menu', 'MENU', onMenu));
-    overlay.append(title, big, buttons);
-  }
-
-  /** Bouton du calque (≥ 96 px par la feuille), data-no-pedal : son tap n'est jamais du gaz. */
-  private button(className: string, label: string, onClick: () => void): HTMLButtonElement {
-    const b = this.root.ownerDocument.createElement('button');
-    b.className = className;
-    b.type = 'button';
-    b.textContent = label;
-    b.setAttribute('data-no-pedal', '');
-    b.addEventListener('click', () => onClick());
-    return b;
-  }
-
   showError(message: string): void {
     this.showOverlay().append(this.div('hud-error', message));
   }
 
-  /** Retire le calque (arrivée ou erreur). */
+  /** Retire le message d'erreur. */
   hide(): void {
     this.overlay?.remove();
     this.overlay = null;

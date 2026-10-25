@@ -1,16 +1,19 @@
 // @vitest-environment jsdom
 // Câblage de `Game` aux écrans (plan B, tâche 10 ; spec §4 « Machine d'états », §8 « Entrée tactile » et « Écrans »,
 // addendum « présentation » §2) : titre → JOUER → décompte (aucun pas) → PARTEZ → course ; pause par popstate, onglet
-// caché ou portrait, reprise par un décompte à 3 sans toucher au chrono ; historique stable ; AUTRE PISTE ; ARRIVÉE avec
-// ENCORE et MENU ; erreurs de rendu et de pas. Même harnais que tests/hud.test.ts : faux requestAnimationFrame,
-// `performance.now` à 0, contexte vide, `Renderer.resize`/`draw`/`drawTitle` interceptés.
+// caché ou portrait, reprise par un décompte à 3 sans toucher au chrono ; historique stable ; AUTRE PISTE ; podium (roue
+// libre, classement figé, confettis, ENCORE et MENU, tâche 11) ; erreurs de rendu et de pas. Même harnais que
+// tests/hud.test.ts : faux requestAnimationFrame, `performance.now` à 0, contexte vide, `Renderer.resize`/`draw`/`drawTitle`
+// et `paintCarIcon` interceptés.
 import Matter from 'matter-js';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { CONFIG } from '../src/config';
 import { Game } from '../src/game';
 import { cameraTarget } from '../src/loop/frame';
 import { Renderer } from '../src/render/renderer';
-import { posesOf, type RaceSim } from '../src/sim/simulate';
+import { posesOf, rankEntriesOf, type RaceSim } from '../src/sim/simulate';
+import { rankCars } from '../src/cars/ranking';
+import { formatTime } from '../src/ui/hud';
 import { defaultPilotSeed, drawPilots, GALAHAD } from '../src/cars/pilots';
 import { placeCar } from '../src/physics/car';
 import { heightAt } from '../src/track/query';
@@ -20,10 +23,12 @@ const DT = CONFIG.PHYSICS_DT;
 let raf: FrameRequestCallback | null = null;
 const disposers: (() => void)[] = [];
 let drawn: { title: number; race: number };
+let painted: string[] = [];
 
 beforeEach(() => {
   raf = null;
   drawn = { title: 0, race: 0 };
+  painted = [];
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { raf = cb; return 1; });
   vi.stubGlobal('cancelAnimationFrame', () => {});
   vi.spyOn(performance, 'now').mockReturnValue(0);
@@ -31,6 +36,8 @@ beforeEach(() => {
   vi.spyOn(Renderer.prototype, 'resize').mockImplementation(() => {});
   vi.spyOn(Renderer.prototype, 'draw').mockImplementation(() => { drawn.race++; });
   vi.spyOn(Renderer.prototype, 'drawTitle').mockImplementation(() => { drawn.title++; });
+  // Le faux contexte `{}` lèverait dans `drawCar` ; l'exception remonterait au `try` de `frame` → `error`.
+  vi.spyOn(Renderer.prototype, 'paintCarIcon').mockImplementation((_canvas, pilot) => { painted.push(pilot.id); });
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
   Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
 });
@@ -43,7 +50,7 @@ afterEach(() => {
 
 interface Internals {
   sim: RaceSim; stop(): void; throttle: { dispose(): void; pressed: boolean }; jumpInput: { dispose(): void; pending: boolean };
-  historyArmed: boolean; effects: { count: number; spawnSparks(x: number, y: number): void }; camera: { x: number; y: number };
+  historyArmed: boolean; effects: { count: number; confettiCount: number; spawnSparks(x: number, y: number): void }; camera: { x: number; y: number };
 }
 function makeGame(seed = 1, debug = false) {
   const canvas = document.createElement('canvas');
@@ -379,7 +386,7 @@ test('pause et décompte : effets et caméra figés ; MENU vide les effets ; apr
   now = frames(3, now, 1000);
   expect(game.state).toBe('racing');
   // M24 : MENU vide les effets.
-  now = driveToArrival(game, internals, now);
+  now = driveToPodium(game, internals, now);
   internals().effects.spawnSparks(game.progress('galahad'), 1);
   expect(internals().effects.count).toBeGreaterThan(0);
   game.menu();
@@ -393,12 +400,12 @@ test('pause et décompte : effets et caméra figés ; MENU vide les effets ; apr
   expect(internals().camera.y).toBeCloseTo(target.y, 9);
 });
 
-test('MENU avec une entrée d’historique armée la consomme (history.back) ; AUTRE PISTE ensuite ne pousse rien ; geste retour pendant finished → titre sans history.back (CR1, adv M38)', () => {
+test('MENU avec une entrée d’historique armée la consomme (history.back) ; AUTRE PISTE ensuite ne pousse rien ; geste retour pendant le podium → titre sans history.back (CR1, adv M38)', () => {
   const back = vi.spyOn(history, 'back').mockImplementation(() => {});
   const { game, root, internals } = makeGame();
   let now = startRacing(game, () => raf!);
   expect(internals().historyArmed).toBe(true);
-  now = driveToArrival(game, internals, now);
+  now = driveToPodium(game, internals, now);
   game.menu();
   expect(game.state).toBe('title');
   expect(back).toHaveBeenCalledTimes(1);
@@ -406,21 +413,21 @@ test('MENU avec une entrée d’historique armée la consomme (history.back) ; A
   window.dispatchEvent(new PopStateEvent('popstate'));
   expect(internals().historyArmed).toBe(false);
   expect(game.state).toBe('title');
-  expect(root.querySelector('.hud-overlay')).toBeNull();
+  expect(root.querySelector<HTMLElement>('.screen-podium')!.hidden).toBe(true);
   const len = history.length;
   vi.spyOn(Date, 'now').mockReturnValue(4242);
   game.otherTrack();
   expect(history.length).toBe(len);
   expect(game.seed).toBe(4242);
   expect(new URLSearchParams(location.search).get('seed')).toBe('4242');
-  // Geste retour pendant finished (A5) : titre, calque retiré, sans history.back (le popstate a déjà consommé l'entrée).
+  // Geste retour pendant le podium (A5) : titre, podium caché, sans history.back (le popstate a déjà consommé l'entrée).
   back.mockClear();
   now = startRacing(game, () => raf!, now + 10_000);
-  now = driveToArrival(game, internals, now);
-  expect(root.querySelector('.hud-overlay')).not.toBeNull();
+  now = driveToPodium(game, internals, now);
+  expect(root.querySelector<HTMLElement>('.screen-podium')!.hidden).toBe(false);
   window.dispatchEvent(new PopStateEvent('popstate'));
   expect(game.state).toBe('title');
-  expect(root.querySelector('.hud-overlay')).toBeNull();
+  expect(root.querySelector<HTMLElement>('.screen-podium')!.hidden).toBe(true);
   expect(back).not.toHaveBeenCalled();
   expect(internals().historyArmed).toBe(false);
 });
@@ -434,48 +441,59 @@ test('AUTRE PISTE ignoré hors du titre', () => {
   expect(game.state).toBe('racing');
 });
 
-/** Galahad posé 3 m avant la ligne, doigt posé (pointeur 1), images jusqu'à `finished`, puis FINISH_COAST_SECONDS d'images : le calque ARRIVÉE. */
-function driveToArrival(game: Game, internals: () => Internals, now: number): number {
+/** Galahad posé 3 m avant la ligne, doigt posé (pointeur 1), images jusqu'à `finished` ; rend le `now` atteint. */
+function driveToFinished(game: Game, internals: () => Internals, now: number): number {
   const { sim } = internals();
   placeCar(sim.cars[0].body, sim.track.xFinish - 3, (x) => heightAt(sim.track, x), 0, CONFIG);
   pointer('pointerdown', 1);
   for (let f = 0; f < 600 && game.state !== 'finished'; f++) now = frames(1, now);
   expect(game.state).toBe('finished');
-  return frames(Math.ceil(CONFIG.FINISH_COAST_SECONDS / DT) + 5, now);
+  return now;
+}
+/** `driveToFinished`, puis FINISH_COAST_SECONDS d'images (+ 5) : le podium (tâche 11). */
+function driveToPodium(game: Game, internals: () => Internals, now: number): number {
+  now = frames(Math.ceil(CONFIG.FINISH_COAST_SECONDS / DT) + 5, driveToFinished(game, internals, now));
+  expect(game.state).toBe('podium');
+  return now;
 }
 
-test('arrivée : calque ARRIVÉE avec ENCORE et MENU (data-no-pedal) ; ENCORE → décompte sur la même piste et les mêmes copains, chrono à 0 ; MENU → titre', () => {
+test('podium : ENCORE et MENU (data-no-pedal) ; ENCORE → décompte sur la même piste et les mêmes copains, chrono à 0, podium caché, confettis effacés ; MENU → titre', () => {
   const { game, q, root, internals } = makeGame();
   let now = startRacing(game, () => raf!);
-  now = driveToArrival(game, internals, now);
-  const overlay = root.querySelector<HTMLElement>('.hud-overlay')!;
-  expect(overlay).not.toBeNull();
-  expect(overlay.textContent).toMatch(/ARRIVÉE/);
-  const buttons = [...overlay.querySelectorAll<HTMLButtonElement>('button')];
+  now = driveToPodium(game, internals, now);
+  const podium = q('.screen-podium');
+  expect(podium.hidden).toBe(false);
+  expect(root.querySelector('.hud-overlay')).toBeNull();   // plus de calque ARRIVÉE
+  expect(podium.textContent).not.toMatch(/ARRIVÉE/);
+  const buttons = [...podium.querySelectorAll<HTMLButtonElement>('button')];
   expect(buttons.map((b) => b.textContent)).toEqual(['ENCORE', 'MENU']);
   for (const b of buttons) expect(b.hasAttribute('data-no-pedal'), b.textContent!).toBe(true);
+  now = frames(30, now);
+  expect(internals().effects.confettiCount).toBeGreaterThan(0);   // Galahad 1er
   const pilots = game.pilots.map((p) => p.id);
   const seed = game.seed;
   expect(game.time).toBeGreaterThan(0);
-  q('.hud-again').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  q('.btn-again').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   expect(game.state).toBe('countdown');
   expect(q('.countdown-text').textContent).toBe('3');
   expect(game.time).toBe(0);
   expect(game.pilots.map((p) => p.id)).toEqual(pilots);
   expect(game.seed).toBe(seed);
-  expect(root.querySelector('.hud-overlay')).toBeNull();
+  expect(podium.hidden).toBe(true);
+  expect(game.podium).toBeNull();
+  expect(internals().effects.confettiCount).toBe(0);
+  expect(q('.hud-time').hidden).toBe(false);
   expect(q('.hud-time').textContent).toBe('00:00');
   now = frames(3, now, 1000);
   expect(game.state).toBe('racing');
-  expect(game.time).toBe(0);
   now = frames(60, now);
   expect(game.time).toBeGreaterThan(0);
-  // Seconde arrivée (même mise en place), puis MENU : titre, HUD caché, mêmes pilotes.
-  now = driveToArrival(game, internals, now);
-  q('.hud-menu').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  // Second podium (même mise en place), puis MENU : titre, HUD caché, mêmes pilotes, plus aucune course dessinée.
+  now = driveToPodium(game, internals, now);
+  q('.btn-menu').dispatchEvent(new MouseEvent('click', { bubbles: true }));
   expect(game.state).toBe('title');
   expect(q('.screen-title').hidden).toBe(false);
-  expect(root.querySelector('.hud-overlay')).toBeNull();
+  expect(podium.hidden).toBe(true);
   for (const sel of ['.hud-time', '.hud-bar', '.hud-position', '.jump-button']) expect(q(sel).hidden, sel).toBe(true);
   expect(game.pilots.map((p) => p.id)).toEqual(pilots);
   expect(game.time).toBe(0);
@@ -483,6 +501,89 @@ test('arrivée : calque ARRIVÉE avec ENCORE et MENU (data-no-pedal) ; ENCORE �
   frames(5, now, 1000 / 60);
   expect(drawn.race).toBe(race);
   expect(drawn.title).toBeGreaterThanOrEqual(5);
+});
+
+test('podium : FINISH_COAST_SECONDS de roue libre après l’arrivée (la course avance, pas de podium), puis podium ; aucun pas ensuite ; HUD de course et bouton saut cachés ; temps de Galahad', () => {
+  const { game, q, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = driveToFinished(game, internals, now);
+  const { sim } = internals();
+  const finishedAt = sim.cars[0].state.finishedAt!;
+  const t0 = sim.time;
+  for (let f = 0; f < 200 && sim.time < finishedAt + CONFIG.FINISH_COAST_SECONDS - 2 * DT; f++) {
+    now = frames(1, now);
+    expect(game.state).toBe('finished');
+  }
+  expect(sim.time).toBeGreaterThan(t0);   // la course a avancé pendant la roue libre
+  expect(q('.screen-podium').hidden).toBe(true);
+  now = frames(3, now);
+  expect(game.state).toBe('podium');
+  expect(q('.screen-podium').hidden).toBe(false);
+  expect(sim.time).toBeGreaterThanOrEqual(finishedAt + CONFIG.FINISH_COAST_SECONDS);
+  now = frames(1, now);   // au moins une image de podium (`podiumFrame`) avant de relever la caméra
+  const t = sim.time;
+  const x = game.progress(game.pilots[1].id);
+  const cam = { x: internals().camera.x, y: internals().camera.y };
+  now = frames(120, now);
+  expect(sim.time).toBe(t);   // aucun pas au podium
+  expect(game.progress(game.pilots[1].id)).toBe(x);
+  // Caméra immobile : `presentFrame(…, 0)` ; avec le temps écoulé de l'image, elle glisserait vers son avance de vitesse.
+  expect(internals().camera.x).toBe(cam.x);
+  expect(internals().camera.y).toBe(cam.y);
+  expect(q('.podium-time').textContent).toBe(formatTime(finishedAt));
+  expect(game.podium!.time).toBe(finishedAt);
+  for (const sel of ['.hud-time', '.hud-bar', '.hud-position', '.jump-button']) expect(q(sel).hidden, sel).toBe(true);
+  expect(painted).toHaveLength(3);
+});
+
+test('classement figé à l’entrée au podium (rankCars, copains non arrivés par progression) ; Galahad 1er → confettis ; voitures peintes dans l’ordre des marches', () => {
+  const { game, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = driveToPodium(game, internals, now);
+  const { sim } = internals();
+  const order = rankCars(rankEntriesOf(sim)).map((i) => sim.cars[i].state.id);
+  expect(game.podium!.order).toEqual(order);
+  expect(game.podium!.galahadPlace).toBe(1);   // posé 3 m avant la ligne, les copains loin derrière
+  expect(painted).toEqual([order[1], order[0], order[2]]);
+  now = frames(30, now);
+  expect(internals().effects.confettiCount).toBeGreaterThan(0);
+  expect(game.confetti).toBe(internals().effects.confettiCount);
+  sim.cars[4].state.progress = 1e6;   // sonde : une progression changée après coup ne change pas le podium
+  now = frames(10, now);
+  expect(game.podium!.order).toEqual(order);
+});
+
+test('Galahad 4e (trois copains arrivés avant lui) : sa case à côté du podium avec « 4e », marches aux copains, aucun confetti', () => {
+  const { game, q, root, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  const { sim } = internals();
+  // Trois copains déclarés arrivés (comme tests/fosses.test.ts déclare Galahad arrivé) : ils freinent sur la grille.
+  for (const i of [1, 2, 3]) sim.cars[i].state.finishedAt = 0.1 * i;
+  now = driveToPodium(game, internals, now);
+  expect(game.podium!.galahadPlace).toBe(4);
+  expect(q('.podium-me').hidden).toBe(false);
+  expect(q('.podium-me-place').textContent).toBe('4e');
+  expect(root.querySelectorAll('.podium-step.is-galahad')).toHaveLength(0);
+  expect([...root.querySelectorAll('.podium-step .podium-name')].map((n) => n.textContent)).toEqual([2, 1, 3].map((i) => sim.cars[i].pilot.name));
+  now = frames(60, now);
+  expect(internals().effects.confettiCount).toBe(0);
+  expect(painted).toHaveLength(4);
+});
+
+test('onglet caché au podium : reste au podium (pas de pause), aucun pas', () => {
+  const { game, q, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = driveToPodium(game, internals, now);
+  const t = internals().sim.time;
+  Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(game.state).toBe('podium');
+  expect(q('.screen-pause').hidden).toBe(true);
+  Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+  frames(30, now);
+  expect(internals().sim.time).toBe(t);
+  expect(q('.screen-podium').hidden).toBe(false);
 });
 
 test('erreur de rendu au titre (drawTitle lève) → error, « Oups ! Recharge la page », boucle arrêtée', () => {

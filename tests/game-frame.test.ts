@@ -168,6 +168,8 @@ test('Game : demande de saut gardée sur une image sans pas et donnée au pas su
   for (let f = 0; f < 600 && game.state !== 'finished'; f++) { now += DT * 1000; raf!(now); }
   expect(game.state).toBe('finished');
   // Une seconde plus tard, voiture freinée au sol : bouton grisé ; un tap et Espace ne font rien.
+  // 60 + 10 images (1,17 s) : on reste en `finished`, le podium vient à FINISH_COAST_SECONDS (1,5 s) ; au-delà,
+  // `paintCarIcon` serait appelé sur le faux contexte `{}` et lèverait.
   for (let f = 0; f < 60; f++) { now += DT * 1000; raf!(now); }
   expect(button.classList.contains('is-waiting')).toBe(true);
   pointerDown(button, 8);

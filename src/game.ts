@@ -2,11 +2,12 @@
 // `Game` l'orchestre : titre (scène des copains dessinée par `Renderer.drawTitle`), décompte (3, 2, 1, PARTEZ : aucun pas
 // de course, la grille figée est dessinée), course (`runFrame` : pas fixes de l'accumulateur, pas de course de Galahad et
 // ses 4 copains, poses interpolées entre les deux derniers pas → caméra sur la pose dessinée de Galahad → rendu → HUD et
-// bouton saut), arrivée (ENCORE, MENU), pause (onglet caché, geste retour, portrait : scène figée, reprise par un décompte).
+// bouton saut), arrivée (1,5 s de roue libre) puis podium figé (classement final, confettis si Galahad gagne, ENCORE,
+// MENU ; tâche 11), pause (onglet caché, geste retour, portrait : scène figée, reprise par un décompte).
 // La course entière est recréée (`newRace`) pour AUTRE PISTE, ENCORE et MENU ; la simulation ne fait aucun pas hors de
-// `racing` et `finished`.
+// `racing` et `finished` (le podium est une scène figée).
 import type { Pilot } from './cars/pilots';
-import { DisplayedRank, progressFraction } from './cars/ranking';
+import { DisplayedRank, podiumView, progressFraction, type PodiumView } from './cars/ranking';
 import { CONFIG, type Config } from './config';
 import { JumpInput } from './input/jump';
 import { Throttle } from './input/throttle';
@@ -37,7 +38,7 @@ export interface GameOptions {
   seed: number;
   length: number;
   debug: boolean;
-  /** Version affichée au titre (`v1.1.0`) ; '' par défaut (tests). */
+  /** Version affichée au titre (`v1.2.0`) ; '' par défaut (tests). */
   version?: string;
 }
 
@@ -76,7 +77,8 @@ export class Game {
   private errors = 0;
   /** Temps de course (s) à l'arrivée : chrono figé dessus ; null avant l'arrivée. */
   private finishTime: number | null = null;
-  private finishShown = false;
+  /** Classement final montré au podium, calculé une fois à l'entrée ; null avant. */
+  private podiumData: PodiumView | null = null;
   /** Place de Galahad montrée au HUD (hystérésis, spec §7) ; neuve à chaque course. */
   private displayedRank: DisplayedRank;
   private running = false;
@@ -155,6 +157,13 @@ export class Game {
   get airHeight(): number {
     return flightHeight(carView(this.sim, GALAHAD_INDEX), this.sim.track, this.cfg.WHEEL_RADIUS);
   }
+  /** Podium (debug, e2e, tâche 11) : ids dans l'ordre du classement final, place et temps de Galahad ; null avant le podium. */
+  get podium(): { order: string[]; galahadPlace: number; time: number } | null {
+    const v = this.podiumData;
+    return v && { order: v.places.map((p) => p.id), galahadPlace: v.galahadPlace, time: v.galahadTime };
+  }
+  /** Confettis en vol (debug, e2e, tâche 11). */
+  get confetti(): number { return this.effects.confettiCount; }
 
   /** Pilotes de la course, dans l'ordre de la grille (Galahad en premier). */
   get pilots(): Pilot[] { return this.sim.cars.map((c) => c.pilot); }
@@ -246,7 +255,7 @@ export class Game {
 
   /**
    * Remplace l'état d'une course : piste et copains de `seed`, historique de poses, classement, chrono, compteurs, caméra
-   * (calée d'un coup à la prochaine image), effets, couloirs du HUD, calque ARRIVÉE retiré, demande de saut jetée.
+   * (calée d'un coup à la prochaine image), effets (et pluie de confettis), couloirs du HUD, podium oublié, demande de saut jetée.
    */
   private newRace(seed: number): void {
     const track = generateTrack(seed, this.opts.length, this.cfg);
@@ -255,7 +264,7 @@ export class Game {
     this.loop.history.reset(posesOf(this.sim));
     this.displayedRank = new DisplayedRank(this.cfg);
     this.finishTime = null;
-    this.finishShown = false;
+    this.podiumData = null;
     this.jumpCount = 0;
     this.respawnLog.length = 0;
     this.errors = 0;
@@ -374,7 +383,7 @@ export class Game {
 
   /**
    * Une image, selon la phase : titre (scène du titre), décompte (texte, scène de course figée, aucun pas), pause (scène
-   * figée), course et arrivée (`raceFrame`). Toute exception (rendu, HUD, caméra) → `fail` : sans ce garde-fou, elle
+   * figée), course et arrivée (`raceFrame`), podium (scène figée, confettis : `podiumFrame`). Toute exception (rendu, HUD, caméra) → `fail` : sans ce garde-fou, elle
    * tuerait la boucle en silence. Le fps (debug) est compté ici, à toute phase.
    */
   private readonly frame = (now: number): void => {
@@ -396,8 +405,10 @@ export class Game {
           break;
         case 'racing':
         case 'finished':
-        case 'podium':
           if (!this.raceFrame(now, elapsed)) return;
+          break;
+        case 'podium':
+          this.podiumFrame(elapsed);
           break;
         case 'error':
           return;
@@ -456,7 +467,41 @@ export class Game {
       this.screens.hide();
     }
     this.present(now, elapsed, events, frame);
+    // Roue libre finie (FINISH_COAST_SECONDS de temps de course après l'arrivée de Galahad : les copains ont roulé) : podium.
+    if (this.machine.phase === 'finished' && this.finishTime !== null && this.sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {
+      this.enterPodium(this.finishTime);
+    }
     return true;
+  }
+
+  /**
+   * Entrée au podium (tâche 11 ; spec §4, §6, §8) : classement final calculé une fois (`podiumView` sur `rankCars` : les
+   * copains non arrivés sont classés par progression), HUD de course et bouton saut cachés, écran du podium avec les petites
+   * voitures peintes par `drawCar`, confettis si Galahad est 1er. Plus aucun pas ensuite (`podiumFrame`).
+   */
+  private enterPodium(galahadTime: number): void {
+    if (!this.send('podium')) return;
+    const { sim } = this;
+    const view = podiumView(rankEntriesOf(sim), this.pilots, GALAHAD_INDEX, galahadTime);
+    this.podiumData = view;
+    this.jumpInput.clear();
+    this.hud.setRaceVisible(false);
+    this.jumpButton.setVisible(false);
+    this.screens.showPodium(view, (canvas, p) => this.renderer.paintCarIcon(canvas, sim.cars[p.index].pilot));
+    if (view.galahadPlace === 1) this.effects.startConfetti();
+  }
+
+  /**
+   * Une image du podium : aucun pas ; la scène de course aux poses du dernier pas, caméra immobile (temps écoulé nul pour
+   * elle) ; seuls les confettis tombent, au-dessus du haut de l'écran, sur la largeur visible.
+   */
+  private podiumFrame(elapsed: number): void {
+    const { sim, camera } = this;
+    const half = this.renderer.visibleHalfWidthM(camera);
+    this.effects.rainConfetti(elapsed, camera.x, camera.y + this.cfg.VISIBLE_HEIGHT_M / 2, half);
+    this.effects.update(elapsed, sim.track, camera.x, half);
+    const scene = presentFrame(sim, { poses: this.loop.history.at(1), alpha: 1 }, camera, 0);
+    this.renderer.draw(scene, camera, this.effects);
   }
 
   /** Images par seconde (debug), à toute phase : le titre et le décompte ont un fps aussi. */
@@ -545,12 +590,6 @@ export class Game {
     this.hud.setTime(this.finishTime ?? sim.time);
     // Le classement ne change qu'avec un pas de course : pas de recalcul aux images à 0 pas (écrans à 120 Hz).
     if (frame.steps > 0) this.updateRank();
-    // Après l'arrivée, la voiture roule encore FINISH_COAST_SECONDS en freinant, puis le calque s'affiche : ENCORE (même
-    // piste, mêmes copains) et MENU (titre), décision Q2 du papa ; le podium de la tâche 11 le remplacera.
-    if (this.finishTime !== null && !this.finishShown && sim.time >= this.finishTime + this.cfg.FINISH_COAST_SECONDS) {
-      this.finishShown = true;
-      this.hud.showFinished(this.finishTime, () => this.again(), () => this.menu());
-    }
   }
 }
 

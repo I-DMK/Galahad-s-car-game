@@ -148,7 +148,7 @@ test('trois marches dans l’ordre 2e, 1er, 3e : prénoms, médaille SVG, voitur
   expect(paint.mock.calls.map(([, p]) => p.place)).toEqual([2, 1, 3]);
 });
 
-test('Galahad 1er : sa marche surlignée, pas de case à côté ; Galahad 2e : la marche du 2e surlignée', () => {
+test('Galahad 1er : sa marche surlignée, pas de case à côté ; Galahad 2e, puis 3e : la marche du 2e, puis du 3e, surlignée', () => {
   const { screens, q, qa } = makeScreens();
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   expect(q('.step-1').classList.contains('is-galahad')).toBe(true);
@@ -156,6 +156,10 @@ test('Galahad 1er : sa marche surlignée, pas de case à côté ; Galahad 2e : l
   expect(q('.podium-me').hidden).toBe(true);
   screens.showPodium(viewOf([1, 0, 2, 3, 4]), () => {});
   expect(qa('.podium-step.is-galahad').map((s) => s.classList.contains('step-2'))).toEqual([true]);
+  expect(q('.podium-me').hidden).toBe(true);
+  // 3e : encore sur le podium (mutant « case montrée dès la 3e place », Step 12).
+  screens.showPodium(viewOf([1, 2, 0, 3, 4]), () => {});
+  expect(qa('.podium-step.is-galahad').map((s) => s.classList.contains('step-3'))).toEqual([true]);
   expect(q('.podium-me').hidden).toBe(true);
 });
 

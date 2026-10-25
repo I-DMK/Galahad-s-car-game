@@ -28,7 +28,7 @@ type Row = Partial<Record<GameEvent, Phase | 'pause'>>;
 
 /**
  * La table (spec §4) : `error` est atteignable depuis toute phase sauf `error`, qui absorbe tout ; `paused` ne sort que
- * par `resume` (→ `countdown`) ou `error` ; `podium` est dans la table mais n'est atteint qu'à la tâche 11.
+ * par `resume` (→ `countdown`) ou `error` ; `podium` est atteint 1,5 s (temps de course) après l'arrivée de Galahad (tâche 11).
  */
 const TABLE: Record<Phase, Row> = {
   title: { play: 'countdown', error: 'error' },
