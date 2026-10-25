@@ -1,33 +1,12 @@
-// Course sur tablette simulée : chargement (titre), JOUER, accélérateur au doigt, course courte jusqu'à l'arrivée, captures.
+// Course sur tablette simulée : chargement (titre), JOUER, accélérateur au doigt, course courte jusqu'à l'arrivée (le
+// podium : `podium.spec.ts`), captures.
 // Depuis la tâche 10, la page arrive au TITRE : chaque test lance la course par le vrai bouton JOUER (`startRace`, décision
 // Q1 du papa), décompte de 3 s compris.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import {
-  SHOTS, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, startRace, waitForGame,
-  waitForRaceTime, waitForState, type Box, type HudLayout,
+  SHOTS, driveToFinish, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, startRace,
+  waitForGame, waitForRaceTime, waitForState, type Box, type HudLayout,
 } from './helpers';
-
-/** Durée maximale doigt posé pour finir une piste de 300 m. */
-const MAX_HOLD_S = 90;
-
-/** Doigt posé par tranches de `chunkS` s (5 par défaut) jusqu'à l'arrivée (au plus MAX_HOLD_S). */
-async function driveToFinish(page: Page, chunkS = 5): Promise<void> {
-  const deadline = Date.now() + MAX_HOLD_S * 1000;
-  while ((await gameState(page)).state === 'racing' && Date.now() < deadline) {
-    await holdFinger(page, chunkS);
-  }
-  await waitForState(page, 'finished', 1_000);
-}
-
-/** Collecte les erreurs console et les exceptions non rattrapées de la page. */
-function collectErrors(page: Page): string[] {
-  const errors: string[] = [];
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
-  });
-  page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
-  return errors;
-}
 
 test('la page charge', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
@@ -221,22 +200,7 @@ test('debug : compteur d’images à 0 et 2+ pas affiché, frameSteps exposé ; 
   await page.screenshot({ path: `${SHOTS}/compteur-images.png`, fullPage: true });
 });
 
-test('course courte : arrivée et calque ARRIVÉE, sans erreur console', async ({ page }) => {
-  test.setTimeout(150_000);
-  const errors = collectErrors(page);
-  await page.goto('./?seed=1&len=300&debug=1');
-  await waitForGame(page);
-  await startRace(page);
-  await driveToFinish(page);
-  expect((await gameState(page)).state).toBe('finished');
-  await expect(page.getByText('ARRIVÉE')).toBeVisible({ timeout: 5_000 });
-  // ENCORE (même course) et MENU (titre), tous deux sans gaz (décision Q2 du papa, tâche 10).
-  await expect(page.locator('button[data-no-pedal]', { hasText: 'ENCORE' })).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('button[data-no-pedal]', { hasText: 'MENU' })).toBeVisible();
-  expect(errors).toEqual([]);
-});
-
-test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau) et arrivee.png', async ({ page }) => {
+test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau), puis podium', async ({ page }) => {
   test.setTimeout(150_000);
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
@@ -247,7 +211,7 @@ test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau) et 
   await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
   await startRace(page);
-  // Doigt posé par demi-secondes : la capture suit l'arrivée de Galahad de près, avant le calque ARRIVÉE (1,5 s de roue libre).
+  // Doigt posé par demi-secondes : la capture suit l'arrivée de Galahad de près, avant le podium (1,5 s de roue libre).
   await driveToFinish(page, 0.5);
   const layout = await hudLayout(page);
   // Galahad à 100 % : sa petite voiture est au bout de son couloir, collée au drapeau sans le toucher.
@@ -255,8 +219,6 @@ test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau) et 
   expect(layout.flag.x - (layout.markers[0].x + layout.markers[0].width), 'Galahad ne touche pas le drapeau').toBeGreaterThanOrEqual(0);
   expectHudLayout(layout);
   await page.screenshot({ path: `${SHOTS}/course-copains-arrivee.png`, fullPage: true });
-  await expect(page.getByText('ARRIVÉE')).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator('button[data-no-pedal]', { hasText: 'ENCORE' })).toBeVisible();
-  await expect(page.locator('button[data-no-pedal]', { hasText: 'MENU' })).toBeVisible();
-  await page.screenshot({ path: `${SHOTS}/arrivee.png`, fullPage: true });
+  await waitForState(page, 'podium', 5_000);
+  await expect(page.locator('.screen-podium')).toBeVisible();
 });

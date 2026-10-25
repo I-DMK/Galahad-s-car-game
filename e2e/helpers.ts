@@ -41,6 +41,29 @@ export async function waitForState(page: Page, state: string, timeoutMs: number)
   );
 }
 
+/** Durée maximale doigt posé pour finir une piste de 300 m. */
+export const MAX_HOLD_S = 90;
+
+/**
+ * Doigt posé par tranches de `chunkS` s jusqu'à l'arrivée de Galahad (au plus MAX_HOLD_S) ; rend dès que l'état n'est
+ * plus `racing` : `finished`, ou déjà `podium` (tâche 11) si la dernière tranche a duré plus que la roue libre (1,5 s).
+ */
+export async function driveToFinish(page: Page, chunkS = 5): Promise<void> {
+  const deadline = Date.now() + MAX_HOLD_S * 1000;
+  while ((await gameState(page)).state === 'racing' && Date.now() < deadline) await holdFinger(page, chunkS);
+  await page.waitForFunction(() => ['finished', 'podium'].includes((window as any).__game.state), null, { timeout: 1_000 });
+}
+
+/** Collecte les erreurs console et les exceptions non rattrapées de la page. */
+export function collectErrors(page: Page): string[] {
+  const errors: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
+  });
+  page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+  return errors;
+}
+
 /** Attend que le jeu soit exposé (`window.__game`) après une navigation. */
 export async function waitForGame(page: Page): Promise<void> {
   await page.waitForFunction(() => (window as any).__game !== undefined);
