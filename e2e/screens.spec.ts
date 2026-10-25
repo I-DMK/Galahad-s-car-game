@@ -1,5 +1,6 @@
 // Écrans (plan B, tâche 10) sur la tablette simulée : titre avec les copains de la graine, AUTRE PISTE, décompte, doigt gardé depuis
-// JOUER, pause par portrait et reprise sans gaz, police Fredoka servie par le site, captures titre.png, decompte.png, pause.png, tourne.png.
+// JOUER, pause par portrait et reprise sans gaz, police Fredoka servie par le site, bouton pause en course (tâche 11), captures
+// titre.png, decompte.png, pause.png, tourne.png, pause-bouton.png.
 import { expect, test } from '@playwright/test';
 import { GALAHAD, defaultPilotSeed, drawPilots } from '../src/cars/pilots';   // purs : pas de matter-js dans le runner Playwright
 import { CONFIG } from '../src/config';
@@ -175,4 +176,33 @@ test.describe('téléphone en paysage (844 × 390)', () => {
     expect(overlap(play, other) || overlap(play, name) || overlap(other, name)).toBe(false);
     await page.screenshot({ path: `${SHOTS}/titre-telephone.png`, fullPage: true });
   });
+});
+
+test('bouton pause en course : tap → PAUSE, course figée, le tap n’est pas du gaz ; REPRENDRE → décompte → course ; capture pause-bouton.png', async ({ page }) => {
+  await page.goto('./?seed=1&debug=1');
+  await waitForGame(page);
+  await startRace(page);
+  await waitForRaceTime(page, 0.5);
+  const btn = await boxOf(page, '.pause-button');
+  expect(Math.min(btn.width, btn.height)).toBeGreaterThanOrEqual(96);
+  await page.screenshot({ path: `${SHOTS}/pause-bouton.png`, fullPage: true });
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: btn.x + btn.width / 2, y: btn.y + btn.height / 2 }] });
+    await waitForState(page, 'paused', 2_000);
+    expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(false);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await cdp.detach();
+  }
+  await expect(page.locator('.pause-text')).toHaveText('PAUSE');
+  await expect(page.locator('.pause-button')).toBeHidden();
+  const { time: t1, progress: x0 } = await gameState(page);
+  await page.waitForTimeout(700);
+  expect((await gameState(page)).time).toBe(t1);
+  await tapAt(page, '.btn-resume');
+  await waitForState(page, 'countdown', 2_000);
+  await expect(page.locator('.pause-button')).toBeVisible();
+  await waitForState(page, 'racing', 6_000);
+  expect(Math.abs((await gameState(page)).progress - x0)).toBeLessThan(0.3);
 });

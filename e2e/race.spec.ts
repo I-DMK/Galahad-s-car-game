@@ -94,6 +94,13 @@ function expectHudLayout(l: HudLayout): void {
   const blocks: [string, Box][] = [
     ['position', l.position], ['barre', l.bar], ['drapeau', l.flag], ['chrono', l.time], ['bouton saut', l.jump],
   ];
+  // Bouton pause (tâche 11, Partie 5), montré en course : aucun recouvrement avec le reste du HUD, ≥ 96 px, dans la fenêtre.
+  if (l.pause) {
+    blocks.push(['bouton pause', l.pause]);
+    expect(Math.min(l.pause.width, l.pause.height), 'bouton pause ≥ 96 px').toBeGreaterThanOrEqual(96);
+    expect(l.pause.x + l.pause.width, 'bouton pause dans la fenêtre').toBeLessThanOrEqual(l.viewport.width);
+    expect(l.pause.y + l.pause.height, 'bouton pause dans la fenêtre').toBeLessThanOrEqual(l.viewport.height);
+  }
   for (let i = 0; i < blocks.length; i++) {
     for (let j = i + 1; j < blocks.length; j++) {
       expect(overlap(blocks[i][1], blocks[j][1]), `${blocks[i][0]} et ${blocks[j][0]} se recouvrent`).toBe(false);

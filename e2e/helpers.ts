@@ -153,11 +153,16 @@ export interface HudLayout {
   flag: Box;
   /** Boîte de l'icône (petite voiture) de chacun des marqueurs de la barre, Galahad d'abord. */
   markers: Box[];
+  /** Bouton pause sous le chrono (tâche 11, Partie 5) ; null s'il est caché. */
+  pause: Box | null;
   rankFontPx: number;
   timeFontPx: number;
 }
 
-/** Mise en page du HUD (`.hud-position`, `.hud-bar`, `.hud-time`, `.jump-button`, `.hud-flag`, `.hud-marker svg`) lue dans un même rappel. */
+/**
+ * Mise en page du HUD (`.hud-position`, `.hud-bar`, `.hud-time`, `.jump-button`, `.hud-flag`, `.hud-marker svg`, et
+ * `.pause-button` s'il est montré) lue dans un même rappel.
+ */
 export async function hudLayout(page: Page): Promise<HudLayout> {
   return page.evaluate(() => {
     const box = (el: Element | null): Box => {
@@ -174,6 +179,7 @@ export async function hudLayout(page: Page): Promise<HudLayout> {
       jump: box(document.querySelector('.jump-button')),
       flag: box(document.querySelector('.hud-flag')),
       markers: [...document.querySelectorAll('.hud-marker svg')].map(box),
+      pause: ((el) => (!el || el.hidden ? null : box(el)))(document.querySelector<HTMLElement>('.pause-button')),
       rankFontPx: fontPx('.hud-rank'),
       timeFontPx: fontPx('.hud-time'),
     };

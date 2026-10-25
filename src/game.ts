@@ -29,6 +29,7 @@ import { generateTrack } from './track/generate';
 import { heightAt } from './track/query';
 import { Hud } from './ui/hud';
 import { JumpButton } from './ui/jump-button';
+import { PauseButton } from './ui/pause-button';
 import { Screens } from './ui/screens';
 
 /** Phases de la machine d'états (spec §4) ; la phase initiale est `title`. */
@@ -62,6 +63,8 @@ export class Game {
   private readonly screens: Screens;
   private readonly throttle: Throttle;
   private readonly jumpButton: JumpButton;
+  /** Bouton ⏸ (tâche 11, Partie 5 ; demande du papa) : visible pendant le décompte et la course seulement. */
+  private readonly pauseButton: PauseButton;
   private readonly jumpInput: JumpInput;
   /** Sauts de Galahad depuis le départ (événements 'jump', `?debug=1` : `jumps`). */
   private jumpCount = 0;
@@ -113,7 +116,9 @@ export class Game {
     this.jumpButton = new JumpButton(hudRoot, this.cfg);
     // Espace n'est pris que pendant la course (ni au titre, ni sur ENCORE, ni après une erreur).
     this.jumpInput = new JumpInput(window, this.jumpButton.el, () => this.machine.phase === 'racing');
-    // Les écrans viennent après le HUD et le bouton saut : au-dessus d'eux (le voile de pause couvre le bouton saut).
+    // Bouton pause sous le chrono : après le HUD, avant les écrans (le voile de pause le couvre). Même pause que le geste retour.
+    this.pauseButton = new PauseButton(hudRoot, () => this.pause());
+    // Les écrans viennent après le HUD et les boutons saut et pause : au-dessus d'eux (le voile de pause les couvre).
     this.screens = new Screens(hudRoot, { version: opts.version ?? '' }, {
       onPlay: (viaPointer) => this.play(viaPointer), onOtherTrack: () => this.otherTrack(), onResume: () => this.resume(),
       onAgain: () => this.again(), onMenu: () => this.menu(),
@@ -282,11 +287,13 @@ export class Game {
     this.screens.showTitle();
     this.hud.setRaceVisible(false);
     this.jumpButton.setVisible(false);
+    this.pauseButton.setVisible(false);
   }
 
   /**
    * Entrée en `countdown` (JOUER, REPRENDRE, ENCORE) : décompte à COUNTDOWN_SECONDS, HUD visible, bouton saut visible mais
-   * grisé, demande de saut jetée, entrée d'historique en place ; si la tablette est déjà en portrait, pause (TOURNE) aussitôt.
+   * grisé, bouton pause visible, demande de saut jetée, entrée d'historique en place ; si la tablette est déjà en portrait,
+   * pause (TOURNE) aussitôt.
    */
   private beginCountdown(): void {
     this.readPortrait();
@@ -297,6 +304,7 @@ export class Game {
     this.jumpButton.setReady(false);
     this.jumpInput.clear();
     this.armHistory();
+    this.pauseButton.setVisible(true);
     if (this._portrait) this.pause();
   }
 
@@ -308,6 +316,7 @@ export class Game {
   /** Depuis `countdown` ou `racing` : pause (calque PAUSE ou TOURNE), demande de saut jetée ; sans effet ailleurs. */
   private pause(): void {
     if (!this.send('pause')) return;
+    this.pauseButton.setVisible(false);
     this.countdownLabel = null;
     this.jumpInput.clear();
     this.jumpButton.setReady(false);
@@ -336,6 +345,7 @@ export class Game {
     this.send('error');
     this.countdownLabel = null;
     this.screens.hide();
+    this.pauseButton.setVisible(false);
     this.hud.showError('Oups ! Recharge la page');
     this.stop();
   }
@@ -487,6 +497,7 @@ export class Game {
     this.jumpInput.clear();
     this.hud.setRaceVisible(false);
     this.jumpButton.setVisible(false);
+    this.pauseButton.setVisible(false);
     this.screens.showPodium(view, (canvas, p) => this.renderer.paintCarIcon(canvas, sim.cars[p.index].pilot));
     if (view.galahadPlace === 1) this.effects.startConfetti();
   }
@@ -538,6 +549,8 @@ export class Game {
       }
       if (this.finishTime === null && sim.events.some((e) => e.type === 'finish' && e.carId === galahad.id)) {
         this.send('finish');
+        // Arrivée : plus de pause par le bouton (la roue libre et le podium n'ont pas de pause).
+        this.pauseButton.setVisible(false);
         this.finishTime = galahad.finishedAt;
       }
       return stepOutcome(sim);

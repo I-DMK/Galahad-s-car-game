@@ -638,3 +638,52 @@ test('aucun pas de course hors de racing et finished : 3 échecs de stepRace en 
   expect(game.state).toBe('error');
   expect(update.mock.calls.length).toBe(calls);
 });
+
+test('bouton pause (option) : caché au titre ; visible au décompte et en course ; tap → PAUSE + REPRENDRE, sim figée, pas de gaz ; caché en pause, à l’arrivée et au podium ; REPRENDRE le rend', () => {
+  const { game, q, internals } = makeGame();
+  game.start();
+  const btn = q('.pause-button');
+  expect(btn.hidden).toBe(true);
+  expect(btn.hasAttribute('data-no-pedal')).toBe(true);
+  let now = startRacing(game, () => raf!);
+  expect(btn.hidden).toBe(false);
+  now = frames(60, now);
+  const t0 = internals().sim.time;
+  pointer('pointerdown', 6, btn);
+  expect(game.state).toBe('paused');
+  expect(internals().throttle.pressed).toBe(false);
+  expect(q('.pause-text').textContent).toBe('PAUSE');
+  expect(btn.hidden).toBe(true);
+  pointer('pointerup', 6, btn);
+  btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));   // le click qui suit le doigt : sans effet en pause
+  expect(game.state).toBe('paused');
+  now = frames(30, now);
+  expect(internals().sim.time).toBe(t0);
+  q('.btn-resume').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  expect(game.state).toBe('countdown');
+  expect(btn.hidden).toBe(false);
+  pointer('pointerdown', 7, btn);   // pause pendant le décompte aussi
+  expect(game.state).toBe('paused');
+  pointer('pointerup', 7, btn);
+  game.resume();
+  now = frames(3, now, 1000);
+  expect(game.state).toBe('racing');
+  now = driveToFinished(game, internals, now);
+  expect(btn.hidden).toBe(true);   // arrivée
+  now = frames(Math.ceil(CONFIG.FINISH_COAST_SECONDS / DT) + 5, now);
+  expect(game.state).toBe('podium');
+  expect(btn.hidden).toBe(true);
+});
+
+test('bouton pause (option) : ≥ 96 px déclarés, règle .pause-button[hidden]{display:none}, au-dessus du HUD et sous les écrans (ordre du DOM)', () => {
+  const { game, root } = makeGame();
+  game.start();
+  const rules = [...document.styleSheets].flatMap((s) => [...s.cssRules]) as CSSStyleRule[];
+  const base = rules.find((r) => r.selectorText === '.pause-button')!;
+  expect(base.style.display).toBe('flex');
+  expect(parseFloat(base.style.width)).toBeGreaterThanOrEqual(96);
+  expect(parseFloat(base.style.height)).toBeGreaterThanOrEqual(96);
+  expect(rules.find((r) => r.selectorText === '.pause-button[hidden]')?.style.display).toBe('none');
+  const kids = [...root.children];
+  expect(kids.indexOf(root.querySelector('.pause-button')!)).toBeLessThan(kids.indexOf(root.querySelector('.screen-pause')!));
+});
