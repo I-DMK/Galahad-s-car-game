@@ -172,7 +172,7 @@ sans le contexte de celle-ci.
 | 8b (ajoutée, addendum « présentation ») images : carrosseries, roue, flammes, étoile, ombre | **faite, validée, déployée** (2026-10-24) ; **validée sur la tablette par le papa** (voitures, arches, flammes, étoile, ombre, roues, barre : « tout est bon ») |
 | 9 (conditionnelle) fenêtre glissante de sol | fps OK à 5 voitures → non ; à remesurer avec le décor (tâche 16) |
 | 10 machine d'états, titre (copains), décompte, pause, orientation, police | **faite, validée sur capture, déployée** (2026-10-25, run 46, version 1.1.0, e2e:live 27/27) → tablette (rebond Q6, plein écran) |
-| 11 podium (+ bouton pause en course, demande du papa) | **faite, validée sur capture** (2026-10-25), déployée en version 1.2.0 (voir registre) → jalon « démo tablette » |
+| 11 podium (+ bouton pause en course, demande du papa) | **faite, validée sur capture** (2026-10-25), **déployée** en version 1.2.0 (2026-10-25, run 48, bundle `index-D8qTmIHy.js` = build local, e2e:live 30/31 + 3/3 au rejeu du rouge, dû au proxy du conteneur) → jalon « démo tablette » |
 | jalon « démo tablette » | après la 11 |
 | 11c (ajoutée, décision du papa) plan C : obstacles qui ralentissent, à sauter au bouton | à faire **après le jalon**, régime physique (spec à écrire avec le papa) |
 | 12 audio | à faire |
