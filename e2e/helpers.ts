@@ -269,3 +269,20 @@ export async function holdFingerAndTapJump(
     await cdp.detach();
   }
 }
+
+/** Rochers vus par le jeu (tâche 11c, ?debug=1) : chocs de Galahad, par voiture, rochers de la piste, encore dessinés. */
+export interface RockSnapshot {
+  rocksHit: number; byCar: Record<string, number>; rocks: { xStart: number; xEnd: number }[]; active: number;
+  x: number; speed: number; respawns: number; state: string;
+}
+
+/** Instantané des rochers et de Galahad (nécessite `debug=1` dans l'URL). */
+export async function rockSnapshot(page: Page): Promise<RockSnapshot> {
+  return page.evaluate(() => {
+    const g = (window as any).__game;
+    return {
+      rocksHit: g.rocksHit, byCar: g.rocksHitByCar, rocks: g.rocks, active: g.sceneRocksActive,
+      x: g.progress('galahad'), speed: g.speed('galahad'), respawns: g.respawns.length, state: g.state,
+    };
+  });
+}
