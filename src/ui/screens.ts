@@ -13,8 +13,11 @@ import { FONT_FAMILY } from './font';
 import { formatTime } from './hud';
 
 const STYLE_ID = 'screens-style';
-/** ms : fenêtre où le click d'un tap qui a déjà agi au pointerup (MENU) est avalé. */
-const CLICK_SWALLOW_MS = 600;
+/**
+ * ms : fenêtre où le click d'un tap qui a déjà agi au pointerup (MENU) est avalé. Le click du tap suit le pointerup de
+ * quelques ms ; au-delà, un vrai tap (AUTRE PISTE juste après) ne doit pas être perdu (tour 2).
+ */
+const CLICK_SWALLOW_MS = 300;
 
 /**
  * Les boutons font au moins 96 px CSS de côté (spec §8), déclarés en px (`min-width`, `min-height`) pour que la feuille
@@ -180,6 +183,8 @@ export class Screens {
   /** Les quatre calques (titre, décompte, pause, podium) : `show()` et la création les parcourent. */
   private readonly layers: HTMLDivElement[];
   private lastCountdown = '';
+  /** Retire l'écouteur qui avale le click du tap de MENU et sa minuterie ; null si aucune fenêtre n'est ouverte. */
+  private clickSwallow: (() => void) | null = null;
 
   /**
    * Crée les quatre calques cachés dans `root` (#hud), après le HUD et le bouton saut, et injecte le style une fois
@@ -272,12 +277,17 @@ export class Screens {
     // posé, le click du même tap y changerait de piste. MENU agit au pointerup du doigt posé sur MENU lui-même (le click ne
     // part pas toujours quand un doigt de gaz reste posé, cr 2 du tour 1) et au click (clavier). Le click qui suit le
     // pointerup est calculé par Chromium à l'endroit du tap, sur le titre déjà montré : il tomberait sur AUTRE PISTE
-    // (mesuré en e2e à 844 × 390). Il est donc avalé (`swallowNextClick`). `Game` ignore un doublon (`title` n'a pas de
+    // (mesuré en e2e à 844 × 390). Il est donc avalé (`swallowNextClick`, CLICK_SWALLOW_MS). `Game` ignore un doublon (`title` n'a pas de
     // ligne `menu`).
     const menu = this.button('btn-menu', 'MENU', HOME_SVG);
     menu.setAttribute('data-no-pedal', '');
     let menuPointer: number | null = null;
     menu.addEventListener('pointerdown', (e) => { menuPointer = e.pointerId; });
+    // Appui sorti de MENU (souris glissée dehors) ou annulé : oublié, un pointerup ultérieur sur MENU ne l'active pas
+    // (tour 2). Au doigt, `pointerleave` ne vient qu'après le `pointerup` (capture implicite) : sans effet sur le tap.
+    const forgetMenuPointer = (e: PointerEvent): void => { if (e.pointerId === menuPointer) menuPointer = null; };
+    menu.addEventListener('pointerleave', forgetMenuPointer);
+    menu.addEventListener('pointercancel', forgetMenuPointer);
     menu.addEventListener('pointerup', (e) => {
       if (e.pointerId !== menuPointer) return;
       menuPointer = null;
@@ -364,17 +374,32 @@ export class Screens {
 
   /**
    * Avale (phase de capture, sur `window`) le prochain click s'il arrive dans les CLICK_SWALLOW_MS : celui du tap qui vient
-   * d'agir au pointerup, quelle que soit sa cible. Un click plus tardif passe (l'écouteur, à usage unique, se retire).
+   * d'agir au pointerup, quelle que soit sa cible. L'écouteur se retire au premier click avalé, à la fin de la fenêtre
+   * (minuterie) ou par `cancelClickSwallow` : un click plus tardif passe.
    */
   private swallowNextClick(): void {
     const win = this.root.ownerDocument.defaultView;
     if (!win) return;
-    const until = win.performance.now() + CLICK_SWALLOW_MS;
-    win.addEventListener('click', (e) => {
-      if (win.performance.now() > until) return;
+    this.cancelClickSwallow();
+    const swallow = (e: Event): void => {
       e.preventDefault();
       e.stopImmediatePropagation();
-    }, { capture: true, once: true });
+      this.cancelClickSwallow();
+    };
+    win.addEventListener('click', swallow, { capture: true });
+    // La fenêtre se ferme d'elle-même : un tap sans click (doigt de gaz tenu) ne laisse pas l'écouteur en place (tour 2).
+    const timer = win.setTimeout(() => this.cancelClickSwallow(), CLICK_SWALLOW_MS);
+    this.clickSwallow = () => {
+      win.removeEventListener('click', swallow, { capture: true });
+      win.clearTimeout(timer);
+    };
+  }
+
+  /** Ferme tout de suite la fenêtre d'avalement du click (fin de la minuterie, `Game.stop`). Sans effet si aucune. */
+  cancelClickSwallow(): void {
+    const cancel = this.clickSwallow;
+    this.clickSwallow = null;
+    cancel?.();
   }
 
   private div(className: string, text?: string): HTMLDivElement {

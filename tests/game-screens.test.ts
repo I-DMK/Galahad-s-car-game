@@ -14,6 +14,7 @@ import { Renderer } from '../src/render/renderer';
 import { posesOf, rankEntriesOf, type RaceSim } from '../src/sim/simulate';
 import { rankCars } from '../src/cars/ranking';
 import { formatTime } from '../src/ui/hud';
+import { Screens } from '../src/ui/screens';
 import { defaultPilotSeed, drawPilots, GALAHAD } from '../src/cars/pilots';
 import { placeCar } from '../src/physics/car';
 import { heightAt } from '../src/track/query';
@@ -767,4 +768,13 @@ test('bouton pause : une erreur de rendu pendant le décompte le cache aussi (cr
   frames(1, 0);
   expect(game.state).toBe('error');
   expect(q('.pause-button').hidden).toBe(true);
+});
+
+test('stop() ferme la fenêtre d’avalement du click de MENU (tour 2)', () => {
+  const cancel = vi.spyOn(Screens.prototype, 'cancelClickSwallow');
+  const { game, internals } = makeGame();
+  game.start();
+  cancel.mockClear();
+  internals().stop();
+  expect(cancel).toHaveBeenCalledTimes(1);
 });

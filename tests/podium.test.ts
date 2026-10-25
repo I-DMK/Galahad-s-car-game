@@ -19,7 +19,11 @@ const entry = (index: number, progress: number, finishedAt: number | null = null
 const DT = 1 / 60;
 const NO_VOLCANO = { volcanoes: [] };
 
-afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; document.head.innerHTML = ''; });
+afterEach(() => {
+  // Minuteries simulées (tests de MENU) : celles qui restent partent, comme dans la vraie page, avant de revenir aux vraies.
+  if (vi.isFakeTimers()) { vi.runOnlyPendingTimers(); vi.useRealTimers(); }
+  vi.restoreAllMocks(); document.body.innerHTML = ''; document.head.innerHTML = '';
+});
 
 test('podiumView : arrivés par temps, puis non arrivés par progression (rankCars), égalité par index ; prénoms, couleurs, Galahad repéré', () => {
   const entries = [entry(0, 300, 80), entry(1, 290), entry(2, 310, 78.5), entry(3, 295), entry(4, 295)];
@@ -206,6 +210,7 @@ test('ENCORE et MENU : data-no-pedal, mots et icônes ; onAgain au pointerdown E
 });
 
 test('MENU au doigt : au pointerup du doigt posé sur MENU lui-même (le click ne part pas toujours avec un doigt de gaz tenu), jamais au pointerdown ; un pointerup d’un autre doigt ou sans appui sur MENU ne fait rien (cr 2, tour 1)', () => {
+  vi.useFakeTimers();   // la fenêtre d'avalement ouverte par le tap se ferme à la fin du test (afterEach), pas au suivant
   const { screens, actions, q } = makeScreens();
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   const menu = q('.btn-menu');
@@ -222,29 +227,51 @@ test('MENU au doigt : au pointerup du doigt posé sur MENU lui-même (le click n
   expect(actions.onMenu).toHaveBeenCalledTimes(1);
 });
 
-test('MENU au pointerup : le click du même tap est avalé, quelle que soit sa cible (AUTRE PISTE sous le doigt) ; un click plus tardif passe (cr 2, tour 1)', () => {
-  // Un écouteur à usage unique laissé sur `window` par le test précédent (son tap n'a pas eu de click) : un click le retire.
-  document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+const pointerOn = (type: string, el: Element, id: number) => {
+  const e = new Event(type, { bubbles: type !== 'pointerleave' }); Object.defineProperty(e, 'pointerId', { value: id }); el.dispatchEvent(e);
+};
+
+test('MENU au pointerup : le click du même tap est avalé (AUTRE PISTE sous le doigt) pendant CLICK_SWALLOW_MS ; la fenêtre se ferme seule (minuterie), sans attendre un click ; cancelClickSwallow la ferme (tours 1 et 2)', () => {
+  vi.useFakeTimers();
   const { screens, actions, q } = makeScreens();
-  screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   const menu = q('.btn-menu');
-  pointerDown(menu);
-  const up = new Event('pointerup', { bubbles: true }); Object.defineProperty(up, 'pointerId', { value: 3 }); menu.dispatchEvent(up);
+  const tapMenu = () => { screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {}); pointerOn('pointerdown', menu, 3); pointerOn('pointerup', menu, 3); screens.showTitle(); };
+  tapMenu();
   expect(actions.onMenu).toHaveBeenCalledTimes(1);
-  screens.showTitle();
+  vi.advanceTimersByTime(100);
   click(q('.btn-other'));   // le click fantôme du tap, sur AUTRE PISTE
   expect(actions.onOtherTrack).not.toHaveBeenCalled();
   click(q('.btn-other'));   // un vrai tap ensuite : l'écouteur à usage unique est parti
   expect(actions.onOtherTrack).toHaveBeenCalledTimes(1);
-  // Tap sur MENU sans click qui suive (doigt de gaz tenu) : un click venu plus de 600 ms après passe.
-  screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
-  pointerDown(menu);
-  menu.dispatchEvent(up);
-  screens.showTitle();
-  now.mockReturnValue(1700);
+  // Tap sur MENU sans click qui suive (doigt de gaz tenu) : la fenêtre se ferme d'elle-même à 300 ms.
+  tapMenu();
+  vi.advanceTimersByTime(300);
   click(q('.btn-other'));
   expect(actions.onOtherTrack).toHaveBeenCalledTimes(2);
+  // Fermée tout de suite par cancelClickSwallow (appelé par `Game.stop`).
+  tapMenu();
+  screens.cancelClickSwallow();
+  click(q('.btn-other'));
+  expect(actions.onOtherTrack).toHaveBeenCalledTimes(3);
+});
+
+test('MENU : un appui qui sort de MENU (pointerleave) ou est annulé (pointercancel) est oublié : un pointerup ultérieur sur MENU ne l’active pas (tour 2)', () => {
+  vi.useFakeTimers();
+  const { screens, actions, q } = makeScreens();
+  screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
+  const menu = q('.btn-menu');
+  // Souris : appui sur MENU, glissé dehors ; puis appui ailleurs, glissé sur MENU, relâché sur MENU (même pointerId 1).
+  pointerOn('pointerdown', menu, 1);
+  pointerOn('pointerleave', menu, 1);
+  pointerOn('pointerup', menu, 1);
+  expect(actions.onMenu).not.toHaveBeenCalled();
+  pointerOn('pointerdown', menu, 2);
+  pointerOn('pointercancel', menu, 2);
+  pointerOn('pointerup', menu, 2);
+  expect(actions.onMenu).not.toHaveBeenCalled();
+  pointerOn('pointerdown', menu, 4);
+  pointerOn('pointerup', menu, 4);
+  expect(actions.onMenu).toHaveBeenCalledTimes(1);
 });
 
 test('showPodium deux fois : contenu réécrit, jamais doublé ; un autre écran cache le podium (jamais retiré du DOM)', () => {

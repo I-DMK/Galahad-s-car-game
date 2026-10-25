@@ -361,6 +361,7 @@ export class Game {
 
   private stop(): void {
     this.running = false;
+    this.screens.cancelClickSwallow();
     cancelAnimationFrame(this.rafId);
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('popstate', this.onPopState);
