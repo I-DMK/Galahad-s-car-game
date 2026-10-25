@@ -22,8 +22,8 @@ export const TITLE_WHEEL_SPIN_RAD_S = 6;
 export const TITLE_NAME_SCALE = 1.8;
 
 /** m : le châssis repose WHEEL_DROP au-dessus de l'axe des roues (gabarit : axes à (±0,75 ; −0,25) du châssis). */
-const CHASSIS_ABOVE_AXLE_M = 0.25;
-const WHEEL_X_M = 0.75;
+export const CHASSIS_ABOVE_AXLE_M = 0.25;
+export const WHEEL_X_M = 0.75;
 
 /** Hauteur du bond à l'instant t : parabole périodique 4H·u(1 − u), u = (t mod T)/T ; 0 aux rebonds, H à mi-période ; ≥ 0 pour t < 0. */
 export function bounceHeight(t: number): number {

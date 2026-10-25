@@ -2,6 +2,7 @@
 // Les images (tâche 8b) arrivent par `setArt` ; tant qu'elles manquent, tout se dessine par code.
 // Tout est dessiné en pixels « backing » (canvas.width × canvas.height) ; pxPerMeter vient de la hauteur backing.
 // Le renderer reçoit des coordonnées du monde (mètres, y vers le haut) et n'importe jamais matter-js.
+import { colorHex, type Pilot } from '../cars/pilots';
 import type { Config } from '../config';
 import type { Track } from '../track/types';
 import { Camera, computeBackingSize, type BackingSize } from './camera';
@@ -9,7 +10,7 @@ import { prerenderSky } from './background';
 import { NO_ART, type Art } from './assets';
 import { SHADOW_ALPHA, SHADOW_RX_M, SHADOW_RY_M, drawCar, drawShadow, shadowScale } from './car';
 import type { Effects } from './effects';
-import { TITLE_GROUND_FRAC, TITLE_NAME_SCALE, type TitleScene } from './title';
+import { CHASSIS_ABOVE_AXLE_M, TITLE_GROUND_FRAC, TITLE_NAME_SCALE, WHEEL_X_M, type TitleScene } from './title';
 import { drawStar, drawTrack } from './track';
 
 /** Voiture à dessiner, en coordonnées du monde. `angle` : angle du monde (positif = nez en haut). */
@@ -42,6 +43,11 @@ const SKY_PARALLAX = 0.1;
 /** Sol de la scène du titre : gris lunaire de la piste et son liseré clair (mêmes couleurs que `drawTrack`). */
 const TITLE_GROUND = '#8b8b8b';
 const TITLE_GROUND_EDGE = '#c8c8c8';
+/** Largeur CSS (px) d'une petite voiture du podium quand la mise en page ne la donne pas (jsdom). */
+const ICON_DEFAULT_CSS_PX = 160;
+/** Cadre de la petite voiture (m) : 3,2 de large (rapport 2:1), centré 0,75 m au-dessus du sol (roues en bas, toit en haut). */
+const ICON_W_M = 3.2;
+const ICON_CENTER_Y_M = 0.75;
 
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
@@ -153,6 +159,34 @@ export class Renderer {
     });
     // Prénoms plus gros qu'en course (TITLE_NAME_SCALE) : au titre, Galahad doit pouvoir les lire.
     for (const car of scene.cars) drawCar(ctx, car, ppm, scene.t, toScreen, this.cfg, art, TITLE_NAME_SCALE);
+  }
+
+  /**
+   * Petite voiture du podium (tâche 11) : `pilot` au repos, de profil, dans `target` (peinte une fois, à l'entrée au podium),
+   * par le même `drawCar` que la course (sprite et roue s'ils sont chargés, sinon par code), sans prénom (le DOM l'écrit).
+   * Tampon à la largeur CSS × devicePixelRatio (plafonné à 2), hauteur moitié. Sans contexte 2D : rien.
+   */
+  paintCarIcon(target: HTMLCanvasElement, pilot: Pilot): void {
+    const ctx = target.getContext('2d');
+    if (!ctx) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(2, Math.round((target.clientWidth || ICON_DEFAULT_CSS_PX) * dpr));
+    const h = Math.round(w / 2);
+    target.width = w;
+    target.height = h;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, w, h);
+    const ppm = w / ICON_W_M;
+    const R = this.cfg.WHEEL_RADIUS;
+    const car: CarView = {
+      id: pilot.id, x: 0, y: R + CHASSIS_ABOVE_AXLE_M, angle: 0,
+      wheels: [{ x: -WHEEL_X_M, y: R, angle: 0 }, { x: WHEEL_X_M, y: R, angle: 0 }],
+      color: colorHex(pilot.color), accent: colorHex(pilot.accent), helmet: colorHex(pilot.helmet),
+      name: '', turbo: false,
+    };
+    const toScreen = (p: { x: number; y: number }) => ({ x: w / 2 + p.x * ppm, y: h / 2 - (p.y - ICON_CENTER_Y_M) * ppm });
+    drawCar(ctx, car, ppm, 0, toScreen, this.cfg, this.loaded ?? NO_ART);
   }
 
   /** Début de toute image : transformation identité, opacité 1, effacement, puis le ciel (parallaxe sur `cameraX`). */

@@ -77,7 +77,8 @@ export function drawCar(
     else drawWheel(ctx, toScreen(w), w.angle, r);
   }
 
-  if (car.name !== 'Galahad') {
+  // Un prénom vide n'est pas écrit : petites voitures du podium (tâche 11), dont le DOM écrit le prénom.
+  if (car.name !== 'Galahad' && car.name !== '') {
     const top = toScreen({ x: car.x, y: car.y + 1.3 });
     ctx.fillStyle = '#ffffff';
     ctx.font = canvasFont(700, ((14 * ppm) / 57) * nameScale);

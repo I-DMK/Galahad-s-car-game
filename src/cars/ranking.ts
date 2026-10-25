@@ -1,6 +1,7 @@
 // Classement de course (spec §6 « Arrivée ») et place affichée au HUD (tâche 8 : hystérésis, ordinal, position
 // sur la barre) : pur (ni DOM, ni matter-js).
 import { CONFIG, type Config } from '../config';
+import { colorHex, type Pilot } from './pilots';
 
 export interface RankEntry {
   /** Index de la voiture (Galahad = 0). */
@@ -24,6 +25,42 @@ export function rankCars(cars: readonly RankEntry[]): number[] {
       return b.progress - a.progress || a.index - b.index;
     })
     .map((c) => c.index);
+}
+
+/** Une place du classement final (podium, tâche 11). */
+export interface PodiumPlace {
+  /** 1 = première. */
+  place: number;
+  /** Index de la voiture (rang de grille ; Galahad = 0). */
+  index: number;
+  id: string;
+  name: string;
+  /** Couleur CSS (#rrggbb) de la carrosserie. */
+  color: string;
+  isGalahad: boolean;
+}
+
+/** Classement final montré au podium : calculé une fois, à l'entrée au podium (tâche 11). */
+export interface PodiumView {
+  /** Tout le classement, place 1 d'abord. */
+  places: PodiumPlace[];
+  /** Place de Galahad (1 à N). */
+  galahadPlace: number;
+  /** Temps de course de Galahad à l'arrivée (s). */
+  galahadTime: number;
+}
+
+/**
+ * Classement final (spec §6 « Arrivée ») : `rankCars(entries)` (arrivées par temps, puis non arrivées par progression,
+ * égalité par index), chaque voiture nommée par `pilots[index]` (ordre de la grille). Lève RangeError sur un index sans pilote.
+ */
+export function podiumView(entries: readonly RankEntry[], pilots: readonly Pilot[], galahadIndex: number, galahadTime: number): PodiumView {
+  const places = rankCars(entries).map((index, k): PodiumPlace => {
+    const p = pilots[index];
+    if (p === undefined) throw new RangeError(`podiumView : pas de pilote d'index ${index} (${pilots.length} reçus)`);
+    return { place: k + 1, index, id: p.id, name: p.name, color: colorHex(p.color), isGalahad: index === galahadIndex };
+  });
+  return { places, galahadPlace: places.findIndex((p) => p.isGalahad) + 1, galahadTime };
 }
 
 /** Place (1 = première) → « 1er », « 2e », « 3e »… (en français, seul le 1 prend « er »). */

@@ -1,11 +1,11 @@
-// Particules visuelles (étincelles, poussière, bulles de lave, fumée) en coordonnées du monde (m, y vers le haut).
+// Particules visuelles (étincelles, poussière, bulles de lave, fumée, confettis du podium) en coordonnées du monde (m, y vers le haut).
 // Logique pure : aucun accès au DOM hors de `draw(ctx, …)`. `Math.random` suffit (purement visuel, hors simulation).
 import type { Config } from '../config';
 import type { Track } from '../track/types';
 
 export const MAX_PARTICLES = 300;
 
-type Kind = 'spark' | 'dust' | 'bubble' | 'smoke';
+type Kind = 'spark' | 'dust' | 'bubble' | 'smoke' | 'confetti';
 
 interface Particle {
   x: number; y: number; vx: number; vy: number;
@@ -13,6 +13,9 @@ interface Particle {
   kind: Kind;
   /** Rayon (m) au départ ; grandit pour la poussière et la fumée. */
   size: number;
+  /** Confettis : couleur CSS et phase (rad) du battement du papier. */
+  color?: string;
+  phase?: number;
 }
 
 const SPARK_GRAVITY = -9;
@@ -23,22 +26,76 @@ const VISIBLE_MARGIN = 5;
 /** Le dessus de la lave est 0,15 m sous le rebord du cratère. */
 const LAVA_SURFACE_DROP = 0.15;
 
+/** Confettis du podium si Galahad gagne (tâche 11 ; spec §8 « Rendu ») : pluie de CONFETTI_SECONDS au-dessus de l'écran. */
+export const CONFETTI_SECONDS = 4;
+export const CONFETTI_PER_SECOND = 40;
+/** s : de quoi traverser les 14 m de la vue à ≈ 2 m/s. */
+const CONFETTI_LIFE = 7;
+const CONFETTI_COLORS = ['#ffd23f', '#ff4d6d', '#4dd2ff', '#7cff4d', '#ffffff', '#c77dff'] as const;
+/** rad/s : battement du papier (largeur dessinée × |cos|). */
+const CONFETTI_FLUTTER = 8;
+/**
+ * s : reste de pluie tenu pour nul. 240 retraits de 1/60 laissent ≈ 1e-15 s au lieu de 0 : sans cette tolérance, l'image
+ * suivante émettrait un 161e confetti (comme COUNTDOWN_EPS dans `game.ts` et HOLD_EPSILON_S dans `ranking.ts`).
+ */
+const CONFETTI_EPS = 1e-9;
+
 const rand = (a: number, b: number): number => a + Math.random() * (b - a);
 
 export class Effects {
   private particles: Particle[] = [];
   private bubbleTimer = 0;
   private smokeTimer = 0;
+  /** s de pluie de confettis restantes, et fraction de confetti reportée d'une image à la suivante. */
+  private confettiLeft = 0;
+  private confettiCarry = 0;
 
   constructor(private readonly cfg: Config) {}
 
   get count(): number { return this.particles.length; }
 
-  /** Plus aucune particule (nouvelle course, tâche 10 : pas d'étincelles d'une course sur le titre) ; minuteries à zéro. */
+  /** Confettis en vol (podium, tâche 11). */
+  get confettiCount(): number {
+    let n = 0;
+    for (const p of this.particles) if (p.kind === 'confetti') n++;
+    return n;
+  }
+
+  /**
+   * Plus aucune particule (nouvelle course, tâche 10 : pas d'étincelles d'une course sur le titre) ; minuteries à zéro ;
+   * pluie de confettis arrêtée (tâche 11) : une nouvelle course n'hérite jamais d'une pluie.
+   */
   clear(): void {
     this.particles = [];
     this.bubbleTimer = 0;
     this.smokeTimer = 0;
+    this.confettiLeft = 0;
+    this.confettiCarry = 0;
+  }
+
+  /** Lance la pluie de confettis pour CONFETTI_SECONDS (émise par `rainConfetti`). */
+  startConfetti(): void {
+    this.confettiLeft = CONFETTI_SECONDS;
+    this.confettiCarry = 0;
+  }
+
+  /**
+   * Pendant la pluie : CONFETTI_PER_SECOND × dt confettis (le reste est reporté à l'image suivante), nés entre `topY` et
+   * `topY + 1` (au-dessus du haut de l'écran), x dans [cx − halfWidthM, cx + halfWidthM], qui tombent à 1,6–2,6 m/s en dérivant.
+   */
+  rainConfetti(dt: number, cx: number, topY: number, halfWidthM: number): void {
+    if (this.confettiLeft <= CONFETTI_EPS || dt <= 0) return;
+    const d = Math.min(dt, this.confettiLeft);
+    this.confettiLeft -= d;
+    this.confettiCarry += d * CONFETTI_PER_SECOND;
+    while (this.confettiCarry >= 1) {
+      this.confettiCarry -= 1;
+      this.add({
+        x: cx + rand(-halfWidthM, halfWidthM), y: topY + rand(0, 1), vx: rand(-0.6, 0.6), vy: rand(-2.6, -1.6),
+        life: CONFETTI_LIFE, maxLife: CONFETTI_LIFE, kind: 'confetti', size: rand(0.1, 0.16),
+        color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)], phase: rand(0, Math.PI * 2),
+      });
+    }
   }
 
   private add(p: Particle): void {
@@ -110,6 +167,14 @@ export class Effects {
       const k = p.life / p.maxLife; // 1 → 0
       const s = toScreen(p);
       let r = p.size * ppm;
+      if (p.kind === 'confetti') {
+        // Papier qui se retourne : largeur × |cos| (au moins 1 px), opacité qui baisse le dernier tiers de sa vie.
+        const w = Math.max(1, 2 * r * Math.abs(Math.cos((p.phase ?? 0) + p.life * CONFETTI_FLUTTER)));
+        ctx.globalAlpha = Math.min(1, 3 * k);
+        ctx.fillStyle = p.color ?? '#ffffff';
+        ctx.fillRect(s.x - w / 2, s.y - r / 2, w, r);
+        continue;
+      }
       switch (p.kind) {
         case 'spark':
           ctx.globalAlpha = k;
