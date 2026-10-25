@@ -170,7 +170,7 @@ sans le contexte de celle-ci.
 | 8 position, barre de progression (cinq couloirs + drapeau), classement | **faite, validée, déployée** (2026-10-24) |
 | 8b (ajoutée, addendum « présentation ») images : carrosseries, roue, flammes, étoile, ombre | **faite, validée, déployée** (2026-10-24) ; **validée sur la tablette par le papa** (voitures, arches, flammes, étoile, ombre, roues, barre : « tout est bon ») |
 | 9 (conditionnelle) fenêtre glissante de sol | fps OK à 5 voitures → non ; à remesurer avec le décor (tâche 16) |
-| 10 machine d'états, titre (copains), décompte, pause, orientation, police | **faite, validée sur capture** (2026-10-25) → déploiement et tablette (rebond Q6, plein écran) |
+| 10 machine d'états, titre (copains), décompte, pause, orientation, police | **faite, validée sur capture** (2026-10-25) → **fusion et déploiement à faire** (« Prochaine action précise », point 2), puis tablette (rebond Q6, plein écran) |
 | 11 podium | à faire |
 | jalon « démo tablette » | après la 11 |
 | 11c (ajoutée, décision du papa) plan C : obstacles qui ralentissent, à sauter au bouton | à faire **après le jalon**, régime physique (spec à écrire avec le papa) |
@@ -336,10 +336,16 @@ Session 4 (2026-10-23) : **tâches 6 et 7 validées et déployées** (fusions no
    et des flammes à corriger, `assets/README.md`).
 Session 5 (2026-10-24) : test tablette des tâches 6 et 7 recueilli (« trop facile », copains « tous pareils » → plan C après la démo), **tâches 8 et 8b validées et déployées**.
 
-Session 6 (2026-10-24 et 25) : **tâche 10 faite, validée sur capture, fusionnée en avance rapide et déployée** (voir le registre, lignes « Task 10: » et la vérification du déploiement).
+Session 6 (2026-10-24 et 25) : **tâche 10 faite et validée sur capture, PAS encore fusionnée ni déployée** (session arrêtée à la demande du papa, suite dans une nouvelle session). Tête de `wip-plan-b` = tour 3 (`cafe56f`) + ce commit de docs ; `origin/ccr-5b6fabc4-n96ofo` = `5e97707`, ancêtre de `wip-plan-b` : la fusion se fait **en avance rapide**.
 
 1. Nouvelle session : `git fetch origin wip-plan-b && git checkout -B wip-plan-b origin/wip-plan-b`, `npm ci`, `git remote set-head origin ccr-5b6fabc4-n96ofo`, dossier de liens Playwright (section « Environnement »). Lire cette passation et la fin du registre (depuis « Session 5 »).
-2. Retour tablette du papa sur la tâche 10 à recueillir : titre (rangée, prénoms × 1,8, rebond Q6), décompte, pause et TOURNE (rotation), plein écran au lever du doigt sur JOUER (non vérifiable en headless), fps au titre avec `?debug=1`.
-3. Puis **tâche 11** (podium : `finished` → 1,5 s de roue libre → `podium`, qui remplace le calque ARRIVÉE ; ENCORE et MENU sont déjà câblés dans la machine et `Game` ; `podium` est dans la table de `src/loop/states.ts` ; version `1.2.0` ; plan à écrire depuis le plan v2.1 Task 11, skill writing-plans, régime « écrans » à quatre relectures), le **jalon « démo tablette »**, la **11c (plan C : obstacles qui ralentissent, régime physique, spec à écrire avec le papa)**, puis 12, 13, 14, 15, 16 (choix de Galahad pour le décor à recueillir), 17. Points du test tablette non revus (rien de gênant d'après le papa) : Q-F5, appuis perdus à 21 m/s, étoile de réception survolée en turbo, catapultes.
-4. Mineurs reportés (registre, lignes « minor (deferred) ») : à trier à la relecture de branche (tâche 14 ou 17).
-5. Après chaque fusion sur `ccr-5b6fabc4-n96ofo` : run GitHub Actions vert, puis `npm run e2e:live` ; avancer `wip-plan-b` sur la même tête (la fusion suivante se fait alors en avance rapide).
+2. **Finir la tâche 10** (plan `2026-10-24-plan-b-ecrans.md`, Steps 28 à 30) :
+   - `npm run typecheck && npm test` (attendu ≈ 865 verts) puis `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e` (27 verts) sur la tête de `wip-plan-b` ; le lancement de fin de session 6 a été interrompu avant son résultat ;
+   - `git fetch origin ccr-5b6fabc4-n96ofo && git checkout -B ccr-5b6fabc4-n96ofo origin/ccr-5b6fabc4-n96ofo && git merge --ff-only wip-plan-b && git push -u origin ccr-5b6fabc4-n96ofo` (mode « accepter les modifications ») ;
+   - run GitHub Actions vert (outils `mcp__github__actions_list` / `actions_get`) ; hash du `index-*.js` servi par https://i-dmk.github.io/Galahad-s-car-game/ = celui de `VITE_BASE=/Galahad-s-car-game/ npm run build` ; `curl -sI …/fonts/fredoka-latin-700.woff2` → 200 ;
+   - `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers npm run e2e:live` (27 verts, `screens.spec` compris) ;
+   - registre « Task 10: déploiement vérifié (run n, hash, e2e:live) », tableau ci-dessus → « déployée », commit `docs:`, puis `git checkout wip-plan-b && git merge --ff-only ccr-5b6fabc4-n96ofo && git push origin wip-plan-b`.
+3. Retour tablette du papa sur la tâche 10 à recueillir : titre (rangée, prénoms × 1,8, rebond Q6), décompte, pause et TOURNE (rotation), plein écran au lever du doigt sur JOUER (non vérifiable en headless), fps au titre avec `?debug=1`.
+4. Puis **tâche 11** (podium : `finished` → 1,5 s de roue libre → `podium`, qui remplace le calque ARRIVÉE ; ENCORE et MENU sont déjà câblés dans la machine et `Game` ; `podium` est dans la table de `src/loop/states.ts` ; version `1.2.0` ; plan à écrire depuis le plan v2.1 Task 11, skill writing-plans, régime « écrans » à quatre relectures), le **jalon « démo tablette »**, la **11c (plan C : obstacles qui ralentissent, régime physique, spec à écrire avec le papa)**, puis 12, 13, 14, 15, 16 (choix de Galahad pour le décor à recueillir), 17. Points du test tablette non revus (rien de gênant d'après le papa) : Q-F5, appuis perdus à 21 m/s, étoile de réception survolée en turbo, catapultes.
+5. Mineurs reportés (registre, lignes « minor (deferred) ») : à trier à la relecture de branche (tâche 14 ou 17).
+6. Après chaque fusion sur `ccr-5b6fabc4-n96ofo` : run GitHub Actions vert, puis `npm run e2e:live` ; avancer `wip-plan-b` sur la même tête (la fusion suivante se fait alors en avance rapide).
