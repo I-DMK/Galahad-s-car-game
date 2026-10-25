@@ -735,11 +735,13 @@ test('podium : les confettis naissent au-dessus du haut de l’écran et descend
   now = driveToPodium(game, internals, now);
   const parts = () => (internals().effects as unknown as { particles: { kind: string; y: number }[] }).particles.filter((p) => p.kind === 'confetti');
   const top = internals().camera.y + CONFIG.VISIBLE_HEIGHT_M / 2;
-  now = frames(1, now);
-  const born = parts().map((p) => p.y);
+  // Seuls les confettis nés pendant ces images (déjà mis à jour une fois) : ceux d'avant ont déjà eu le temps de descendre.
+  const old = new Set(parts());
+  now = frames(3, now);
+  const first = parts().filter((p) => !old.has(p));
+  const born = first.map((p) => p.y);
   expect(born.length).toBeGreaterThan(0);
-  for (const y of born) expect(y).toBeGreaterThanOrEqual(top - 2.6 * 2 * DT);
-  const first = parts().slice(0, born.length);
+  for (const y of born) expect(y).toBeGreaterThanOrEqual(top - 2.6 * 3 * DT);
   now = frames(30, now);
   first.forEach((p, i) => expect(p.y).toBeLessThan(born[i]));
 });
