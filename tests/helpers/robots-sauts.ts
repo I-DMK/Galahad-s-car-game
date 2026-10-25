@@ -4,7 +4,7 @@
 // tirage normal (chacun ses traits). Comparaison appariée par graine : seul le trait de saut change entre les deux bras.
 //
 // Par course, l'observateur relève chaque saut de copain :
-// - étoile haute (tout saut hors de l'approche d'une fosse) : tentative ; prise au saut (une étoile haute prise dans les
+// - étoile haute (tout saut hors de l'approche d'une fosse et qui ne vise pas un rocher, tâche 11c) : tentative ; prise au saut (une étoile haute prise dans les
 //   STAR_TAKE_WINDOW s qui suivent) ou ratée ; réapparition dans les RESPAWN_WINDOW s ;
 // - fosse : chaque approche [xLancement, xBord[ d'une fosse est une tentative, close par une chute dans la lave, un
 //   passage (x > bord aval + 5 m) ou une autre réapparition ; vitesse au saut (au pas de la décision), ou à la chute
@@ -18,7 +18,7 @@ import { PILOTS, type Pilot } from '../../src/cars/pilots';
 import { CONFIG } from '../../src/config';
 import { carSpeedMps } from '../../src/physics/car';
 import { chassisX, type RaceSim } from '../../src/sim/simulate';
-import { fosses } from '../../src/track/query';
+import { fosses, nextRock } from '../../src/track/query';
 import type { Fosse, Track } from '../../src/track/types';
 import { stepFingerprint } from './fingerprint';
 import { describeFlights, expectRaceInvariants, fiveCarRace, respawnsHorsFosses, type FiveCarRace } from './race';
@@ -67,6 +67,17 @@ interface OpenFosse { f: Fosse; index: number; attempt: 1 | 2; t: number; jumped
 /** Atterrissage le plus long exigé après le bord aval d'une fosse (tâche 7, tableau « Fosses » ; R-F16) : 35 m. */
 export const FOSSE_LANDING_MAX = CONFIG.FOSSE_GHOST_AFTER - 5;
 
+/**
+ * Le saut en `x` vise-t-il un rocher (tâche 11c) : le prochain rocher est à moins de JUMP_LOOKAHEAD et avant la prochaine
+ * étoile haute (un rocher n'est jamais dans les ROCK_HIGH_STAR_LANDING m qui suivent une étoile haute).
+ */
+function aimsAtRock(track: Track, x: number): boolean {
+  const r = nextRock(track, x);
+  if (!r || r.xStart - x > CONFIG.JUMP_LOOKAHEAD) return false;
+  const star = track.stars.find((s) => s.high && s.x > x);
+  return !star || r.xStart < star.x;
+}
+
 /** Observateur d'une course : sauts d'étoile et tentatives aux fosses de chaque copain. */
 function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttempt[]; fosses: FosseAttempt[]; jumps: string[] }) {
   const fs = fosses(track);
@@ -89,7 +100,9 @@ function observer(arm: Arm, seed: number, track: Track, out: { stars: StarAttemp
       if (e.type === 'jump') {
         out.jumps.push(`${e.carId} ${e.t.toFixed(4)} ${e.x.toFixed(4)}`);
         const inApproach = fs.some((f) => e.x >= f.xLancement && e.x <= f.xBord);
-        if (inApproach) {
+        if (aimsAtRock(track, e.x)) {
+          // Saut de rocher (tâche 11c) : ni étoile haute ni fosse (mesuré par tests/helpers/robots-rochers.ts).
+        } else if (inApproach) {
           if (o) { o.jumped = true; o.speed = prevSpeed.get(e.carId) ?? NaN; }
         } else {
           mine.push({ arm, seed, carId: e.carId, t: e.t, x: e.x, speed: prevSpeed.get(e.carId) ?? NaN, taken: false, respawn: false });
