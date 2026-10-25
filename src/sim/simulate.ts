@@ -782,14 +782,17 @@ export function carView(sim: RaceSim, index: number, pose?: CarPose): CarView {
  * Scène de rendu : toutes les voitures, Galahad en dernier (dessiné au-dessus des copains). Sans poses :
  * état du dernier pas. Avec poses et alpha : voitures aux poses données (interpolées, `runFrame`) et
  * `Scene.t` = sim.time − (1 − alpha) × PHYSICS_DT (même latence que les voitures) ; étoiles et turbo
- * gardent le temps de simulation. Étoiles : état vu par Galahad (index 0) ; une prise par un copain n'y
- * laisse aucun signe (décision P5 du plan B).
+ * gardent le temps de simulation. Étoiles et rochers (tâche 11c) : état vu par Galahad (index 0) ; une prise ou un
+ * choc d'un copain n'y laisse aucun signe (décision P5 du plan B, spec « rochers » §1).
  */
 export function sceneOf(sim: RaceSim, poses?: CarPose[], alpha = 1): Scene {
   return {
     track: sim.track,
     cars: sim.cars.map((_, i) => carView(sim, i, poses?.[i])).reverse(),
     stars: sim.track.stars.map((s, i) => ({ x: s.x, y: s.y, active: isStarActiveFor(sim.stars[i], GALAHAD_INDEX, sim.time, sim.cfg) })),
+    rocks: sim.track.rocks.map((r, k) => ({
+      id: r.id, xStart: r.xStart, xEnd: r.xEnd, height: sim.cfg.ROCK_HEIGHT, active: isRockActiveFor(sim.rocks[k], GALAHAD_INDEX),
+    })),
     t: poses === undefined ? sim.time : sim.time - (1 - alpha) * sim.cfg.PHYSICS_DT,
   };
 }

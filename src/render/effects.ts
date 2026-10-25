@@ -1,11 +1,12 @@
-// Particules visuelles (étincelles, poussière, bulles de lave, fumée, confettis du podium) en coordonnées du monde (m, y vers le haut).
+// Particules visuelles (étincelles, poussière, bulles de lave, fumée, éclats de rocher, confettis du podium) en coordonnées du monde
+// (m, y vers le haut).
 // Logique pure : aucun accès au DOM hors de `draw(ctx, …)`. `Math.random` suffit (purement visuel, hors simulation).
 import type { Config } from '../config';
 import type { Track } from '../track/types';
 
 export const MAX_PARTICLES = 300;
 
-type Kind = 'spark' | 'dust' | 'bubble' | 'smoke' | 'confetti';
+type Kind = 'spark' | 'dust' | 'bubble' | 'smoke' | 'confetti' | 'shard';
 
 interface Particle {
   x: number; y: number; vx: number; vy: number;
@@ -16,9 +17,18 @@ interface Particle {
   /** Confettis : couleur CSS et phase (rad) du battement du papier. */
   color?: string;
   phase?: number;
+  /** Éclats de rocher (tâche 11c) : angle (rad) et vitesse de rotation (rad/s). */
+  angle?: number;
+  spin?: number;
 }
 
 const SPARK_GRAVITY = -9;
+/** Éclats de rocher (tâche 11c, spec « rochers » §5) : nombre, vie (s), gravité (m/s²), grains de poussière. */
+export const ROCK_SHARDS = 14;
+export const ROCK_DUST = 10;
+const SHARD_LIFE = 0.8;
+const SHARD_GRAVITY = -7;
+const SHARD_COLORS = ['#5e5853', '#7a736d', '#948c85'] as const;
 const BUBBLE_PERIOD = 0.3;
 const SMOKE_PERIOD = 0.5;
 /** Marge (m) au-delà de l'écran où les volcans émettent encore. */
@@ -120,6 +130,27 @@ export class Effects {
     }
   }
 
+  /**
+   * Rocher qui éclate (tâche 11c, spec « rochers » §5) en (x, y) : ROCK_SHARDS éclats gris (triangles qui tournent, gravité,
+   * vie SHARD_LIFE) lancés vers le haut et vers l'avant, et ROCK_DUST grains de poussière (comme `spawnDust`), dans le
+   * plafond MAX_PARTICLES.
+   */
+  rockBurst(x: number, y: number): void {
+    for (let i = 0; i < ROCK_SHARDS; i++) {
+      const speed = rand(2, 5.5);
+      const a = rand(0.2, Math.PI - 0.2);
+      this.add({
+        x: x + rand(-0.6, 0.6), y: y + rand(-0.4, 0.4), vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+        life: SHARD_LIFE, maxLife: SHARD_LIFE, kind: 'shard', size: rand(0.1, 0.22),
+        color: SHARD_COLORS[i % SHARD_COLORS.length], angle: rand(0, Math.PI * 2), spin: rand(-9, 9),
+      });
+    }
+    for (let i = 0; i < ROCK_DUST; i++) {
+      const life = rand(0.5, 1);
+      this.add({ x: x + rand(-1, 1), y: y + rand(-0.6, 0), vx: rand(-1.2, 1.2), vy: rand(0.3, 1), life, maxLife: life, kind: 'dust', size: 0.12 });
+    }
+  }
+
   /** `min(12, round(strength × 2))` petits nuages gris qui montent lentement. */
   spawnDust(x: number, y: number, strength: number): void {
     const n = Math.min(12, Math.round(strength * 2));
@@ -148,6 +179,10 @@ export class Effects {
   update(dt: number, track: Pick<Track, 'volcanoes'>, cameraX: number, halfWidthM: number): void {
     for (const p of this.particles) {
       if (p.kind === 'spark') p.vy += SPARK_GRAVITY * dt;
+      if (p.kind === 'shard') {
+        p.vy += SHARD_GRAVITY * dt;
+        p.angle = (p.angle ?? 0) + (p.spin ?? 0) * dt;
+      }
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.life -= dt;
@@ -199,7 +234,7 @@ export class Effects {
     ctx.restore();
   }
 
-  /** Étincelles, poussière, bulles et fumée (sous les voitures) ; les confettis sont dessinés à part (`drawConfetti`). */
+  /** Étincelles, poussière, bulles, fumée et éclats (sous les voitures) ; les confettis sont dessinés à part (`drawConfetti`). */
   draw(ctx: CanvasRenderingContext2D, toScreen: (p: { x: number; y: number }) => { x: number; y: number }, ppm: number): void {
     ctx.save();
     for (const p of this.particles) {
@@ -207,6 +242,19 @@ export class Effects {
       const k = p.life / p.maxLife; // 1 → 0
       const s = toScreen(p);
       let r = p.size * ppm;
+      if (p.kind === 'shard') {
+        // Triangle irrégulier qui tourne (angle écran = −angle monde).
+        const a = -(p.angle ?? 0);
+        ctx.globalAlpha = Math.min(1, 2 * k);
+        ctx.fillStyle = p.color ?? '#7a736d';
+        ctx.beginPath();
+        ctx.moveTo(s.x + r * Math.cos(a), s.y + r * Math.sin(a));
+        ctx.lineTo(s.x + 0.8 * r * Math.cos(a + 2.3), s.y + 0.8 * r * Math.sin(a + 2.3));
+        ctx.lineTo(s.x + 0.6 * r * Math.cos(a + 4.1), s.y + 0.6 * r * Math.sin(a + 4.1));
+        ctx.closePath();
+        ctx.fill();
+        continue;
+      }
       switch (p.kind) {
         case 'spark':
           ctx.globalAlpha = k;

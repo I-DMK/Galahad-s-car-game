@@ -1,4 +1,5 @@
-// Dessin de la piste : sol lunaire, cratères décoratifs, plots, volcans (tremplins et fosses) et lave, départ, arrivée, mur.
+// Dessin de la piste : sol lunaire, cratères décoratifs, plots, volcans (tremplins et fosses) et lave, départ, arrivée, mur ;
+// rochers (tâche 11c, `drawRock`, appelé par le renderer).
 // Monde en mètres (y vers le haut) → écran via camera.worldToScreen (y vers le bas).
 // Seule la portion visible est parcourue : x ∈ [camera.x − demi-largeur − 5, camera.x + demi-largeur + 5].
 import { heightAt, overLava } from '../track/query';
@@ -335,4 +336,98 @@ export function drawStar(ctx: Ctx, x: number, y: number, t: number, ppm: number,
   }
   ctx.closePath();
   ctx.fill();
+}
+
+/** Gris du rocher (tâche 11c, spec « rochers » §5) : plus sombre que le sol (#8b8b8b), pour qu'il se détache. */
+export const ROCK_FILL = '#5e5853';
+/** Face d'ombre, côté droit (la lumière vient d'en haut à gauche). */
+const ROCK_SHADE = 'rgba(30, 26, 24, 0.35)';
+/** Arête claire, en haut à gauche. */
+const ROCK_EDGE = '#c4bdb5';
+/** Ombre portée au sol : ellipse sombre, pas noire opaque. */
+const ROCK_GROUND_SHADOW = 'rgba(0, 0, 0, 0.35)';
+
+/**
+ * Sommets (monde) du rocher `id` (déterministes par `id`) : deux coins au sol rentrés de 5 à 15 % de la largeur, puis
+ * 5 à 7 sommets sur une demi-ellipse irrégulière de droite à gauche (rayon 78 à 100 %), celui le plus proche du sommet
+ * posé exactement à `height` ; tous dans [xStart, xEnd] × [sol, sol + height]. 7 à 9 sommets en tout.
+ */
+function rockVertices(rock: { xStart: number; xEnd: number; height: number }, id: number, groundY: number): Pt[] {
+  const rng = mulberry32((Math.imul(id + 1, 0x9e3779b1) ^ 0x2545f491) >>> 0);
+  const w = rock.xEnd - rock.xStart;
+  const cx = (rock.xStart + rock.xEnd) / 2;
+  const upper = 5 + Math.floor(rng() * 3);
+  const out: Pt[] = [
+    { x: rock.xStart + w * (0.05 + 0.1 * rng()), y: groundY },
+    { x: rock.xEnd - w * (0.05 + 0.1 * rng()), y: groundY },
+  ];
+  let top = 0;
+  let topGap = Infinity;
+  for (let k = 0; k < upper; k++) {
+    const th = (Math.PI * (k + 0.5 + 0.3 * (rng() - 0.5))) / upper;
+    const f = 0.78 + 0.22 * rng();
+    out.push({ x: cx + Math.cos(th) * (w / 2) * f, y: groundY + Math.sin(th) * rock.height * f });
+    if (Math.abs(th - Math.PI / 2) < topGap) { topGap = Math.abs(th - Math.PI / 2); top = 2 + k; }
+  }
+  out[top].y = groundY + rock.height;
+  return out;
+}
+
+/**
+ * Rocher gris lunaire (tâche 11c, spec « rochers » §5) : ombre portée au sol (ellipse sombre), polygone irrégulier de
+ * 7 à 9 sommets (déterministe par `id`) inscrit dans [xStart, xEnd] × [sol, sol + height], face d'ombre à droite, arête
+ * claire en haut à gauche. `S` : monde → écran ; `groundY` : sol sous le rocher (plat par construction). État du canvas
+ * rendu tel quel.
+ */
+export function drawRock(
+  ctx: Ctx, rock: { xStart: number; xEnd: number; height: number }, id: number, groundY: number, ppm: number,
+  S: (x: number, y: number) => Pt,
+): void {
+  const pts = rockVertices(rock, id, groundY);
+  const cx = (rock.xStart + rock.xEnd) / 2;
+  const w = rock.xEnd - rock.xStart;
+  ctx.save();
+  const g = S(cx, groundY);
+  ctx.fillStyle = ROCK_GROUND_SHADOW;
+  ctx.beginPath();
+  ctx.ellipse(g.x, g.y, (w / 2) * 1.15 * ppm, 0.18 * ppm, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = ROCK_FILL;
+  ctx.beginPath();
+  pts.forEach((p, i) => {
+    const s = S(p.x, p.y);
+    if (i === 0) ctx.moveTo(s.x, s.y);
+    else ctx.lineTo(s.x, s.y);
+  });
+  ctx.closePath();
+  ctx.fill();
+  // Face d'ombre : du coin au sol droit aux sommets de la moitié droite, puis le centre au sol.
+  const right = pts.slice(2).filter((p) => p.x >= cx);
+  if (right.length > 0) {
+    ctx.fillStyle = ROCK_SHADE;
+    ctx.beginPath();
+    const c0 = S(cx, groundY);
+    ctx.moveTo(c0.x, c0.y);
+    for (const p of [pts[1], ...right]) {
+      const s = S(p.x, p.y);
+      ctx.lineTo(s.x, s.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Arête claire : sommets de la moitié gauche, du haut vers le bas.
+  const left = pts.slice(2).filter((p) => p.x <= cx + w * 0.1);
+  if (left.length >= 2) {
+    ctx.strokeStyle = ROCK_EDGE;
+    ctx.lineWidth = Math.max(1, 0.06 * ppm);
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    left.forEach((p, i) => {
+      const s = S(p.x, p.y);
+      if (i === 0) ctx.moveTo(s.x, s.y);
+      else ctx.lineTo(s.x, s.y);
+    });
+    ctx.stroke();
+  }
+  ctx.restore();
 }

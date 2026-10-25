@@ -370,7 +370,7 @@ test('confettis dessinés au-dessus de la scène : après les voitures (spec §8
   fx.rainConfetti(0.5, 100, 3, 2);
   fx.spawnSparks(100, 1);
   calls.length = 0;
-  renderer.draw({ track, cars: [car], stars: [], t: 0 }, camera, fx);
+  renderer.draw({ track, cars: [car], stars: [], rocks: [], t: 0 }, camera, fx);
   const name = calls.findIndex((c) => c.name === 'fillText' && c.args[0] === 'Robot');
   expect(name).toBeGreaterThan(-1);
   const after = calls.slice(name + 1);

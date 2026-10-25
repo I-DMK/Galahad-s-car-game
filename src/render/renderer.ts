@@ -1,4 +1,4 @@
-// Rendu canvas 2D d'une scène : ciel (parallaxe), piste (portion visible), ombres, effets, étoiles, voitures.
+// Rendu canvas 2D d'une scène : ciel (parallaxe), piste (portion visible), ombres, effets, rochers, étoiles, voitures.
 // Les images (tâche 8b) arrivent par `setArt` ; tant qu'elles manquent, tout se dessine par code.
 // Tout est dessiné en pixels « backing » (canvas.width × canvas.height) ; pxPerMeter vient de la hauteur backing.
 // Le renderer reçoit des coordonnées du monde (mètres, y vers le haut) et n'importe jamais matter-js.
@@ -11,7 +11,8 @@ import { NO_ART, type Art } from './assets';
 import { SHADOW_ALPHA, SHADOW_RX_M, SHADOW_RY_M, drawCar, drawShadow, shadowScale } from './car';
 import type { Effects } from './effects';
 import { TITLE_GROUND_FRAC, TITLE_NAME_SCALE, restingCarView, type TitleScene } from './title';
-import { drawStar, drawTrack } from './track';
+import { heightAt } from '../track/query';
+import { drawRock, drawStar, drawTrack } from './track';
 
 /** Voiture à dessiner, en coordonnées du monde. `angle` : angle du monde (positif = nez en haut). */
 export interface CarView {
@@ -35,6 +36,11 @@ export interface Scene {
   track: Track;
   cars: CarView[];
   stars: { x: number; y: number; active: boolean }[];
+  /**
+   * Rochers (tâche 11c, spec « rochers » §5) : `active` = pas encore touché par Galahad (un rocher touché par lui éclate et
+   * n'est plus dessiné ; un copain qui touche un rocher ne change rien ici) ; `id` : graine du dessin.
+   */
+  rocks: { id: number; xStart: number; xEnd: number; height: number; active: boolean }[];
   /** Temps (s) pour les animations. */
   t: number;
 }
@@ -92,7 +98,10 @@ export class Renderer {
     return camera.visibleHalfWidthM(this.view.w, this.view.h);
   }
 
-  /** `effects` : particules dessinées après la piste et les ombres, avant les étoiles et les voitures ; confettis en dernier. */
+  /**
+   * `effects` : particules dessinées après la piste et les ombres, avant les rochers actifs dans la vue, les étoiles et les
+   * voitures ; confettis en dernier.
+   */
   draw(scene: Scene, camera: Camera, effects?: Effects): void {
     const { ctx, view } = this;
     const art = this.loaded ?? NO_ART;
@@ -110,6 +119,12 @@ export class Renderer {
       drawShadow(ctx, car, scene.track, ppm, toScreen, this.cfg);
     }
     effects?.draw(ctx, toScreen, ppm);
+    // Rochers (tâche 11c) : ceux que Galahad n'a pas touchés, seulement dans la vue.
+    const S = (x: number, y: number) => toScreen({ x, y });
+    for (const r of scene.rocks) {
+      if (!r.active || r.xEnd < camera.x - half || r.xStart > camera.x + half) continue;
+      drawRock(ctx, r, r.id, heightAt(scene.track, r.xStart), ppm, S);
+    }
     for (const s of scene.stars) {
       if (!s.active || Math.abs(s.x - camera.x) > half) continue;
       const p = toScreen(s);

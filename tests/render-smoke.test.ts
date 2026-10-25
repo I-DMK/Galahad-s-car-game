@@ -3,7 +3,7 @@ import { CONFIG } from '../src/config';
 import { Camera } from '../src/render/camera';
 import { drawCar } from '../src/render/car';
 import type { CarView } from '../src/render/renderer';
-import { drawStar, drawTrack } from '../src/render/track';
+import { drawRock, drawStar, drawTrack, ROCK_FILL } from '../src/render/track';
 import { generateTrack } from '../src/track/generate';
 import { fosses, tremplins } from '../src/track/query';
 import { canvasFont } from '../src/ui/font';
@@ -177,5 +177,47 @@ describe('fosses (tâche 5g, saut §6.7)', () => {
     // Vue dont le bord droit (+ 5 m de marge) tombe 1 m avant le bord amont : le halo (2 m) y entre.
     const { calls } = draw(f.xBord - 1 - 5 - half + (f.xLava - cam.x));
     expect(calls.some((c) => c.name === 'createRadialGradient')).toBe(true);
+  });
+});
+
+describe('drawRock (tâche 11c, spec « rochers » §5)', () => {
+  const S = (x: number, y: number) => ({ x: x * 50, y: -y * 50 });
+  const rock = { xStart: 100, xEnd: 103, height: CONFIG.ROCK_HEIGHT };
+  const polygon = (calls: Call[]) => {
+    // Le polygone du rocher : le premier chemin rempli de la couleur du rocher (moveTo + lineTo jusqu'au fill).
+    const fill = calls.findIndex((c) => c.name === 'fill' && c.fillStyle === ROCK_FILL);
+    const begin = calls.slice(0, fill).map((c) => c.name).lastIndexOf('beginPath');
+    return calls.slice(begin, fill).filter((c) => c.name === 'moveTo' || c.name === 'lineTo').map((c) => ({ x: c.args[0] as number, y: c.args[1] as number }));
+  };
+
+  test('polygone de 7 à 9 sommets, dans la boîte [xStart, xEnd] × [sol, sol + height], qui touche le haut ; déterministe par id ; état du canvas restauré', () => {
+    for (let id = 0; id < 20; id++) {
+      const { ctx, calls, state } = fakeCtx();
+      drawRock(ctx, rock, id, 0, 50, S);
+      const pts = polygon(calls);
+      expect(pts.length, `id ${id}`).toBeGreaterThanOrEqual(7);
+      expect(pts.length, `id ${id}`).toBeLessThanOrEqual(9);
+      for (const p of pts) {
+        expect(p.x).toBeGreaterThanOrEqual(rock.xStart * 50 - 1e-9);
+        expect(p.x).toBeLessThanOrEqual(rock.xEnd * 50 + 1e-9);
+        expect(-p.y).toBeGreaterThanOrEqual(-1e-9);
+        expect(-p.y).toBeLessThanOrEqual(rock.height * 50 + 1e-9);
+      }
+      expect(Math.max(...pts.map((p) => -p.y))).toBeCloseTo(rock.height * 50, 6);
+      const { ctx: ctx2, calls: calls2 } = fakeCtx();
+      drawRock(ctx2, rock, id, 0, 50, S);
+      expect(polygon(calls2)).toEqual(pts);
+      expect(state().depth).toBe(0);
+      expect(state().underflows).toBe(0);
+      expect(state().globalAlpha).toBe(1);
+      // Ombre portée au sol (ellipse), pas noire opaque (les ombres des voitures sont '#000000').
+      expect(calls.some((c) => c.name === 'ellipse')).toBe(true);
+    }
+    const shapes = new Set(Array.from({ length: 6 }, (_, id) => {
+      const { ctx, calls } = fakeCtx();
+      drawRock(ctx, rock, id, 0, 50, S);
+      return JSON.stringify(polygon(calls));
+    }));
+    expect(shapes.size).toBeGreaterThan(1);
   });
 });

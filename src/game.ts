@@ -6,7 +6,9 @@
 // MENU ; tâche 11), pause (onglet caché, geste retour, portrait : scène figée, reprise par un décompte).
 // La course entière est recréée (`newRace`) pour AUTRE PISTE, ENCORE et MENU ; la simulation ne fait aucun pas hors de
 // `racing` et `finished` (le podium est une scène figée).
+import { rockJumpLead } from './cars/jump';
 import type { Pilot } from './cars/pilots';
+import { isRockActiveFor } from './cars/rocks';
 import { DisplayedRank, podiumView, progressFraction, type PodiumPlace, type PodiumView } from './cars/ranking';
 import { CONFIG, type Config } from './config';
 import { JumpInput } from './input/jump';
@@ -22,6 +24,7 @@ import { Effects } from './render/effects';
 import { Renderer } from './render/renderer';
 import { titleScene } from './render/title';
 import { presentFrame, stepOutcome } from './sim/present';
+import { carSpeedMps } from './physics/car';
 import {
   carView, createRaceSim, GALAHAD_INDEX, jumpReady, posesOf, rankEntriesOf, rebuildCars, stepRace, type RaceSim, type SimEvent,
 } from './sim/simulate';
@@ -68,6 +71,8 @@ export class Game {
   private readonly jumpInput: JumpInput;
   /** Sauts de Galahad depuis le départ (événements 'jump', `?debug=1` : `jumps`). */
   private jumpCount = 0;
+  /** Chocs contre un rocher depuis le départ, par voiture (événements 'rock', tâche 11c ; `?debug=1` : `rocksHit`, `rocksHitByCar`). */
+  private readonly rockHits = new Map<string, number>();
   /** Réapparitions de Galahad depuis le départ (`?debug=1` : `respawns`, e2e des fosses, tâche 5g). */
   private readonly respawnLog: { reason: string; t: number; x: number; targetX: number }[] = [];
   /** Phase courante (machine pure de `loop/states.ts`). */
@@ -169,6 +174,24 @@ export class Game {
   }
   /** Confettis en vol (debug, e2e, tâche 11). */
   get confetti(): number { return this.effects.confettiCount; }
+
+  /** Chocs de Galahad contre un rocher depuis le départ (debug, e2e, tâche 11c). */
+  get rocksHit(): number { return this.rockHits.get(this.sim.cars[GALAHAD_INDEX].state.id) ?? 0; }
+  /** Chocs contre un rocher par voiture (id → nombre ; debug, e2e, tâche 11c) ; copie. */
+  get rocksHitByCar(): Record<string, number> { return Object.fromEntries(this.rockHits); }
+  /** Rochers de la piste (debug, e2e, tâche 11c) ; copies. */
+  get rocks(): { xStart: number; xEnd: number }[] { return this.sim.track.rocks.map((r) => ({ xStart: r.xStart, xEnd: r.xEnd })); }
+  /** Rochers encore dessinés pour Galahad, ceux qu'il n'a pas touchés (debug, e2e, tâche 11c). */
+  get sceneRocksActive(): number {
+    return this.sim.rocks.filter((s) => isRockActiveFor(s, GALAHAD_INDEX)).length;
+  }
+  /** Centre de la fenêtre de saut d'un rocher à la vitesse v, en s avant son xStart (debug, e2e, tâche 11c). */
+  rockJumpLead(v: number): number { return rockJumpLead(v, this.cfg); }
+  /** Vitesse du châssis (m/s) de la voiture `id`, NaN si inconnue (debug, e2e, tâche 11c). */
+  speed(id: string): number {
+    const car = this.sim.cars.find((c) => c.state.id === id);
+    return car ? carSpeedMps(car.body) : NaN;
+  }
 
   /** Pilotes de la course, dans l'ordre de la grille (Galahad en premier). */
   get pilots(): Pilot[] { return this.sim.cars.map((c) => c.pilot); }
@@ -282,6 +305,7 @@ export class Game {
     this.finishTime = null;
     this.podiumData = null;
     this.jumpCount = 0;
+    this.rockHits.clear();
     this.respawnLog.length = 0;
     this.errors = 0;
     this.countdownLabel = null;
@@ -574,6 +598,7 @@ export class Game {
       events.push(...sim.events);
       const galahad = sim.cars[GALAHAD_INDEX].state;
       for (const e of sim.events) {
+        if (e.type === 'rock') this.rockHits.set(e.carId, (this.rockHits.get(e.carId) ?? 0) + 1);
         if (e.carId !== galahad.id) continue;
         if (e.type === 'jump') this.jumpCount++;
         else if (e.type === 'respawn') this.respawnLog.push({ reason: e.reason, t: e.t, x: e.x, targetX: e.target.x });
@@ -626,6 +651,15 @@ export class Game {
       else if (e.type === 'landing' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, heightAt(sim.track, e.x), e.strength);
       // Poussière du saut au sol si la voiture le touchait, sinon à la hauteur du châssis (`y` de l'événement).
       else if (e.type === 'jump' && shown(e.carId, e.x)) this.effects.spawnDust(e.x, e.y, JUMP_DUST_STRENGTH);
+      // Rocher touché par Galahad (tâche 11c) : éclats au centre du rocher (`e.x` est le châssis, ≈ 1,2 m avant lui). Un
+      // copain qui touche un rocher : rien à l'écran, le rocher reste dessiné pour Galahad (spec « rochers » §1 et §5).
+      else if (e.type === 'rock' && e.carId === galahad.state.id) {
+        const r = sim.track.rocks[e.id];
+        if (r) {
+          const cx = (r.xStart + r.xEnd) / 2;
+          this.effects.rockBurst(cx, heightAt(sim.track, cx) + this.cfg.ROCK_HEIGHT / 2);
+        }
+      }
     }
     this.effects.update(elapsed, sim.track, this.camera.x, half);
     this.renderer.draw(scene, this.camera, this.effects);

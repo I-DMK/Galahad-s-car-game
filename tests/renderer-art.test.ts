@@ -10,6 +10,7 @@ import { NO_ART, type Art } from '../src/render/assets';
 import { Camera } from '../src/render/camera';
 import type { Effects } from '../src/render/effects';
 import { Renderer } from '../src/render/renderer';
+import * as trackRender from '../src/render/track';
 import { createRaceSim, sceneOf } from '../src/sim/simulate';
 import { generateTrack } from '../src/track/generate';
 import { heightAt } from '../src/track/query';
@@ -291,5 +292,33 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
     expect(game.jumps).toBe(1);
     expect(game.airHeight).toBeGreaterThan(0.5);
     dispose();
+  });
+});
+
+describe('Renderer : rochers (tâche 11c, spec « rochers » §5)', () => {
+  test('une scène à 2 rochers dans la vue (un actif, un touché par Galahad) : drawRock appelé une fois, pour l’actif ; aucune exception ; état du canvas restauré', () => {
+    const { ctx, calls, state } = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ctx as unknown as RenderingContext);
+    const canvas = document.createElement('canvas');
+    Object.defineProperty(canvas, 'clientWidth', { value: 1280 });
+    Object.defineProperty(canvas, 'clientHeight', { value: 800 });
+    const renderer = new Renderer(canvas, CONFIG);
+    const track = { ...generateTrack(3, 700, CONFIG, { onlyPlat: true }), stars: [], rocks: [] };
+    const cam = new Camera(CONFIG);
+    cam.update(300, 3, 0, 1 / 60);
+    const spy = vi.spyOn(trackRender, 'drawRock');
+    const rocks = [
+      { id: 0, xStart: 296, xEnd: 299, height: CONFIG.ROCK_HEIGHT, active: true },
+      { id: 1, xStart: 302, xEnd: 305, height: CONFIG.ROCK_HEIGHT, active: false },
+      { id: 2, xStart: 600, xEnd: 603, height: CONFIG.ROCK_HEIGHT, active: true },
+    ];
+    calls.length = 0;
+    expect(() => renderer.draw({ track, cars: [], stars: [], rocks, t: 0 }, cam)).not.toThrow();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][1]).toMatchObject({ xStart: 296, xEnd: 299 });
+    expect(spy.mock.calls[0][2]).toBe(0);
+    expect(calls.filter((c) => c.name === 'fill' && c.fillStyle === trackRender.ROCK_FILL)).toHaveLength(1);
+    expect(state().depth).toBe(0);
+    expect(state().globalAlpha).toBe(1);
   });
 });

@@ -12,8 +12,9 @@ import { cameraTarget } from '../src/loop/frame';
 import { lerpCarPose, type CarPose } from '../src/loop/interpolation';
 import { placeCar } from '../src/physics/car';
 import { Camera } from '../src/render/camera';
+import { Effects, MAX_PARTICLES } from '../src/render/effects';
 import { Renderer, type Scene } from '../src/render/renderer';
-import { posesOf, type RaceSim } from '../src/sim/simulate';
+import { chassisX, posesOf, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { heightAt } from '../src/track/query';
 import { startRacing } from './helpers/racing';
 
@@ -207,6 +208,56 @@ test('Game : un pas qui lève jette la demande de saut ; après rebuildCars (té
   expect(game.state).toBe('racing');
   expect(game.jumps).toBe(0);
   expect(sim.cars[0].state.lastJumpAt).toBeNull();
+  internals.stop();
+  internals.throttle.dispose();
+  internals.jumpInput.dispose();
+});
+
+test('Game (tâche 11c) : choc de Galahad contre le rocher de la graine 1 (62,5 m) → éclats au centre du rocher (rockBurst, + 24 particules) et rocksHit 1 ; un « rock » d’un copain, même à l’écran, → rien (spec §5)', () => {
+  const canvas = document.createElement('canvas');
+  const hud = document.createElement('div');
+  document.body.append(canvas, hud);
+  const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
+  const internals = game as unknown as {
+    sim: RaceSim; effects: Effects; step: (i: number, pressed: boolean, events: SimEvent[]) => unknown;
+    stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void };
+  };
+  const { sim } = internals;
+  const rock = sim.track.rocks[0];
+  expect(rock.xStart).toBeCloseTo(62.5, 1);
+  const burst = vi.spyOn(Effects.prototype, 'rockBurst');
+  pressFinger();
+  let now = startRacing(game, () => raf!);
+  let hitFrame = -1;
+  let countBefore = 0;
+  for (let f = 0; f < 900 && hitFrame < 0; f++) {
+    countBefore = internals.effects.count;
+    now += DT * 1000;
+    raf!(now);
+    if (burst.mock.calls.length > 0) hitFrame = f;
+  }
+  expect(hitFrame).toBeGreaterThan(0);
+  expect(game.rocksHit).toBe(1);
+  expect(burst).toHaveBeenCalledTimes(1);
+  const cx = (rock.xStart + rock.xEnd) / 2;
+  expect(burst.mock.calls[0][0]).toBeCloseTo(cx, 9);
+  expect(burst.mock.calls[0][1]).toBeCloseTo(heightAt(sim.track, cx) + CONFIG.ROCK_HEIGHT / 2, 9);
+  expect(internals.effects.count).toBeGreaterThanOrEqual(Math.min(MAX_PARTICLES, 24));
+  expect(internals.effects.count - countBefore).toBeGreaterThanOrEqual(24 - countBefore);
+  // Événement « rock » d'un copain, à l'écran (au x de Galahad), injecté au pas suivant : ni éclats, ni compte de Galahad.
+  const step = internals.step.bind(game);
+  const copain = sim.cars[1].state.id;
+  let injected = false;
+  internals.step = (i, pressed, events) => {
+    const out = step(i, pressed, events);
+    if (!injected) { events.push({ type: 'rock', carId: copain, t: sim.time, x: chassisX(sim.cars[0]), id: 1 }); injected = true; }
+    return out;
+  };
+  now += DT * 1000;
+  raf!(now);
+  expect(injected).toBe(true);
+  expect(burst).toHaveBeenCalledTimes(1);
+  expect(game.rocksHit).toBe(1);
   internals.stop();
   internals.throttle.dispose();
   internals.jumpInput.dispose();
