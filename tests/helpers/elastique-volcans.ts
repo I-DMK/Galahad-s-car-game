@@ -90,15 +90,20 @@ function carAt(world: World, pilot: Pilot, index: number, x: number, cfg: Config
 
 /**
  * Course à deux voitures : Galahad garé en xG (index 0, sans élastique), le copain en xC (index 1, sous élastique). La
- * piste de la course ne garde que les étoiles `stars` (capteurs, états et contexte du driver alignés sur elles).
+ * piste de la course ne garde que les étoiles `stars` (capteurs, états et contexte du driver alignés sur elles), sans
+ * rocher (tâche 11c).
  */
 export function duoSim(world: World, xG: number, xC: number, stars: Star[], driver: Driver, cfg: Config = FORCED): RaceSim {
   const g = carAt(world, GALAHAD, 0, xG, cfg);
   const c = carAt(world, COPAIN, 1, xC, cfg);
   c.driver = driver;
   const starBodies = createStarBodies(world, stars, cfg);
-  const track: Track = { ...world.track, stars };
-  return { track, world, cars: [g, c], time: 0, events: [], stars: newStarStates(stars, 2), starBodies, cfg, pilotSeed: 0 };
+  // Sans rocher (tâche 11c) : la course ne garde que les étoiles données ; piste, états et capteurs alignés.
+  const track: Track = { ...world.track, stars, rocks: [] };
+  return {
+    track, world, cars: [g, c], time: 0, events: [], stars: newStarStates(stars, 2), starBodies, rocks: [], rockBodies: [], cfg,
+    pilotSeed: 0,
+  };
 }
 
 export function disposeDuo(sim: RaceSim): void {

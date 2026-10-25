@@ -12,6 +12,8 @@
 // tremplin juste après une double-bosse » ; graine 0 seule ; `FROZEN` resté identique dans le même commit, registre).
 // Tâche 5g, tour 2 : `FROZEN_CONFIG` RECAPTURÉ une 4e fois par le ruling R-F10 (décision du papa : poids de tirage des
 // volcans 3 → 4, `VOLCANO_WEIGHT` ; graines 0 à 2 ; `FROZEN` resté identique dans le même commit, registre).
+// Tâche 11c (rochers, Step 12) : `FROZEN_CONFIG` graine 1 RECAPTURÉ par le ruling R-F10 (rocher en 62,5 m, touché doigt
+// posé ; graines 0 et 2 inchangées ; `FROZEN` resté identique dans le même commit, registre).
 // Toute autre variation reste un défaut.
 import { CONFIG, type Config } from '../src/config';
 import { createRaceSim, stepRace } from '../src/sim/simulate';
@@ -42,11 +44,14 @@ const FROZEN: Record<number, string> = {
  *   une seule en 268,7 m ; graines 1 et 2 : mêmes étoiles sur les 30 s, empreinte inchangée ;
  * - tâche 5g, tour 2 (poids de tirage des volcans 4) : les valeurs ci-dessous. Le terrain des 30 s change sur les trois
  *   graines (le poids change chaque tirage) : graine 0, plus de tremplin en 254 m (premier volcan en 410 m) et un plat
- *   étoile en 316 m ; graine 1, un tremplin en 365 m au lieu d'une double-bosse ; graine 2, tranches décalées dès 27 m.
+ *   étoile en 316 m ; graine 1, un tremplin en 365 m au lieu d'une double-bosse ; graine 2, tranches décalées dès 27 m ;
+ * - tâche 11c (rochers) : graine 1 seule, 1dc8add2… → 5d3c41e1… : rocher en 62,5 m touché doigt posé au pas 363 (t =
+ *   6,05 s, châssis en 61,51 m) ; empreintes par pas identiques à celles de `ROCKS_PER_RACE` 0 jusqu'au pas 362 (sonde du
+ *   Step 12). Graines 0 et 2 : premiers rochers en 789,3 et 588,4 m, hors des 30 s, empreintes inchangées.
  */
 const FROZEN_CONFIG: Record<number, string> = {
   0: '118d4b62f5c8c23496a1793533852c62666e6e7a',
-  1: '1dc8add2779c62d90cf558d1c1a1bf6a6448ace3',
+  1: '5d3c41e1ddd258102633e269dc95eb3dde6ded64',
   2: 'df75395192ed7b1f943925a1e78bdaa7b8db79b1',
 };
 

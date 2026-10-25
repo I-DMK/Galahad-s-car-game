@@ -13,15 +13,17 @@ import {
   applyRespawnToState, chooseRespawnTarget, shiftTarget, updateRespawnTimers, type RespawnReason,
 } from '../cars/respawn';
 import type { RankEntry } from '../cars/ranking';
+import { hitRockFor, isRockActiveFor, newRockStates, type RockState } from '../cars/rocks';
 import { isSafePointCandidate } from '../cars/safepoint';
 import { isStarActiveFor, newStarStates, takeStarFor, type StarState } from '../cars/stars';
 import { newCarState, type CarState, type SafePoint } from '../cars/state';
 import { activateTurbo, turboFactor } from '../cars/turbo';
 import type { CarPose } from '../loop/interpolation';
 import {
-  applyAirLevel, applyBrake, applyDrive, applyJump, carAngle, carSpeedMps, clampVelocities, createCar, newGroundContact,
+  applyAirLevel, applyBrake, applyDrive, applyJump, applyRockHit, carAngle, carSpeedMps, clampVelocities, createCar, newGroundContact,
   onTrack, placeCar, setCarInvulnerable, updateGroundContact, type CarBody, type GroundContact,
 } from '../physics/car';
+import { createRockBodies, syncRockBodies } from '../physics/rocks';
 import { createStarBodies, syncStarBodies } from '../physics/stars';
 import { physToWorld, toM } from '../physics/units';
 import { MAX_CARS, createWorld, sensorsTouching, stepWorld, type World } from '../physics/world';
@@ -40,7 +42,12 @@ export type SimEvent =
    * Saut (tâche 5e) : `x` = position du châssis (m) au moment du saut ; `y` = hauteur de la poussière : le sol en x si
    * la voiture touchait la piste, sinon la hauteur du châssis (saut dans la tolérance, en l'air).
    */
-  | { type: 'jump'; carId: string; t: number; x: number; y: number };
+  | { type: 'jump'; carId: string; t: number; x: number; y: number }
+  /**
+   * Choc contre un rocher (tâche 11c, spec « rochers » §2.1) : `x` = position du châssis (m) au choc (≈ 1,2 m avant le
+   * rocher) ; `id` = id du rocher (`track.rocks[id]`).
+   */
+  | { type: 'rock'; carId: string; t: number; x: number; id: number };
 
 export type RespawnEvent = Extract<SimEvent, { type: 'respawn' }>;
 export type StarEvent = Extract<SimEvent, { type: 'star' }>;
@@ -139,6 +146,13 @@ export interface RaceSim {
   stars: StarState[];
   /** Capteurs des étoiles, même ordre que `stars` ; masque = voitures pour qui l'étoile est active (`syncStarBodies`). */
   starBodies: Matter.Body[];
+  /**
+   * État des rochers (tâche 11c), dans l'ordre de `track.rocks`, tenu par voiture (une case de `hitAt` par index de
+   * `cars`) : un rocher touché ne l'est que pour la voiture qui l'a touché, une seule fois.
+   */
+  rocks: RockState[];
+  /** Capteurs des rochers, même ordre que `rocks` ; masque = voitures pour qui le rocher est actif (`syncRockBodies`). */
+  rockBodies: Matter.Body[];
   cfg: Config;
   /** Graine du tirage des copains (`drawPilots`), mémorisée pour rejouer la même course. */
   pilotSeed: number;
@@ -183,7 +197,9 @@ export function createRaceSim(
   const cars = pilots.map((pilot, rank) => createCarSim(world, track, pilot, rank, pilotSeed, cfg));
   const stars = newStarStates(track.stars, cars.length);
   const starBodies = createStarBodies(world, track.stars, cfg);
-  return { track, world, cars, time: 0, events: [], stars, starBodies, cfg, pilotSeed };
+  const rocks = newRockStates(track.rocks, cars.length);
+  const rockBodies = createRockBodies(world, track.rocks, cfg);
+  return { track, world, cars, time: 0, events: [], stars, starBodies, rocks, rockBodies, cfg, pilotSeed };
 }
 
 /**
@@ -240,7 +256,10 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
     const finished = state.finishedAt !== null;
     clampVelocities(car.body, cfg);
     state.progress = physToWorld(car.body.chassis.position).x;
-    collectStars(sim, car, i);
+    // Une seule lecture des capteurs touchés, partagée par les étoiles et les rochers (tâche 11c).
+    const touched = sensorsTouching(world.engine, car.body.parts);
+    collectStars(sim, car, i, touched);
+    collectRocks(sim, car, i, touched);
     if (!finished && state.progress >= track.xFinish) {
       state.finishedAt = t;
       sim.events.push({ type: 'finish', carId: state.id, t });
@@ -249,6 +268,7 @@ export function stepRace(sim: RaceSim, galahadThrottle: boolean, galahadJump = f
     if (state.finishedAt === null) observeAndRespawn(sim, car, onGround[i]);
   });
   syncStarBodies(sim.starBodies, sim.stars, t, cfg);
+  syncRockBodies(sim.rockBodies, sim.rocks);
   sim.time += cfg.PHYSICS_DT;
 }
 
@@ -333,9 +353,9 @@ function detectLanding(sim: RaceSim, car: CarSim, grounded: boolean): void {
  * Prend, pour la voiture d'index `index` seule, les étoiles touchées ce pas-ci qui sont actives pour elle :
  * la décision se fait voiture par voiture, une prise ne change rien pour les autres (même au même pas).
  */
-function collectStars(sim: RaceSim, car: CarSim, index: number): void {
+function collectStars(sim: RaceSim, car: CarSim, index: number, touched: readonly Matter.Body[]): void {
   const { cfg, time: t } = sim;
-  for (const sensor of sensorsTouching(sim.world.engine, car.body.parts)) {
+  for (const sensor of touched) {
     if (sensor.label !== 'star') continue;
     const i = sim.starBodies.indexOf(sensor);
     const star = sim.stars[i];
@@ -343,6 +363,27 @@ function collectStars(sim: RaceSim, car: CarSim, index: number): void {
     takeStarFor(star, index, t);
     activateTurbo(car.state, t, cfg);
     sim.events.push({ type: 'star', carId: car.state.id, t, id: star.id });
+  }
+}
+
+/**
+ * Rochers touchés ce pas-ci par la voiture d'index `index` et encore actifs pour elle (tâche 11c, spec « rochers » §2.1) :
+ * choc noté pour elle seule (`hitRockFor`), chaque pièce ramenée à ROCK_HIT_SPEED (`applyRockHit`), voiture traversable
+ * ROCK_HIT_TRAVERSABLE (mécanisme de l'invulnérabilité, levée par `releaseInvulnerability`), événement 'rock'. Le délai
+ * de saut, la demande en mémoire et le turbo ne changent pas. Sans rocher touché, rien ne touche la voiture.
+ */
+function collectRocks(sim: RaceSim, car: CarSim, index: number, touched: readonly Matter.Body[]): void {
+  const { cfg, time: t } = sim;
+  for (const sensor of touched) {
+    if (sensor.label !== 'rock') continue;
+    const rock = sim.rocks[sim.rockBodies.indexOf(sensor)];
+    if (!rock || !isRockActiveFor(rock, index)) continue;
+    hitRockFor(rock, index, t);
+    applyRockHit(car.body, cfg);
+    car.invulnerable = true;
+    car.state.invulnerableUntil = t + cfg.ROCK_HIT_TRAVERSABLE;
+    syncMask(car);
+    sim.events.push({ type: 'rock', carId: car.state.id, t, x: chassisX(car), id: rock.id });
   }
 }
 

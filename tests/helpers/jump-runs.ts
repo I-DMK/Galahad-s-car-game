@@ -5,12 +5,14 @@
 // de ses deux bords (`windowFor`), à partir de la fenêtre géométrique prédite sur le plat (`predictedWindow`).
 import Matter from 'matter-js';
 import { GALAHAD } from '../../src/cars/pilots';
+import { newRockStates } from '../../src/cars/rocks';
 import { newStarStates } from '../../src/cars/stars';
 import { newCarState } from '../../src/cars/state';
 import { activateTurbo } from '../../src/cars/turbo';
 import { CONFIG, type Config } from '../../src/config';
 import type { CarPose } from '../../src/loop/interpolation';
 import { carAngle, createCar, newGroundContact, placeCar } from '../../src/physics/car';
+import { createRockBodies } from '../../src/physics/rocks';
 import { createStarBodies } from '../../src/physics/stars';
 import { mpsToPxPerStep, toPx } from '../../src/physics/units';
 import { createWorld, type World } from '../../src/physics/world';
@@ -29,7 +31,10 @@ export const RUN_UP = 45;
 
 const hex = (n: number): string => `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
 
-/** Galahad seul posé à l'arrêt en x0 dans `world`, avec les capteurs des étoiles `stars` (ôtés par `disposeSolo`). */
+/**
+ * Galahad seul posé à l'arrêt en x0 dans `world`, avec les capteurs des étoiles `stars` et ceux des rochers de la piste du
+ * monde (tâche 11c ; ôtés par `disposeSolo`).
+ */
 export function soloSim(world: World, x0: number, stars: Star[], cfg: Config): RaceSim {
   const track = world.track;
   const body = createCar(world, GALAHAD.id, 0, x0, cfg);
@@ -42,12 +47,18 @@ export function soloSim(world: World, x0: number, stars: Star[], cfg: Config): R
     rubber: null, speedFactor: 1, torqueFactor: 1, onScreen: false,
   };
   const starBodies = createStarBodies(world, stars, cfg);
-  return { track, world, cars: [car], time: 0, events: [], stars: newStarStates(stars, 1), starBodies, cfg, pilotSeed: 0 };
+  // Rochers de la piste du monde (tâche 11c) : capteurs ôtés par `disposeSolo`.
+  const rockBodies = createRockBodies(world, track.rocks, cfg);
+  return {
+    track, world, cars: [car], time: 0, events: [], stars: newStarStates(stars, 1), starBodies,
+    rocks: newRockStates(track.rocks, 1), rockBodies, cfg, pilotSeed: 0,
+  };
 }
 
 export function disposeSolo(sim: RaceSim): void {
   Composite.remove(sim.world.engine.world, sim.cars[0].body.composite);
   for (const b of sim.starBodies) Composite.remove(sim.world.engine.world, b);
+  for (const b of sim.rockBodies) Composite.remove(sim.world.engine.world, b);
 }
 
 /**

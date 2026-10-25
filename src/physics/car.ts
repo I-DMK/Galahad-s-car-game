@@ -171,6 +171,23 @@ export function applyJump(car: CarBody, cfg: Config): void {
   for (const p of car.parts) Body.setVelocity(p, { x: p.velocity.x, y: vyPx });
 }
 
+/**
+ * Choc contre un rocher (plan C, tâche 11c ; spec « rochers » §2.1) : la norme de la vitesse de chaque pièce (châssis et
+ * roues) est ramenée à ROCK_HIT_SPEED, direction gardée (une pièce plus lente ne change pas) ; la vitesse angulaire des
+ * roues est ramenée au roulement à ROCK_HIT_SPEED, en rad par pas comme Matter (même écriture que `applyDrive`), pour
+ * qu'elles ne patinent pas (jamais augmentée). À appeler hors de tout callback de collision.
+ */
+export function applyRockHit(car: CarBody, cfg: Config): void {
+  const target = mpsToPxPerStep(cfg.ROCK_HIT_SPEED);
+  for (const p of car.parts) {
+    const { x, y } = p.velocity;
+    const norm = Math.hypot(x, y);
+    if (norm > target) Body.setVelocity(p, { x: (x * target) / norm, y: (y * target) / norm });
+  }
+  const omega = target / toPx(cfg.WHEEL_RADIUS);
+  for (const wheel of car.wheels) if (wheel.angularVelocity > omega) Body.setAngularVelocity(wheel, omega);
+}
+
 /** Freinage (après l'arrivée) : rotation des roues × factor. */
 export function applyBrake(car: CarBody, factor: number): void {
   for (const wheel of car.wheels) Body.setAngularVelocity(wheel, wheel.angularVelocity * factor);
