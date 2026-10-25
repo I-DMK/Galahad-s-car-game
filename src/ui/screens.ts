@@ -14,6 +14,8 @@ import { FONT_FAMILY } from './font';
 import { formatTime } from './hud';
 
 const STYLE_ID = 'screens-style';
+/** ms : fenêtre où le click d'un tap qui a déjà agi au pointerup (MENU) est avalé. */
+const CLICK_SWALLOW_MS = 600;
 
 /**
  * Les boutons font au moins 96 px CSS de côté (spec §8), déclarés en px (`min-width`, `min-height`) pour que la feuille
@@ -152,7 +154,9 @@ export interface PodiumActions {
    * effet : après le premier, la phase est `countdown`, qui n'a pas de ligne `again`.
    */
   onAgain(): void;
-  /** MENU : au `click` seul (data-no-pedal) : A20. */
+  /**
+   * MENU (data-no-pedal) : au `pointerup` du doigt posé sur MENU et au `click`, jamais au `pointerdown` (A20, revu au tour 1).
+   */
   onMenu(): void;
 }
 
@@ -264,9 +268,22 @@ export class Screens {
     // ENCORE au pointerdown (doigt de gaz encore posé : le click peut ne pas partir) et au click (clavier) ; doublon ignoré par `Game`.
     again.addEventListener('pointerdown', () => actions.onAgain());
     again.addEventListener('click', () => actions.onAgain());
-    // MENU au click seul (A20) : au titre, AUTRE PISTE est presque à la même place ; un click fantôme y changerait de piste.
+    // MENU jamais au pointerdown (A20) : au titre, AUTRE PISTE est presque à la même place ; le titre montré sous le doigt
+    // posé, le click du même tap y changerait de piste. MENU agit au pointerup du doigt posé sur MENU lui-même (le click ne
+    // part pas toujours quand un doigt de gaz reste posé, cr 2 du tour 1) et au click (clavier). Le click qui suit le
+    // pointerup est calculé par Chromium à l'endroit du tap, sur le titre déjà montré : il tomberait sur AUTRE PISTE
+    // (mesuré en e2e à 844 × 390). Il est donc avalé (`swallowNextClick`). `Game` ignore un doublon (`title` n'a pas de
+    // ligne `menu`).
     const menu = this.button('btn-menu', 'MENU', HOME_SVG);
     menu.setAttribute('data-no-pedal', '');
+    let menuPointer: number | null = null;
+    menu.addEventListener('pointerdown', (e) => { menuPointer = e.pointerId; });
+    menu.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== menuPointer) return;
+      menuPointer = null;
+      this.swallowNextClick();
+      actions.onMenu();
+    });
     menu.addEventListener('click', () => actions.onMenu());
     podiumButtons.append(again, menu);
     this.podium.append(this.podiumTime, row, podiumButtons);
@@ -343,6 +360,21 @@ export class Screens {
   /** Montre `shown` seul ; `null` cache tout. Les calques restent dans le DOM (jamais retirés). */
   private show(shown: HTMLDivElement | null): void {
     for (const s of this.layers) s.hidden = s !== shown;
+  }
+
+  /**
+   * Avale (phase de capture, sur `window`) le prochain click s'il arrive dans les CLICK_SWALLOW_MS : celui du tap qui vient
+   * d'agir au pointerup, quelle que soit sa cible. Un click plus tardif passe (l'écouteur, à usage unique, se retire).
+   */
+  private swallowNextClick(): void {
+    const win = this.root.ownerDocument.defaultView;
+    if (!win) return;
+    const until = win.performance.now() + CLICK_SWALLOW_MS;
+    win.addEventListener('click', (e) => {
+      if (win.performance.now() > until) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }, { capture: true, once: true });
   }
 
   private div(className: string, text?: string): HTMLDivElement {

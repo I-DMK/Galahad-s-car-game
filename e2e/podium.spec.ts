@@ -128,4 +128,38 @@ test('Galahad 4e : sa place à côté du podium, pas de confettis ; tient en 844
   await waitForState(page, 'title', 2_000);
   await expect(page.locator('.screen-title')).toBeVisible();
   await expect(page.locator('.screen-podium')).toBeHidden();
+  await page.waitForTimeout(500);
+  expect((await gameState(page)).seed, 'MENU au doigt seul : pas d’AUTRE PISTE fantôme').toBe(1);
+});
+
+test('doigt de gaz encore posé + tap sur MENU de l’autre doigt : titre, même graine et mêmes copains (aucun AUTRE PISTE fantôme) (cr 2, tour 1)', async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto('./?seed=1&len=300&debug=1');
+  await waitForGame(page);
+  await startRace(page);
+  const ids = await pilotIds(page);
+  const { width, height } = page.viewportSize()!;
+  const a = { x: width / 2, y: height / 2, id: 0 };
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] });
+    await page.waitForFunction(() => (window as any).__game.state === 'podium', null, { timeout: 120_000 });
+    const m = await boxOf(page, '.btn-menu');
+    const b = { x: m.x + m.width / 2, y: m.y + m.height / 2, id: 1 };
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a, b] });
+    await page.waitForTimeout(80);
+    expect((await gameState(page)).state, 'MENU n’agit pas au pointerdown (A20)').toBe('podium');
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [b] });   // B levé, A encore posé
+    await waitForState(page, 'title', 2_000);
+    await page.waitForTimeout(500);   // un click fantôme du tap aurait eu le temps de partir
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } finally {
+    await cdp.detach();
+  }
+  await page.waitForTimeout(300);
+  const s = await gameState(page);
+  expect(s.state).toBe('title');
+  expect(s.seed, 'graine inchangée : pas d’AUTRE PISTE').toBe(1);
+  expect(await pilotIds(page)).toEqual(ids);
+  expect(new URL(page.url()).searchParams.get('seed')).toBe('1');
 });

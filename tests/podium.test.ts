@@ -180,7 +180,7 @@ test('Galahad 4e puis 5e : case à droite avec sa place, sa voiture (peinte en 4
   expect(q('.podium-me-place').textContent).toBe('5e');
 });
 
-test('ENCORE et MENU : data-no-pedal, mots et icônes ; onAgain au pointerdown ET au click (un doigt de gaz peut rester posé) ; onMenu au click seul (A20) ; ≥ 96 px déclarés', () => {
+test('ENCORE et MENU : data-no-pedal, mots et icônes ; onAgain au pointerdown ET au click (un doigt de gaz peut rester posé) ; onMenu au click, jamais au pointerdown (A20) ; ≥ 96 px déclarés', () => {
   const { screens, actions, q } = makeScreens();
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   const again = q('.btn-again');
@@ -203,6 +203,48 @@ test('ENCORE et MENU : data-no-pedal, mots et icônes ; onAgain au pointerdown E
   expect(actions.onMenu).not.toHaveBeenCalled();
   click(menu);
   expect(actions.onMenu).toHaveBeenCalledTimes(1);
+});
+
+test('MENU au doigt : au pointerup du doigt posé sur MENU lui-même (le click ne part pas toujours avec un doigt de gaz tenu), jamais au pointerdown ; un pointerup d’un autre doigt ou sans appui sur MENU ne fait rien (cr 2, tour 1)', () => {
+  const { screens, actions, q } = makeScreens();
+  screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
+  const menu = q('.btn-menu');
+  const pointerUp = (el: Element, id: number) => { const e = new Event('pointerup', { bubbles: true }); Object.defineProperty(e, 'pointerId', { value: id }); el.dispatchEvent(e); };
+  pointerUp(menu, 3);   // aucun appui sur MENU avant : rien
+  expect(actions.onMenu).not.toHaveBeenCalled();
+  pointerDown(menu);   // pointerId 3
+  expect(actions.onMenu).not.toHaveBeenCalled();
+  pointerUp(menu, 9);   // un autre doigt
+  expect(actions.onMenu).not.toHaveBeenCalled();
+  pointerUp(menu, 3);
+  expect(actions.onMenu).toHaveBeenCalledTimes(1);
+  pointerUp(menu, 3);   // déjà consommé
+  expect(actions.onMenu).toHaveBeenCalledTimes(1);
+});
+
+test('MENU au pointerup : le click du même tap est avalé, quelle que soit sa cible (AUTRE PISTE sous le doigt) ; un click plus tardif passe (cr 2, tour 1)', () => {
+  // Un écouteur à usage unique laissé sur `window` par le test précédent (son tap n'a pas eu de click) : un click le retire.
+  document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+  const { screens, actions, q } = makeScreens();
+  screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
+  const menu = q('.btn-menu');
+  pointerDown(menu);
+  const up = new Event('pointerup', { bubbles: true }); Object.defineProperty(up, 'pointerId', { value: 3 }); menu.dispatchEvent(up);
+  expect(actions.onMenu).toHaveBeenCalledTimes(1);
+  screens.showTitle();
+  click(q('.btn-other'));   // le click fantôme du tap, sur AUTRE PISTE
+  expect(actions.onOtherTrack).not.toHaveBeenCalled();
+  click(q('.btn-other'));   // un vrai tap ensuite : l'écouteur à usage unique est parti
+  expect(actions.onOtherTrack).toHaveBeenCalledTimes(1);
+  // Tap sur MENU sans click qui suive (doigt de gaz tenu) : un click venu plus de 600 ms après passe.
+  screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
+  pointerDown(menu);
+  menu.dispatchEvent(up);
+  screens.showTitle();
+  now.mockReturnValue(1700);
+  click(q('.btn-other'));
+  expect(actions.onOtherTrack).toHaveBeenCalledTimes(2);
 });
 
 test('showPodium deux fois : contenu réécrit, jamais doublé ; un autre écran cache le podium (jamais retiré du DOM)', () => {
