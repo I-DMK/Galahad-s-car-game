@@ -4,7 +4,7 @@
 // le tirage normal. Par course, l'observateur relève, pour chaque voiture, les rochers rencontrés (châssis passé au-delà
 // de xEnd, ou choc) et les chocs ('rock'), et toute réapparition d'une voiture dans les ROCK_RESPAWN_WINDOW s qui suivent
 // son choc (0 attendue : un rocher ne cause jamais de réapparition, spec §0).
-// Assertions : fonceurs 15 à 45 % de chocs par rocher rencontré, prudents ≤ 2 %, tirage normal entre les deux ;
+// Assertions : fonceurs 15 à 45 % de chocs par rocher rencontré, prudents ≤ 3 % (ruling R-11c-9), tirage normal entre les deux ;
 // 0 réapparition après un choc ; invariants de course (`expectRaceInvariants`).
 import { PILOTS, type Pilot } from '../../src/cars/pilots';
 import { carSpeedMps } from '../../src/physics/car';
@@ -123,14 +123,16 @@ export function registerRobotsRochers(seeds: number[]): void {
       fs().writeFileSync(`tests/slow/out/${name}.json`, JSON.stringify(all.map(({ race, ...m }) => ({ ...m, summary: race.summary }))));
     });
 
-    test('taux de chocs par bras : fonceurs 15 à 45 % par rocher rencontré, prudents ≤ 2 %, tirage normal entre les deux', () => {
+    test('taux de chocs par bras : fonceurs 15 à 45 % par rocher rencontré, prudents ≤ 3 %, tirage normal entre les deux', () => {
       const rates = (['fonceurs', 'prudents', 'normal'] as const).map((k) => hitRate(all.filter((m) => m.arm === k).flatMap((m) => m.encounters)));
       const what = (['fonceurs', 'prudents', 'normal'] as const).map((k, i) => `${k} ${(100 * rates[i]).toFixed(1)} %`).join(', ');
       console.log(`chocs par rocher rencontré : ${what}`);
       const [fonceurs, prudents, normal] = rates;
       expect(fonceurs, what).toBeGreaterThanOrEqual(0.15);
       expect(fonceurs, what).toBeLessThanOrEqual(0.45);
-      expect(prudents, what).toBeLessThanOrEqual(0.02);
+      // Résidu = voiture en l'air après des bosses (terrain), pas l'erreur de visée ; ruling R-11c-9 (2 % → 3 % ; mesuré
+      // 2,30 % sur 48 graines, 15/652, option P2 du ruling R-11c-8).
+      expect(prudents, what).toBeLessThanOrEqual(0.03);
       expect(normal, what).toBeGreaterThanOrEqual(prudents);
       expect(normal, what).toBeLessThanOrEqual(fonceurs);
     });
