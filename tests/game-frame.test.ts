@@ -213,7 +213,7 @@ test('Game : un pas qui lève jette la demande de saut ; après rebuildCars (té
   internals.jumpInput.dispose();
 });
 
-test('Game (tâche 11c) : choc de Galahad contre le rocher de la graine 1 (62,5 m) → éclats au centre du rocher (rockBurst, + 24 particules) et rocksHit 1 ; un « rock » d’un copain, même à l’écran, → rien (spec §5)', () => {
+test('Game (tâche 11c) : choc de Galahad contre le premier rocher de la graine 1 (76,1 m depuis le ruling R-11c-8) → éclats au centre du rocher (rockBurst, + 24 particules) et rocksHit 1 ; un « rock » d’un copain, même à l’écran, → rien (spec §5)', () => {
   const canvas = document.createElement('canvas');
   const hud = document.createElement('div');
   document.body.append(canvas, hud);
@@ -224,7 +224,7 @@ test('Game (tâche 11c) : choc de Galahad contre le rocher de la graine 1 (62,5 
   };
   const { sim } = internals;
   const rock = sim.track.rocks[0];
-  expect(rock.xStart).toBeCloseTo(62.5, 1);
+  expect(rock.xStart).toBeCloseTo(76.1, 1);
   const burst = vi.spyOn(Effects.prototype, 'rockBurst');
   pressFinger();
   let now = startRacing(game, () => raf!);

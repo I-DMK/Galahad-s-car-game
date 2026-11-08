@@ -13,7 +13,8 @@
 // Tâche 5g, tour 2 : `FROZEN_CONFIG` RECAPTURÉ une 4e fois par le ruling R-F10 (décision du papa : poids de tirage des
 // volcans 3 → 4, `VOLCANO_WEIGHT` ; graines 0 à 2 ; `FROZEN` resté identique dans le même commit, registre).
 // Tâche 11c (rochers, Step 12) : `FROZEN_CONFIG` graine 1 RECAPTURÉ par le ruling R-F10 (rocher en 62,5 m, touché doigt
-// posé ; graines 0 et 2 inchangées ; `FROZEN` resté identique dans le même commit, registre).
+// posé ; graines 0 et 2 inchangées ; `FROZEN` resté identique dans le même commit, registre) ; puis graine 1 RECAPTURÉE à
+// nouveau au ruling R-11c-8 (choix du point par l'empreinte de survol : rocher en 76,1 m).
 // Toute autre variation reste un défaut.
 import { CONFIG, type Config } from '../src/config';
 import { createRaceSim, stepRace } from '../src/sim/simulate';
@@ -47,11 +48,15 @@ const FROZEN: Record<number, string> = {
  *   étoile en 316 m ; graine 1, un tremplin en 365 m au lieu d'une double-bosse ; graine 2, tranches décalées dès 27 m ;
  * - tâche 11c (rochers) : graine 1 seule, 1dc8add2… → 5d3c41e1… : rocher en 62,5 m touché doigt posé au pas 363 (t =
  *   6,05 s, châssis en 61,51 m) ; empreintes par pas identiques à celles de `ROCKS_PER_RACE` 0 jusqu'au pas 362 (sonde du
- *   Step 12). Graines 0 et 2 : premiers rochers en 789,3 et 588,4 m, hors des 30 s, empreintes inchangées.
+ *   Step 12). Graines 0 et 2 : premiers rochers en 789,3 et 588,4 m, hors des 30 s, empreintes inchangées ;
+ * - tâche 11c, ruling R-11c-8 (option P2 : écarts d'étoile de 11 m, choix du point par l'empreinte de survol) : graine 1
+ *   seule, 5d3c41e1… → 41a014db… : son premier rocher passe de 62,5 à 76,1 m, touché au pas 425 (t = 7,08 s, châssis en
+ *   75,09 m) ; empreintes par pas identiques à `ROCKS_PER_RACE` 0 jusqu'au pas 424. Graines 0 et 2 : premiers rochers en
+ *   795,6 et 588,4 m, empreintes inchangées.
  */
 const FROZEN_CONFIG: Record<number, string> = {
   0: '118d4b62f5c8c23496a1793533852c62666e6e7a',
-  1: '5d3c41e1ddd258102633e269dc95eb3dde6ded64',
+  1: '41a014dbdbcffbb4efb6552ffa0a30879da57b6f',
   2: 'df75395192ed7b1f943925a1e78bdaa7b8db79b1',
 };
 

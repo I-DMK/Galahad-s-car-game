@@ -32,11 +32,13 @@ function firstAtLeast(xs: readonly number[], x: number): number | null {
  *   [lo, hi] avec lo = max(début du plat, xStart de la piste + D_LANCE, fin de la dernière rampe-saut d'abscisse ≤ début du
  *   plat + ROCK_RAMP_CLEARANCE, dernière étoile haute d'abscisse ≤ début du plat + ROCK_HIGH_STAR_LANDING) et hi =
  *   min(fin du plat − ROCK_WIDTH, début de la prochaine tranche volcan − ROCK_VOLCANO_GAP − ROCK_WIDTH) ;
- * - réception de fosse : lo = bord aval + FOSSE_STAR_AFTER + ROCK_STAR_GAP (10 m après l'étoile de réception), hi = fin de
+ * - réception de fosse : lo = bord aval + FOSSE_STAR_AFTER + ROCK_STAR_GAP_BEFORE (11 m après l'étoile de réception), hi = fin de
  *   la tranche − ROCK_WIDTH − 5, mêmes dégagements (rampe-saut, étoile haute, prochaine tranche volcan) ;
- * - position : le point de [lo, hi] le plus proche du centre (balayage à TRACK_POINT_SPACING, le côté amont d'abord à
- *   distance égale) sans étoile basse dans ]x − ROCK_STAR_GAP, x + ROCK_WIDTH + ROCK_STAR_GAP[ ; aucun, ou hi < lo : pas
- *   de candidate ;
+ * - position (ruling R-11c-8) : parmi les points x = centre ± k × TRACK_POINT_SPACING de [lo, hi] sans étoile basse dans
+ *   ]x − ROCK_STAR_GAP_BEFORE, x + ROCK_WIDTH + ROCK_STAR_GAP_AFTER[, celui qui minimise le triplet (nombre d'étoiles
+ *   basses dans l'empreinte de survol ]x − ROCK_OVERFLIGHT_BEFORE, x + ROCK_WIDTH + ROCK_OVERFLIGHT_AFTER[ ; −(x − fin de
+ *   la bosses ou double-bosse qui précède le plat), 0 sinon ; |x − centre|), le côté amont d'abord à égalité ; aucun, ou
+ *   hi < lo : pas de candidate ;
  * - espacement : glouton dans l'ordre de la piste, une place à moins de ROCK_SPACING de la dernière retenue est écartée.
  */
 export function rockCandidates(track: Track, cfg: Config): number[] {
@@ -60,39 +62,57 @@ export function rockCandidates(track: Track, cfg: Config): number[] {
     return [lo, hi];
   };
 
-  const places: [number, number][] = [];
+  /** [lo, hi, fin de la bosses ou double-bosse qui précède le plat (null sinon)]. */
+  const places: [number, number, number | null][] = [];
   const limit = track.xFinish - cfg.FINISH_PLAT_BEFORE;
   track.slices.forEach((sl, i) => {
     if (sl.type === 'plat') {
       if (i === 0 || sl.xEnd > limit + EPS || sl.xEnd - sl.xStart < cfg.ROCK_MIN_PLAT - EPS) return;
       if (isVolcanoSlice(track.slices[i - 1])) return;
-      places.push(bounds(sl.xStart, sl.xEnd, sl.xStart, sl.xEnd - W));
+      const prev = track.slices[i - 1].type;
+      const bumpEnd = prev === 'bosses' || prev === 'double-bosse' ? sl.xStart : null;
+      places.push([...bounds(sl.xStart, sl.xEnd, sl.xStart, sl.xEnd - W), bumpEnd]);
     } else if (sl.type === 'fosse') {
       const f = track.volcanoes.find((v) => v.kind === 'fosse' && Math.abs(v.xEnd - sl.xEnd) < EPS);
       if (!f) return;
-      places.push(bounds(f.xReception, f.xEnd, f.xReception + cfg.FOSSE_STAR_AFTER + cfg.ROCK_STAR_GAP, f.xEnd - W - 5));
+      places.push([...bounds(f.xReception, f.xEnd, f.xReception + cfg.FOSSE_STAR_AFTER + cfg.ROCK_STAR_GAP_BEFORE, f.xEnd - W - 5), null]);
     }
   });
 
   const free = (x: number): boolean =>
-    lowXs.every((s) => !(s > x - cfg.ROCK_STAR_GAP && s < x + W + cfg.ROCK_STAR_GAP));
+    lowXs.every((s) => !(s > x - cfg.ROCK_STAR_GAP_BEFORE && s < x + W + cfg.ROCK_STAR_GAP_AFTER));
+  /** Étoiles basses dans l'empreinte de survol du saut d'un rocher en x. */
+  const overflown = (x: number): number => {
+    let n = 0;
+    for (const s of lowXs) if (s > x - cfg.ROCK_OVERFLIGHT_BEFORE && s < x + W + cfg.ROCK_OVERFLIGHT_AFTER) n++;
+    return n;
+  };
   const out: number[] = [];
   const step = cfg.TRACK_POINT_SPACING;
-  for (const [lo, hi] of places) {
+  for (const [lo, hi, bumpEnd] of places) {
     if (hi < lo - EPS) continue;
     const centre = (lo + hi) / 2;
     let x: number | null = null;
+    let best: [number, number, number] | null = null;
     for (let k = 0; centre - k * step >= lo - EPS || centre + k * step <= hi + EPS; k++) {
-      const below = centre - k * step;
-      const above = centre + k * step;
-      if (below >= lo - EPS && free(below)) { x = below; break; }
-      if (above <= hi + EPS && free(above)) { x = above; break; }
+      for (const p of k === 0 ? [centre] : [centre - k * step, centre + k * step]) {
+        if (p < lo - EPS || p > hi + EPS || !free(p)) continue;
+        const key: [number, number, number] = [overflown(p), bumpEnd === null ? 0 : -(p - bumpEnd), Math.abs(p - centre)];
+        if (best === null || lexLess(key, best)) { best = key; x = p; }
+      }
     }
     if (x === null) continue;
     if (out.length > 0 && Math.abs(x - out[out.length - 1]) < cfg.ROCK_SPACING - EPS) continue;
     out.push(x);
   }
   return out;
+}
+
+/** (a, b, c) < (a', b', c') dans l'ordre lexicographique, à EPS près sur les deux derniers termes. */
+function lexLess(k: [number, number, number], b: [number, number, number]): boolean {
+  if (k[0] !== b[0]) return k[0] < b[0];
+  if (Math.abs(k[1] - b[1]) > EPS) return k[1] < b[1];
+  return k[2] < b[2] - EPS;
 }
 
 /**

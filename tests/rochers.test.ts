@@ -299,7 +299,7 @@ describe('Review Focus 1 à 3 (choc en l’air, deux rochers à 60 m, réception
 
   test('réception de fosse : rocher en xReception + 35, Galahad posé à l’arrêt en xReception + FOSSE_RESPAWN_AFTER, doigt posé : touché à ≥ 11 m/s (fantôme), pas de réapparition ; bloc central au départ arrêté : 25/25', () => {
     const { track: base, f } = fossePiste();
-    const xStart = f.xReception + CONFIG.FOSSE_STAR_AFTER + CONFIG.ROCK_STAR_GAP;
+    const xStart = f.xReception + CONFIG.FOSSE_STAR_AFTER + CONFIG.ROCK_STAR_GAP_BEFORE;
     const track: Track = { ...base, rocks: [{ id: 0, xStart, xEnd: xStart + CONFIG.ROCK_WIDTH }] };
     const world = createWorld(track, CONFIG);
     const rock = track.rocks[0];

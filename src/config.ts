@@ -144,7 +144,17 @@ export const CONFIG = {
   ROCK_RAMP_CLEARANCE: 50,      // m après la fin d'une rampe-saut (vol doigt posé jusqu'à 61 m à 21 m/s ; comme STAR_HIGH_RAMP_CLEARANCE)
   ROCK_VOLCANO_GAP: 60,         // m entre la fin du rocher et le début de la prochaine tranche volcan (Q-C4 : D_LANCE pour revenir à 14 m/s après un choc)
   ROCK_HIGH_STAR_LANDING: 30,   // m après une étoile haute (atterrissage d'un saut d'étoile en turbo ≤ 27 m)
-  ROCK_STAR_GAP: 10,            // m entre un rocher et toute étoile basse ; aussi l'écart après l'étoile de réception d'une fosse
+  // Étoiles basses autour d'un rocher (ruling R-11c-8, option P2 : remplace l'écart symétrique de 10 m, avec lequel 53
+  // rochers sur 175 avaient une étoile basse 10 à 20 m après eux, survolée par le saut).
+  ROCK_STAR_GAP_BEFORE: 11,     // m entre une étoile basse et xStart ; aussi après l'étoile de réception d'une fosse (lo = bord aval + 25 + 11)
+  ROCK_STAR_GAP_AFTER: 11,      // m entre xEnd et une étoile basse
+  // Empreinte de survol d'un saut de rocher : MESURÉ (piste plate, Galahad seul, saut visé à rockJumpLead(v) ± σ d'un
+  // prudent, σ = 2,5 × 0,05 = 0,125 s, à 8, 11,2, 14, 21 m/s et en turbo pris 40 m avant ; toutes les pièces au-dessus du
+  // haut d'une étoile basse, 1,1 m) : de xStart − 16,4 m (21 m/s, saut tôt) à xEnd + 31,8 m (21 m/s, rebond après
+  // l'atterrissage) ; 14 m/s : xStart − 10,2 à xEnd + 10,5. `rockCandidates` place le rocher pour en laisser le moins
+  // possible dedans (règle de choix du point, ruling R-11c-8).
+  ROCK_OVERFLIGHT_BEFORE: 16.4, // m avant xStart
+  ROCK_OVERFLIGHT_AFTER: 31.8,  // m après xEnd
   ROCK_SPACING: 60,             // m entre deux rochers retenus (glouton dans l'ordre de la piste)
   ROCK_JUMP_AIM: 1,             // s : rockJumpLead(v) = ROCK_JUMP_AIM − ROCK_WIDTH / (2 max(v, 1)), centre de la fenêtre (0,89 / 0,87 / 0,81 s à 14 / 11,2 / 8 m/s ; MESURÉ 0,91 / 0,86 / 0,81)
   // Zone fantôme d'un rocher (ruling R-11c-1, comme les volcans de la 5b) : [xStart − ROCK_GHOST_BEFORE, xEnd +

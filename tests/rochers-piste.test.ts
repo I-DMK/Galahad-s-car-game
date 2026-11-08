@@ -40,7 +40,7 @@ function placeOf(track: Track, rock: Rock): { kind: 'plat'; slice: Slice } | { k
   }
   if (sl.type === 'fosse') {
     const f = fosses(track).find((v) => Math.abs(v.xEnd - sl.xEnd) < EPS);
-    const ok = f !== undefined && rock.xStart >= f.xReception + CONFIG.FOSSE_STAR_AFTER + CONFIG.ROCK_STAR_GAP - EPS
+    const ok = f !== undefined && rock.xStart >= f.xReception + CONFIG.FOSSE_STAR_AFTER + CONFIG.ROCK_STAR_GAP_BEFORE - EPS
       && rock.xEnd <= f.xEnd - 5 + EPS;
     return ok && f ? { kind: 'fosse', f } : null;
   }
@@ -48,7 +48,7 @@ function placeOf(track: Track, rock: Rock): { kind: 'plat'; slice: Slice } | { k
 }
 
 describe('rochers posés par le générateur (graines 0 à 49, 1 680 m)', () => {
-  test('au plus 4 rochers par piste, 4 sur au moins 30 pistes sur 50, aucune piste à 0 ; ids 0, 1, 2… dans l’ordre de la piste', () => {
+  test('au plus 4 rochers par piste, 4 sur au moins 28 pistes sur 50, aucune piste à 0 ; ids 0, 1, 2… dans l’ordre de la piste', () => {
     const counts = TRACKS.map((t) => t.rocks.length);
     const hist = [0, 1, 2, 3, 4].map((n) => counts.filter((c) => c === n).length);
     console.log(`rochers par piste (graines 0 à 49) : ${hist.map((h, n) => `${n} → ${h}`).join(', ')} ; moyenne ${(counts.reduce((a, b) => a + b, 0) / counts.length).toFixed(2)}`);
@@ -64,10 +64,11 @@ describe('rochers posés par le générateur (graines 0 à 49, 1 680 m)', () => 
       for (const r of t.rocks) expect(cands).toContain(r.xStart);
       if (cands.length <= CONFIG.ROCKS_PER_RACE) expect(t.rocks.map((r) => r.xStart)).toEqual(cands);
     }
-    expect(hist[4]).toBeGreaterThanOrEqual(30);
+    // Ruling R-11c-8 (option P2 : écarts d'étoile de 11 m, choix du point par l'empreinte de survol) : 30 → 28 (mesuré : 29).
+    expect(hist[4]).toBeGreaterThanOrEqual(28);
   });
 
-  test('chaque rocher : largeur ROCK_WIDTH, sur un plat ordinaire éligible (≥ 20 m, pas après un volcan, pas le plat d’arrivée) ou une réception de fosse (xStart ≥ bord aval + 35, xEnd ≤ xEnd − 5) ; sol à 0 sous tout le rocher', () => {
+  test('chaque rocher : largeur ROCK_WIDTH, sur un plat ordinaire éligible (≥ 20 m, pas après un volcan, pas le plat d’arrivée) ou une réception de fosse (xStart ≥ bord aval + 36, xEnd ≤ xEnd − 5) ; sol à 0 sous tout le rocher', () => {
     let onPlat = 0;
     let onFosse = 0;
     for (const t of TRACKS) {
@@ -77,15 +78,17 @@ describe('rochers posés par le générateur (graines 0 à 49, 1 680 m)', () => 
         const place = placeOf(t, r);
         expect(place, where).not.toBeNull();
         if (place?.kind === 'plat') onPlat++; else onFosse++;
-        for (const p of t.points) if (p.x >= r.xStart - EPS && p.x <= r.xEnd + EPS) expect(p.y, where).toBe(0);
-        expect(heightAt(t, r.xStart), where).toBe(0);
-        expect(heightAt(t, r.xEnd), where).toBe(0);
+        // À 1e-9 près : un rocher poussé au bout de son plat (ruling R-11c-8) a son xEnd sur le premier point de la tranche
+        // suivante (sin(0) d'une bosse ≈ 1e-18).
+        for (const p of t.points) if (p.x >= r.xStart - EPS && p.x <= r.xEnd + EPS) expect(Math.abs(p.y), where).toBeLessThan(1e-9);
+        expect(Math.abs(heightAt(t, r.xStart)), where).toBeLessThan(1e-9);
+        expect(Math.abs(heightAt(t, r.xEnd)), where).toBeLessThan(1e-9);
       }
     }
     console.log(`rochers sur un plat ordinaire : ${onPlat}, sur une réception de fosse : ${onFosse}`);
   });
 
-  test('dégagements : ≥ D_LANCE après xStart ; ≥ 50 m après la fin de toute rampe-saut ; ≥ 60 m avant le début de toute tranche volcan ; ≥ 30 m après toute étoile haute ; ≥ 10 m de toute étoile basse ; ≥ 60 m entre deux rochers', () => {
+  test('dégagements : ≥ D_LANCE après xStart ; ≥ 50 m après la fin de toute rampe-saut ; ≥ 60 m avant le début de toute tranche volcan ; ≥ 30 m après toute étoile haute ; ≥ 11 m de toute étoile basse, avant et après ; ≥ 60 m entre deux rochers', () => {
     for (const t of TRACKS) {
       t.rocks.forEach((r, k) => {
         const where = `graine ${t.seed}, rocher ${r.id} en ${r.xStart.toFixed(1)}`;
@@ -97,7 +100,7 @@ describe('rochers posés par le générateur (graines 0 à 49, 1 680 m)', () => 
         for (const s of t.stars) {
           if (s.high && s.x <= r.xStart + EPS) expect(r.xStart - s.x, where).toBeGreaterThanOrEqual(CONFIG.ROCK_HIGH_STAR_LANDING - EPS);
           if (!s.high) {
-            const inside = s.x > r.xStart - CONFIG.ROCK_STAR_GAP + EPS && s.x < r.xEnd + CONFIG.ROCK_STAR_GAP - EPS;
+            const inside = s.x > r.xStart - CONFIG.ROCK_STAR_GAP_BEFORE + EPS && s.x < r.xEnd + CONFIG.ROCK_STAR_GAP_AFTER - EPS;
             expect(inside, `${where}, étoile basse en ${s.x.toFixed(1)}`).toBe(false);
           }
         }
@@ -134,6 +137,29 @@ describe('rochers posés par le générateur (graines 0 à 49, 1 680 m)', () => 
     console.log(`candidates par piste : moyenne ${mean.toFixed(2)}, de ${Math.min(...n)} à ${Math.max(...n)} ; par graine ${n.join(' ')}`);
     expect(Math.min(...n)).toBeGreaterThan(0);
     expect(Math.abs(mean - 4.2)).toBeLessThanOrEqual(0.3);
+  });
+
+  test('choix du point (ruling R-11c-8) : une étoile basse dans l’empreinte de survol du centre fait déplacer le rocher au point libre le plus proche qui la laisse hors de l’empreinte', () => {
+    const flat = (n: number) => Array.from({ length: n + 1 }, (_, k) => ({ x: k * 0.2, y: 0 }));
+    const base: Track = {
+      seed: 0, targetLength: 360, length: 360, points: flat(1800), exemptPointIndices: [],
+      slices: [{ type: 'plat', xStart: 0, xEnd: 26.6 }, { type: 'plat', xStart: 26.6, xEnd: 226.6 }, { type: 'plat', xStart: 226.6, xEnd: 300 }, { type: 'plat', xStart: 300, xEnd: 360 }],
+      volcanoes: [], stars: [], rocks: [], xStart: 21.5, xFinish: 300, xWall: 360,
+    };
+    const lo = base.xStart + CONFIG.D_LANCE;
+    const hi = 226.6 - CONFIG.ROCK_WIDTH;
+    const centre = (lo + hi) / 2;
+    const [c0] = rockCandidates(base, CONFIG);
+    expect(c0).toBeCloseTo(centre, 6);
+    // Étoile basse 20 m après la fin du rocher centré : hors de l'écart de 11 m, mais dans l'empreinte (31,8 m).
+    const star = centre + CONFIG.ROCK_WIDTH + 20;
+    const withStar: Track = { ...base, stars: [{ id: 0, x: star, y: 0.6, high: false }] };
+    const [c1] = rockCandidates(withStar, CONFIG);
+    const outside = (x: number) => !(star > x - CONFIG.ROCK_OVERFLIGHT_BEFORE && star < x + CONFIG.ROCK_WIDTH + CONFIG.ROCK_OVERFLIGHT_AFTER);
+    expect(outside(centre)).toBe(false);
+    expect(outside(c1)).toBe(true);
+    // Le point libre le plus proche du centre qui laisse l'étoile hors de l'empreinte : avant elle, à ≈ 31,8 + 3 m.
+    expect(Math.abs(c1 - (star - CONFIG.ROCK_WIDTH - CONFIG.ROCK_OVERFLIGHT_AFTER))).toBeLessThanOrEqual(CONFIG.TRACK_POINT_SPACING + 1e-9);
   });
 
   test('nextRock : premier rocher strictement devant x, undefined après le dernier', () => {

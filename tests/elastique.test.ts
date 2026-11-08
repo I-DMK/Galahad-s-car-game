@@ -84,7 +84,7 @@ describe('course à 5 de la graine 1, Galahad doigt posé (saut parfait aux foss
     }
   });
 
-  // Tâche 11c : rocher en 62,5 m sur la graine 1 de CONFIG (Galahad doigt posé le touche, premier turbo à 17,7 s, 18,7 m/s
+  // Tâche 11c : rocher en 62,5 m (76,1 m depuis le ruling R-11c-8) sur la graine 1 de CONFIG (Galahad doigt posé le touche, premier turbo à 17,7 s, 18,7 m/s
   // au plus) ; ce test juge la physique du turbo sans élastique, pas la piste : il roule sur les pistes d'avant (AP).
   test('Galahad, effet physique : de son premier turbo à 3 s après, il dépasse 19 m/s (sous l’élastique, il plafonnerait à 18,2) ; pistes d’avant', () => {
     const ap = recordRace(60, AP);

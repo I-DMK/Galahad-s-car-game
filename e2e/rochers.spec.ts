@@ -1,6 +1,7 @@
 // Rochers sur tablette simulée (plan C, tâche 11c, Steps 21 et 22 ; spec « rochers » §6 « e2e »).
 // Graine 19 : son premier rocher est le plus proche du départ des graines 0 à 49 (xStart = 49,5 m, 30 m devant la pole),
-// sans fosse avant lui (graines suivantes : 3 en 50,8 m, 35 en 51,3 m) ; la graine 1 (62,5 m) sert déjà aux autres e2e.
+// sans fosse avant lui (graines suivantes : 3 en 50,8 m, 35 en 51,3 m), revérifiée au ruling R-11c-8 ; la graine 1
+// (76,1 m depuis ce ruling) sert déjà aux autres e2e.
 // En simulation, doigt posé sans saut, Galahad le touche à 3,67 s et Pablo à 5,85 s.
 // Le saut à la main (Espace au centre de la fenêtre) dépend de la régularité de Playwright à quelques images près : au
 // pire deux essais ratés sur trois, le test l'imprime et accepte un choc (comme le e2e des fosses ne juge pas le saut à
