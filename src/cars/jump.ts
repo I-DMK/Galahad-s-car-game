@@ -100,19 +100,20 @@ export function rockJumpLead(v: number, cfg: Config): number {
  * Bord au plus tard de la fenêtre d'un rocher, en s avant xStart : ROCK_JUMP_LATE (0,5 s), constant (MESURÉ 0,48 s à
  * 14 m/s, 0,51 à 8 : c'est la hauteur qui le fixe, pas la vitesse). Information des tests ; pas de bascule (spec §4).
  */
-export function rockLatestLead(_v: number, cfg: Config): number {
+export function rockLatestLead(cfg: Config): number {
   return cfg.ROCK_JUMP_LATE;
 }
 
 /**
  * Fenêtre de demande du saut d'un rocher dont le bord amont est en `xStart` (spec §4) : (xStart − x) / max(v, 1) ≤
- * max(rockJumpLead(v) + error, JUMP_BUFFER + PHYSICS_DT) et > JUMP_BUFFER (une demande gardée en mémoire partirait sinon
+ * max(rockJumpLead(v) + error, JUMP_BUFFER + PHYSICS_DT, ROCK_JUMP_MIN_DISTANCE / max(v, 1)) (sous ≈ 3 m/s, au moins
+ * 1,5 m avant xStart : le contact se fait ≈ 1,2 m avant, ruling R-11c-12) et > JUMP_BUFFER (une demande gardée en mémoire partirait sinon
  * contre le rocher). Pas de bascule d'une erreur trop tardive (contrairement aux fosses) : un saut trop tard se voit, la
  * voiture bute et le rocher éclate.
  */
 export function inRockJumpWindow(xStart: number, x: number, v: number, cfg: Config, error = 0): boolean {
   const tte = (xStart - x) / Math.max(v, 1);
-  const lead = Math.max(rockJumpLead(v, cfg) + error, cfg.JUMP_BUFFER + cfg.PHYSICS_DT);
+  const lead = Math.max(rockJumpLead(v, cfg) + error, cfg.JUMP_BUFFER + cfg.PHYSICS_DT, cfg.ROCK_JUMP_MIN_DISTANCE / Math.max(v, 1));
   return tte <= lead + EPS && tte > cfg.JUMP_BUFFER + EPS;
 }
 

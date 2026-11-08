@@ -7,12 +7,10 @@ import { isRockActiveFor, type RockState } from '../cars/rocks';
 import { heightAt } from '../track/query';
 import type { Rock } from '../track/types';
 import { toPx, worldToPhys } from './units';
-import { CAT, MAX_CARS, carCategory, type World } from './world';
+import { CAT, carCategory, type World } from './world';
 
 const { Bodies, Composite } = Matter;
 
-/** Catégories des voitures d'index 0 à MAX_CARS − 1, précalculées (appelé à chaque pas). */
-const CAR_BITS: readonly number[] = Array.from({ length: MAX_CARS }, (_, k) => carCategory(k));
 
 /**
  * Un capteur par rocher, [xStart, xEnd] × [sol, sol + ROCK_HEIGHT] (sol mesuré en xStart : plat sous le rocher par
@@ -47,7 +45,7 @@ export function syncRockBodies(bodies: Matter.Body[], states: RockState[]): void
     const state = states[i];
     let mask = 0;
     for (let k = 0; k < state.hitAt.length; k++) {
-      if (isRockActiveFor(state, k)) mask |= k < CAR_BITS.length ? CAR_BITS[k] : carCategory(k);
+      if (isRockActiveFor(state, k)) mask |= carCategory(k);
     }
     const filter = bodies[i].collisionFilter;
     if (filter.mask !== mask) filter.mask = mask;

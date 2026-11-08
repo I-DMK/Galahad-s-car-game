@@ -649,7 +649,6 @@ describe('déterminisme', () => {
 
 // ——— Rochers (plan C, tâche 11c ; spec « rochers » §4) ———
 
-/** Tirages de BASE (9a0744a) du driver de Pablo, rang 1, piste de la graine 7 (CONFIG, 1 680 m), graine des pilotes 0. */
 /**
  * Avec rochers (2 sur la graine 7), tirés après les erreurs de fosse et avant les levers de pied (tâche 11c, figés au
  * Step 16) : chaque erreur de rocher prend deux tirages (Box-Muller), les levers de pied sont ceux de BASE décalés de 4.
@@ -659,6 +658,7 @@ const PABLO_7_ROCKS = {
   lift: Array.from({ length: 26 }, (_, k) => k === 18),
 };
 
+/** Tirages de BASE (9a0744a) du driver de Pablo, rang 1, piste de la graine 7 (CONFIG, 1 680 m), graine des pilotes 0. */
 const PABLO_7_BASE = {
   starTry: [true, false, false, false, false, false, false, true, false],
   starErr: [-0.038527450289567236, 0, 0, 0, -0.026243848721933312, 0, 0, -0.18419294636757194, 0],

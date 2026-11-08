@@ -12,7 +12,7 @@ import { SHADOW_ALPHA, SHADOW_RX_M, SHADOW_RY_M, drawCar, drawShadow, shadowScal
 import type { Effects } from './effects';
 import { TITLE_GROUND_FRAC, TITLE_NAME_SCALE, restingCarView, type TitleScene } from './title';
 import { heightAt } from '../track/query';
-import { drawRock, drawStar, drawTrack } from './track';
+import { drawRock, drawStar, drawTrack, rockVertices } from './track';
 
 /** Voiture à dessiner, en coordonnées du monde. `angle` : angle du monde (positif = nez en haut). */
 export interface CarView {
@@ -63,6 +63,8 @@ export class Renderer {
   private loaded: Art | null = null;
   /** Caméra fixe de la scène du titre (tâche 10) : recalée sans lissage à chaque `drawTitle`. */
   private readonly titleCamera: Camera;
+  /** Sommets des rochers (tâche 11c, ruling R-11c-12) : calculés une fois par rocher et par piste, pas à chaque image. */
+  private readonly rockShapes = new WeakMap<Track, Map<string, { x: number; y: number }[]>>();
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly cfg: Config) {
     const ctx = canvas.getContext('2d');
@@ -123,7 +125,7 @@ export class Renderer {
     const S = (x: number, y: number) => toScreen({ x, y });
     for (const r of scene.rocks) {
       if (!r.active || r.xEnd < camera.x - half || r.xStart > camera.x + half) continue;
-      drawRock(ctx, r, r.id, heightAt(scene.track, r.xStart), ppm, S);
+      drawRock(ctx, r, this.rockShape(scene.track, r), ppm, S);
     }
     for (const s of scene.stars) {
       if (!s.active || Math.abs(s.x - camera.x) > half) continue;
@@ -199,6 +201,22 @@ export class Renderer {
     const car = restingCarView(pilot, 0, 0, 0, '', this.cfg);
     const toScreen = (p: { x: number; y: number }) => ({ x: w / 2 + p.x * ppm, y: h / 2 - (p.y - ICON_CENTER_Y_M) * ppm });
     drawCar(ctx, car, ppm, 0, toScreen, this.cfg, this.loaded ?? NO_ART);
+  }
+
+  /** Sommets d'un rocher de la scène, mis en cache par piste (clé : id et xStart). */
+  private rockShape(track: Track, r: Scene['rocks'][number]): { x: number; y: number }[] {
+    let shapes = this.rockShapes.get(track);
+    if (!shapes) {
+      shapes = new Map();
+      this.rockShapes.set(track, shapes);
+    }
+    const key = `${r.id}:${r.xStart}`;
+    let pts = shapes.get(key);
+    if (!pts) {
+      pts = rockVertices(r, r.id, heightAt(track, r.xStart));
+      shapes.set(key, pts);
+    }
+    return pts;
   }
 
   /** Début de toute image : transformation identité, opacité 1, effacement, puis le ciel (parallaxe sur `cameraX`). */

@@ -352,7 +352,7 @@ const ROCK_GROUND_SHADOW = 'rgba(0, 0, 0, 0.35)';
  * 5 à 7 sommets sur une demi-ellipse irrégulière de droite à gauche (rayon 78 à 100 %), celui le plus proche du sommet
  * posé exactement à `height` ; tous dans [xStart, xEnd] × [sol, sol + height]. 7 à 9 sommets en tout.
  */
-function rockVertices(rock: { xStart: number; xEnd: number; height: number }, id: number, groundY: number): Pt[] {
+export function rockVertices(rock: { xStart: number; xEnd: number; height: number }, id: number, groundY: number): Pt[] {
   const rng = mulberry32((Math.imul(id + 1, 0x9e3779b1) ^ 0x2545f491) >>> 0);
   const w = rock.xEnd - rock.xStart;
   const cx = (rock.xStart + rock.xEnd) / 2;
@@ -374,16 +374,15 @@ function rockVertices(rock: { xStart: number; xEnd: number; height: number }, id
 }
 
 /**
- * Rocher gris lunaire (tâche 11c, spec « rochers » §5) : ombre portée au sol (ellipse sombre), polygone irrégulier de
- * 7 à 9 sommets (déterministe par `id`) inscrit dans [xStart, xEnd] × [sol, sol + height], face d'ombre à droite, arête
- * claire en haut à gauche. `S` : monde → écran ; `groundY` : sol sous le rocher (plat par construction). État du canvas
- * rendu tel quel.
+ * Rocher gris lunaire (tâche 11c, spec « rochers » §5) : ombre portée au sol (ellipse sombre), polygone irrégulier `pts`
+ * (sommets du monde, `rockVertices`, calculés une fois par rocher et par piste par le renderer, ruling R-11c-12 ; le
+ * premier est au sol) inscrit dans [xStart, xEnd] × [sol, sol + height], face d'ombre à droite, arête claire en haut à
+ * gauche. `S` : monde → écran. État du canvas rendu tel quel.
  */
 export function drawRock(
-  ctx: Ctx, rock: { xStart: number; xEnd: number; height: number }, id: number, groundY: number, ppm: number,
-  S: (x: number, y: number) => Pt,
+  ctx: Ctx, rock: { xStart: number; xEnd: number }, pts: readonly Pt[], ppm: number, S: (x: number, y: number) => Pt,
 ): void {
-  const pts = rockVertices(rock, id, groundY);
+  const groundY = pts[0].y;
   const cx = (rock.xStart + rock.xEnd) / 2;
   const w = rock.xEnd - rock.xStart;
   ctx.save();

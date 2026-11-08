@@ -165,6 +165,7 @@ export const CONFIG = {
   // + 28,5 m (turbo), rebond qui survole jusqu'à xEnd + 31,8 m.
   ROCK_GHOST_BEFORE: 35,        // m avant xStart : 29,8 m mesurés + marge
   ROCK_GHOST_AFTER: 35,         // m après xEnd : 31,8 m mesurés (rebond compris) + marge
+  ROCK_JUMP_MIN_DISTANCE: 1.5,  // m : la fenêtre s'ouvre au moins 1,5 m avant xStart (ruling R-11c-12 : sous ≈ 3 m/s, le centre tombait après le contact, ≈ 1,2 m avant)
   ROCK_JUMP_LATE: 0.5,          // s : bord au plus tard de la fenêtre (MESURÉ 0,48 à 14 m/s, 0,51 à 8 : la hauteur le fixe, pas la vitesse) ; information, pas de bascule
   // Conduite des robots (plan B, tâche 6 ; spec §7, addendum §1.8 et §2, addendum « bouton saut » §3 et §6.8) : driver de
   // chaque copain (src/ai/driver.ts).

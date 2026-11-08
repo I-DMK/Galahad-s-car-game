@@ -67,6 +67,13 @@ export class Effects {
 
   get count(): number { return this.particles.length; }
 
+  /** Éclats de rocher en vol (tâche 11c ; tests, `?debug=1`). */
+  get shardCount(): number {
+    let n = 0;
+    for (const p of this.particles) if (p.kind === 'shard') n++;
+    return n;
+  }
+
   /** Confettis en vol (podium, tâche 11). */
   get confettiCount(): number {
     let n = 0;

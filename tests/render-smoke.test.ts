@@ -3,7 +3,7 @@ import { CONFIG } from '../src/config';
 import { Camera } from '../src/render/camera';
 import { drawCar } from '../src/render/car';
 import type { CarView } from '../src/render/renderer';
-import { drawRock, drawStar, drawTrack, ROCK_FILL } from '../src/render/track';
+import { drawRock, drawStar, drawTrack, ROCK_FILL, rockVertices } from '../src/render/track';
 import { generateTrack } from '../src/track/generate';
 import { fosses, tremplins } from '../src/track/query';
 import { canvasFont } from '../src/ui/font';
@@ -193,7 +193,7 @@ describe('drawRock (tâche 11c, spec « rochers » §5)', () => {
   test('polygone de 7 à 9 sommets, dans la boîte [xStart, xEnd] × [sol, sol + height], qui touche le haut ; déterministe par id ; état du canvas restauré', () => {
     for (let id = 0; id < 20; id++) {
       const { ctx, calls, state } = fakeCtx();
-      drawRock(ctx, rock, id, 0, 50, S);
+      drawRock(ctx, rock, rockVertices(rock, id, 0), 50, S);
       const pts = polygon(calls);
       expect(pts.length, `id ${id}`).toBeGreaterThanOrEqual(7);
       expect(pts.length, `id ${id}`).toBeLessThanOrEqual(9);
@@ -205,7 +205,7 @@ describe('drawRock (tâche 11c, spec « rochers » §5)', () => {
       }
       expect(Math.max(...pts.map((p) => -p.y))).toBeCloseTo(rock.height * 50, 6);
       const { ctx: ctx2, calls: calls2 } = fakeCtx();
-      drawRock(ctx2, rock, id, 0, 50, S);
+      drawRock(ctx2, rock, rockVertices(rock, id, 0), 50, S);
       expect(polygon(calls2)).toEqual(pts);
       expect(state().depth).toBe(0);
       expect(state().underflows).toBe(0);
@@ -215,7 +215,7 @@ describe('drawRock (tâche 11c, spec « rochers » §5)', () => {
     }
     const shapes = new Set(Array.from({ length: 6 }, (_, id) => {
       const { ctx, calls } = fakeCtx();
-      drawRock(ctx, rock, id, 0, 50, S);
+      drawRock(ctx, rock, rockVertices(rock, id, 0), 50, S);
       return JSON.stringify(polygon(calls));
     }));
     expect(shapes.size).toBeGreaterThan(1);

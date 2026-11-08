@@ -316,9 +316,18 @@ describe('Renderer : rochers (tâche 11c, spec « rochers » §5)', () => {
     expect(() => renderer.draw({ track, cars: [], stars: [], rocks, t: 0 }, cam)).not.toThrow();
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0][1]).toMatchObject({ xStart: 296, xEnd: 299 });
-    expect(spy.mock.calls[0][2]).toBe(0);
+    expect(spy.mock.calls[0][2]).toEqual(trackRender.rockVertices(rocks[0], 0, 0));
     expect(calls.filter((c) => c.name === 'fill' && c.fillStyle === trackRender.ROCK_FILL)).toHaveLength(1);
     expect(state().depth).toBe(0);
     expect(state().globalAlpha).toBe(1);
+    // Sommets calculés une fois par rocher et par piste (ruling R-11c-12), pas à chaque image.
+    const shapes = vi.spyOn(trackRender, 'rockVertices');
+    renderer.draw({ track, cars: [], stars: [], rocks, t: 0 }, cam);
+    renderer.draw({ track, cars: [], stars: [], rocks, t: 0.1 }, cam);
+    expect(shapes).toHaveBeenCalledTimes(0);
+    const other = { ...track, rocks: [] };
+    renderer.draw({ track: other, cars: [], stars: [], rocks, t: 0 }, cam);
+    renderer.draw({ track: other, cars: [], stars: [], rocks, t: 0.1 }, cam);
+    expect(shapes).toHaveBeenCalledTimes(1);
   });
 });

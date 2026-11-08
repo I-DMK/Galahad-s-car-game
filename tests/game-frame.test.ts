@@ -12,7 +12,7 @@ import { cameraTarget } from '../src/loop/frame';
 import { lerpCarPose, type CarPose } from '../src/loop/interpolation';
 import { placeCar } from '../src/physics/car';
 import { Camera } from '../src/render/camera';
-import { Effects, MAX_PARTICLES } from '../src/render/effects';
+import { Effects, MAX_PARTICLES, ROCK_SHARDS } from '../src/render/effects';
 import { Renderer, type Scene } from '../src/render/renderer';
 import { chassisX, posesOf, type RaceSim, type SimEvent } from '../src/sim/simulate';
 import { heightAt } from '../src/track/query';
@@ -229,9 +229,9 @@ test('Game (tâche 11c) : choc de Galahad contre le premier rocher de la graine 
   pressFinger();
   let now = startRacing(game, () => raf!);
   let hitFrame = -1;
-  let countBefore = 0;
+  let shardsBefore = 0;
   for (let f = 0; f < 900 && hitFrame < 0; f++) {
-    countBefore = internals.effects.count;
+    shardsBefore = internals.effects.shardCount;
     now += DT * 1000;
     raf!(now);
     if (burst.mock.calls.length > 0) hitFrame = f;
@@ -242,8 +242,10 @@ test('Game (tâche 11c) : choc de Galahad contre le premier rocher de la graine 
   const cx = (rock.xStart + rock.xEnd) / 2;
   expect(burst.mock.calls[0][0]).toBeCloseTo(cx, 9);
   expect(burst.mock.calls[0][1]).toBeCloseTo(heightAt(sim.track, cx) + CONFIG.ROCK_HEIGHT / 2, 9);
-  expect(internals.effects.count).toBeGreaterThanOrEqual(Math.min(MAX_PARTICLES, 24));
-  expect(internals.effects.count - countBefore).toBeGreaterThanOrEqual(24 - countBefore);
+  // À l'image du choc : les 14 éclats sont en vol (vie 0,8 s), aucun avant (ruling R-11c-12 : assertion non tautologique).
+  expect(shardsBefore).toBe(0);
+  expect(internals.effects.shardCount).toBe(ROCK_SHARDS);
+  expect(internals.effects.count).toBeLessThanOrEqual(MAX_PARTICLES);
   // Événement « rock » d'un copain, à l'écran (au x de Galahad), injecté au pas suivant : ni éclats, ni compte de Galahad.
   const step = internals.step.bind(game);
   const copain = sim.cars[1].state.id;

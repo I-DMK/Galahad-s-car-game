@@ -15,7 +15,7 @@ import type { Rock, Track } from '../src/track/types';
 import { disposeSolo, launchSolo, setCarSpeed, soloSim } from './helpers/jump-runs';
 import { fossePiste } from './helpers/fosses';
 import {
-  BLOCK_HALF_STEPS, leadOf, localRockLead, passedRock, realTrackRun, ROCK_X, rockBlock, rockRun, rockStart, rockTrack, rockWorld,
+  BLOCK_HALF_STEPS, leadOf, passedRock, realTrackRun, ROCK_X, rockBlock, rockRun, rockStart, rockTrack, rockWorld,
 } from './helpers/rochers';
 import { f2 } from './helpers/runs';
 
@@ -149,9 +149,10 @@ describe('(a) doigt posé sans saut : la voiture bute', () => {
 
   test('turbo pris 40 m avant : touché, un seul événement, pas de réapparition', () => {
     const r = rockRun(WORLD, ROCK, { x0: startFor(14), v: 14, pressAtStep: null, turboAtX: ROCK.xStart - 40 });
-    console.log(`turbo pris 40 m avant : choc à ${f2(r.hitSpeed)} m/s`);
+    console.log(`turbo pris 40 m avant : choc à ${f2(r.hitSpeed)} m/s, ${f2(r.speedAfterHit)} m/s au pas suivant`);
     expect(r.hit).toBe(true);
     expect(r.hitSpeed).toBeGreaterThan(17);
+    expect(r.speedAfterHit).toBeLessThanOrEqual(2.1);
     expect(r.hits).toBe(1);
     expect(r.respawn).toBe(false);
   });
@@ -286,7 +287,7 @@ describe('Review Focus 1 à 3 (choc en l’air, deux rochers à 60 m, réception
     // Bloc central du second : le témoin part après le premier choc.
     const k1 = witness.hitList[0].step;
     const kStar = witness.xs.findIndex((x, k) => k > k1 && x < second.xStart
-      && leadOf(second, x, witness.speeds[k]) <= localRockLead(witness.speeds[k]));
+      && leadOf(second, x, witness.speeds[k]) <= rockJumpLead(witness.speeds[k], CONFIG));
     let passed = 0;
     const failed: number[] = [];
     for (let d = -BLOCK_HALF_STEPS; d <= BLOCK_HALF_STEPS; d++) {
@@ -324,7 +325,7 @@ describe('saut voulu devant un rocher (cars/jump.ts, fonctions pures)', () => {
     expect(rockJumpLead(11.2, CONFIG)).toBeCloseTo(0.866, 3);
     expect(rockJumpLead(14, CONFIG)).toBeCloseTo(0.893, 3);
     expect(rockJumpLead(0.5, CONFIG)).toBe(rockJumpLead(1, CONFIG));
-    for (const v of [0, 8, 14, 21]) expect(rockLatestLead(v, CONFIG)).toBe(0.5);
+    expect(rockLatestLead(CONFIG)).toBe(0.5);
   });
 
   test.each([8, 11.2, 14, 21])('inRockJumpWindow à %s m/s : vrai sur [xStart − lead × v, xStart − JUMP_BUFFER × v[, faux avant et après ; une erreur ± 0,3 s déplace le bord tôt', (v) => {
@@ -342,9 +343,10 @@ describe('saut voulu devant un rocher (cars/jump.ts, fonctions pures)', () => {
     expect(at(lead + 0.31, 0.3)).toBe(false);
     expect(at(lead - 0.31, -0.3)).toBe(true);
     expect(at(lead - 0.29, -0.3)).toBe(false);
-    // Erreur très tardive : pas de bascule, filet JUMP_BUFFER + PHYSICS_DT.
-    expect(at(CONFIG.JUMP_BUFFER + CONFIG.PHYSICS_DT - EPS, -5)).toBe(true);
-    expect(at(CONFIG.JUMP_BUFFER + CONFIG.PHYSICS_DT + 0.01, -5)).toBe(false);
+    // Erreur très tardive : pas de bascule, filet max(JUMP_BUFFER + PHYSICS_DT, ROCK_JUMP_MIN_DISTANCE / v) (R-11c-12).
+    const floor = Math.max(CONFIG.JUMP_BUFFER + CONFIG.PHYSICS_DT, CONFIG.ROCK_JUMP_MIN_DISTANCE / v);
+    expect(at(floor - EPS, -5)).toBe(true);
+    expect(at(floor + 0.01, -5)).toBe(false);
   });
 
   test('rockJumpWanted sur une piste à rochers (graines 0 à 49) : vrai dans la fenêtre du premier rocher, faux 41 m avant, faux après xEnd ; faux sur une piste ROCKS_PER_RACE 0', () => {
@@ -432,5 +434,18 @@ describe('zone fantôme d’un rocher (ruling R-11c-1)', () => {
     expect(g.ghost).toBe(true);
     expect(c.ghost).toBe(true);
     expect((g.body.chassis.collisionFilter.mask ?? 0) & CAT.ALL_CARS).toBe(0);
+  });
+});
+
+describe('fenêtre de saut à basse vitesse (ruling R-11c-12)', () => {
+  test('2 m/s : la demande part au moins 1,5 m avant xStart (avant le contact, ≈ 1,2 m), plus tôt qu’au centre (0,5 m) ; 14 m/s inchangé', () => {
+    const xs = 500;
+    expect(inRockJumpWindow(xs, xs - 1.49, 2, CONFIG)).toBe(true);
+    expect(inRockJumpWindow(xs, xs - 1.51, 2, CONFIG)).toBe(false);
+    expect(inRockJumpWindow(xs, xs - 0.19, 2, CONFIG)).toBe(false);
+    expect(CONFIG.ROCK_JUMP_MIN_DISTANCE).toBe(1.5);
+    const lead14 = rockJumpLead(14, CONFIG);
+    expect(inRockJumpWindow(xs, xs - (lead14 - 0.001) * 14, 14, CONFIG)).toBe(true);
+    expect(inRockJumpWindow(xs, xs - (lead14 + 0.001) * 14, 14, CONFIG)).toBe(false);
   });
 });

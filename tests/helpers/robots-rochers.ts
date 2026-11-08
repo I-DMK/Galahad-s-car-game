@@ -2,8 +2,8 @@
 // de `robots-sauts.ts` : Galahad doigt posé, sauteur parfait (fosses et rochers), graines données, trois courses par
 // graine : les 4 copains avec les traits de saut de Pablo (bras « fonceurs »), avec ceux de Timothé (« prudents »), puis
 // le tirage normal. Par course, l'observateur relève, pour chaque voiture, les rochers rencontrés (châssis passé au-delà
-// de xEnd, ou choc) et les chocs ('rock'), et toute réapparition d'une voiture dans les ROCK_RESPAWN_WINDOW s qui suivent
-// son choc (0 attendue : un rocher ne cause jamais de réapparition, spec §0).
+// de xEnd, ou choc) et les chocs ('rock') ; les réapparitions et retournements dans les ROCK_RESPAWN_WINDOW s qui suivent
+// un choc sont relevés par `fiveCarRace` (tests/helpers/race.ts ; 0 attendu, spec §0 et §6).
 // Assertions : fonceurs 15 à 45 % de chocs par rocher rencontré, prudents ≤ 3 % (ruling R-11c-9), tirage normal entre les deux ;
 // 0 réapparition après un choc ; invariants de course (`expectRaceInvariants`).
 import { PILOTS, type Pilot } from '../../src/cars/pilots';
@@ -11,10 +11,7 @@ import { carSpeedMps } from '../../src/physics/car';
 import { chassisX, type RaceSim } from '../../src/sim/simulate';
 import type { Track } from '../../src/track/types';
 import { expectRaceInvariants, fiveCarRace, type FiveCarRace } from './race';
-import { f1, trackFor } from './runs';
-
-/** s : une réapparition dans cette durée après le choc d'une voiture contre un rocher est un défaut (spec §0). */
-export const ROCK_RESPAWN_WINDOW = 3;
+import { trackFor } from './runs';
 
 export type Arm = 'fonceurs' | 'prudents' | 'normal';
 const PABLO = PILOTS.find((p) => p.id === 'pablo')!;
@@ -29,28 +26,21 @@ const ARM_TRAITS: Record<Arm, Pick<Pilot, 'jumpTry' | 'jumpSkill'> | undefined> 
 export interface RockEncounter { arm: Arm; seed: number; carId: string; rock: number; hit: boolean; speed: number }
 export interface RockMeasure {
   arm: Arm; seed: number; encounters: RockEncounter[];
-  /** Réapparitions d'une voiture dans les ROCK_RESPAWN_WINDOW s après son choc (« id t = … ») : vide attendu. */
-  rockRespawns: string[];
   race: FiveCarRace;
 }
 
 /** Observateur : rochers rencontrés et chocs de chaque voiture, réapparitions après un choc. */
-function observer(arm: Arm, seed: number, track: Track, out: { encounters: RockEncounter[]; rockRespawns: string[] }) {
+function observer(arm: Arm, seed: number, track: Track, out: { encounters: RockEncounter[] }) {
   const done = new Set<string>();
-  const lastHit = new Map<string, number>();
   const prevSpeed = new Map<string, number>();
   return (sim: RaceSim): void => {
     for (const e of sim.events) {
       if (e.type === 'rock') {
-        lastHit.set(e.carId, e.t);
         const key = `${e.carId}/${e.id}`;
         if (!done.has(key)) {
           done.add(key);
           out.encounters.push({ arm, seed, carId: e.carId, rock: e.id, hit: true, speed: prevSpeed.get(e.carId) ?? NaN });
         }
-      } else if (e.type === 'respawn') {
-        const h = lastHit.get(e.carId);
-        if (h !== undefined && e.t - h <= ROCK_RESPAWN_WINDOW) out.rockRespawns.push(`${e.carId} t = ${f1(e.t)} s (${e.reason}, choc à ${f1(h)} s)`);
       }
     }
     for (const car of sim.cars) {
@@ -71,9 +61,9 @@ function observer(arm: Arm, seed: number, track: Track, out: { encounters: RockE
 /** Une course de la graine dans le bras donné, mesurée. */
 export function measureRockRace(seed: number, arm: Arm): RockMeasure {
   const track = trackFor(seed);
-  const out = { encounters: [] as RockEncounter[], rockRespawns: [] as string[] };
+  const out = { encounters: [] as RockEncounter[] };
   const race = fiveCarRace(seed, { traits: ARM_TRAITS[arm], jump: 'parfait', observe: observer(arm, seed, track, out) });
-  return { arm, seed, encounters: out.encounters, rockRespawns: out.rockRespawns, race };
+  return { arm, seed, encounters: out.encounters, race };
 }
 
 const pct = (k: number, n: number): string => (n === 0 ? '—' : `${k}/${n} (${((100 * k) / n).toFixed(1)} %)`);
@@ -106,7 +96,7 @@ export function registerRobotsRochers(seeds: number[]): void {
         all.push(m);
         const g = m.encounters.filter((e) => e.carId === 'galahad');
         console.log(`[${arm}] ${m.race.summary}\n  ${describe1(`[${arm}] g${seed}`, m.encounters)} ; Galahad (sauteur parfait) ${g.filter((e) => e.hit).length}/${g.length}`);
-        expect(m.rockRespawns, m.race.summary).toEqual([]);
+        // Réapparitions et retournements après un choc : `expectRaceInvariants` (rockRespawns, rockFlips de race.ts).
         expectRaceInvariants(m.race);
       }
     });

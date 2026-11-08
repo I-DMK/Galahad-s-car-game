@@ -28,8 +28,6 @@ export const WINDOW_SWEEP_SECONDS = 2;
 /** Pas de part et d'autre de k* du bloc central de la CI : 25 appuis, 0,4 s. */
 export const BLOCK_HALF_STEPS = 12;
 
-/** Centre de la fenêtre d'un rocher en s avant xStart (spec §2.2) : `rockJumpLead` (Partie 3). */
-export const localRockLead = (v: number, cfg: Config = CONFIG): number => rockJumpLead(v, cfg);
 
 /** Piste plate de 700 m (graine 3, tranches `plat` seulement), sans étoile, avec les rochers aux `xs` donnés (ids 0, 1…). */
 export function rockTrack(xs: readonly number[], cfg: Config = CONFIG): Track {

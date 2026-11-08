@@ -14,7 +14,7 @@
 // (aucune tolérée depuis le tour 2) ; ≤ 3 réapparitions par copain hors chutes dans une fosse (saut §6.8) ; aucun saut de
 // copain dans [xLancement, xReception] d'un tremplin.
 import { CONFIG, type Config } from '../../src/config';
-import { carSpeedMps } from '../../src/physics/car';
+import { carAngle, carSpeedMps } from '../../src/physics/car';
 import { carPairsTouching, simulateRace, type SimulateResult } from '../../src/sim/harness';
 import { makeRobotDriver, type Driver } from '../../src/ai/driver';
 import { GALAHAD, type Pilot } from '../../src/cars/pilots';
@@ -128,6 +128,11 @@ export interface FiveCarRace {
    * « rochers » §0 : un rocher ne cause jamais de réapparition) : vide attendu.
    */
   rockRespawns: string[];
+  /**
+   * Retournements (|angle du châssis| > FLIP_ANGLE) d'une voiture dans les ROCK_RESPAWN_WINDOW s qui suivent son choc
+   * contre un rocher (spec « rochers » §6, ruling R-11c-12) : vide attendu.
+   */
+  rockFlips: string[];
   /** Résumé lisible (par voiture), imprimé et repris dans les messages d'assertion. */
   summary: string;
   /** Durée mur de la simulation (s). */
@@ -227,6 +232,7 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
   const rockCounts: Record<string, number> = {};
   const lastRock = new Map<string, number>();
   const rockRespawns: string[] = [];
+  const rockFlips: string[] = [];
   let firstStar: FiveCarRace['firstStar'] = null;
   const firstStarCars: string[] = [];
   const r = simulateRace(track, {
@@ -273,7 +279,14 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
         lastContact.delete(e.carId);
         lastJump.delete(e.carId);
       }
-      for (const car of sim.cars) lastSpeed.set(car.state.id, carSpeedMps(car.body));
+      for (const car of sim.cars) {
+        lastSpeed.set(car.state.id, carSpeedMps(car.body));
+        const hit = lastRock.get(car.state.id);
+        if (hit !== undefined && sim.time - hit <= ROCK_RESPAWN_WINDOW && Math.abs(carAngle(car.body)) > (opts.cfg ?? CONFIG).FLIP_ANGLE) {
+          const what = `${car.state.id} retourné à t = ${f1(sim.time)} s, choc contre un rocher à ${f1(hit)} s`;
+          if (!rockFlips.some((w) => w.startsWith(`${car.state.id} `) && w.endsWith(`${f1(hit)} s`))) rockFlips.push(what);
+        }
+      }
       opts.observe?.(sim);
     },
   });
@@ -290,8 +303,9 @@ export function fiveCarRace(seed: number, opts: FiveCarOptions = {}): FiveCarRac
     + `meanStepMs ${f2(r.meanStepMs)} (indicateur, cible < 4), maxStepMs ${f1(r.maxStepMs)}, durée ${f1(seconds)} s\n  ${cars.join('\n  ')}`
     + `\n  chutes dans la lave : ${falls.length ? falls.map(describeFall).join(' ; ') : 'aucune'}`
     + (noJumpZoneJumps.length ? `\n  sauts de copain dans la zone d'un tremplin : ${noJumpZoneJumps.join(' ; ')}` : '')
-    + (rockRespawns.length ? `\n  réapparitions après un rocher : ${rockRespawns.join(' ; ')}` : '');
-  return { r, track, falls, noJumpZoneJumps, rocksByCar, rockRespawns, stars, firstStar, firstStarCars, summary, seconds };
+    + (rockRespawns.length ? `\n  réapparitions après un rocher : ${rockRespawns.join(' ; ')}` : '')
+    + (rockFlips.length ? `\n  retournements après un rocher : ${rockFlips.join(' ; ')}` : '');
+  return { r, track, falls, noJumpZoneJumps, rocksByCar, rockRespawns, rockFlips, stars, firstStar, firstStarCars, summary, seconds };
 }
 
 /**
@@ -339,6 +353,7 @@ export function expectRaceInvariants(race: FiveCarRace): void {
   expect(race.noJumpZoneJumps, summary).toEqual([]);
   // Un rocher ne cause jamais de réapparition (tâche 11c, spec « rochers » §0), pour aucune voiture.
   expect(race.rockRespawns, summary).toEqual([]);
+  expect(race.rockFlips, summary).toEqual([]);
   // Fantômes près des volcans : aucune paire active entre deux voitures dont l'une est dans une zone fantôme.
   expect(r.ghostContacts, summary).toBe(0);
   for (const [id, rs] of Object.entries(r.respawnsByCar)) {
