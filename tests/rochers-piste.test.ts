@@ -103,7 +103,8 @@ describe('rochers posés par le générateur (graines 0 à 49, 1 680 m)', () => 
       t.rocks.forEach((r, k) => {
         const where = `graine ${t.seed}, rocher ${r.id} en ${r.xStart.toFixed(1)}`;
         // Valeurs de la spec §3 et des rulings, écrites en dur (R-11c-12) : un réglage de CONFIG.ROCK_* les fait rougir.
-        expect(r.xStart, where).toBeGreaterThanOrEqual(t.xStart + 27.3);
+        // D_LANCE = runUpDistance(14 m/s, 4,3 m/s²) × 1,2 = 27,3488… m (spec §3, « zone de départ »).
+        expect(r.xStart, where).toBeGreaterThanOrEqual(t.xStart + ((14 * 14) / (2 * 4.3)) * 1.2 - EPS);
         expect(r.xEnd - r.xStart, where).toBeCloseTo(3, 9);
         for (const sl of t.slices) {
           if (sl.type === 'rampe-saut' && sl.xEnd <= r.xStart + EPS) expect(r.xStart - sl.xEnd, where).toBeGreaterThanOrEqual(50 - EPS);

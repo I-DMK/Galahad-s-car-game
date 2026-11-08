@@ -106,9 +106,12 @@ export function rockLatestLead(cfg: Config): number {
 
 /**
  * Fenêtre de demande du saut d'un rocher dont le bord amont est en `xStart` (spec §4) : (xStart − x) / max(v, 1) ≤
- * max(rockJumpLead(v) + error, JUMP_BUFFER + PHYSICS_DT, ROCK_JUMP_MIN_DISTANCE / max(v, 1)) (sous ≈ 3 m/s, au moins
- * 1,5 m avant xStart : le contact se fait ≈ 1,2 m avant, ruling R-11c-12) et > JUMP_BUFFER (une demande gardée en mémoire partirait sinon
- * contre le rocher). Pas de bascule d'une erreur trop tardive (contrairement aux fosses) : un saut trop tard se voit, la
+ * max(rockJumpLead(v) + error, plancher) et > JUMP_BUFFER (une demande gardée en mémoire partirait sinon contre le
+ * rocher), avec plancher = max(JUMP_BUFFER + PHYSICS_DT, ROCK_JUMP_MIN_DISTANCE / max(v, 1)) (ruling R-11c-12 : la
+ * demande s'ouvre au moins 1,5 m avant xStart, le contact se faisant ≈ 1,2 m avant). La distance l'emporte dans le
+ * plancher sous ≈ 12,9 m/s (1,5 m / 0,117 s) ; le plancher ne joue que si rockJumpLead(v) + error < plancher : sans
+ * erreur, sous 3 m/s seulement (rockJumpLead(v) < 1,5 / v ⇔ v < 3) ; avec une erreur tardive (error < 0), jusqu'à
+ * ≈ 12,9 m/s. Pas de bascule d'une erreur trop tardive (contrairement aux fosses) : un saut trop tard se voit, la
  * voiture bute et le rocher éclate.
  */
 export function inRockJumpWindow(xStart: number, x: number, v: number, cfg: Config, error = 0): boolean {
