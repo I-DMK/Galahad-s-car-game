@@ -4,6 +4,7 @@
 import { CONFIG, type Config } from '../src/config';
 import { generateTrack } from '../src/track/generate';
 import { fosses, heightAt, nextRock } from '../src/track/query';
+import * as rocksModule from '../src/track/rocks';
 import { placeRocks, rockCandidates } from '../src/track/rocks';
 import type { Fosse, Rock, Slice, Track } from '../src/track/types';
 import BASE from './fixtures/pistes-base.json';
@@ -85,28 +86,62 @@ describe('rochers posés par le générateur (graines 0 à 49, 1 680 m)', () => 
         expect(Math.abs(heightAt(t, r.xEnd)), where).toBeLessThan(1e-9);
       }
     }
-    console.log(`rochers sur un plat ordinaire : ${onPlat}, sur une réception de fosse : ${onFosse}`);
+    // Ruling R-11c-11 (5 m avant la tranche non plate suivante) non appliqué : candidates 3,82 < 3,9 (garde) ; compte imprimé.
+    let near = 0;
+    for (const t of TRACKS) {
+      for (const r of t.rocks) {
+        const i = t.slices.findIndex((sl) => sl.xStart <= r.xStart + EPS && r.xEnd <= sl.xEnd + EPS);
+        const next = t.slices.slice(i + 1).find((sl) => sl.type !== 'plat' && sl.type !== 'plat-étoile');
+        if (next && next.xStart - r.xEnd < 1) near++;
+      }
+    }
+    console.log(`rochers sur un plat ordinaire : ${onPlat}, sur une réception de fosse : ${onFosse} ; à moins de 1 m de la tranche non plate suivante : ${near}`);
   });
 
   test('dégagements : ≥ D_LANCE après xStart ; ≥ 50 m après la fin de toute rampe-saut ; ≥ 60 m avant le début de toute tranche volcan ; ≥ 30 m après toute étoile haute ; ≥ 11 m de toute étoile basse, avant et après ; ≥ 60 m entre deux rochers', () => {
     for (const t of TRACKS) {
       t.rocks.forEach((r, k) => {
         const where = `graine ${t.seed}, rocher ${r.id} en ${r.xStart.toFixed(1)}`;
-        expect(r.xStart, where).toBeGreaterThanOrEqual(t.xStart + CONFIG.D_LANCE - EPS);
+        // Valeurs de la spec §3 et des rulings, écrites en dur (R-11c-12) : un réglage de CONFIG.ROCK_* les fait rougir.
+        expect(r.xStart, where).toBeGreaterThanOrEqual(t.xStart + 27.3);
+        expect(r.xEnd - r.xStart, where).toBeCloseTo(3, 9);
         for (const sl of t.slices) {
-          if (sl.type === 'rampe-saut' && sl.xEnd <= r.xStart + EPS) expect(r.xStart - sl.xEnd, where).toBeGreaterThanOrEqual(CONFIG.ROCK_RAMP_CLEARANCE - EPS);
-          if (isVolcanoSlice(sl) && sl.xStart >= r.xEnd - EPS) expect(sl.xStart - r.xEnd, where).toBeGreaterThanOrEqual(CONFIG.ROCK_VOLCANO_GAP - EPS);
+          if (sl.type === 'rampe-saut' && sl.xEnd <= r.xStart + EPS) expect(r.xStart - sl.xEnd, where).toBeGreaterThanOrEqual(50 - EPS);
+          if (isVolcanoSlice(sl) && sl.xStart >= r.xEnd - EPS) expect(sl.xStart - r.xEnd, where).toBeGreaterThanOrEqual(60 - EPS);
         }
         for (const s of t.stars) {
-          if (s.high && s.x <= r.xStart + EPS) expect(r.xStart - s.x, where).toBeGreaterThanOrEqual(CONFIG.ROCK_HIGH_STAR_LANDING - EPS);
+          if (s.high && s.x <= r.xStart + EPS) expect(r.xStart - s.x, where).toBeGreaterThanOrEqual(30 - EPS);
           if (!s.high) {
-            const inside = s.x > r.xStart - CONFIG.ROCK_STAR_GAP_BEFORE + EPS && s.x < r.xEnd + CONFIG.ROCK_STAR_GAP_AFTER - EPS;
+            const inside = s.x > r.xStart - 11 + EPS && s.x < r.xEnd + 11 - EPS;
             expect(inside, `${where}, étoile basse en ${s.x.toFixed(1)}`).toBe(false);
           }
         }
-        if (k > 0) expect(r.xStart - t.rocks[k - 1].xStart, where).toBeGreaterThanOrEqual(CONFIG.ROCK_SPACING - EPS);
+        if (k > 0) expect(r.xStart - t.rocks[k - 1].xStart, where).toBeGreaterThanOrEqual(60 - EPS);
       });
     }
+  });
+
+  test.each([300, 600, 1000, 1680])('%i m, graines 0 à 49 : aucune étoile haute dans [xStart − 30, xEnd + 11] d’un rocher, quelle que soit sa tranche (ruling R-11c-10)', (len) => {
+    let rocks = 0;
+    for (let seed = 0; seed < 50; seed++) {
+      const t = generateTrack(seed, len, CONFIG);
+      for (const r of t.rocks) {
+        rocks++;
+        for (const s of t.stars) {
+          if (!s.high) continue;
+          expect(s.x >= r.xStart - 30 - EPS && s.x <= r.xEnd + 11 + EPS, `${len} m, graine ${seed}, rocher en ${r.xStart.toFixed(1)}, étoile haute en ${s.x.toFixed(1)}`).toBe(false);
+        }
+      }
+    }
+    console.log(`${len} m : ${rocks} rochers vérifiés (étoiles hautes)`);
+  });
+
+  test('placeRocks n’est appelé qu’une fois par piste, sur l’essai de pose des plats étoile retenu (graine 32, 1 680 m : 4 essais)', () => {
+    const spy = vi.spyOn(rocksModule, 'placeRocks');
+    const t = generateTrack(32, 1680, CONFIG);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.results[0].value).toEqual(t.rocks);
+    spy.mockRestore();
   });
 
   test('déterminisme : deux générations identiques ; ENCORE (même graine) donne les mêmes rochers', () => {

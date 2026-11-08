@@ -2,11 +2,10 @@
 // ordinaires et les réceptions de fosse, puis au plus ROCKS_PER_RACE tirés sur le rng de la piste APRÈS tous les autres
 // tirages (terrain et étoiles inchangés au bit près). Pur : ni DOM, ni matter-js.
 import type { Config } from '../config';
-import type { Rock, Slice, Track } from './types';
+import { isVolcanoSlice } from './query';
+import type { Rock, Track } from './types';
 
 const EPS = 1e-9;
-
-const isVolcanoSlice = (sl: Slice): boolean => sl.type === 'rampe-volcan' || sl.type === 'fosse';
 
 /** Plus grand élément de `xs` (triés) qui soit ≤ x, null s'il n'y en a pas. */
 function lastAtMost(xs: readonly number[], x: number): number | null {
@@ -33,9 +32,10 @@ function firstAtLeast(xs: readonly number[], x: number): number | null {
  *   plat + ROCK_RAMP_CLEARANCE, dernière étoile haute d'abscisse ≤ début du plat + ROCK_HIGH_STAR_LANDING) et hi =
  *   min(fin du plat − ROCK_WIDTH, début de la prochaine tranche volcan − ROCK_VOLCANO_GAP − ROCK_WIDTH) ;
  * - réception de fosse : lo = bord aval + FOSSE_STAR_AFTER + ROCK_STAR_GAP_BEFORE (11 m après l'étoile de réception), hi = fin de
- *   la tranche − ROCK_WIDTH − 5, mêmes dégagements (rampe-saut, étoile haute, prochaine tranche volcan) ;
+ *   la tranche − ROCK_WIDTH − ROCK_FOSSE_END_GAP, mêmes dégagements (rampe-saut, étoile haute, prochaine tranche volcan) ;
  * - position (ruling R-11c-8) : parmi les points x = centre ± k × TRACK_POINT_SPACING de [lo, hi] sans étoile basse dans
- *   ]x − ROCK_STAR_GAP_BEFORE, x + ROCK_WIDTH + ROCK_STAR_GAP_AFTER[, celui qui minimise le triplet (nombre d'étoiles
+ *   ]x − ROCK_STAR_GAP_BEFORE, x + ROCK_WIDTH + ROCK_STAR_GAP_AFTER[ ni étoile haute dans [x − ROCK_HIGH_STAR_LANDING,
+ *   x + ROCK_WIDTH + ROCK_STAR_GAP_AFTER] (ruling R-11c-10 : une étoile haute du même plat compte aussi), celui qui minimise le triplet (nombre d'étoiles
  *   basses dans l'empreinte de survol ]x − ROCK_OVERFLIGHT_BEFORE, x + ROCK_WIDTH + ROCK_OVERFLIGHT_AFTER[ ; −(x − fin de
  *   la bosses ou double-bosse qui précède le plat), 0 sinon ; |x − centre|), le côté amont d'abord à égalité ; aucun, ou
  *   hi < lo : pas de candidate ;
@@ -44,7 +44,7 @@ function firstAtLeast(xs: readonly number[], x: number): number | null {
 export function rockCandidates(track: Track, cfg: Config): number[] {
   const W = cfg.ROCK_WIDTH;
   const rampEnds = track.slices.filter((sl) => sl.type === 'rampe-saut').map((sl) => sl.xEnd);
-  const volcanoStarts = track.slices.filter(isVolcanoSlice).map((sl) => sl.xStart);
+  const volcanoStarts = track.slices.filter((sl) => isVolcanoSlice(sl.type)).map((sl) => sl.xStart);
   const highXs = track.stars.filter((s) => s.high).map((s) => s.x).sort((a, b) => a - b);
   const lowXs = track.stars.filter((s) => !s.high).map((s) => s.x);
   const startClear = track.xStart + cfg.D_LANCE;
@@ -68,19 +68,20 @@ export function rockCandidates(track: Track, cfg: Config): number[] {
   track.slices.forEach((sl, i) => {
     if (sl.type === 'plat') {
       if (i === 0 || sl.xEnd > limit + EPS || sl.xEnd - sl.xStart < cfg.ROCK_MIN_PLAT - EPS) return;
-      if (isVolcanoSlice(track.slices[i - 1])) return;
+      if (isVolcanoSlice(track.slices[i - 1].type)) return;
       const prev = track.slices[i - 1].type;
       const bumpEnd = prev === 'bosses' || prev === 'double-bosse' ? sl.xStart : null;
       places.push([...bounds(sl.xStart, sl.xEnd, sl.xStart, sl.xEnd - W), bumpEnd]);
     } else if (sl.type === 'fosse') {
       const f = track.volcanoes.find((v) => v.kind === 'fosse' && Math.abs(v.xEnd - sl.xEnd) < EPS);
       if (!f) return;
-      places.push([...bounds(f.xReception, f.xEnd, f.xReception + cfg.FOSSE_STAR_AFTER + cfg.ROCK_STAR_GAP_BEFORE, f.xEnd - W - 5), null]);
+      places.push([...bounds(f.xReception, f.xEnd, f.xReception + cfg.FOSSE_STAR_AFTER + cfg.ROCK_STAR_GAP_BEFORE, f.xEnd - W - cfg.ROCK_FOSSE_END_GAP), null]);
     }
   });
 
   const free = (x: number): boolean =>
-    lowXs.every((s) => !(s > x - cfg.ROCK_STAR_GAP_BEFORE && s < x + W + cfg.ROCK_STAR_GAP_AFTER));
+    lowXs.every((s) => !(s > x - cfg.ROCK_STAR_GAP_BEFORE && s < x + W + cfg.ROCK_STAR_GAP_AFTER))
+    && highXs.every((s) => !(s >= x - cfg.ROCK_HIGH_STAR_LANDING - EPS && s <= x + W + cfg.ROCK_STAR_GAP_AFTER + EPS));
   /** Étoiles basses dans l'empreinte de survol du saut d'un rocher en x. */
   const overflown = (x: number): number => {
     let n = 0;

@@ -1,5 +1,6 @@
 import type { Config } from '../config';
 import { mulberry32, pickWeighted } from './rng';
+import { isVolcanoSlice } from './query';
 import { placeRocks } from './rocks';
 import { placeStars, starFlatStarX } from './stars';
 import {
@@ -48,8 +49,6 @@ export function parseTrackOptions(search: string, cfg: Config): TrackOptions {
   return { seed, length, debug: q.get('debug') === '1' };
 }
 
-/** Une tranche volcan, tremplin ou fosse (tâche 5g). */
-const isVolcanoSlice = (type: SliceType): boolean => type === 'rampe-volcan' || type === 'fosse';
 
 /**
  * Tire une tranche. `previous` est la dernière tranche TIRÉE (un plat étoile intercalé est ignoré, ruling R-F5) :
@@ -107,12 +106,15 @@ export function generateTrack(
   for (let k = 1; k < STAR_FLAT_ATTEMPTS && built.flatsPlaced < built.flatsWanted; k++) {
     built = buildTrack(seed, targetLength, cfg, opts, k * cfg.STAR_FLAT_LENGTH);
   }
+  // Rochers (tâche 11c, spec « rochers » §3) : sur l'essai retenu seulement, tirés sur son rng après tous les autres
+  // tirages (terrain et étoiles inchangés ; mêmes tirages qu'un appel dans `buildTrack`).
+  built.track.rocks = placeRocks(built.track, built.rng, cfg);
   return built.track;
 }
 
 function buildTrack(
   seed: number, targetLength: number, cfg: Config, opts: { onlyPlat?: boolean }, slack: number,
-): { track: Track; flatsPlaced: number; flatsWanted: number } {
+): { track: Track; flatsPlaced: number; flatsWanted: number; rng: () => number } {
   const rng = mulberry32(seed);
   const s = cfg.TRACK_POINT_SPACING;
   const points: TrackPoint[] = [{ x: 0, y: 0 }];
@@ -200,9 +202,7 @@ function buildTrack(
     xStart: cfg.START_LENGTH - 5, xFinish, xWall,
   };
   track.stars = placeStars(track, rng, cfg);
-  // Rochers (tâche 11c, spec « rochers » §3) : tirés après tous les autres tirages, terrain et étoiles inchangés.
-  track.rocks = placeRocks(track, rng, cfg);
-  return { track, flatsPlaced, flatsWanted: nFlats };
+  return { track, flatsPlaced, flatsWanted: nFlats, rng };
 }
 
 /** Volcan de la piste d'un profil de tranche (tremplin ou fosse) posé en `xStart` (dx* depuis le début de la tranche). */

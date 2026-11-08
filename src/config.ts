@@ -141,7 +141,8 @@ export const CONFIG = {
   ROCK_HIT_SPEED: 2,            // m/s : norme imposée à chaque pièce au choc (Q-C2) : ≈ 1,22 s perdues à 14 m/s (MESURÉ, spec §2.1)
   ROCK_HIT_TRAVERSABLE: 1.5,    // s : la voiture ralentie est traversable (Q-C8), levée par releaseInvulnerability comme après une réapparition
   ROCK_MIN_PLAT: 20,            // m : longueur minimale d'un plat porteur (le minimum du générateur, spec §3)
-  ROCK_RAMP_CLEARANCE: 50,      // m après la fin d'une rampe-saut (vol doigt posé jusqu'à 61 m à 21 m/s ; comme STAR_HIGH_RAMP_CLEARANCE)
+  ROCK_RAMP_CLEARANCE: 50,
+  ROCK_FOSSE_END_GAP: 5,        // m entre xEnd et la fin d'une réception de fosse (spec §3)      // m après la fin d'une rampe-saut (vol doigt posé jusqu'à 61 m à 21 m/s ; comme STAR_HIGH_RAMP_CLEARANCE)
   ROCK_VOLCANO_GAP: 60,         // m entre la fin du rocher et le début de la prochaine tranche volcan (Q-C4 : D_LANCE pour revenir à 14 m/s après un choc)
   ROCK_HIGH_STAR_LANDING: 30,   // m après une étoile haute (atterrissage d'un saut d'étoile en turbo ≤ 27 m)
   // Étoiles basses autour d'un rocher (ruling R-11c-8, option P2 : remplace l'écart symétrique de 10 m, avec lequel 53

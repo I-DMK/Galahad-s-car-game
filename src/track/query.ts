@@ -1,5 +1,8 @@
 import type { Config } from '../config';
-import type { Fosse, Rock, Slice, Track, Tremplin, Volcano } from './types';
+import type { Fosse, Rock, Slice, SliceType, Track, Tremplin, Volcano } from './types';
+
+/** Une tranche volcan, tremplin (`rampe-volcan`) ou fosse (tâche 5g) ; partagé par le générateur et `rockCandidates`. */
+export const isVolcanoSlice = (type: SliceType): boolean => type === 'rampe-volcan' || type === 'fosse';
 
 /** Indice i (1 ≤ i ≤ n − 1) du premier point d'abscisse ≥ x (x supposé dans l'intervalle des points). */
 function upperIndex(track: Track, x: number): number {
