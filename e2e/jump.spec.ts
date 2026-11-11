@@ -23,7 +23,9 @@ test('un doigt posé ailleurs + tap sur le bouton de l’autre : un saut, la voi
   await waitForGame(page);
   await startRace(page);
   const before = (await gameState(page)).progress;
-  await restFingerAndTapJump(page, 1, 1);
+  // UN seul tap, à ≈ 0,3 s de course : Galahad est encore au sol sur la grille, loin de la première fenêtre où un saut est
+  // refusé (graine 1 : en l'air au-delà de la tolérance de sol de 2,23 à 5,52 s).
+  await restFingerAndTapJump(page, 0.3, 2);
   const after = await gameState(page);
   expect(await jumpState(page)).toEqual({ jumps: 1, galahadThrottle: true });
   expect(after.state).toBe('racing');
@@ -79,17 +81,21 @@ test('HUD de debug sous le bouton : boîtes disjointes, bouton dans la vue ; cap
   // contact de jeu (tolérance de sol, tâche 5e Step 11). Saut loin des 4 copains (15 m) : un copain qui arrive par
   // derrière heurte Galahad en l'air, et un toit compte comme du sol. Depuis la tâche 11d, Galahad roule seul dès PARTEZ
   // et les copains ne le dépassent plus sur la grille : ils sont déclarés arrivés au départ par la poignée de débogage
-  // (comme au podium, A12), ils freinent derrière lui. Instant lu dans le jeu, dans la même évaluation que la classe :
-  // délai de 0,5 s écoulé et tolérance dépassée de 0,05 s (un instant lu après le tap arrive ≈ 0,3 s en retard).
+  // (comme au podium, A12), ils freinent derrière lui. C'est pour l'image seulement : le HUD de la capture (places,
+  // copains « arrivés ») n'est pas celui d'une vraie course, c'est voulu. Instant lu dans le jeu, dans la même évaluation
+  // que la classe : délai de 0,5 s écoulé et tolérance dépassée de 0,05 s (un instant lu après le tap arrive ≈ 0,3 s en
+  // retard).
   await page.evaluate(() => { const g = (window as any).__game; for (const i of [1, 2, 3, 4]) g.sim.cars[i].state.finishedAt = 0.1 * i; });
   await page.waitForFunction(() => {
     const g = (window as any).__game;
     const ids: string[] = g.pilots.map((p: { id: string }) => p.id);
     return ids.slice(1).every((id) => g.progress(id) < g.progress(ids[0]) - 15);
   }, undefined, { timeout: 30_000 });
-  // Galahad roule (tâche 11d) : tap quand le bouton est prêt, répété jusqu'à un saut compté (`tapJumpUntilJump`).
-  expect(await tapJumpUntilJump(page)).toBe(1);
-  const s =(await (await page.waitForFunction(() => {
+  // Galahad roule (tâche 11d) : tap quand le bouton est prêt, répété jusqu'à un saut compté, en 2 taps au plus.
+  const tapped = await tapJumpUntilJump(page);
+  expect(tapped.jumps).toBe(1);
+  expect(tapped.taps, 'au plus 2 taps : sinon des sauts se perdent').toBeLessThanOrEqual(2);
+  const s = (await (await page.waitForFunction(() => {
     const g = (window as any).__game;
     const c = g.sim.cars[0];
     const t: number = g.sim.time;

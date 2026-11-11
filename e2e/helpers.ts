@@ -221,15 +221,18 @@ export async function tapJump(page: Page, holdMs = 150): Promise<void> {
 /**
  * Taps sur le bouton saut jusqu'à un saut compté (au plus `tries`), chacun quand le bouton est prêt (pas `is-waiting`).
  * La voiture roule (tâche 11d) : une bosse peut la tenir en l'air au-delà de la tolérance de sol entre la lecture du bouton
- * et le tap ; le saut est alors refusé et la demande consommée. Rend le nombre de sauts.
+ * et le tap ; le saut est alors refusé et la demande consommée. Rend le nombre de sauts et le nombre de taps faits :
+ * l'appelant borne les taps (au plus 2 pour les captures), sinon des sauts perdus passeraient inaperçus.
  */
-export async function tapJumpUntilJump(page: Page, tries = 10, holdMs = 150): Promise<number> {
-  for (let k = 0; k < tries && (await jumpState(page)).jumps === 0; k++) {
+export async function tapJumpUntilJump(page: Page, tries = 10, holdMs = 150): Promise<{ jumps: number; taps: number }> {
+  let taps = 0;
+  while (taps < tries && (await jumpState(page)).jumps === 0) {
     await page.waitForFunction(() => !document.querySelector('.jump-button')!.classList.contains('is-waiting'), null, { polling: 'raf' });
     await tapJump(page, holdMs);
+    taps++;
     await page.waitForTimeout(100);
   }
-  return (await jumpState(page)).jumps;
+  return { jumps: (await jumpState(page)).jumps, taps };
 }
 
 /**

@@ -73,7 +73,7 @@ export class Game {
   private readonly effects: Effects;
   private readonly hud: Hud;
   private readonly screens: Screens;
-  /** Retire la garde du menu contextuel (appui long) ; les tests s'en servent pour nettoyer. */
+  /** Retire la garde du menu contextuel (appui long), à `stop()`. */
   private readonly releaseContextMenu: () => void;
   private readonly jumpButton: JumpButton;
   /** Bouton ⏸ (tâche 11, Partie 5 ; demande du papa) : visible pendant le décompte et la course seulement. */
@@ -223,6 +223,7 @@ export class Game {
     this.readPortrait();
     window.addEventListener('resize', this.onResize);
     window.addEventListener('popstate', this.onPopState);
+    window.addEventListener('blur', this.onBlur);
     document.addEventListener('visibilitychange', this.onVisibility);
     this.showTitle();
     this.last = this.fpsSince = performance.now();
@@ -403,8 +404,10 @@ export class Game {
     cancelAnimationFrame(this.rafId);
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('popstate', this.onPopState);
+    window.removeEventListener('blur', this.onBlur);
     window.removeEventListener('pointerup', requestFullscreen);
     document.removeEventListener('visibilitychange', this.onVisibility);
+    this.releaseContextMenu();
   }
 
   /**
@@ -426,6 +429,17 @@ export class Game {
     const { phase } = this.machine;
     if (phase === 'finished' || phase === 'podium') this.menu();
     else this.pause();
+  };
+
+  /**
+   * Fenêtre qui perd le focus pendant le décompte ou la course (ruling R-11d-1) : pause, comme un onglet caché (calque
+   * PAUSE, REPRENDRE, décompte). Sur la tablette, un volet système peut prendre le focus sans cacher la page ; depuis la
+   * tâche 11d la voiture roule seule, elle foncerait sans que Galahad la voie. Ailleurs (titre, arrivée, podium), rien :
+   * `pause` n'agit que depuis `countdown` et `racing`.
+   */
+  private readonly onBlur = (): void => {
+    this.jumpInput.clear();
+    this.pause();
   };
 
   private readonly onVisibility = (): void => {
@@ -595,13 +609,12 @@ export class Game {
   }
 
   /**
-   * Pas `i` de l'image pour `runFrame`, gaz à fond pour Galahad (GALAHAD_THROTTLE, tâche 11d) : la demande de saut est
-   * donnée au premier pas (`i === 0`) et consommée
-   * quand il réussit ; une image sans pas la laisse en attente ; un pas qui lève la jette (`rebuildCars` est une
-   * téléportation, qui oublie la demande). Événements recueillis
-   * dans `events`, sauts et arrivée de Galahad ; poses après le pas et voitures réapparues (téléportées : pas
-   * d'interpolation depuis l'ancienne position). Sur exception : `rebuildCars` (historique remis à zéro), ou
-   * abandon au MAX_ERRORS-ième échec.
+   * Pas `i` de l'image pour `runFrame`, gaz à fond pour Galahad (GALAHAD_THROTTLE, tâche 11d). La demande de saut est
+   * donnée au premier pas (`i === 0`) et jetée après lui, que le saut parte ou soit refusé (en l'air au-delà de la
+   * tolérance de sol) ; une image sans pas la laisse en attente ; un pas qui lève la jette aussi (`rebuildCars` est une
+   * téléportation, qui oublie la demande). Événements recueillis dans `events`, sauts et arrivée de Galahad ; poses après
+   * le pas et voitures réapparues (téléportées : pas d'interpolation depuis l'ancienne position). Sur exception :
+   * `rebuildCars` (historique remis à zéro), ou abandon au MAX_ERRORS-ième échec.
    */
   private step(i: number, events: SimEvent[]): StepOutcome {
     const { sim } = this;

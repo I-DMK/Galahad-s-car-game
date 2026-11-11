@@ -34,7 +34,9 @@ test('images : __game.art complet sur la tablette simulée, Galahad en l’air (
 
   // Saut à 2,5 s de course (la voiture roule seule), comme le doigt de gaz + tap d'avant la tâche 11d.
   await waitForRaceTime(page, 2.5);
-  expect(await tapJumpUntilJump(page, 10, 200)).toBe(1);
+  const tapped = await tapJumpUntilJump(page, 10, 200);
+  expect(tapped.jumps).toBe(1);
+  expect(tapped.taps, 'au plus 2 taps : sinon des sauts se perdent').toBeLessThanOrEqual(2);
   expect(await jumpState(page)).toEqual({ jumps: 1, galahadThrottle: true });
   // Galahad est bien en l'air (hauteur de sa roue la plus basse, celle qui règle son ombre) avant et après la capture.
   const airHeight = () => page.evaluate(() => (window as any).__game.airHeight as number);

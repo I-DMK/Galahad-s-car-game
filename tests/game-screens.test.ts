@@ -655,6 +655,46 @@ test('onglet caché au podium : reste au podium (pas de pause), aucun pas', () =
   expect(q('.screen-podium').hidden).toBe(false);
 });
 
+test('blur de la fenêtre (ruling R-11d-1 : volet système qui prend le focus sans cacher la page) : pause en course et au décompte, aucun pas, REPRENDRE ; au titre et au podium, rien ; écouteur retiré au stop()', () => {
+  const update = vi.spyOn(Matter.Engine, 'update');
+  const { game, q, internals } = makeGame();
+  game.start();
+  window.dispatchEvent(new Event('blur'));
+  expect(game.state).toBe('title');
+  expect(q('.screen-title').hidden).toBe(false);
+  // Course : blur → PAUSE + REPRENDRE, plus aucun pas.
+  let now = startRacing(game, () => raf!);
+  now = frames(30, now);
+  window.dispatchEvent(new Event('blur'));
+  expect(game.state).toBe('paused');
+  expect(q('.pause-text').textContent).toBe('PAUSE');
+  expect(q('.btn-resume').hidden).toBe(false);
+  const steps = update.mock.calls.length;
+  const t = internals().sim.time;
+  now = frames(60, now);
+  expect(update.mock.calls.length).toBe(steps);
+  expect(internals().sim.time).toBe(t);
+  // REPRENDRE → décompte ; blur au décompte → pause aussi.
+  game.resume();
+  expect(game.state).toBe('countdown');
+  window.dispatchEvent(new Event('blur'));
+  expect(game.state).toBe('paused');
+  game.resume();
+  now = frames(3, now, 1000);
+  expect(game.state).toBe('racing');
+  // Podium : blur → rien.
+  now = driveToPodium(game, internals, now);
+  window.dispatchEvent(new Event('blur'));
+  expect(game.state).toBe('podium');
+  expect(q('.screen-pause').hidden).toBe(true);
+  // stop() retire l'écouteur (comme ceux de resize, popstate et visibilitychange).
+  const remove = vi.spyOn(window, 'removeEventListener');
+  const onBlur = (game as unknown as { onBlur: EventListener }).onBlur;
+  internals().stop();
+  expect(remove.mock.calls.some((c) => c[0] === 'blur' && c[1] === onBlur)).toBe(true);
+  expect(remove.mock.calls.some((c) => c[0] === 'contextmenu'), 'stop() retire aussi la garde du menu contextuel').toBe(true);
+});
+
 test('erreur de rendu au titre (drawTitle lève) → error, « Oups ! Recharge la page », boucle arrêtée', () => {
   vi.spyOn(Renderer.prototype, 'drawTitle').mockImplementation(() => { throw new Error('canvas perdu (test)'); });
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
