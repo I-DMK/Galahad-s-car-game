@@ -2,9 +2,12 @@
 // spec rejoue sur l'aperçu de build et sur le site en ligne), la capture montre Galahad en l'air (hauteur de vol lue), une
 // image refusée donne une voiture mi-image mi-code sans exception, la course roulant, les flammes du turbo sont vraiment
 // dessinées, et une image qui ne répond jamais est abandonnée au délai sans retenir l'événement `load` de la page.
-// Depuis la tâche 10, la page arrive au titre : la course part par le vrai bouton JOUER (`startRace`), sans attendre les images.
+// Depuis la tâche 10, la page arrive au titre : la course part par le vrai bouton JOUER (`startRace`), sans attendre les images ;
+// depuis la tâche 11d, la voiture roule seule dès PARTEZ (aucun doigt de gaz).
 import { expect, test, type Page } from '@playwright/test';
-import { SHOTS, delaySprites, gameState, holdFinger, holdFingerAndTapJump, jumpState, startRace, tapAt, waitForGame, waitForState } from './helpers';
+import {
+  SHOTS, delaySprites, gameState, jumpState, startRace, tapAt, tapJumpUntilJump, waitForGame, waitForRaceTime, waitForState,
+} from './helpers';
 
 /** Les 13 images attendues, triées (`src/render/assets.ts`, `ART_FILES`). */
 const ART = [
@@ -29,12 +32,13 @@ test('images : __game.art complet sur la tablette simulée, Galahad en l’air (
   expect([...art.loaded].sort()).toEqual(ART);
   await startRace(page);
 
-  const { throttleWithB } = await holdFingerAndTapJump(page, 2.5, 0.3);
-  expect(throttleWithB).toBe(true);
-  expect((await jumpState(page)).jumps).toBe(1);
+  // Saut à 2,5 s de course (la voiture roule seule), comme le doigt de gaz + tap d'avant la tâche 11d.
+  await waitForRaceTime(page, 2.5);
+  expect(await tapJumpUntilJump(page, 10, 200)).toBe(1);
+  expect(await jumpState(page)).toEqual({ jumps: 1, galahadThrottle: true });
   // Galahad est bien en l'air (hauteur de sa roue la plus basse, celle qui règle son ombre) avant et après la capture.
   const airHeight = () => page.evaluate(() => (window as any).__game.airHeight as number);
-  expect(await airHeight()).toBeGreaterThan(0.5);
+  await page.waitForFunction(() => (window as any).__game.airHeight > 0.5, null, { timeout: 2_000 });
   await page.screenshot({ path: `${SHOTS}/course-sprites.png`, fullPage: true });
   expect(await airHeight()).toBeGreaterThan(0.5);
   expect(errors).toEqual([]);
@@ -53,11 +57,11 @@ test('une carrosserie bloquée (galahad.png) : repli par code, la course roule s
   expect(art.loaded).toHaveLength(12);
   await startRace(page);
 
-  const before = (await gameState(page)).progress;
-  await holdFinger(page, 2);
+  const before = await gameState(page);
+  await waitForRaceTime(page, before.time + 2);
   const after = await gameState(page);
   expect(after.state).toBe('racing');
-  expect(after.progress - before).toBeGreaterThan(3);
+  expect(after.progress - before.progress).toBeGreaterThan(3);
   expect(errors).toEqual([]);
 });
 
@@ -76,26 +80,19 @@ test('turbo : les images de flamme sont vraiment dessinées à l’arrière de G
       return original.call(this, img, ...rest);
     } as typeof CanvasRenderingContext2D.prototype.drawImage;
   });
-  // Graine 5 : Galahad prend une étoile dans les premières secondes, doigt posé.
+  // Graine 5 : Galahad prend une étoile dans les premières secondes, gaz à fond (il roule seul).
   await page.goto('./?seed=5&debug=1');
   await waitForGame(page);
   await waitForArt(page);
   await startRace(page);
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 400, id: 0 }] });
-    // Au moins 1 s de turbo restant : les flammes tournent encore pendant la capture.
-    await page.waitForFunction(() => { const g = (window as any).__game; return g.sim.cars[0].state.turboUntil > g.time + 1; }, null, { timeout: 60_000 });
-    await page.waitForTimeout(300);
-    await page.screenshot({ path: `${SHOTS}/course-sprites-turbo.png`, fullPage: true });
-    const drawn: string[] = await page.evaluate(() => [...(window as any).__drawn]);
-    expect(drawn.filter((f) => /^flame-\d\.png$/.test(f)).length, `images dessinées : ${drawn.join(', ')}`).toBeGreaterThanOrEqual(2);
-    expect(drawn).toContain('galahad.png');
-    expect(drawn).toContain('wheel.png');
-  } finally {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await cdp.detach();
-  }
+  // Au moins 1 s de turbo restant : les flammes tournent encore pendant la capture.
+  await page.waitForFunction(() => { const g = (window as any).__game; return g.sim.cars[0].state.turboUntil > g.time + 1; }, null, { timeout: 60_000 });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/course-sprites-turbo.png`, fullPage: true });
+  const drawn: string[] = await page.evaluate(() => [...(window as any).__drawn]);
+  expect(drawn.filter((f) => /^flame-\d\.png$/.test(f)).length, `images dessinées : ${drawn.join(', ')}`).toBeGreaterThanOrEqual(2);
+  expect(drawn).toContain('galahad.png');
+  expect(drawn).toContain('wheel.png');
   expect(errors).toEqual([]);
 });
 
@@ -112,7 +109,7 @@ test('une image qui ne répond jamais (wheel.png) : abandonnée au délai, requ�
   // Le titre est là et JOUER lance la course sans attendre l'image : elle roule avant `load`.
   await startRace(page);
   const t0 = (await gameState(page)).time;
-  await holdFinger(page, 1);
+  await page.waitForTimeout(1_000);
   expect((await gameState(page)).time).toBeGreaterThan(t0);
 
   // Au délai (8 s), l'image passe en échec, les 12 autres sont utilisées, et la requête coupée laisse partir `load`.
@@ -123,11 +120,11 @@ test('une image qui ne répond jamais (wheel.png) : abandonnée au délai, requ�
   const loadEnd = await page.evaluate(() => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming).loadEventEnd);
   expect(loadEnd, 'loadEventEnd (ms depuis le début de la navigation)').toBeGreaterThan(0);
 
-  const before = (await gameState(page)).progress;
-  await holdFinger(page, 2);
+  const before = await gameState(page);
+  await waitForRaceTime(page, before.time + 2);
   const after = await gameState(page);
   expect(after.state).toBe('racing');
-  expect(after.progress - before).toBeGreaterThan(3);
+  expect(after.progress - before.progress).toBeGreaterThan(3);
   expect(errors).toEqual([]);
 });
 

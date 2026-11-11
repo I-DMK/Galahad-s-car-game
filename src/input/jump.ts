@@ -1,10 +1,10 @@
 /**
  * Demande de saut (plan B, tâche 5e ; addendum « bouton saut » §1) : un front d'appui, `pointerdown` sur le
  * bouton ou `keydown` Espace non répété, dépose une demande ; garder le doigt ou la touche enfoncés ne relance
- * rien. Le bouton porte `data-no-pedal` : son pointeur n'entre jamais dans `Throttle` (le gaz). Espace n'est pris
- * (et son défaut empêché) que pendant la course (`isActive`) et hors d'un contrôle qui a le focus (le bouton ENCORE,
- * un autre bouton) : là, Espace garde son rôle. Comme `Throttle`, tout ce qui peut faire perdre un appui (blur,
- * changement de visibilité) jette la demande en attente.
+ * rien. Seul le bouton est écouté : depuis la tâche 11d (la voiture roule seule, gaz à fond), une tape ailleurs sur
+ * l'écran ne fait rien. Espace n'est pris (et son défaut empêché) que pendant la course (`isActive`) et hors d'un
+ * contrôle qui a le focus (le bouton ENCORE, un autre bouton) : là, Espace garde son rôle. Tout ce qui peut faire perdre
+ * un appui (blur, changement de visibilité) jette la demande en attente.
  */
 export class JumpInput {
   private requested = false;

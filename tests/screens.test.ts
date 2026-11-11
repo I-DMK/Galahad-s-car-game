@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// Écrans DOM du jeu (plan B, tâche 10 ; spec §8 « Écrans », §4 « pause », addendum §2) : titre (JOUER sans data-no-pedal :
-// le doigt compte comme gaz ; AUTRE PISTE avec), décompte (calque sans toucher), pause / TOURNE (voile entier
-// data-no-pedal, REPRENDRE caché en portrait). Les calques sont créés une fois et cachés, jamais retirés (un doigt
+// Écrans DOM du jeu (plan B, tâche 10 ; spec §8 « Écrans », §4 « pause », addendum §2) : titre (JOUER, AUTRE PISTE),
+// décompte (calque sans toucher), pause / TOURNE (voile entier, REPRENDRE caché en portrait). Depuis la tâche 11d (la
+// voiture roule seule), plus aucun `data-no-pedal`. Les calques sont créés une fois et cachés, jamais retirés (un doigt
 // posé sur JOUER garde son chemin d'événements jusqu'au pointerup). jsdom ne met pas en page : les tailles lues sont
 // celles déclarées par la feuille ; les boîtes réelles sont vérifiées en e2e (e2e/screens.spec.ts).
 import { afterEach, expect, test, vi } from 'vitest';
@@ -28,15 +28,14 @@ test('quatre calques créés cachés, dans root, style injecté une fois', () =>
   expect(root.querySelectorAll('.screen-title')).toHaveLength(1);
 });
 
-test('titre : nom du jeu, version, JOUER sans data-no-pedal (le doigt compte comme gaz), AUTRE PISTE avec', () => {
-  const { screens, q } = make();
+test('titre : nom du jeu, version, JOUER et AUTRE PISTE ; aucun data-no-pedal dans les écrans (tâche 11d)', () => {
+  const { screens, root, q } = make();
   screens.showTitle();
   expect(q<HTMLElement>('.screen-title').hidden).toBe(false);
   expect(q('.title-name').textContent).toMatch(/Course Lunaire/);
   expect(q('.title-name').textContent).toMatch(/de Galahad/);
   expect(q('.title-version').textContent).toBe('v1.1.0');
-  expect(q('.btn-play').hasAttribute('data-no-pedal')).toBe(false);
-  expect(q('.btn-other').hasAttribute('data-no-pedal')).toBe(true);
+  expect(root.querySelectorAll('[data-no-pedal]')).toHaveLength(0);
   expect(q('.btn-play').textContent).toMatch(/JOUER/);
   expect(q('.btn-other').textContent).toMatch(/AUTRE PISTE/);
   expect(q('.btn-play svg')).not.toBeNull();   // drapeau
@@ -58,7 +57,7 @@ test('JOUER : onPlay au pointerdown (viaPointer vrai) ET au click (faux : clavie
   expect(actions.onOtherTrack).toHaveBeenCalledTimes(1);
 });
 
-test('le titre reste dans le DOM quand il est caché : le pointerup d’un doigt posé sur JOUER remonte encore à window', () => {
+test('le titre reste dans le DOM quand il est caché : le pointerup d’un doigt posé sur JOUER remonte encore à window (plein écran)', () => {
   const { screens, q } = make();
   screens.showTitle();
   const play = q<HTMLElement>('.btn-play');
@@ -99,15 +98,12 @@ test('showCountdown : le même texte deux fois ne touche pas au DOM (ni texte ni
   seen.disconnect();
 });
 
-test('pause en paysage : « PAUSE », REPRENDRE visible, onResume au pointerdown ET au click ; le voile entier porte data-no-pedal ; tablette cachée', () => {
+test('pause en paysage : « PAUSE », REPRENDRE visible, onResume au pointerdown ET au click ; tablette cachée', () => {
   const { screens, actions, q } = make();
   screens.showPaused(false);
   expect(q('.pause-text').textContent).toBe('PAUSE');
   const resume = q<HTMLButtonElement>('.btn-resume');
   expect(resume.hidden).toBe(false);
-  expect(q('.screen-pause').hasAttribute('data-no-pedal')).toBe(true);
-  expect(resume.closest('[data-no-pedal]')).not.toBeNull();
-  expect(q('.screen-title').closest('[data-no-pedal]')).toBeNull();
   expect(q<HTMLElement>('.pause-tablet').hidden).toBe(true);
   resume.dispatchEvent(pointer('pointerdown', 5));
   expect(actions.onResume).toHaveBeenCalledTimes(1);

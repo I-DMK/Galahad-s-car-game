@@ -82,7 +82,7 @@ export function drawTrack(ctx: Ctx, track: Track, camera: Camera, view: BackingS
     ctx.fill();
   }
 
-  // Panneau « saute » au début de l'approche de chaque fosse (pas devant un tremplin : il suffit d'y garder le doigt).
+  // Panneau « saute » au début de l'approche de chaque fosse (pas devant un tremplin : gaz à fond, la voiture le franchit seule).
   for (const v of track.volcanoes) {
     if (v.kind === 'fosse' && inRange(v.xLancement, xMin, xMax)) drawFosseSign(ctx, S(v.xLancement, heightAt(track, v.xLancement)), ppm);
   }

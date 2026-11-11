@@ -1,10 +1,13 @@
 // Écrans (plan B, tâche 10) sur la tablette simulée : titre avec les copains de la graine, AUTRE PISTE, décompte, doigt gardé depuis
-// JOUER, pause par portrait et reprise sans gaz, police Fredoka servie par le site, bouton pause en course (tâche 11), captures
-// titre.png, decompte.png, pause.png, tourne.png, pause-bouton.png.
+// JOUER puis levé (la voiture roule seule quand même, tâche 11d), pause par portrait et reprise, police Fredoka servie par le
+// site, bouton pause en course (tâche 11) et reprise où la voiture repart seule, sans doigt (tâche 11d), captures titre.png,
+// decompte.png, pause.png, tourne.png, pause-bouton.png.
 import { expect, test } from '@playwright/test';
 import { GALAHAD, defaultPilotSeed, drawPilots } from '../src/cars/pilots';   // purs : pas de matter-js dans le runner Playwright
 import { CONFIG } from '../src/config';
-import { SHOTS, boxOf, gameState, offSiteRequests, pilotIds, startRace, tapAt, waitForGame, waitForRaceTime, waitForState, type Box } from './helpers';
+import {
+  SHOTS, boxOf, gameState, jumpState, offSiteRequests, pilotIds, startRace, tapAt, waitForGame, waitForRaceTime, waitForState, type Box,
+} from './helpers';
 
 const expectedIds = (seed: number) => [GALAHAD, ...drawPilots(defaultPilotSeed(seed))].map((p) => p.id);
 const overlap = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
@@ -49,7 +52,7 @@ test('titre : état title, aucun pas, les copains de la graine dans l’ordre de
   await page.screenshot({ path: `${SHOTS}/titre.png`, fullPage: true });
 });
 
-test('AUTRE PISTE : graine dans l’URL, autres copains, toujours au titre, le tap n’est pas du gaz', async ({ page }) => {
+test('AUTRE PISTE : graine dans l’URL, autres copains, toujours au titre, aucun pas', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await tapAt(page, '.btn-other');
@@ -59,7 +62,7 @@ test('AUTRE PISTE : graine dans l’URL, autres copains, toujours au titre, le t
   expect(new URL(page.url()).searchParams.get('seed')).toBe(String(s.seed));
   expect(new URL(page.url()).searchParams.get('debug')).toBe('1');
   expect(await pilotIds(page)).toEqual(expectedIds(s.seed));
-  expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(false);
+  expect(s.time).toBe(0);
 });
 
 test('JOUER : décompte 3, 2, 1, PARTEZ sans aucun pas, puis course ; capture decompte.png', async ({ page }) => {
@@ -79,30 +82,31 @@ test('JOUER : décompte 3, 2, 1, PARTEZ sans aucun pas, puis course ; capture de
   await expect(page.locator('.hud-time')).toBeVisible();
 });
 
-test('doigt gardé posé depuis JOUER à travers le décompte : la voiture part à PARTEZ, et le doigt levé la relâche', async ({ page }) => {
+test('doigt gardé posé depuis JOUER à travers le décompte : la voiture part à PARTEZ ; le doigt levé ne l’arrête pas (elle roule seule, tâche 11d)', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   const b = await boxOf(page, '.btn-play');
   const cdp = await page.context().newCDPSession(page);
+  let x1 = 0;
   try {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: b.x + b.width / 2, y: b.y + b.height / 2 }] });
     await waitForState(page, 'racing', 10_000);
     const x0 = (await gameState(page)).progress;
-    await page.waitForFunction((t) => (window as any).__game.time >= t, 2);
-    expect((await gameState(page)).progress - x0).toBeGreaterThan(2);
-    expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(true);
+    await waitForRaceTime(page, 2);
+    x1 = (await gameState(page)).progress;
+    expect(x1 - x0).toBeGreaterThan(2);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await cdp.detach();
   }
-  expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(false);
+  await waitForRaceTime(page, 4);
+  expect((await gameState(page)).progress - x1, 'doigt levé : la voiture roule toujours').toBeGreaterThan(5);
+  expect((await jumpState(page)).galahadThrottle).toBe(true);
 });
 
-test('portrait en course → TOURNE sans REPRENDRE, course figée ; paysage → PAUSE + REPRENDRE ; doigt tenu sur REPRENDRE → décompte puis course sans gaz ; captures tourne.png, pause.png', async ({ page }) => {
+test('portrait en course → TOURNE sans REPRENDRE, course figée ; paysage → PAUSE + REPRENDRE ; doigt tenu sur REPRENDRE → décompte figé, puis la voiture repart seule ; captures tourne.png, pause.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
-  // Galahad à l'arrêt sur la grille (sans doigt, les copains ne le poussent pas avant 2 s : race.spec « sans doigt ») : sa progression
-  // sert de témoin, le doigt sur REPRENDRE ne doit pas la changer.
   await startRace(page);
   await waitForRaceTime(page, 0.5);
   // JOUER a demandé le plein écran (spec §8), accordé par Chromium headless ; Playwright ne redimensionne pas une fenêtre en
@@ -117,7 +121,7 @@ test('portrait en course → TOURNE sans REPRENDRE, course figée ; paysage → 
   await page.screenshot({ path: `${SHOTS}/tourne.png`, fullPage: true });
   const { time: t1, progress: x0 } = await gameState(page);
   await page.waitForTimeout(700);
-  expect((await gameState(page)).time).toBe(t1);
+  expect(await gameState(page)).toMatchObject({ time: t1, progress: x0 });
   await page.setViewportSize({ width: 1280, height: 800 });
   await expect(page.locator('.pause-text')).toHaveText('PAUSE');
   const resume = await boxOf(page, '.btn-resume');
@@ -128,17 +132,17 @@ test('portrait en course → TOURNE sans REPRENDRE, course figée ; paysage → 
   expect(resumeStyle.paddingLeft).toBe('36px');
   expect(resume.width).toBeGreaterThanOrEqual(resumeStyle.labelWidth + 72);
   await page.screenshot({ path: `${SHOTS}/pause.png`, fullPage: true });
-  // Doigt posé sur REPRENDRE et GARDÉ à travers le décompte et la première seconde de course : jamais du gaz (data-no-pedal).
+  // Doigt posé sur REPRENDRE et GARDÉ à travers le décompte et la première seconde de course : décompte figé, puis la voiture
+  // repart seule (le doigt ne change rien, tâche 11d).
   const cdp = await page.context().newCDPSession(page);
   try {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: resume.x + resume.width / 2, y: resume.y + resume.height / 2 }] });
     await waitForState(page, 'countdown', 2_000);
-    expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(false);
+    await page.waitForTimeout(1_000);
+    expect(await gameState(page), 'aucun pas pendant le décompte de la reprise').toMatchObject({ state: 'countdown', time: t1, progress: x0 });
     await waitForState(page, 'racing', 6_000);
     await waitForRaceTime(page, t1 + 1);
-    const after = await gameState(page);
-    expect(Math.abs(after.progress - x0), 'le doigt sur REPRENDRE n’a pas fait avancer la voiture').toBeLessThan(0.3);
-    expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(false);
+    expect((await gameState(page)).progress - x0, 'la voiture repart seule après REPRENDRE').toBeGreaterThan(1);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await cdp.detach();
@@ -178,7 +182,7 @@ test.describe('téléphone en paysage (844 × 390)', () => {
   });
 });
 
-test('bouton pause en course : tap → PAUSE, course figée, le tap n’est pas du gaz ; REPRENDRE → décompte → course ; capture pause-bouton.png', async ({ page }) => {
+test('bouton pause en course : tap → PAUSE, course figée ; REPRENDRE → décompte figé → la voiture repart seule, sans aucun doigt (tâche 11d) ; capture pause-bouton.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await startRace(page);
@@ -190,7 +194,6 @@ test('bouton pause en course : tap → PAUSE, course figée, le tap n’est pas 
   try {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: btn.x + btn.width / 2, y: btn.y + btn.height / 2 }] });
     await waitForState(page, 'paused', 2_000);
-    expect(await page.evaluate(() => (window as any).__game.throttlePressed)).toBe(false);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await cdp.detach();
@@ -199,10 +202,16 @@ test('bouton pause en course : tap → PAUSE, course figée, le tap n’est pas 
   await expect(page.locator('.pause-button')).toBeHidden();
   const { time: t1, progress: x0 } = await gameState(page);
   await page.waitForTimeout(700);
-  expect((await gameState(page)).time).toBe(t1);
+  expect(await gameState(page)).toMatchObject({ time: t1, progress: x0 });
+  // Tap levé aussitôt (80 ms) : plus aucun doigt sur l'écran pendant le décompte et la course qui suit.
   await tapAt(page, '.btn-resume');
   await waitForState(page, 'countdown', 2_000);
   await expect(page.locator('.pause-button')).toBeVisible();
+  await page.waitForTimeout(1_000);
+  expect(await gameState(page), 'aucun pas pendant le décompte de la reprise').toMatchObject({ state: 'countdown', time: t1, progress: x0 });
   await waitForState(page, 'racing', 6_000);
-  expect(Math.abs((await gameState(page)).progress - x0)).toBeLessThan(0.3);
+  await waitForRaceTime(page, t1 + 2);
+  const after = await gameState(page);
+  expect(after.progress - x0, 'la voiture repart seule après REPRENDRE, sans doigt').toBeGreaterThan(2);
+  expect((await jumpState(page)).galahadThrottle).toBe(true);
 });

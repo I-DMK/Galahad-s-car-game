@@ -1,4 +1,5 @@
-// Aides Playwright : doigt posé (CDP tactile) et lecture de `window.__game` (?debug=1).
+// Aides Playwright : taps (CDP tactile) et lecture de `window.__game` (?debug=1). Depuis la tâche 11d, la voiture de
+// Galahad roule toute seule après PARTEZ : aucune aide ne pose plus de doigt de gaz.
 import type { Page } from '@playwright/test';
 import type { StepCounts } from '../src/loop/frame-stats';
 
@@ -7,22 +8,6 @@ export type GameSnapshot = { state: string; time: number; seed: number; progress
 /** Dossier des captures : `e2e/screenshots` en local ; celui que fixe `playwright.live.config.ts` sur le site en ligne. */
 export const SHOTS = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env
   .E2E_SHOTS ?? 'e2e/screenshots';
-
-/** Pose un doigt au centre de l'écran (640, 400 à 1 280 × 800) pendant `seconds`, puis le lève. */
-export async function holdFinger(page: Page, seconds: number): Promise<void> {
-  const size = page.viewportSize() ?? { width: 1280, height: 800 };
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    await cdp.send('Input.dispatchTouchEvent', {
-      type: 'touchStart',
-      touchPoints: [{ x: size.width / 2, y: size.height / 2 }],
-    });
-    await page.waitForTimeout(seconds * 1000);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  } finally {
-    await cdp.detach();
-  }
-}
 
 /** Instantané de la partie (nécessite `debug=1` dans l'URL). */
 export async function gameState(page: Page): Promise<GameSnapshot> {
@@ -41,17 +26,17 @@ export async function waitForState(page: Page, state: string, timeoutMs: number)
   );
 }
 
-/** Durée maximale doigt posé pour finir une piste de 300 m. */
-export const MAX_HOLD_S = 90;
+/** Durée maximale (s, temps réel) pour finir une piste de 300 m, la voiture roulant seule. */
+export const MAX_RACE_S = 90;
 
 /**
- * Doigt posé par tranches de `chunkS` s jusqu'à l'arrivée de Galahad (au plus MAX_HOLD_S) ; rend dès que l'état n'est
- * plus `racing` : `finished`, ou déjà `podium` (tâche 11) si la dernière tranche a duré plus que la roue libre (1,5 s).
+ * Attend l'arrivée de Galahad (au plus MAX_RACE_S) : la voiture roule seule depuis PARTEZ (tâche 11d). Rend à la
+ * première image `finished` (avant le podium, 1,5 s de roue libre plus tard) ; `podium` est aussi accepté.
  */
-export async function driveToFinish(page: Page, chunkS = 5): Promise<void> {
-  const deadline = Date.now() + MAX_HOLD_S * 1000;
-  while ((await gameState(page)).state === 'racing' && Date.now() < deadline) await holdFinger(page, chunkS);
-  await page.waitForFunction(() => ['finished', 'podium'].includes((window as any).__game.state), null, { timeout: 1_000 });
+export async function waitForFinish(page: Page): Promise<void> {
+  await page.waitForFunction(() => ['finished', 'podium'].includes((window as any).__game.state), null, {
+    timeout: MAX_RACE_S * 1000, polling: 'raf',
+  });
 }
 
 /** Collecte les erreurs console et les exceptions non rattrapées de la page. */
@@ -79,17 +64,22 @@ export async function boxOf(page: Page, selector: string): Promise<Box> {
   return box;
 }
 
-/** Tap tactile (CDP) au centre de l'élément `selector` ; `holdMs` entre touchStart et touchEnd. */
-export async function tapAt(page: Page, selector: string, holdMs = 80): Promise<void> {
-  const b = await boxOf(page, selector);
+/** Tap tactile (CDP) au point (x, y) (px CSS) ; `holdMs` entre touchStart et touchEnd. */
+export async function tapPoint(page: Page, x: number, y: number, holdMs = 80): Promise<void> {
   const cdp = await page.context().newCDPSession(page);
   try {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: b.x + b.width / 2, y: b.y + b.height / 2 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
     await page.waitForTimeout(holdMs);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await cdp.detach();
   }
+}
+
+/** Tap tactile (CDP) au centre de l'élément `selector` ; `holdMs` entre touchStart et touchEnd. */
+export async function tapAt(page: Page, selector: string, holdMs = 80): Promise<void> {
+  const b = await boxOf(page, selector);
+  await tapPoint(page, b.x + b.width / 2, b.y + b.height / 2, holdMs);
 }
 
 /**
@@ -135,11 +125,6 @@ export async function delaySprites(page: Page, ms: number): Promise<void> {
 /** Attend que le temps de course simulé atteigne `t` s (indépendant de la cadence d'affichage). */
 export async function waitForRaceTime(page: Page, t: number): Promise<void> {
   await page.waitForFunction((tt) => (window as any).__game.time >= tt, t);
-}
-
-/** Doigt posé par tranches d'une seconde jusqu'à ce que le temps de course atteigne `t` s (dépassement d'au plus 1 s). */
-export async function holdFingerUntilRaceTime(page: Page, t: number): Promise<void> {
-  while ((await gameState(page)).time < t) await holdFinger(page, 1);
 }
 
 /** Mise en page du HUD de course : blocs, petites voitures de la barre (dans l'ordre de la grille) et tailles de police. */
@@ -216,41 +201,43 @@ export async function jumpButtonCenter(page: Page): Promise<Point> {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-/** Sauts de Galahad et doigt de gaz (`window.__game.jumps`, `throttlePressed`, ?debug=1). */
-export async function jumpState(page: Page): Promise<{ jumps: number; throttlePressed: boolean }> {
+/**
+ * Sauts de Galahad et gaz qu'il a reçu au dernier pas de course (`window.__game.jumps`, `galahadThrottle`, ?debug=1 ;
+ * tâche 11d : le gaz est donné par le jeu, plus par un doigt).
+ */
+export async function jumpState(page: Page): Promise<{ jumps: number; galahadThrottle: boolean }> {
   return page.evaluate(() => {
     const g = (window as any).__game;
-    return { jumps: g.jumps as number, throttlePressed: g.throttlePressed as boolean };
+    return { jumps: g.jumps as number, galahadThrottle: g.galahadThrottle as boolean };
   });
 }
 
-/**
- * Tap seul sur le bouton saut (CDP tactile) : doigt posé au centre du bouton pendant `holdMs`, puis levé.
- * Rend `throttlePressed` lu pendant l'appui.
- */
-export async function tapJump(page: Page, holdMs = 150): Promise<{ throttleDuring: boolean }> {
+/** Tap seul sur le bouton saut (CDP tactile) : doigt posé au centre du bouton pendant `holdMs`, puis levé. */
+export async function tapJump(page: Page, holdMs = 150): Promise<void> {
   const b = await jumpButtonCenter(page);
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...b, id: 1 }] });
-    await page.waitForTimeout(holdMs);
-    const { throttlePressed } = await jumpState(page);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    return { throttleDuring: throttlePressed };
-  } finally {
-    await cdp.detach();
-  }
+  await tapPoint(page, b.x, b.y, holdMs);
 }
 
 /**
- * Gaz d'un doigt et tap de l'autre (CDP tactile, deux points) : doigt A posé en (640, 400) ; `afterS` s plus
- * tard, doigt B posé au centre du bouton ; 0,2 s plus tard, `touchMove` avec A seul (CDP relâche B par
- * comparaison avec l'événement précédent) ; `holdS` s plus tard, A levé. Rend `throttlePressed` lu juste
- * après la pose de B et juste après son relâchement : le gaz doit rester posé.
+ * Taps sur le bouton saut jusqu'à un saut compté (au plus `tries`), chacun quand le bouton est prêt (pas `is-waiting`).
+ * La voiture roule (tâche 11d) : une bosse peut la tenir en l'air au-delà de la tolérance de sol entre la lecture du bouton
+ * et le tap ; le saut est alors refusé et la demande consommée. Rend le nombre de sauts.
  */
-export async function holdFingerAndTapJump(
-  page: Page, afterS = 1, holdS = 2,
-): Promise<{ throttleWithB: boolean; throttleAfterB: boolean }> {
+export async function tapJumpUntilJump(page: Page, tries = 10, holdMs = 150): Promise<number> {
+  for (let k = 0; k < tries && (await jumpState(page)).jumps === 0; k++) {
+    await page.waitForFunction(() => !document.querySelector('.jump-button')!.classList.contains('is-waiting'), null, { polling: 'raf' });
+    await tapJump(page, holdMs);
+    await page.waitForTimeout(100);
+  }
+  return (await jumpState(page)).jumps;
+}
+
+/**
+ * Un doigt posé ailleurs et un tap de l'autre sur le bouton saut (CDP tactile, deux points) : doigt A posé en (640, 400)
+ * (il ne fait rien, tâche 11d) ; `afterS` s plus tard, doigt B posé au centre du bouton ; 0,2 s plus tard, B levé
+ * (`touchEnd` qui le nomme, leçon de la session 7) ; `holdS` s plus tard, A levé.
+ */
+export async function restFingerAndTapJump(page: Page, afterS = 1, holdS = 1): Promise<void> {
   const a = { x: 640, y: 400, id: 0 };
   const b = { ...(await jumpButtonCenter(page)), id: 1 };
   const cdp = await page.context().newCDPSession(page);
@@ -258,13 +245,10 @@ export async function holdFingerAndTapJump(
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a] });
     await page.waitForTimeout(afterS * 1000);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [a, b] });
-    const throttleWithB = (await jumpState(page)).throttlePressed;
     await page.waitForTimeout(200);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [a] });
-    const throttleAfterB = (await jumpState(page)).throttlePressed;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [b] });
     await page.waitForTimeout(holdS * 1000);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    return { throttleWithB, throttleAfterB };
   } finally {
     await cdp.detach();
   }

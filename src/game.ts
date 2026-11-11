@@ -4,6 +4,8 @@
 // ses 4 copains, poses interpolées entre les deux derniers pas → caméra sur la pose dessinée de Galahad → rendu → HUD et
 // bouton saut), arrivée (1,5 s de roue libre) puis podium figé (classement final, confettis si Galahad gagne, ENCORE,
 // MENU ; tâche 11), pause (onglet caché, geste retour, portrait : scène figée, reprise par un décompte).
+// Depuis la tâche 11d, la voiture de Galahad roule toute seule, gaz à fond, de PARTEZ à l'arrivée (GALAHAD_THROTTLE) :
+// ses doigts ne servent qu'au bouton saut (et Espace au clavier) ; une tape ailleurs sur l'écran ne fait rien.
 // La course entière est recréée (`newRace`) pour AUTRE PISTE, ENCORE et MENU ; la simulation ne fait aucun pas hors de
 // `racing` et `finished` (le podium est une scène figée).
 import { rockJumpLead } from './cars/jump';
@@ -11,8 +13,8 @@ import type { Pilot } from './cars/pilots';
 import { isRockActiveFor } from './cars/rocks';
 import { DisplayedRank, podiumView, progressFraction, type PodiumPlace, type PodiumView } from './cars/ranking';
 import { CONFIG, type Config } from './config';
+import { blockContextMenu } from './input/context-menu';
 import { JumpInput } from './input/jump';
-import { Throttle } from './input/throttle';
 import { runFrame, type FrameState, type StepOutcome } from './loop/frame';
 import { StepHistogram, type StepCounts } from './loop/frame-stats';
 import { PoseHistory, type CarPose } from './loop/interpolation';
@@ -54,6 +56,13 @@ const COUNTDOWN_EPS = 1e-9;
 const EFFECTS_MARGIN_M = 3;
 /** Force de la poussière d'un saut (comme un atterrissage à 4 m/s : 8 grains). */
 const JUMP_DUST_STRENGTH = 4;
+/**
+ * Gaz de Galahad à chaque pas de course (tâche 11d, décision du papa du 2026-11-11 : il avait mal au doigt à force de le
+ * garder posé) : après PARTEZ, sa voiture roule toute seule, gaz à fond, jusqu'à l'arrivée. C'est le chemin « doigt posé »
+ * de `stepRace`, celui que mesurent les suites de simulation ; après l'arrivée, `stepRace` coupe lui-même le gaz et freine
+ * (FINISH_BRAKE). Aucun pas hors de `racing` et `finished` : ni au décompte, ni en pause, ni au podium.
+ */
+const GALAHAD_THROTTLE = true;
 
 export class Game {
   private readonly cfg: Config = CONFIG;
@@ -64,7 +73,8 @@ export class Game {
   private readonly effects: Effects;
   private readonly hud: Hud;
   private readonly screens: Screens;
-  private readonly throttle: Throttle;
+  /** Retire la garde du menu contextuel (appui long) ; les tests s'en servent pour nettoyer. */
+  private readonly releaseContextMenu: () => void;
   private readonly jumpButton: JumpButton;
   /** Bouton ⏸ (tâche 11, Partie 5 ; demande du papa) : visible pendant le décompte et la course seulement. */
   private readonly pauseButton: PauseButton;
@@ -117,7 +127,7 @@ export class Game {
     this.effects = new Effects(this.cfg);
     this.hud = new Hud(hudRoot, []);
     this.displayedRank = new DisplayedRank(this.cfg);
-    this.throttle = new Throttle(window);
+    this.releaseContextMenu = blockContextMenu(window);
     this.jumpButton = new JumpButton(hudRoot, this.cfg);
     // Espace n'est pris que pendant la course (ni au titre, ni sur ENCORE, ni après une erreur).
     this.jumpInput = new JumpInput(window, this.jumpButton.el, () => this.machine.phase === 'racing');
@@ -153,8 +163,12 @@ export class Game {
    * la cible ; copies.
    */
   get respawns(): { reason: string; t: number; x: number; targetX: number }[] { return this.respawnLog.map((r) => ({ ...r })); }
-  /** Doigt de gaz posé (debug, e2e : un tap sur le bouton saut n'en est jamais un). */
-  get throttlePressed(): boolean { return this.throttle.pressed; }
+  /**
+   * Gaz donné à Galahad au dernier pas de course (debug, e2e, tâche 11d ; remplace `throttlePressed`, le doigt de gaz) :
+   * faux avant le premier pas (titre, premier décompte), vrai ensuite en course, sans aucun doigt ; faux après l'arrivée
+   * (`stepRace` coupe le gaz). Figé au décompte et en pause, comme la course.
+   */
+  get galahadThrottle(): boolean { return this.sim.cars[GALAHAD_INDEX].throttle; }
   /** Images (debug, e2e, tâche 8b) : réglées ou non, fichiers chargés et en échec ; copies de ce que le `Renderer` a reçu. */
   get art(): { settled: boolean; loaded: string[]; failed: string[] } {
     const a = this.renderer.art;
@@ -505,10 +519,9 @@ export class Game {
    * podium à la fin de la roue libre. Faux si la boucle s'arrête.
    */
   private raceFrame(now: number, elapsed: number): boolean {
-    const pressed = this.throttle.pressed;
     // `sim.events` ne contient que le dernier pas : on les recueille à chaque pas.
     const events: SimEvent[] = [];
-    const frame = runFrame(this.loop, elapsed, this.cfg, (i) => this.step(i, pressed, events));
+    const frame = runFrame(this.loop, elapsed, this.cfg, (i) => this.step(i, events));
     if (frame.stopped) return false;
     // Après l'arrivée, les appuis sont jetés (stepRace les ignorerait de toute façon).
     if (this.machine.phase !== 'racing') this.jumpInput.clear();
@@ -582,18 +595,19 @@ export class Game {
   }
 
   /**
-   * Pas `i` de l'image pour `runFrame` : la demande de saut est donnée au premier pas (`i === 0`) et consommée
+   * Pas `i` de l'image pour `runFrame`, gaz à fond pour Galahad (GALAHAD_THROTTLE, tâche 11d) : la demande de saut est
+   * donnée au premier pas (`i === 0`) et consommée
    * quand il réussit ; une image sans pas la laisse en attente ; un pas qui lève la jette (`rebuildCars` est une
    * téléportation, qui oublie la demande). Événements recueillis
    * dans `events`, sauts et arrivée de Galahad ; poses après le pas et voitures réapparues (téléportées : pas
    * d'interpolation depuis l'ancienne position). Sur exception : `rebuildCars` (historique remis à zéro), ou
    * abandon au MAX_ERRORS-ième échec.
    */
-  private step(i: number, pressed: boolean, events: SimEvent[]): StepOutcome {
+  private step(i: number, events: SimEvent[]): StepOutcome {
     const { sim } = this;
     try {
       const jump = i === 0 && this.jumpInput.pending;
-      stepRace(sim, pressed, jump);
+      stepRace(sim, GALAHAD_THROTTLE, jump);
       if (jump) this.jumpInput.clear();
       events.push(...sim.events);
       const galahad = sim.cars[GALAHAD_INDEX].state;

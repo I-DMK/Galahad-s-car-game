@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // Entrée du saut (plan B, tâche 5e ; addendum « bouton saut » §1) : front d'appui sur le bouton ou Espace non
-// répété, jamais compté comme du gaz ; bouton rond d'au moins 140 px en bas à gauche, `data-no-pedal`,
-// grisé par une classe et jamais par `disabled` (un bouton désactivé n'émet pas de pointerdown vers sa cible).
+// répété ; une tape ailleurs ne demande rien (tâche 11d : la voiture roule seule, plus de gaz au doigt) ; bouton rond
+// d'au moins 140 px en bas à gauche, grisé par une classe et jamais par `disabled` (un bouton désactivé n'émet pas de
+// pointerdown vers sa cible).
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CONFIG } from '../src/config';
 import { JumpInput } from '../src/input/jump';
-import { Throttle } from '../src/input/throttle';
 import { JumpButton } from '../src/ui/jump-button';
 
 function pointer(type: string, target: EventTarget, pointerId = 1): void {
@@ -28,7 +28,6 @@ function key(code: string, repeat = false): KeyboardEvent {
 describe('JumpInput et JumpButton', () => {
   let root: HTMLDivElement;
   let button: JumpButton;
-  let throttle: Throttle;
   let input: JumpInput;
 
   beforeEach(() => {
@@ -36,30 +35,26 @@ describe('JumpInput et JumpButton', () => {
     root.id = 'hud';
     document.body.appendChild(root);
     button = new JumpButton(root, CONFIG);
-    throttle = new Throttle(window);
     input = new JumpInput(window, button.el);
   });
 
   afterEach(() => {
     input.dispose();
-    throttle.dispose();
     document.body.innerHTML = '';
     document.head.innerHTML = '';
   });
 
-  it('pointerdown sur le bouton : une demande (take() vrai puis faux), et pas de gaz', () => {
+  it('pointerdown sur le bouton : une demande (take() vrai puis faux) ; le pointerup ne relance rien', () => {
     pointer('pointerdown', button.el, 3);
-    expect(throttle.pressed).toBe(false);
     expect(input.take()).toBe(true);
     expect(input.take()).toBe(false);
     pointer('pointerup', button.el, 3);
-    expect(throttle.pressed).toBe(false);
+    expect(input.take()).toBe(false);
   });
 
-  it('pointerdown sur l’icône du bouton : une demande, pas de gaz', () => {
+  it('pointerdown sur l’icône du bouton : une demande', () => {
     const icon = button.el.querySelector('svg') ?? button.el;
     pointer('pointerdown', icon, 4);
-    expect(throttle.pressed).toBe(false);
     expect(input.take()).toBe(true);
   });
 
@@ -83,7 +78,6 @@ describe('JumpInput et JumpButton', () => {
     key('KeyA');
     key('Enter');
     expect(input.take()).toBe(false);
-    expect(throttle.pressed).toBe(false);
   });
 
   it('Espace hors de la course (isActive faux) : ni demande, ni défaut empêché', () => {
@@ -110,7 +104,7 @@ describe('JumpInput et JumpButton', () => {
     expect(input.take()).toBe(false);
   });
 
-  it('blur et changement de visibilité jettent la demande en attente (comme Throttle) ; pending ne la consomme pas', () => {
+  it('blur et changement de visibilité jettent la demande en attente ; pending ne la consomme pas', () => {
     pointer('pointerdown', button.el, 3);
     expect(input.pending).toBe(true);
     expect(input.pending).toBe(true);
@@ -121,19 +115,19 @@ describe('JumpInput et JumpButton', () => {
     expect(input.take()).toBe(false);
   });
 
-  it('pointerdown ailleurs : du gaz, aucune demande', () => {
+  it('pointerdown ailleurs (page, #hud) : aucune demande (tâche 11d : une tape hors du bouton ne fait rien)', () => {
     pointer('pointerdown', document.body, 1);
-    expect(throttle.pressed).toBe(true);
+    pointer('pointerdown', root, 2);
+    pointer('pointerup', root, 2);
     expect(input.take()).toBe(false);
   });
 
-  it('gaz d’un doigt et tap sur le bouton d’un autre : gaz gardé, une demande', () => {
+  it('un doigt posé ailleurs et un tap sur le bouton d’un autre : une demande', () => {
     pointer('pointerdown', document.body, 1);
     pointer('pointerdown', button.el, 2);
-    expect(throttle.pressed).toBe(true);
     pointer('pointerup', button.el, 2);
-    expect(throttle.pressed).toBe(true);
     expect(input.take()).toBe(true);
+    expect(input.take()).toBe(false);
   });
 
   it('clear() jette la demande en attente ; dispose() coupe l’écoute', () => {
@@ -146,11 +140,11 @@ describe('JumpInput et JumpButton', () => {
     expect(input.take()).toBe(false);
   });
 
-  it('bouton : rond d’au moins 140 px, data-no-pedal, en bas à gauche, cliquable dans un #hud sans pointeur', () => {
+  it('bouton : rond d’au moins 140 px, sans data-no-pedal (tâche 11d), en bas à gauche, cliquable dans un #hud sans pointeur', () => {
     const el = button.el;
     expect(el.tagName).toBe('BUTTON');
     expect(el.parentElement).toBe(root);
-    expect(el.hasAttribute('data-no-pedal')).toBe(true);
+    expect(el.hasAttribute('data-no-pedal')).toBe(false);
     expect(CONFIG.JUMP_BUTTON_SIZE_PX).toBeGreaterThanOrEqual(140);
     const style = getComputedStyle(el);
     expect(parseFloat(style.width)).toBeGreaterThanOrEqual(140);
@@ -171,7 +165,6 @@ describe('JumpInput et JumpButton', () => {
     expect(button.el.hasAttribute('disabled')).toBe(false);
     pointer('pointerdown', button.el, 3);
     expect(input.take()).toBe(true);
-    expect(throttle.pressed).toBe(false);
     button.setReady(true);
     expect(button.el.classList.contains('is-waiting')).toBe(false);
   });

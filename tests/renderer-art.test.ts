@@ -196,9 +196,9 @@ describe('Game : les images n’arrêtent ni ne retardent jamais la course', () 
     document.body.append(canvas, hud);
     const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false }, art);
     const internals = game as unknown as {
-      stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void }; renderer: Renderer;
+      stop(): void; releaseContextMenu(): void; jumpInput: { dispose(): void }; renderer: Renderer;
     };
-    const dispose = () => { internals.stop(); internals.throttle.dispose(); internals.jumpInput.dispose(); };
+    const dispose = () => { internals.stop(); internals.releaseContextMenu(); internals.jumpInput.dispose(); };
     let now = 0;
     const frames = (n: number) => { for (let i = 0; i < n; i++) { now += DT * 1000; raf!(now); } };
     // Par le vrai chemin (tâche 10) : titre, JOUER, décompte (la grille figée est dessinée : `draw` est remis à zéro après).

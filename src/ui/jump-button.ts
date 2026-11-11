@@ -1,7 +1,7 @@
 // Bouton saut (plan B, tâche 5e ; addendum « bouton saut » §1) : rond, en bas à gauche, icône de ressort.
-// Il vit dans #hud (`pointer-events: none`) et reprend donc le pointeur pour lui seul. Il porte `data-no-pedal` :
-// son appui n'est jamais du gaz (`Throttle`). Grisé par la classe `is-waiting`, jamais par `disabled` : un
-// bouton désactivé n'émet pas de `pointerdown` vers sa cible, et le tap risquerait de compter comme du gaz.
+// Il vit dans #hud (`pointer-events: none`) et reprend donc le pointeur pour lui seul : depuis la tâche 11d (la voiture
+// roule seule), c'est le seul endroit de l'écran où un doigt de Galahad agit en course. Grisé par la classe `is-waiting`,
+// jamais par `disabled` : un bouton désactivé n'émet pas de `pointerdown` vers sa cible, et le tap serait perdu.
 import type { Config } from '../config';
 
 const STYLE_ID = 'jump-button-style';
@@ -37,7 +37,6 @@ export class JumpButton {
     const el = doc.createElement('button');
     el.type = 'button';
     el.className = 'jump-button';
-    el.setAttribute('data-no-pedal', '');
     el.setAttribute('aria-label', 'Sauter');
     // Hors de l'ordre de tabulation : Espace (saut au clavier) n'active jamais le bouton.
     el.tabIndex = -1;

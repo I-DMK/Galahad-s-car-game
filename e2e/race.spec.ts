@@ -1,10 +1,10 @@
-// Course sur tablette simulée : chargement (titre), JOUER, accélérateur au doigt, course courte jusqu'à l'arrivée (le
-// podium : `podium.spec.ts`), captures.
+// Course sur tablette simulée : chargement (titre), JOUER, voiture qui roule seule dès PARTEZ sans aucun doigt (tâche 11d),
+// tape hors du bouton saut sans effet, course courte jusqu'à l'arrivée (le podium : `podium.spec.ts`), captures.
 // Depuis la tâche 10, la page arrive au TITRE : chaque test lance la course par le vrai bouton JOUER (`startRace`, décision
 // Q1 du papa), décompte de 3 s compris.
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
-  SHOTS, driveToFinish, frameSteps, gameState, holdFinger, holdFingerUntilRaceTime, hudLayout, pilotIds, progressOf, startRace,
+  SHOTS, boxOf, frameSteps, gameState, hudLayout, jumpState, pilotIds, progressOf, startRace, tapAt, tapPoint, waitForFinish,
   waitForGame, waitForRaceTime, waitForState, type Box, type HudLayout,
 } from './helpers';
 
@@ -24,38 +24,61 @@ test('la page charge', async ({ page }) => {
   expect((await gameState(page)).state).toBe('racing');
 });
 
-test('doigt posé 3 s : la voiture avance', async ({ page }) => {
+/** Progression de Galahad (m) et temps de course (s), lus dans le même rappel (aucun pas entre les deux). */
+const atRaceTime = async (page: Page, t: number): Promise<{ x: number; t: number }> => (await (await page.waitForFunction(
+  (tt) => { const g = (window as any).__game; return g.time >= tt ? { x: g.progress('galahad') as number, t: g.time as number } : null; },
+  t,
+)).jsonValue()) as { x: number; t: number };
+
+test('sans aucun doigt (tâche 11d) : la grille ne bouge pas pendant le décompte, puis la voiture part à PARTEZ et avance toute seule, gaz à fond ; capture course-sans-doigt.png', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
-  await startRace(page);
-  const before = (await gameState(page)).progress;
-  await holdFinger(page, 3);
-  const after = (await gameState(page)).progress;
-  expect(after - before).toBeGreaterThan(5);
+  // Le tap de JOUER (touchStart puis touchEnd en 80 ms) est levé bien avant PARTEZ : aucun doigt n'est posé ensuite.
+  await tapAt(page, '.btn-play');
+  await waitForState(page, 'countdown', 2_000);
+  const grid = await gameState(page);
+  await page.waitForTimeout(1_500);
+  const still = await gameState(page);
+  expect(still.state).toBe('countdown');
+  expect(still.time, 'aucun pas pendant le décompte').toBe(0);
+  expect(still.progress).toBe(grid.progress);
+  expect((await jumpState(page)).galahadThrottle, 'aucun gaz avant PARTEZ').toBe(false);
+  await waitForState(page, 'racing', 5_000);
+  // Le temps de course part à PARTEZ (tâche 10) : lu quelques images après `waitForState('racing')`, il est encore sous 0,3 s.
+  const start = await gameState(page);
+  expect(start.time).toBeLessThan(0.3);
+  const a = await atRaceTime(page, 1);
+  const b = await atRaceTime(page, 3);
+  expect(a.x - grid.progress, 'partie à PARTEZ').toBeGreaterThan(0.5);
+  expect(b.x - a.x, 'elle avance toute seule').toBeGreaterThan(5);
+  expect((await jumpState(page)).galahadThrottle, 'gaz à fond sans doigt').toBe(true);
+  await page.screenshot({ path: `${SHOTS}/course-sans-doigt.png`, fullPage: true });
+  const c = await atRaceTime(page, 5);
+  expect(c.x, 'x croît encore').toBeGreaterThan(b.x + 5);
 });
 
-/**
- * Temps de course (s) pendant lequel les copains ne poussent pas Galahad arrêté sur la grille : robots polis (tâche 6,
- * décision du papa) : le copain de rang 1, derrière une voiture presque arrêtée (< POLITE_SPEED) à moins de POLITE_GAP,
- * lève le pied, au plus POLITE_MAX_WAIT = 3 s (ruling Q8 : l'e2e en exige au moins 2). Avant la tâche 6, il le poussait
- * dès ≈ 0,95 s. La politesse sans limite derrière Galahad doigt levé (tâche 7) ne joue qu'après son premier appui
- * (décision du papa, tour 2 de la tâche 7) : sans doigt depuis le départ, on garde ces 3 s au plus.
- */
-const BEFORE_ROBOTS_S = 2;
-
-test('sans doigt : la voiture ne part pas toute seule, et les copains ne la poussent pas pendant au moins 2 s', async ({ page }) => {
-  // Le temps de course part à PARTEZ (tâche 10) : lu quelques images après `waitForState('racing')`, il est encore sous 0,3 s.
+test('une tape hors du bouton saut pendant la course (tâche 11d) : ni saut, ni pause, la voiture roule toujours seule', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await startRace(page);
-  const before = await gameState(page);
-  expect(before.time).toBeLessThan(0.3);
-  // Lu dans le même rappel que le temps : aucun pas de course entre les deux.
-  const after = await page.waitForFunction(
-    (t) => { const g = (window as any).__game; return g.time >= t ? g.progress('galahad') : false; },
-    BEFORE_ROBOTS_S,
-  );
-  expect(Math.abs((await after.jsonValue()) - before.progress)).toBeLessThan(0.5);
+  await waitForRaceTime(page, 1);
+  const jump = await boxOf(page, '.jump-button');
+  const { width, height } = page.viewportSize()!;
+  // Au centre, sur le ciel, juste à droite du bouton saut, et un appui long (1 s) au centre.
+  const spots = [
+    { x: width / 2, y: height / 2, ms: 80 }, { x: width * 0.75, y: height * 0.3, ms: 80 },
+    { x: jump.x + jump.width + 30, y: jump.y + jump.height / 2, ms: 150 }, { x: width / 2, y: height / 2, ms: 1_000 },
+  ];
+  for (const p of spots) {
+    const before = await gameState(page);
+    await tapPoint(page, p.x, p.y, p.ms);
+    await page.waitForTimeout(300);
+    const after = await gameState(page);
+    expect(after.state, `tape en (${p.x}, ${p.y})`).toBe('racing');
+    expect(after.progress, `la voiture roule toujours après la tape en (${p.x}, ${p.y})`).toBeGreaterThan(before.progress);
+    expect(await jumpState(page), `tape en (${p.x}, ${p.y})`).toEqual({ jumps: 0, galahadThrottle: true });
+  }
+  await expect(page.locator('.screen-pause')).toBeHidden();
 });
 
 test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui partent ; capture course-5-voitures.png', async ({ page }) => {
@@ -69,7 +92,6 @@ test('5 voitures : Galahad en pole, 4 copains distincts derrière lui qui parten
   const start = await progressOf(page, ids);
   // Grille en file : Galahad devant, chaque copain 1,5 × CAR_LENGTH = 3,3 m derrière le précédent.
   for (let i = 1; i < 5; i++) expect(start[i - 1] - start[i]).toBeCloseTo(3.3, 1);
-  await holdFinger(page, 0.6);
   // Le copain de rang 4 part à 1,2 s ; à 3,5 s les 5 voitures sont groupées à l'écran.
   await waitForRaceTime(page, 3.5);
   const later = await progressOf(page, ids);
@@ -157,11 +179,11 @@ test('HUD : place en ordinal après 1 s, cinq couloirs aux voitures séparées �
   // dans les cinq couloirs, malgré leurs tailles différentes.
   const centres = (await hudLayout(page)).markers.map((m) => m.x + m.width / 2);
   expect(Math.max(...centres) - Math.min(...centres), 'centres des voitures sur la grille').toBeLessThan(0.5);
-  // Doigt posé : à 30 s et à 60 s de course, les cinq voitures sont séparées dans la barre (elles se superposaient
-  // sur une seule ligne : les copains restent à 20 m de Galahad) et rien du HUD ne se recouvre.
+  // La voiture roule seule : à 30 s et à 60 s de course, les cinq voitures sont séparées dans la barre (elles se
+  // superposaient sur une seule ligne : les copains restent à 20 m de Galahad) et rien du HUD ne se recouvre.
   const percents: number[][] = [];
   for (const t of [30, 60]) {
-    await holdFingerUntilRaceTime(page, t);
+    await waitForRaceTime(page, t);
     expect((await gameState(page)).state).toBe('racing');
     await expect(rank).toHaveText(/^(1er|[2-5]e)$/);
     const l = await hudLayout(page);
@@ -183,8 +205,7 @@ test.describe('téléphone en paysage (844 × 390)', () => {
     await page.goto('./?seed=1&debug=1');
     await waitForGame(page);
     await startRace(page);
-    await waitForRaceTime(page, 1.2);
-    await holdFinger(page, 5);
+    await waitForRaceTime(page, 6.2);
     await expect(page.locator('.hud-rank')).toHaveText(/^(1er|[2-5]e)$/);
     const layout = await hudLayout(page);
     expect(layout.viewport).toEqual({ width: 844, height: 390 });
@@ -215,14 +236,14 @@ test('captures : course.png, course-copains-arrivee.png (Galahad au drapeau), pu
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await startRace(page);
-  await holdFinger(page, 3);
+  await waitForRaceTime(page, 3);
   await page.screenshot({ path: `${SHOTS}/course.png`, fullPage: true });
 
   await page.goto('./?seed=1&len=300&debug=1');
   await waitForGame(page);
   await startRace(page);
-  // Doigt posé par demi-secondes : la capture suit l'arrivée de Galahad de près, avant le podium (1,5 s de roue libre).
-  await driveToFinish(page, 0.5);
+  // La capture suit l'arrivée de Galahad de près (première image `finished`), avant le podium (1,5 s de roue libre).
+  await waitForFinish(page);
   const layout = await hudLayout(page);
   // Galahad à 100 % : sa petite voiture est au bout de son couloir, collée au drapeau sans le toucher.
   expect(layout.markers[0].x + layout.markers[0].width, 'Galahad au bout de la barre').toBeGreaterThanOrEqual(layout.bar.x + layout.bar.width - 1.5);

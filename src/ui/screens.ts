@@ -4,10 +4,9 @@
 // paysage, « TOURNE » + dessin de tablette en portrait) et, depuis la tâche 11, podium (temps de Galahad, trois marches
 // avec prénom, petite voiture et médaille, case de Galahad hors podium, ENCORE et MENU). Les quatre calques sont créés
 // une fois et cachés par `hidden`, jamais retirés : un doigt posé sur JOUER garde ainsi sa cible jusqu'au `pointerup`,
-// qui remonte à `window` et relâche le gaz (`Throttle`). Chromium redirige de lui-même vers `window` le `pointerup` d'une
-// cible retirée (mesuré en e2e) ; la protection vaut pour jsdom et les autres navigateurs, et ne coûte rien. JOUER n'a
-// PAS `data-no-pedal` (« le pointerdown sur JOUER compte comme doigt posé », spec §8) ; AUTRE PISTE, REPRENDRE et le
-// voile de pause entier en portent (un tap n'y est jamais du gaz) ; au podium, le voile entier, ENCORE et MENU aussi.
+// qui remonte à `window` et y demande le plein écran (`Game.play`). Chromium redirige de lui-même vers `window` le
+// `pointerup` d'une cible retirée (mesuré en e2e) ; la protection vaut pour jsdom et les autres navigateurs, et ne coûte
+// rien. Depuis la tâche 11d, la voiture roule seule : aucun doigt n'est plus du gaz, aucun calque n'a à s'en protéger.
 import { ordinal, type PodiumPlace, type PodiumView } from '../cars/ranking';
 import { FONT_FAMILY } from './font';
 import { formatTime } from './hud';
@@ -142,23 +141,23 @@ const HOME_SVG = `<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false" 
 
 export interface TitleActions {
   /**
-   * JOUER : au `pointerdown` (`viaPointer` vrai : le doigt compte comme gaz, spec §8, et le plein écran se demande au
-   * `pointerup` suivant) et au `click` (`viaPointer` faux : clavier, pas de plein écran) ; `Game` ignore le doublon.
+   * JOUER : au `pointerdown` (`viaPointer` vrai : le plein écran se demande au `pointerup` suivant, spec §8) et au
+   * `click` (`viaPointer` faux : clavier, pas de plein écran) ; `Game` ignore le doublon.
    */
   onPlay(viaPointer: boolean): void;
-  /** AUTRE PISTE : au `click` ; le bouton porte data-no-pedal. */
+  /** AUTRE PISTE : au `click`. */
   onOtherTrack(): void;
 }
 
 export interface PodiumActions {
   /**
-   * ENCORE : au `pointerdown` ET au `click` (data-no-pedal). Un doigt de gaz peut rester posé quand le podium arrive : avec
-   * un autre doigt sur l'écran, le `click` du tap ne part pas toujours (leçon de REPRENDRE, session 6). Le doublon est sans
-   * effet : après le premier, la phase est `countdown`, qui n'a pas de ligne `again`.
+   * ENCORE : au `pointerdown` ET au `click`. Un autre doigt peut rester posé sur l'écran quand le podium arrive : avec lui,
+   * le `click` du tap ne part pas toujours (leçon de REPRENDRE, session 6). Le doublon est sans effet : après le premier,
+   * la phase est `countdown`, qui n'a pas de ligne `again`.
    */
   onAgain(): void;
   /**
-   * MENU (data-no-pedal) : au `pointerup` du doigt posé sur MENU et au `click`, jamais au `pointerdown` (A20, revu au tour 1).
+   * MENU : au `pointerup` du doigt posé sur MENU et au `click`, jamais au `pointerdown` (A20, revu au tour 1).
    */
   onMenu(): void;
 }
@@ -217,33 +216,29 @@ export class Screens {
     play.addEventListener('pointerdown', () => actions.onPlay(true));
     play.addEventListener('click', () => actions.onPlay(false));
     const other = this.button('btn-other', 'AUTRE PISTE', DICE_SVG);
-    other.setAttribute('data-no-pedal', '');
     other.addEventListener('click', () => actions.onOtherTrack());
     buttons.append(play, other);
     this.title.append(name, buttons, version);
 
-    // Décompte : un texte centré, le calque ne capte pas le toucher (le doigt gardé depuis JOUER reste du gaz).
+    // Décompte : un texte centré, le calque ne capte pas le toucher.
     this.countdown = this.div('screen screen-countdown');
     this.countdownText = this.div('countdown-text');
     this.countdown.appendChild(this.countdownText);
 
-    // Pause : voile entier data-no-pedal (un doigt posé hors du bouton n'est jamais du gaz à PARTEZ), texte, tablette, REPRENDRE.
+    // Pause : voile entier, texte, tablette, REPRENDRE.
     this.pause = this.div('screen screen-pause');
-    this.pause.setAttribute('data-no-pedal', '');
     this.pauseText = this.div('pause-text', 'PAUSE');
     this.tablet = this.div('pause-tablet');
     this.tablet.innerHTML = TABLET_SVG;
     this.tablet.hidden = true;
     this.resume = this.button('btn-resume', 'REPRENDRE');
-    this.resume.setAttribute('data-no-pedal', '');
     this.resume.addEventListener('pointerdown', () => actions.onResume());
     this.resume.addEventListener('click', () => actions.onResume());
     this.pause.append(this.pauseText, this.tablet, this.resume);
 
-    // Podium (tâche 11) : voile data-no-pedal (un doigt laissé dessus n'est pas du gaz à PARTEZ après ENCORE), temps de
-    // Galahad, trois marches (2e, 1er, 3e de gauche à droite), case de Galahad hors podium, ENCORE et MENU. Rempli par `showPodium`.
+    // Podium (tâche 11) : voile, temps de Galahad, trois marches (2e, 1er, 3e de gauche à droite), case de Galahad hors
+    // podium, ENCORE et MENU. Rempli par `showPodium`.
     this.podium = this.div('screen screen-podium');
-    this.podium.setAttribute('data-no-pedal', '');
     this.podiumTime = this.div('podium-time');
     const row = this.div('podium-row');
     this.steps = ([2, 1, 3] as const).map((place) => {
@@ -269,18 +264,16 @@ export class Screens {
     row.appendChild(this.me);
     const podiumButtons = this.div('podium-buttons');
     const again = this.button('btn-again', 'ENCORE', AGAIN_SVG);
-    again.setAttribute('data-no-pedal', '');
-    // ENCORE au pointerdown (doigt de gaz encore posé : le click peut ne pas partir) et au click (clavier) ; doublon ignoré par `Game`.
+    // ENCORE au pointerdown (un autre doigt posé : le click peut ne pas partir) et au click (clavier) ; doublon ignoré par `Game`.
     again.addEventListener('pointerdown', () => actions.onAgain());
     again.addEventListener('click', () => actions.onAgain());
     // MENU jamais au pointerdown (A20) : au titre, AUTRE PISTE est presque à la même place ; le titre montré sous le doigt
     // posé, le click du même tap y changerait de piste. MENU agit au pointerup du doigt posé sur MENU lui-même (le click ne
-    // part pas toujours quand un doigt de gaz reste posé, cr 2 du tour 1) et au click (clavier). Le click qui suit le
+    // part pas toujours quand un autre doigt reste posé, cr 2 du tour 1) et au click (clavier). Le click qui suit le
     // pointerup est calculé par Chromium à l'endroit du tap, sur le titre déjà montré : il tomberait sur AUTRE PISTE
     // (mesuré en e2e à 844 × 390). Il est donc avalé (`swallowNextClick`, CLICK_SWALLOW_MS). `Game` ignore un doublon (`title` n'a pas de
     // ligne `menu`).
     const menu = this.button('btn-menu', 'MENU', HOME_SVG);
-    menu.setAttribute('data-no-pedal', '');
     let menuPointer: number | null = null;
     menu.addEventListener('pointerdown', (e) => { menuPointer = e.pointerId; });
     // Appui sorti de MENU (souris glissée dehors) ou annulé : oublié, un pointerup ultérieur sur MENU ne l'active pas
@@ -388,7 +381,7 @@ export class Screens {
       this.cancelClickSwallow();
     };
     win.addEventListener('click', swallow, { capture: true });
-    // La fenêtre se ferme d'elle-même : un tap sans click (doigt de gaz tenu) ne laisse pas l'écouteur en place (tour 2).
+    // La fenêtre se ferme d'elle-même : un tap sans click (autre doigt tenu) ne laisse pas l'écouteur en place (tour 2).
     const timer = win.setTimeout(() => this.cancelClickSwallow(), CLICK_SWALLOW_MS);
     this.clickSwallow = () => {
       win.removeEventListener('click', swallow, { capture: true });

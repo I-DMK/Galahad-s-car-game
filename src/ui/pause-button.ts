@@ -1,6 +1,6 @@
 // Bouton pause en course (plan B, tâche 11, Partie 5 ; demande du papa après le test tablette de la tâche 10) : sous le
-// chrono, en haut à droite, visible pendant le décompte et la course seulement (`Game`). data-no-pedal : son tap n'est jamais
-// du gaz (`Throttle`) ; il met en pause comme le geste retour (calque PAUSE, REPRENDRE, reprise par un décompte à 3).
+// chrono, en haut à droite, visible pendant le décompte et la course seulement (`Game`). Il met en pause comme le geste
+// retour (calque PAUSE, REPRENDRE, reprise par un décompte à 3, puis la voiture repart seule).
 const STYLE_ID = 'pause-button-style';
 /** Sous le chrono de `hud.ts` (top clamp(6px,1.25vw,16px), police clamp(26px,5vw,64px)), même marge droite. */
 const CSS = `
@@ -29,11 +29,10 @@ export class PauseButton {
     const el = doc.createElement('button');
     el.type = 'button';
     el.className = 'pause-button';
-    el.setAttribute('data-no-pedal', '');
     el.setAttribute('aria-label', 'Pause');
     el.innerHTML = PAUSE_SVG;
     el.hidden = true;
-    // Au pointerdown (tout de suite, même avec un doigt de gaz posé ailleurs) et au click (clavier) ; `Game` ignore le doublon.
+    // Au pointerdown (tout de suite, même avec un autre doigt posé ailleurs) et au click (clavier) ; `Game` ignore le doublon.
     // `blur` : un Espace tapé ensuite au clavier reste un saut, pas un nouveau click sur ce bouton.
     const fire = (): void => { el.blur(); onPause(); };
     el.addEventListener('pointerdown', fire);

@@ -1,33 +1,33 @@
-// Bouton saut sur tablette simulée (plan B, tâche 5e, Step 4) : tap seul (saut sans gaz), gaz + tap (la voiture
-// avance et saute), Espace (un saut, rien sur une répétition), HUD de debug sous le bouton, capture. Chaque test lance la
-// course par le vrai bouton JOUER (`startRace`, tâche 10).
+// Bouton saut sur tablette simulée (plan B, tâche 5e, Step 4) : tap seul (un saut, la voiture roulant seule depuis
+// PARTEZ, tâche 11d), un doigt posé ailleurs + tap de l'autre (un saut), Espace (un saut, rien sur une répétition), HUD de
+// debug sous le bouton, capture. Chaque test lance la course par le vrai bouton JOUER (`startRace`, tâche 10).
 import { expect, test } from '@playwright/test';
-import { SHOTS, gameState, holdFingerAndTapJump, jumpState, startRace, tapJump, waitForGame, waitForRaceTime } from './helpers';
+import {
+  SHOTS, gameState, jumpState, restFingerAndTapJump, startRace, tapJump, tapJumpUntilJump, waitForGame, waitForRaceTime,
+} from './helpers';
 
 
-test('tap seul sur le bouton : un saut, sans gaz', async ({ page }) => {
+test('tap seul sur le bouton : un saut ; la voiture roule toujours seule, gaz à fond', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await startRace(page);
   expect((await jumpState(page)).jumps).toBe(0);
-  const { throttleDuring } = await tapJump(page);
-  expect(throttleDuring).toBe(false);
+  await tapJump(page);
   await page.waitForFunction(() => (window as any).__game.jumps >= 1);
   await page.waitForTimeout(300);
-  expect(await jumpState(page)).toEqual({ jumps: 1, throttlePressed: false });
+  expect(await jumpState(page)).toEqual({ jumps: 1, galahadThrottle: true });
 });
 
-test('gaz d’un doigt + tap sur le bouton de l’autre : la voiture avance et saute', async ({ page }) => {
+test('un doigt posé ailleurs + tap sur le bouton de l’autre : un saut, la voiture avance (le doigt posé ne fait rien)', async ({ page }) => {
   await page.goto('./?seed=1&debug=1');
   await waitForGame(page);
   await startRace(page);
   const before = (await gameState(page)).progress;
-  const { throttleWithB, throttleAfterB } = await holdFingerAndTapJump(page);
-  expect(throttleWithB).toBe(true);
-  expect(throttleAfterB).toBe(true);
+  await restFingerAndTapJump(page, 1, 1);
   const after = await gameState(page);
-  expect((await jumpState(page)).jumps).toBe(1);
-  expect(after.progress - before).toBeGreaterThan(10);
+  expect(await jumpState(page)).toEqual({ jumps: 1, galahadThrottle: true });
+  expect(after.state).toBe('racing');
+  expect(after.progress - before).toBeGreaterThan(5);
 });
 
 test('Espace : un saut ; Espace répété (repeat) une fois la voiture prête : rien', async ({ page }) => {
@@ -76,17 +76,20 @@ test('HUD de debug sous le bouton : boîtes disjointes, bouton dans la vue ; cap
   expect(b.x + b.width / 2).toBeLessThan(640);
   expect(b.y + b.height / 2).toBeGreaterThan(400);
   // Capture en plein saut : le bouton est grisé en l'air, à partir de JUMP_GROUND_GRACE (0,35 s) après le dernier
-  // contact de jeu (tolérance de sol, tâche 5e Step 11). Saut une fois les 4 copains passés (15 m devant) : au départ,
-  // un copain qui arrive par derrière heurte Galahad en l'air, et un toit compte comme du sol. Instant lu dans le
-  // jeu, dans la même évaluation que la classe : délai de 0,5 s écoulé et tolérance dépassée de 0,05 s (un instant
-  // lu après le tap arrive ≈ 0,3 s en retard).
+  // contact de jeu (tolérance de sol, tâche 5e Step 11). Saut loin des 4 copains (15 m) : un copain qui arrive par
+  // derrière heurte Galahad en l'air, et un toit compte comme du sol. Depuis la tâche 11d, Galahad roule seul dès PARTEZ
+  // et les copains ne le dépassent plus sur la grille : ils sont déclarés arrivés au départ par la poignée de débogage
+  // (comme au podium, A12), ils freinent derrière lui. Instant lu dans le jeu, dans la même évaluation que la classe :
+  // délai de 0,5 s écoulé et tolérance dépassée de 0,05 s (un instant lu après le tap arrive ≈ 0,3 s en retard).
+  await page.evaluate(() => { const g = (window as any).__game; for (const i of [1, 2, 3, 4]) g.sim.cars[i].state.finishedAt = 0.1 * i; });
   await page.waitForFunction(() => {
     const g = (window as any).__game;
     const ids: string[] = g.pilots.map((p: { id: string }) => p.id);
-    return ids.slice(1).every((id) => g.progress(id) > g.progress(ids[0]) + 15);
+    return ids.slice(1).every((id) => g.progress(id) < g.progress(ids[0]) - 15);
   }, undefined, { timeout: 30_000 });
-  await tapJump(page);
-  const s = (await (await page.waitForFunction(() => {
+  // Galahad roule (tâche 11d) : tap quand le bouton est prêt, répété jusqu'à un saut compté (`tapJumpUntilJump`).
+  expect(await tapJumpUntilJump(page)).toBe(1);
+  const s =(await (await page.waitForFunction(() => {
     const g = (window as any).__game;
     const c = g.sim.cars[0];
     const t: number = g.sim.time;
@@ -111,14 +114,8 @@ test('plat étoile : l’étoile haute du 1er plat étoile à l’écran ; captu
     const flat = t.slices.find((s: { type: string }) => s.type === 'plat-étoile');
     return t.stars.find((s: { high: boolean; x: number }) => s.high && s.x >= flat.xStart && s.x <= flat.xEnd).x as number;
   });
-  const cdp = await page.context().newCDPSession(page);
-  try {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 640, y: 400, id: 0 }] });
-    await page.waitForFunction((xx) => (window as any).__game.progress('galahad') >= xx - 16, x, { timeout: 60_000 });
-    await page.screenshot({ path: `${SHOTS}/plat-etoile.png`, fullPage: true });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  } finally {
-    await cdp.detach();
-  }
+  // La voiture roule seule jusqu'au plat étoile (tâche 11d).
+  await page.waitForFunction((xx) => (window as any).__game.progress('galahad') >= xx - 16, x, { timeout: 60_000 });
+  await page.screenshot({ path: `${SHOTS}/plat-etoile.png`, fullPage: true });
   expect((await gameState(page)).progress).toBeGreaterThan(x - 20);
 });

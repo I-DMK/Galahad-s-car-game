@@ -44,13 +44,6 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-/** Doigt posé (pointeur 1) : la vraie entrée `Throttle` de `Game`. */
-function pressFinger(): void {
-  const ev = new Event('pointerdown', { bubbles: true, cancelable: true });
-  Object.defineProperty(ev, 'pointerId', { value: 1 });
-  window.dispatchEvent(ev);
-}
-
 /** Index des voitures dont un événement 'respawn' figure dans le dernier pas (lu directement dans `sim.events`). */
 function respawned(sim: RaceSim): Set<number> {
   const ids = new Set(sim.events.filter((e) => e.type === 'respawn').map((e) => e.carId));
@@ -64,7 +57,7 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
   const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
   const internals = game as unknown as {
     sim: RaceSim; loop: { acc: number; history: { reset(p: CarPose[]): void } }; step: (...a: unknown[]) => unknown;
-    stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void };
+    stop(): void; releaseContextMenu(): void; jumpInput: { dispose(): void };
   };
   const { sim } = internals;
   // Galahad et le copain 2 posés sur la lave du premier volcan : ils réapparaissent au même pas pendant le test
@@ -83,7 +76,6 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
     return out;
   };
 
-  pressFinger();
   // Par le vrai chemin (tâche 10) : titre, JOUER, décompte sans pas ; les images du décompte dessinent la grille figée.
   let now = startRacing(game, () => raf!);
   drawn.length = 0;
@@ -129,7 +121,7 @@ test('Game : voitures interpolées, sans traînée à une réapparition, Scene.t
   expect(teleportFramesChecked).toBeGreaterThanOrEqual(1);
   expect(interpolatedFrames).toBeGreaterThan(20);
   internals.stop();
-  internals.throttle.dispose();
+  internals.releaseContextMenu();
   internals.jumpInput.dispose();
 });
 
@@ -145,7 +137,7 @@ test('Game : demande de saut gardée sur une image sans pas et donnée au pas su
   const hud = document.createElement('div');
   document.body.append(canvas, hud);
   const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
-  const internals = game as unknown as { sim: RaceSim; stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void } };
+  const internals = game as unknown as { sim: RaceSim; stop(): void; releaseContextMenu(): void; jumpInput: { dispose(): void } };
   const { sim } = internals;
   const button = hud.querySelector('.jump-button')!;
   let now = startRacing(game, () => raf!);
@@ -162,10 +154,9 @@ test('Game : demande de saut gardée sur une image sans pas et donnée au pas su
   expect(sim.time).toBeCloseTo(DT, 12);
   expect(game.jumps).toBe(1);
 
-  // Galahad posé au sol 3 m avant la ligne, doigt posé : il arrive.
+  // Galahad posé au sol 3 m avant la ligne (il roule seul, gaz à fond) : il arrive.
   const x = sim.track.xFinish - 3;
   placeCar(sim.cars[0].body, x, (xx) => heightAt(sim.track, xx), 0, CONFIG);
-  pressFinger();
   for (let f = 0; f < 600 && game.state !== 'finished'; f++) { now += DT * 1000; raf!(now); }
   expect(game.state).toBe('finished');
   // Une seconde plus tard, voiture freinée au sol : bouton grisé ; un tap et Espace ne font rien.
@@ -181,7 +172,7 @@ test('Game : demande de saut gardée sur une image sans pas et donnée au pas su
   expect(game.jumps).toBe(1);
   expect(button.classList.contains('is-waiting')).toBe(true);
   internals.stop();
-  internals.throttle.dispose();
+  internals.releaseContextMenu();
   internals.jumpInput.dispose();
 });
 
@@ -190,7 +181,7 @@ test('Game : un pas qui lève jette la demande de saut ; après rebuildCars (té
   const hud = document.createElement('div');
   document.body.append(canvas, hud);
   const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
-  const internals = game as unknown as { sim: RaceSim; stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void; pending: boolean } };
+  const internals = game as unknown as { sim: RaceSim; stop(): void; releaseContextMenu(): void; jumpInput: { dispose(): void; pending: boolean } };
   const { sim } = internals;
   const error = vi.spyOn(console, 'error').mockImplementation(() => {});
   let now = startRacing(game, () => raf!);
@@ -209,7 +200,7 @@ test('Game : un pas qui lève jette la demande de saut ; après rebuildCars (té
   expect(game.jumps).toBe(0);
   expect(sim.cars[0].state.lastJumpAt).toBeNull();
   internals.stop();
-  internals.throttle.dispose();
+  internals.releaseContextMenu();
   internals.jumpInput.dispose();
 });
 
@@ -219,14 +210,13 @@ test('Game (tâche 11c) : choc de Galahad contre le premier rocher de la graine 
   document.body.append(canvas, hud);
   const game = new Game(canvas, hud, { seed: 1, length: 1680, debug: false });
   const internals = game as unknown as {
-    sim: RaceSim; effects: Effects; step: (i: number, pressed: boolean, events: SimEvent[]) => unknown;
-    stop(): void; throttle: { dispose(): void }; jumpInput: { dispose(): void };
+    sim: RaceSim; effects: Effects; step: (i: number, events: SimEvent[]) => unknown;
+    stop(): void; releaseContextMenu(): void; jumpInput: { dispose(): void };
   };
   const { sim } = internals;
   const rock = sim.track.rocks[0];
   expect(rock.xStart).toBeCloseTo(76.1, 1);
   const burst = vi.spyOn(Effects.prototype, 'rockBurst');
-  pressFinger();
   let now = startRacing(game, () => raf!);
   let hitFrame = -1;
   let shardsBefore = 0;
@@ -250,8 +240,8 @@ test('Game (tâche 11c) : choc de Galahad contre le premier rocher de la graine 
   const step = internals.step.bind(game);
   const copain = sim.cars[1].state.id;
   let injected = false;
-  internals.step = (i, pressed, events) => {
-    const out = step(i, pressed, events);
+  internals.step = (i, events) => {
+    const out = step(i, events);
     if (!injected) { events.push({ type: 'rock', carId: copain, t: sim.time, x: chassisX(sim.cars[0]), id: 1 }); injected = true; }
     return out;
   };
@@ -261,6 +251,6 @@ test('Game (tâche 11c) : choc de Galahad contre le premier rocher de la graine 
   expect(burst).toHaveBeenCalledTimes(1);
   expect(game.rocksHit).toBe(1);
   internals.stop();
-  internals.throttle.dispose();
+  internals.releaseContextMenu();
   internals.jumpInput.dispose();
 });

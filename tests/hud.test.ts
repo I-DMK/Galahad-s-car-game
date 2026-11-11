@@ -212,17 +212,10 @@ describe('Hud : barre de progression en cinq couloirs', () => {
   });
 });
 
-/** pointerdown (pointeur 1) : le doigt de gaz de `Throttle`. */
-function pressFinger(): void {
-  const ev = new Event('pointerdown', { bubbles: true, cancelable: true });
-  Object.defineProperty(ev, 'pointerId', { value: 1 });
-  window.dispatchEvent(ev);
-}
-
 interface GameInternals {
   sim: RaceSim;
   stop(): void;
-  throttle: { dispose(): void };
+  releaseContextMenu(): void;
   jumpInput: { dispose(): void };
 }
 
@@ -233,16 +226,15 @@ function makeGame(): { game: Game; root: HTMLElement; sim: RaceSim } {
   const game = new Game(canvas, root, { seed: 1, length: 1680, debug: false });
   // `sim` n'est lu que pour comparer le DOM à l'état de la course ; tout passe par l'API publique (start, rAF, DOM).
   const internals = game as unknown as GameInternals;
-  disposers.push(() => { internals.stop(); internals.throttle.dispose(); internals.jumpInput.dispose(); });
+  disposers.push(() => { internals.stop(); internals.releaseContextMenu(); internals.jumpInput.dispose(); });
   return { game, root, sim: internals.sim };
 }
 
 describe('Game : HUD de position', () => {
-  test('position vide la première seconde de course, « 1er » ensuite (Galahad en pole, doigt posé)', () => {
+  test('position vide la première seconde de course, « 1er » ensuite (Galahad en pole, gaz à fond tout seul)', () => {
     const { game, root, sim } = makeGame();
     const position = root.querySelector<HTMLElement>('.hud-position')!;
     const text = root.querySelector('.hud-rank')!;
-    pressFinger();
     // Par le vrai chemin (tâche 10) : titre, JOUER, décompte sans pas, puis la course ; `now` relatif à la fin du décompte.
     let now = startRacing(game, () => raf!);
     let hidden = 0;
@@ -281,7 +273,6 @@ describe('Game : HUD de position', () => {
     const { game, root, sim } = makeGame();
     const markers = [...root.querySelectorAll<HTMLElement>('.hud-marker')];
     expect(markers).toHaveLength(5);
-    pressFinger();
     let now = startRacing(game, () => raf!);
     for (let f = 0; f < 600; f++) { now += DT * 1000; raf!(now); }
     const { xStart, xFinish } = sim.track;
@@ -299,7 +290,6 @@ describe('Game : HUD de position', () => {
   test('la place montrée vient du classement de la course : DisplayedRank reçoit les voitures, Galahad et le temps de course', () => {
     const { game, sim } = makeGame();
     const update = vi.spyOn(DisplayedRank.prototype, 'update');
-    pressFinger();
     const now = startRacing(game, () => raf!);
     for (let f = 0; f < 90; f++) raf!(now + 5 + f * DT * 1000);
     expect(update).toHaveBeenCalled();
@@ -311,11 +301,10 @@ describe('Game : HUD de position', () => {
 
   test('le HUD montre la place RENDUE par DisplayedRank (pas le classement brut, pas la première valeur) : vide la 1re seconde, « 4e » puis « 2e »', () => {
     const { game, root, sim } = makeGame();
-    // `update` rend 4 jusqu'à 1,5 s de course, puis 2 ; Galahad, en pole et doigt posé, est 1er au classement brut tout du long.
+    // `update` rend 4 jusqu'à 1,5 s de course, puis 2 ; Galahad, en pole et gaz à fond, est 1er au classement brut tout du long.
     vi.spyOn(DisplayedRank.prototype, 'update').mockImplementation((_cars, _me, t) => (t < 1.5 ? 4 : 2));
     const position = root.querySelector<HTMLElement>('.hud-position')!;
     const text = root.querySelector('.hud-rank')!;
-    pressFinger();
     const now = startRacing(game, () => raf!);
     const seen = { hidden: 0, fourth: 0, second: 0 };
     for (let f = 0; f < 120; f++) {

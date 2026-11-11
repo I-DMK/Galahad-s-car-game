@@ -128,7 +128,7 @@ const viewOf = (order: number[], time = 83.4, ps: readonly Pilot[] = pilots) =>
 const click = (el: Element) => el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 const pointerDown = (el: Element) => { const e = new Event('pointerdown', { bubbles: true }); Object.defineProperty(e, 'pointerId', { value: 3 }); el.dispatchEvent(e); };
 
-test('podium : calque caché à la création, montré seul par showPodium, voile entier data-no-pedal, temps de Galahad en mm:ss', () => {
+test('podium : calque caché à la création, montré seul par showPodium, voile entier, temps de Galahad en mm:ss', () => {
   const { screens, q } = makeScreens();
   expect(q('.screen-podium').hidden).toBe(true);
   expect(q('.podium-me').hidden).toBe(true);   // la case de Galahad ne se montre jamais avant un podium où il est 4e ou 5e
@@ -136,7 +136,6 @@ test('podium : calque caché à la création, montré seul par showPodium, voile
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   expect(q('.screen-podium').hidden).toBe(false);
   for (const s of ['.screen-title', '.screen-countdown', '.screen-pause']) expect(q(s).hidden, s).toBe(true);
-  expect(q('.screen-podium').hasAttribute('data-no-pedal')).toBe(true);
   expect(q('.podium-time').textContent).toBe(formatTime(83.4));
   expect(q('.podium-time').textContent).toBe('01:23');
 });
@@ -184,13 +183,12 @@ test('Galahad 4e puis 5e : case à droite avec sa place, sa voiture (peinte en 4
   expect(q('.podium-me-place').textContent).toBe('5e');
 });
 
-test('ENCORE et MENU : data-no-pedal, mots et icônes ; onAgain au pointerdown ET au click (un doigt de gaz peut rester posé) ; onMenu au click, jamais au pointerdown (A20) ; ≥ 96 px déclarés', () => {
+test('ENCORE et MENU : mots et icônes ; onAgain au pointerdown ET au click (un autre doigt peut rester posé) ; onMenu au click, jamais au pointerdown (A20) ; ≥ 96 px déclarés', () => {
   const { screens, actions, q } = makeScreens();
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
   const again = q('.btn-again');
   const menu = q('.btn-menu');
   for (const b of [again, menu]) {
-    expect(b.hasAttribute('data-no-pedal')).toBe(true);
     expect(b.querySelector('svg')).not.toBeNull();
     expect(parseFloat(getComputedStyle(b).getPropertyValue('min-width'))).toBeGreaterThanOrEqual(96);
     expect(parseFloat(getComputedStyle(b).getPropertyValue('min-height'))).toBeGreaterThanOrEqual(96);
@@ -209,7 +207,7 @@ test('ENCORE et MENU : data-no-pedal, mots et icônes ; onAgain au pointerdown E
   expect(actions.onMenu).toHaveBeenCalledTimes(1);
 });
 
-test('MENU au doigt : au pointerup du doigt posé sur MENU lui-même (le click ne part pas toujours avec un doigt de gaz tenu), jamais au pointerdown ; un pointerup d’un autre doigt ou sans appui sur MENU ne fait rien (cr 2, tour 1)', () => {
+test('MENU au doigt : au pointerup du doigt posé sur MENU lui-même (le click ne part pas toujours avec un autre doigt tenu), jamais au pointerdown ; un pointerup d’un autre doigt ou sans appui sur MENU ne fait rien (cr 2, tour 1)', () => {
   vi.useFakeTimers();   // la fenêtre d'avalement ouverte par le tap se ferme à la fin du test (afterEach), pas au suivant
   const { screens, actions, q } = makeScreens();
   screens.showPodium(viewOf([0, 1, 2, 3, 4]), () => {});
@@ -243,7 +241,7 @@ test('MENU au pointerup : le click du même tap est avalé (AUTRE PISTE sous le 
   expect(actions.onOtherTrack).not.toHaveBeenCalled();
   click(q('.btn-other'));   // un vrai tap ensuite : l'écouteur à usage unique est parti
   expect(actions.onOtherTrack).toHaveBeenCalledTimes(1);
-  // Tap sur MENU sans click qui suive (doigt de gaz tenu) : la fenêtre se ferme d'elle-même à 300 ms.
+  // Tap sur MENU sans click qui suive (autre doigt tenu) : la fenêtre se ferme d'elle-même à 300 ms.
   tapMenu();
   vi.advanceTimersByTime(300);
   click(q('.btn-other'));

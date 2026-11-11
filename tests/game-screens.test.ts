@@ -2,7 +2,8 @@
 // Câblage de `Game` aux écrans (plan B, tâche 10 ; spec §4 « Machine d'états », §8 « Entrée tactile » et « Écrans »,
 // addendum « présentation » §2) : titre → JOUER → décompte (aucun pas) → PARTEZ → course ; pause par popstate, onglet
 // caché ou portrait, reprise par un décompte à 3 sans toucher au chrono ; historique stable ; AUTRE PISTE ; podium (roue
-// libre, classement figé, confettis, ENCORE et MENU, tâche 11) ; erreurs de rendu et de pas. Même harnais que
+// libre, classement figé, confettis, ENCORE et MENU, tâche 11) ; gaz auto de Galahad (tâche 11d : aucun doigt de gaz,
+// une tape hors du bouton saut ne fait rien) ; erreurs de rendu et de pas. Même harnais que
 // tests/hud.test.ts : faux requestAnimationFrame, `performance.now` à 0, contexte vide, `Renderer.resize`/`draw`/`drawTitle`
 // et `paintCarIcon` interceptés.
 import Matter from 'matter-js';
@@ -50,7 +51,7 @@ afterEach(() => {
 });
 
 interface Internals {
-  sim: RaceSim; stop(): void; throttle: { dispose(): void; pressed: boolean }; jumpInput: { dispose(): void; pending: boolean };
+  sim: RaceSim; stop(): void; releaseContextMenu(): void; jumpInput: { dispose(): void; pending: boolean };
   historyArmed: boolean; effects: { count: number; confettiCount: number; spawnSparks(x: number, y: number): void }; camera: { x: number; y: number };
 }
 function makeGame(seed = 1, debug = false) {
@@ -59,7 +60,7 @@ function makeGame(seed = 1, debug = false) {
   document.body.append(canvas, root);
   const game = new Game(canvas, root, { seed, length: 1680, debug, version: '1.1.0' });
   const internals = () => game as unknown as Internals;
-  disposers.push(() => { internals().stop(); internals().throttle.dispose(); internals().jumpInput.dispose(); });
+  disposers.push(() => { internals().stop(); internals().releaseContextMenu(); internals().jumpInput.dispose(); });
   const q = <T extends HTMLElement>(sel: string): T => root.querySelector<T>(sel)!;
   return { game, root, q, internals };
 }
@@ -121,17 +122,89 @@ test('JOUER (pointerdown) → décompte 3, 2, 1 sans aucun pas, PARTEZ la premi�
   expect(game.countdownText).toBeNull();
 });
 
-test('doigt gardé posé depuis JOUER : Galahad avance dès PARTEZ ; le pointerup sur le bouton caché relâche le gaz', () => {
+/** Remplace `step` de `game` par une enveloppe qui note, après chaque pas, le gaz donné à Galahad (`car.throttle`). */
+function recordThrottle(game: Game, internals: () => Internals): boolean[] {
+  const seen: boolean[] = [];
+  const g = game as unknown as { step: (...a: unknown[]) => unknown };
+  const step = g.step.bind(game);
+  g.step = (...a: unknown[]) => { const out = step(...a); seen.push(internals().sim.cars[0].throttle); return out; };
+  return seen;
+}
+
+test('gaz auto (tâche 11d) : sans aucun pointeur, Galahad reçoit le gaz à chaque pas de course et avance dès PARTEZ ; aucun pas pendant le décompte ni la pause ; après REPRENDRE, il repart seul', () => {
+  // `Engine.update` est le pas physique de `stepRace` : son compte d'appels dit combien de pas la course a faits.
+  const update = vi.spyOn(Matter.Engine, 'update');
   const { game, q, internals } = makeGame();
+  const seen = recordThrottle(game, internals);
   game.start();
-  pointer('pointerdown', 4, q('.btn-play'));
-  expect(internals().throttle.pressed).toBe(true);
-  let now = startRacing(game, () => raf!, 0);   // ne touche pas au doigt : le décompte s'écoule avec le doigt posé
+  q('.btn-play').dispatchEvent(new MouseEvent('click', { bubbles: true }));   // clavier : aucun pointeur, de tout le test
+  expect(game.state).toBe('countdown');
+  let now = frames(150, 0, 1000 / 60);   // 2,5 s de décompte
+  expect(game.state).toBe('countdown');
+  expect(update).not.toHaveBeenCalled();
+  expect(game.galahadThrottle, 'aucun gaz avant le premier pas').toBe(false);
   const x0 = game.progress('galahad');
+  now = frames(31, now, 1000 / 60);   // → racing ; l'image du passage ne fait aucun pas
+  expect(game.state).toBe('racing');
   now = frames(120, now);
-  expect(game.progress('galahad') - x0).toBeGreaterThan(2);
-  pointer('pointerup', 4, q('.btn-play'));
-  expect(internals().throttle.pressed).toBe(false);
+  expect(seen.length).toBeGreaterThanOrEqual(120);
+  expect(seen.every((t) => t), 'gaz à chaque pas de course').toBe(true);
+  expect(game.galahadThrottle).toBe(true);
+  expect(game.progress('galahad') - x0, 'Galahad est parti à PARTEZ, sans doigt').toBeGreaterThan(2);
+  // Pause (geste retour) : aucun pas, la voiture ne bouge plus.
+  window.dispatchEvent(new PopStateEvent('popstate'));
+  expect(game.state).toBe('paused');
+  const steps = update.mock.calls.length;
+  const { time: t1 } = internals().sim;
+  const x1 = game.progress('galahad');
+  now = frames(60, now);
+  expect(update.mock.calls.length, 'aucun pas en pause').toBe(steps);
+  expect(game.progress('galahad')).toBe(x1);
+  // REPRENDRE : décompte à 3 sans aucun pas, puis la voiture repart seule.
+  q('.btn-resume').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  expect(game.state).toBe('countdown');
+  now = frames(150, now, 1000 / 60);
+  expect(game.state).toBe('countdown');
+  expect(update.mock.calls.length, 'aucun pas au décompte de la reprise').toBe(steps);
+  now = frames(31, now, 1000 / 60);
+  expect(game.state).toBe('racing');
+  const before = seen.length;
+  now = frames(60, now);
+  // 60 images d'un pas (61 avec le reste de l'accumulateur gardé à la pause).
+  expect(internals().sim.time).toBeGreaterThanOrEqual(t1 + 60 * DT - 1e-9);
+  expect(seen.length - before).toBeGreaterThanOrEqual(60);
+  expect(seen.slice(before).every((t) => t), 'gaz à chaque pas après la reprise').toBe(true);
+  expect(game.progress('galahad') - x1, 'repartie seule après REPRENDRE').toBeGreaterThan(0.5);
+});
+
+test('gaz auto (tâche 11d) : une tape hors du bouton saut pendant la course (fenêtre, canvas, HUD, chrono) ne fait ni sauter, ni pause, ni rien au gaz', () => {
+  const { game, root, q, internals } = makeGame();
+  let now = startRacing(game, () => raf!);
+  now = frames(60, now);
+  const canvas = document.querySelector('canvas')!;
+  const targets: EventTarget[] = [window, document.body, canvas, root, q('.hud-time'), q('.hud-bar')];
+  targets.forEach((target, k) => {
+    pointer('pointerdown', 20 + k, target);
+    expect(internals().jumpInput.pending).toBe(false);
+    now = frames(5, now);
+    pointer('pointerup', 20 + k, target);
+    if (target instanceof Element) target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    now = frames(5, now);
+  });
+  now = frames(30, now);
+  expect(game.state).toBe('racing');
+  expect(game.jumps).toBe(0);
+  expect(game.galahadThrottle).toBe(true);
+  expect(internals().sim.cars[0].state.lastJumpAt).toBeNull();
+});
+
+test('gaz auto (tâche 11d) : plus aucun data-no-pedal dans le DOM du jeu ; l’appui long n’ouvre pas de menu contextuel (preventDefault gardé)', () => {
+  const { game, root } = makeGame(1, true);
+  game.start();
+  expect(root.ownerDocument.querySelectorAll('[data-no-pedal]')).toHaveLength(0);
+  const ev = new Event('contextmenu', { bubbles: true, cancelable: true });
+  document.querySelector('canvas')!.dispatchEvent(ev);
+  expect(ev.defaultPrevented).toBe(true);
 });
 
 test('startRacing : helper → racing, time 0 au premier pas', () => {
@@ -144,7 +217,6 @@ test('startRacing : helper → racing, time 0 au premier pas', () => {
 
 test('pause en course (popstate) : PAUSE + REPRENDRE, sim figée, demande de saut jetée ; REPRENDRE → décompte à 3 → la course reprend au même temps', () => {
   const { game, q, internals } = makeGame();
-  pointer('pointerdown', 1);
   let now = startRacing(game, () => raf!);
   now = frames(120, now);
   const t0 = internals().sim.time;
@@ -270,7 +342,6 @@ test('historique : une entrée poussée au premier décompte, consommée par pop
   let now = startRacing(game, () => raf!, 10_000);
   const { sim } = internals();
   placeCar(sim.cars[0].body, sim.track.xFinish - 3, (x) => heightAt(sim.track, x), 0, CONFIG);
-  pointer('pointerdown', 1);
   for (let f = 0; f < 600 && game.state !== 'finished'; f++) now = frames(1, now);
   expect(game.state).toBe('finished');
   const len1 = history.length;
@@ -368,7 +439,6 @@ test('plein écran : le pointerup n’est écouté qu’après un JOUER au doigt
 
 test('pause et décompte : effets et caméra figés ; MENU vide les effets ; après MENU + JOUER la caméra se cale d’un coup sur la grille (CR2, adv M24, M25)', () => {
   const { game, internals } = makeGame();
-  pointer('pointerdown', 1);
   let now = startRacing(game, () => raf!);
   now = frames(120, now);
   internals().effects.spawnSparks(game.progress('galahad'), 1);
@@ -442,11 +512,10 @@ test('AUTRE PISTE ignoré hors du titre', () => {
   expect(game.state).toBe('racing');
 });
 
-/** Galahad posé 3 m avant la ligne, doigt posé (pointeur 1), images jusqu'à `finished` ; rend le `now` atteint. */
+/** Galahad posé 3 m avant la ligne (il roule seul, gaz à fond), images jusqu'à `finished` ; rend le `now` atteint. */
 function driveToFinished(game: Game, internals: () => Internals, now: number): number {
   const { sim } = internals();
   placeCar(sim.cars[0].body, sim.track.xFinish - 3, (x) => heightAt(sim.track, x), 0, CONFIG);
-  pointer('pointerdown', 1);
   for (let f = 0; f < 600 && game.state !== 'finished'; f++) now = frames(1, now);
   expect(game.state).toBe('finished');
   return now;
@@ -458,7 +527,7 @@ function driveToPodium(game: Game, internals: () => Internals, now: number): num
   return now;
 }
 
-test('podium : ENCORE et MENU (data-no-pedal) ; ENCORE → décompte sur la même piste et les mêmes copains, chrono à 0, podium caché, confettis effacés ; MENU → titre', () => {
+test('podium : ENCORE et MENU ; ENCORE → décompte sur la même piste et les mêmes copains, chrono à 0, podium caché, confettis effacés ; MENU → titre', () => {
   const { game, q, root, internals } = makeGame();
   let now = startRacing(game, () => raf!);
   now = driveToPodium(game, internals, now);
@@ -468,7 +537,6 @@ test('podium : ENCORE et MENU (data-no-pedal) ; ENCORE → décompte sur la mêm
   expect(podium.textContent).not.toMatch(/ARRIVÉE/);
   const buttons = [...podium.querySelectorAll<HTMLButtonElement>('button')];
   expect(buttons.map((b) => b.textContent)).toEqual(['ENCORE', 'MENU']);
-  for (const b of buttons) expect(b.hasAttribute('data-no-pedal'), b.textContent!).toBe(true);
   now = frames(30, now);
   expect(internals().effects.confettiCount).toBeGreaterThan(0);   // Galahad 1er
   const pilots = game.pilots.map((p) => p.id);
@@ -640,19 +708,17 @@ test('aucun pas de course hors de racing et finished : 3 échecs de stepRace en 
   expect(update.mock.calls.length).toBe(calls);
 });
 
-test('bouton pause (option) : caché au titre ; visible au décompte et en course ; tap → PAUSE + REPRENDRE, sim figée, pas de gaz ; caché en pause, à l’arrivée et au podium ; REPRENDRE le rend', () => {
+test('bouton pause (option) : caché au titre ; visible au décompte et en course ; tap → PAUSE + REPRENDRE, sim figée ; caché en pause, à l’arrivée et au podium ; REPRENDRE le rend', () => {
   const { game, q, internals } = makeGame();
   game.start();
   const btn = q('.pause-button');
   expect(btn.hidden).toBe(true);
-  expect(btn.hasAttribute('data-no-pedal')).toBe(true);
   let now = startRacing(game, () => raf!);
   expect(btn.hidden).toBe(false);
   now = frames(60, now);
   const t0 = internals().sim.time;
   pointer('pointerdown', 6, btn);
   expect(game.state).toBe('paused');
-  expect(internals().throttle.pressed).toBe(false);
   expect(q('.pause-text').textContent).toBe('PAUSE');
   expect(btn.hidden).toBe(true);
   pointer('pointerup', 6, btn);
