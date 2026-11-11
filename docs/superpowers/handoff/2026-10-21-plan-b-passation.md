@@ -186,7 +186,7 @@ sans le contexte de celle-ci.
 | 10 machine d'états, titre (copains), décompte, pause, orientation, police | **faite, validée sur capture, déployée** (2026-10-25, run 46, version 1.1.0, e2e:live 27/27) → tablette (rebond Q6, plein écran) |
 | 11 podium (+ bouton pause en course, demande du papa) | **faite, validée sur capture** (2026-10-25), **déployée** en version 1.2.0 (2026-10-25, run 48, bundle `index-D8qTmIHy.js` = build local, e2e:live 30/31 + 3/3 au rejeu du rouge, dû au proxy du conteneur) → jalon « démo tablette » |
 | jalon « démo tablette » | **rempli** (2026-10-25, vidéo du papa) : départ seul, copains reconnus, podium vu, ENCORE ; correctif « or au 1er seul, marche de Galahad cerclée de bleu » déployé en 1.2.1 (run 50, e2e:live 32/32) |
-| 11c (ajoutée, décision du papa) plan C : rochers qui ralentissent, à sauter au bouton | **faite, validée sur capture** (2026-11-11, recommandations suivies : rochers collés gardés, seuil prudents 3 %) ; déploiement en 1.3.0 → test tablette |
+| 11c (ajoutée, décision du papa) plan C : rochers qui ralentissent, à sauter au bouton | **faite, validée sur capture** (2026-11-11, recommandations suivies : rochers collés gardés, seuil prudents 3 %), **déployée** en 1.3.0 (run 52, bundle `index-EezfNVGY.js` = build local, e2e:live 35/35) → test tablette |
 | 12 audio | à faire |
 | 13 PWA et version | à faire |
 | 14 e2e tablette, relecture de mi-parcours | à faire |
