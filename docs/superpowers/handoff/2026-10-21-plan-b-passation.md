@@ -143,6 +143,18 @@ sans le contexte de celle-ci.
   passation, garder les deux côtés). La session de la tâche 6 a été prévenue par
   message le 2026-10-23.
 
+- **Tâche 11c faite et validée sur capture** (session 9, 2026-11-08 → 11) :
+  rochers du plan C (spec `2026-10-25-rochers-design.md`, plan
+  `2026-10-25-plan-c-rochers.md` v1.1), commits `63b32d9..69c0883`. Au plus
+  4 rochers par course (3,38 en moyenne), posés après tous les tirages
+  (terrain et étoiles au bit près), choc → 2 m/s et voiture traversable
+  1,5 s, copains qui sautent avec l'erreur des fosses. Écarts au plan :
+  rulings R-11c-1 à R-11c-12 au registre (zone fantôme ±35 m, placement
+  P2 avec écarts d'étoile 11 m, seuil prudents 3 %, pas d'étoile haute de
+  30 m avant à 11 m après un rocher). Repli d'une ligne :
+  `ROCKS_PER_RACE: 0`. Points à rejuger sur la tablette : registre, ligne
+  « DÉCISION PAPA (2026-11-11) ».
+
 ## Réponses de Galahad encore à recueillir (ne bloquent pas)
 
 - « Les volcans, tu veux qu'ils soient un peu plus difficiles à sauter, ou
@@ -174,7 +186,7 @@ sans le contexte de celle-ci.
 | 10 machine d'états, titre (copains), décompte, pause, orientation, police | **faite, validée sur capture, déployée** (2026-10-25, run 46, version 1.1.0, e2e:live 27/27) → tablette (rebond Q6, plein écran) |
 | 11 podium (+ bouton pause en course, demande du papa) | **faite, validée sur capture** (2026-10-25), **déployée** en version 1.2.0 (2026-10-25, run 48, bundle `index-D8qTmIHy.js` = build local, e2e:live 30/31 + 3/3 au rejeu du rouge, dû au proxy du conteneur) → jalon « démo tablette » |
 | jalon « démo tablette » | **rempli** (2026-10-25, vidéo du papa) : départ seul, copains reconnus, podium vu, ENCORE ; correctif « or au 1er seul, marche de Galahad cerclée de bleu » déployé en 1.2.1 (run 50, e2e:live 32/32) |
-| 11c (ajoutée, décision du papa) plan C : obstacles qui ralentissent, à sauter au bouton | à faire **après le jalon**, régime physique (spec à écrire avec le papa) |
+| 11c (ajoutée, décision du papa) plan C : rochers qui ralentissent, à sauter au bouton | **faite, validée sur capture** (2026-11-11, recommandations suivies : rochers collés gardés, seuil prudents 3 %) ; déploiement en 1.3.0 → test tablette |
 | 12 audio | à faire |
 | 13 PWA et version | à faire |
 | 14 e2e tablette, relecture de mi-parcours | à faire |
@@ -229,6 +241,15 @@ que les copains ajouteront du défi. `L_ELAN` reste à 6 m. À reconsidérer
 après la tâche 5b : durcir `ENGINE_BRAKE` (levier continu, voir registre
 tâche 4) et, si le défi manque encore, proposer au papa d'avancer une part du
 plan C (obstacles qui ralentissent, bouton « bond lunaire »).
+
+## Leçons de la session 9 (2026-11-08 → 11, tâche 11c)
+
+- Un obstacle sur la piste change tout le jeu des copains : les suites lentes (peloton, étoiles survolées, Galahad dernier) ont rougi après une implémentation conforme au plan. Mesurer des options chiffrées avant de trancher (P0 à P3), et garder la garde du plan (« candidates 4,20 ± 0,3, aucune piste à 0 ») comme arbitre.
+- Les tests statiques de placement doivent couvrir plusieurs longueurs (`?len` 300 à 2 500) : un défaut absent à 1 680 m touchait 5 % des rochers des pistes courtes, deux relecteurs l'ont trouvé par sonde.
+- Un test qui compare aux constantes de `CONFIG` ne protège pas contre leur baisse : comparer aux valeurs de la spec, en dur.
+- L'implémenteur a été coupé par la limite hebdomadaire et le conteneur a redémarré : reprise par `SendMessage`, travail non commité laissé à l'implémenteur (le contrôleur ne commite pas à sa place, même si un hook le demande).
+- Le relecteur adversarial travaille dans un worktree isolé (`.claude/worktrees/`, exclu par `.git/info/exclude`) : ses mutants ne touchent pas l'arbre partagé.
+- Le skill `security-review` ne trouve pas de merge-base avec `origin/HEAD` dans un clone superficiel : le relecteur relit le range à la main.
 
 ## Leçons de la session 7 (2026-10-25, fin de la 10 et tâche 11)
 
@@ -351,6 +372,8 @@ Session 6 (2026-10-24 et 25) : **tâche 10 faite et validée sur capture, PAS en
 Session 7 (2026-10-25) : **tâche 10 déployée** (run 46, e2e:live 27/27), retour tablette « tout est bon » + demande d'un bouton pause ; **tâche 11 (podium + bouton pause) faite, validée sur capture et déployée** en 1.2.0 (registre, lignes « Task 11: »).
 
 Session 8 (2026-10-25) : **spec de la 11c écrite et validée par le papa** (`docs/superpowers/specs/2026-10-25-rochers-design.md`, décisions Q-C1 à Q-C8 et Q-C4 bis au registre) ; **plan écrit et relu contre le code** (`docs/superpowers/plans/2026-10-25-plan-c-rochers.md` v1.1). **Suite (session 9, dédiée) : exécuter ce plan** au régime physique (implémenteur frais, quatre relectures, empreinte : `FROZEN` inchangé, `FROZEN_CONFIG` graine 1 recapturée par ruling R-F10 à cause du rocher en 62,5 m), validation du papa sur capture puis tablette, fusion, déploiement en 1.3.0. Démarrage : point 1 ci-dessous, puis lire la spec et le plan ; BASE = tête de `wip-plan-b` au départ, écrite au registre.
+
+Session 9 (2026-11-08 → 11) : **tâche 11c exécutée, relue (quatre relectures, deux tours), validée sur capture par le papa** (registre, lignes « Task 11c: » et « DÉCISION PAPA (2026-11-11) »), fusionnée et déployée en 1.3.0. **Suite : test tablette de la 11c** (plan, Step 33 : rochers vus et sautés, un raté avec éclats, copains qui sautent ou butent ; recueillir Q-C7 signal, taille et nombre ressentis, rocher vu assez tôt, turbo gardé au choc, et les points « à rejuger » du registre), puis **tâche 12 (audio)**, avec le son du choc sur l'événement `'rock'`.
 
 **Jalon « démo tablette » REMPLI le 2026-10-25** (registre). **Suite (session 8) : la 11c** (spec à écrire avec le papa ; Galahad mène longtemps puis se fait doubler à la fin : le défi tient, les obstacles donnent du jeu au bouton saut). Ancienne consigne : **jalon « démo tablette »** (addendum §6) : Galahad lance une course seul depuis le titre, reconnaît les voitures, voit le podium ; le papa filme 30 s ; recueillir son retour (podium, confettis, bouton ⏸, ENCORE/MENU au doigt, fps). Puis **11c** (plan C : obstacles qui ralentissent, régime physique, spec à écrire avec le papa), puis 12 (audio ; le bouton son ira au titre et au podium), 13, 14, 15, 16, 17. Les points 1 à 4 ci-dessous sont l'historique de la session 7.
 
