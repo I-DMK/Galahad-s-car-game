@@ -152,8 +152,15 @@ sans le contexte de celle-ci.
   rulings R-11c-1 à R-11c-12 au registre (zone fantôme ±35 m, placement
   P2 avec écarts d'étoile 11 m, seuil prudents 3 %, pas d'étoile haute de
   30 m avant à 11 m après un rocher). Repli d'une ligne :
-  `ROCKS_PER_RACE: 0`. Points à rejuger sur la tablette : registre, ligne
+  `ROCKS_PER_RACE: 0`. Retour tablette (2026-11-11) : rochers tous pris (inattention), course gagnée quand même, doigt douloureux. Points à rejuger sur la tablette : registre, ligne
   « DÉCISION PAPA (2026-11-11) ».
+- **Tâche 11d faite et validée sur capture** (2026-11-11, version 1.4.0) :
+  la voiture de Galahad roule toute seule de PARTEZ à l'arrivée (`GALAHAD_THROTTLE`
+  dans `src/game.ts`, chemin « doigt posé » de la simulation, inchangée) ; seul le
+  bouton saut (et Espace) agit, une tape ailleurs ne fait rien ; `Throttle` et
+  `data-no-pedal` retirés ; pause au `blur` pendant le décompte et la course
+  (ruling R-11d-1). À observer sur la tablette : un tap pendant que la voiture
+  survole une bosse (bouton grisé) est perdu (décision du papa : tel quel, A).
 
 ## Réponses de Galahad encore à recueillir (ne bloquent pas)
 
@@ -186,7 +193,9 @@ sans le contexte de celle-ci.
 | 10 machine d'états, titre (copains), décompte, pause, orientation, police | **faite, validée sur capture, déployée** (2026-10-25, run 46, version 1.1.0, e2e:live 27/27) → tablette (rebond Q6, plein écran) |
 | 11 podium (+ bouton pause en course, demande du papa) | **faite, validée sur capture** (2026-10-25), **déployée** en version 1.2.0 (2026-10-25, run 48, bundle `index-D8qTmIHy.js` = build local, e2e:live 30/31 + 3/3 au rejeu du rouge, dû au proxy du conteneur) → jalon « démo tablette » |
 | jalon « démo tablette » | **rempli** (2026-10-25, vidéo du papa) : départ seul, copains reconnus, podium vu, ENCORE ; correctif « or au 1er seul, marche de Galahad cerclée de bleu » déployé en 1.2.1 (run 50, e2e:live 32/32) |
-| 11c (ajoutée, décision du papa) plan C : rochers qui ralentissent, à sauter au bouton | **faite, validée sur capture** (2026-11-11, recommandations suivies : rochers collés gardés, seuil prudents 3 %), **déployée** en 1.3.0 (run 52, bundle `index-EezfNVGY.js` = build local, e2e:live 35/35) → test tablette |
+| 11c (ajoutée, décision du papa) plan C : rochers qui ralentissent, à sauter au bouton | **faite, validée sur capture** (2026-11-11, recommandations suivies : rochers collés gardés, seuil prudents 3 %), **déployée** en 1.3.0 (run 52, bundle `index-EezfNVGY.js` = build local, e2e:live 35/35) → test tablette **fait** (2026-11-11) : rochers tous pris faute d'attention mais Galahad gagne quand même ; doigt qui fait mal → 11d ; envie d'obstacles « à action » → 11e |
+| 11d (ajoutée, retour tablette) la voiture avance toute seule après PARTEZ, seul le bouton saut agit | **faite, validée sur capture** (2026-11-11), déployée en 1.4.0 → test tablette |
+| 11e (ajoutée, retour tablette) barrière qui bloque la route, ouverte en tapant une roue/un levier dessiné | à faire : **spec à écrire avec le papa** (brainstorming commencé : décisions au registre, 2026-11-11) |
 | 12 audio | à faire |
 | 13 PWA et version | à faire |
 | 14 e2e tablette, relecture de mi-parcours | à faire |
@@ -224,7 +233,7 @@ sans le contexte de celle-ci.
   décrite ici et dans les plans.
 - **Site en ligne testable depuis le conteneur** (2026-10-23) : le domaine `i-dmk.github.io` est autorisé dans le réseau de l'environnement. `npm run e2e:live` rejoue les 13 e2e sur le site déployé (`playwright.live.config.ts`, adresse changeable par `E2E_LIVE_URL`, captures dans `test-results/live-screenshots`). **À lancer après chaque déploiement**, une fois le run GitHub Actions vert ; vérifier aussi que le hash du `index-*.js` servi est celui d'un build local **à la même base** : depuis la 8b (`import.meta.env.BASE_URL` inscrit dans le bundle), comparer avec `VITE_BASE=/Galahad-s-car-game/ npm run build`.
 - **Playwright dans le conteneur** (2026-10-24) : Playwright 1.56.1 attend Chromium révision 1194, le conteneur n'a que la 1243 (`/opt/pw-browsers`) : `npm run e2e` brut échoue à `browserType.launch`. Contournement sans toucher au dépôt ni à `/opt` : dossier de liens dans le scratchpad (`chromium-1194`, `chromium_headless_shell-1194`, `ffmpeg-1011` → binaires 1243) et `PLAYWRIGHT_BROWSERS_PATH=<scratchpad>/pw-browsers` devant chaque commande Playwright (`npm run e2e`, `npm run e2e:live`). Commande pour le recréer : plan de la 8b, section « Environnement ».
-- **Version** (décision Q3 du papa, tâche 10) : `package.json` donne le numéro affiché au titre (`__APP_VERSION__`, `vite.config.ts`). `1.1.0` = tâche 10, `1.2.0` = tâche 11, `1.2.1` = correctif de la démo tablette ; monter d'un cran à chaque tâche déployée. Pas de date ni de SHA : le hash du bundle reste comparable entre le build local et le site.
+- **Version** (décision Q3 du papa, tâche 10) : `package.json` donne le numéro affiché au titre (`__APP_VERSION__`, `vite.config.ts`). `1.1.0` = tâche 10, `1.2.0` = tâche 11, `1.2.1` = correctif de la démo tablette, `1.3.0` = tâche 11c (rochers), `1.4.0` = tâche 11d (gaz automatique) ; monter d'un cran à chaque tâche déployée. Pas de date ni de SHA : le hash du bundle reste comparable entre le build local et le site.
 - **e2e depuis la tâche 10** : le jeu s'ouvre au titre ; chaque e2e passe par le vrai JOUER (`startRace` dans `e2e/helpers.ts`, ≈ 4 s de décompte par test, `npm run e2e` ≈ 3,5 min). Chromium headless accorde le plein écran au `pointerup` : un test qui change la taille de la fenêtre doit d'abord en sortir (`document.exitFullscreen()`, voir le test portrait de `e2e/screens.spec.ts`).
 - Clone frais : `npm ci` d'abord. Le clone est superficiel (`--depth 1`) :
   `git fetch origin ccr-5b6fabc4-n96ofo` avant un push.
@@ -374,6 +383,7 @@ Session 7 (2026-10-25) : **tâche 10 déployée** (run 46, e2e:live 27/27), reto
 Session 8 (2026-10-25) : **spec de la 11c écrite et validée par le papa** (`docs/superpowers/specs/2026-10-25-rochers-design.md`, décisions Q-C1 à Q-C8 et Q-C4 bis au registre) ; **plan écrit et relu contre le code** (`docs/superpowers/plans/2026-10-25-plan-c-rochers.md` v1.1). **Suite (session 9, dédiée) : exécuter ce plan** au régime physique (implémenteur frais, quatre relectures, empreinte : `FROZEN` inchangé, `FROZEN_CONFIG` graine 1 recapturée par ruling R-F10 à cause du rocher en 62,5 m), validation du papa sur capture puis tablette, fusion, déploiement en 1.3.0. Démarrage : point 1 ci-dessous, puis lire la spec et le plan ; BASE = tête de `wip-plan-b` au départ, écrite au registre.
 
 Session 9 (2026-11-08 → 11) : **tâche 11c exécutée, relue (quatre relectures, deux tours), validée sur capture par le papa** (registre, lignes « Task 11c: » et « DÉCISION PAPA (2026-11-11) »), fusionnée et déployée en 1.3.0. **Suite : test tablette de la 11c** (plan, Step 33 : rochers vus et sautés, un raté avec éclats, copains qui sautent ou butent ; recueillir Q-C7 signal, taille et nombre ressentis, rocher vu assez tôt, turbo gardé au choc, et les points « à rejuger » du registre), puis **tâche 12 (audio)**, avec le son du choc sur l'événement `'rock'`.
+Le test tablette de la 11c a eu lieu le jour même (registre, « RETOUR TABLETTE 11c ») : **tâche 11d (la voiture avance toute seule) faite, validée et déployée en 1.4.0** dans la même session. **Suite (session 10) : brainstorming de la 11e avec le papa**, à reprendre où il s'est arrêté (registre, « DÉCISION PAPA (2026-11-11, brainstorming…) ») : obstacle qui bloque la route, ouvert en tapant une roue ou un levier dessiné à côté (la barrière monte à chaque tape, une dizaine de tapes), copains qui l'ouvrent aussi ; questions restantes (nombre par course, ce que font les copains, temps perdu, place sur la piste, dessin, effet sur l'élastique), puis spec, plan, exécution au régime physique. Sur la tablette, observer aussi la 11d (doigt, sauts perdus en l'air). Puis 12 (audio).
 
 **Jalon « démo tablette » REMPLI le 2026-10-25** (registre). **Suite (session 8) : la 11c** (spec à écrire avec le papa ; Galahad mène longtemps puis se fait doubler à la fin : le défi tient, les obstacles donnent du jeu au bouton saut). Ancienne consigne : **jalon « démo tablette »** (addendum §6) : Galahad lance une course seul depuis le titre, reconnaît les voitures, voit le podium ; le papa filme 30 s ; recueillir son retour (podium, confettis, bouton ⏸, ENCORE/MENU au doigt, fps). Puis **11c** (plan C : obstacles qui ralentissent, régime physique, spec à écrire avec le papa), puis 12 (audio ; le bouton son ira au titre et au podium), 13, 14, 15, 16, 17. Les points 1 à 4 ci-dessous sont l'historique de la session 7.
 
